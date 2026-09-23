@@ -8,6 +8,8 @@ const API_BASE = window.SHIPMENT_API_BASE || (functionMarkerIndex >= 0
 const apiUrl = (path) => `${API_BASE}${path}`;
 const RPC_BASE = window.SHIPMENT_RPC_BASE || '';
 const ACCESS_CODE_KEY = 'shipmentBoardAccessCode';
+const PRINT_HELPER_BASE = 'http://127.0.0.1:8790';
+let deliveryPlan = null;
 
 function getAccessCode() {
   const url = new URL(location.href);
@@ -174,6 +176,17 @@ const els = {
   submitModal: $('#submitModal'),
   submitSummary: $('#submitSummary'),
   shipmentForm: $('#shipmentForm'),
+  generateDeliveryNote: $('#generateDeliveryNote'),
+  deliveryModal: $('#deliveryModal'),
+  deliveryForm: $('#deliveryForm'),
+  deliveryDate: $('#deliveryDate'),
+  deliveryBatch: $('#deliveryBatch'),
+  deliveryStatus: $('#deliveryStatus'),
+  deliveryPreview: $('#deliveryPreview'),
+  closeDeliveryModal: $('#closeDeliveryModal'),
+  closeDeliveryModalAction: $('#closeDeliveryModalAction'),
+  refreshDeliveryPreview: $('#refreshDeliveryPreview'),
+  printDeliveryNotes: $('#printDeliveryNotes'),
   toast: $('#toast'),
 };
 
@@ -575,6 +588,125 @@ function closeSubmitModal() {
   els.submitModal.hidden = true;
 }
 
+function setDeliveryStatus(message, type = '') {
+  els.deliveryStatus.textContent = message;
+  els.deliveryStatus.className = `delivery-status${type ? ` ${type}` : ''}`;
+}
+
+function deliveryPayload() {
+  return {
+    date: els.deliveryDate.value,
+    batch: Number(els.deliveryBatch.value),
+    shipments: snapshot?.shipments || [],
+    orders: snapshot?.orders || [],
+  };
+}
+
+async function deliveryHelper(path, payload) {
+  const options = payload
+    ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
+    : { cache: 'no-store' };
+  const response = await fetch(`${PRINT_HELPER_BASE}${path}`, options);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) throw new Error(data.error || `打印助手请求失败（HTTP ${response.status}）`);
+  return data;
+}
+
+function renderDeliveryPlan(plan) {
+  const notes = plan.notes || [];
+  if (!notes.length) {
+    els.deliveryPreview.innerHTML = '<div class="empty-state"><strong>当天没有可生成的发货数据</strong><span>请先完成装车提交。</span></div>';
+    return;
+  }
+  const zzNotes = notes.filter((note) => note.group === '镀锌/ZZ');
+  const totalQuantity = notes.reduce((sum, note) => sum + Number(note.totalQuantity || 0), 0);
+  els.deliveryPreview.innerHTML = `
+    <div class="delivery-summary">
+      <div><span>送货单</span><strong>${notes.length} 张</strong></div>
+      <div><span>镀锌 / ZZ</span><strong>${zzNotes.length} 张</strong></div>
+      <div><span>合计数量</span><strong>${fmt(totalQuantity)}</strong></div>
+    </div>
+    ${notes.map((note) => `
+      <article class="delivery-note-preview">
+        <div class="delivery-note-head">
+          <strong>${escapeHtml(note.number)} · ${escapeHtml(note.group)}</strong>
+          <span>${note.items.length} 项 · ${fmt(note.totalQuantity)} 件</span>
+        </div>
+        <div class="delivery-note-lines">
+          ${note.items.map((line) => `
+            <div class="delivery-note-line">
+              <span>${escapeHtml(line.po)} · 项次 ${escapeHtml(line.seq)}</span>
+              <span>${escapeHtml(line.material)} · ${escapeHtml(line.name)} · ${escapeHtml(line.spec || '—')}</span>
+              <strong>${fmt(line.quantity)} 件</strong>
+            </div>`).join('')}
+        </div>
+      </article>`).join('')}`;
+}
+
+async function refreshDeliveryPreview() {
+  if (!snapshot) return;
+  const date = els.deliveryDate.value;
+  const batch = Number(els.deliveryBatch.value);
+  if (!date) return setDeliveryStatus('请先选择送货日期。', 'error');
+  if (!Number.isInteger(batch) || batch < 1) return setDeliveryStatus('批次号必须是大于 0 的整数。', 'error');
+  els.printDeliveryNotes.disabled = true;
+  els.refreshDeliveryPreview.disabled = true;
+  setDeliveryStatus('正在汇总当天发货记录...');
+  try {
+    deliveryPlan = await deliveryHelper('/prepare', deliveryPayload());
+    renderDeliveryPlan(deliveryPlan);
+    setDeliveryStatus(`预览已生成：共 ${deliveryPlan.notes.length} 张送货单。修改日期或批次号后会自动重算。`, 'success');
+    els.printDeliveryNotes.disabled = false;
+  } catch (error) {
+    deliveryPlan = null;
+    renderDeliveryPlan({ notes: [] });
+    setDeliveryStatus(`${error.message || '生成预览失败'}。请确认连接 EPSON 的电脑已启动“启动打印助手.cmd”。`, 'error');
+  } finally {
+    els.refreshDeliveryPreview.disabled = false;
+  }
+}
+
+async function openDeliveryModal() {
+  els.deliveryModal.hidden = false;
+  els.deliveryDate.value = snapshot?.today || TODAY;
+  els.deliveryBatch.value = '';
+  deliveryPlan = null;
+  els.deliveryPreview.innerHTML = '';
+  els.printDeliveryNotes.disabled = true;
+  setDeliveryStatus('正在连接打印助手...');
+  try {
+    const health = await deliveryHelper('/health');
+    if (!health.templateExists) throw new Error('打印助手找不到“发货单模板.xlsx”');
+    els.deliveryBatch.value = String(health.nextBatch || 155);
+    setDeliveryStatus(`打印助手已连接：${health.printerName || '使用默认打印机'}。正在生成预览...`);
+    await refreshDeliveryPreview();
+  } catch (error) {
+    setDeliveryStatus(`${error.message || '打印助手未启动'}。请先在连接 EPSON 的电脑上双击“启动打印助手.cmd”。`, 'error');
+  }
+}
+
+function closeDeliveryModal() {
+  els.deliveryModal.hidden = true;
+}
+
+async function printDeliveryNotes() {
+  if (!deliveryPlan) return refreshDeliveryPreview();
+  els.printDeliveryNotes.disabled = true;
+  els.refreshDeliveryPreview.disabled = true;
+  setDeliveryStatus('正在生成 Excel 并发送到 EPSON 打印机...');
+  try {
+    const result = await deliveryHelper('/print', deliveryPayload());
+    els.deliveryBatch.value = String(result.nextBatch || Number(els.deliveryBatch.value) + 1);
+    setDeliveryStatus(`已发送打印：共 ${result.noteCount} 张送货单，下一批次为 ${result.nextBatch}。`, 'success');
+    showToast(`${result.noteCount} 张送货单已发送打印机`);
+  } catch (error) {
+    setDeliveryStatus(`${error.message || '打印失败'}。Excel 文件可能已生成，请查看打印助手窗口。`, 'error');
+  } finally {
+    els.printDeliveryNotes.disabled = false;
+    els.refreshDeliveryPreview.disabled = false;
+  }
+}
+
 async function submitShipment() {
   if (!els.shipmentForm.reportValidity()) return;
   const form = new FormData(els.shipmentForm);
@@ -836,6 +968,13 @@ $('#openSubmit').addEventListener('click', openSubmitModal);
 $('#closeModal').addEventListener('click', closeSubmitModal);
 $('#clearSelection').addEventListener('click', () => { selected.clear(); closeSubmitModal(); renderMobileList(); renderMobileSummary(); renderCart(); });
 $('#submitShipment').addEventListener('click', submitShipment);
+els.generateDeliveryNote.addEventListener('click', openDeliveryModal);
+els.closeDeliveryModal.addEventListener('click', closeDeliveryModal);
+els.closeDeliveryModalAction.addEventListener('click', closeDeliveryModal);
+els.refreshDeliveryPreview.addEventListener('click', refreshDeliveryPreview);
+els.printDeliveryNotes.addEventListener('click', printDeliveryNotes);
+els.deliveryDate.addEventListener('change', refreshDeliveryPreview);
+els.deliveryBatch.addEventListener('change', refreshDeliveryPreview);
 $('#mobileRefresh').addEventListener('click', () => loadState());
 $('#resetButton').addEventListener('click', resetRecords);
 $('#importButton').addEventListener('click', () => els.importFileInput.click());
@@ -844,6 +983,7 @@ els.confirmImport.addEventListener('click', confirmImportOrders);
 els.closeImportModal.addEventListener('click', closeImportDialog);
 els.cancelImport.addEventListener('click', closeImportDialog);
 els.submitModal.addEventListener('click', (event) => { if (event.target === els.submitModal) closeSubmitModal(); });
+els.deliveryModal.addEventListener('click', (event) => { if (event.target === els.deliveryModal) closeDeliveryModal(); });
 els.shipmentHistory.addEventListener('click', (event) => {
   const button = event.target.closest('[data-undo]');
   if (button) undoShipment(button.dataset.undo);
@@ -852,7 +992,7 @@ els.mobileRecordsPanel.addEventListener('click', (event) => {
   const button = event.target.closest('[data-undo]');
   if (button) undoShipment(button.dataset.undo);
 });
-document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeSubmitModal(); });
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closeSubmitModal(); closeDeliveryModal(); } });
 
 function connectEvents() {
   if (eventSource) eventSource.close();
