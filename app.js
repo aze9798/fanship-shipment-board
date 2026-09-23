@@ -248,10 +248,12 @@ async function loadState({ quiet = false } = {}) {
   try {
     const response = await requestWithAccessCode(apiUrl('/api/state'), { cache: 'no-store' });
     if (!response.ok) throw new Error('数据加载失败');
-    snapshot = await response.json();
+    const nextSnapshot = await response.json();
+    const changed = !snapshot || nextSnapshot.revision !== snapshot.revision;
+    snapshot = nextSnapshot;
     if (snapshot.today) TODAY = snapshot.today;
     reconcileSelection();
-    renderAll();
+    if (!quiet || changed) renderAll();
   } catch (error) {
     setLiveStatus('offline');
     if (!quiet) showToast(error.message || '数据加载失败');
@@ -505,6 +507,26 @@ function renderCart() {
   els.mobileCartBar.hidden = mobileTab !== 'entry' || !entries.length;
 }
 
+function updateOrderCardSelection(orderId) {
+  const card = [...document.querySelectorAll('[data-order-card]')].find((item) => item.dataset.orderCard === orderId);
+  if (!card) return;
+  const quantity = Number(selected.get(orderId) || 0);
+  const input = card.querySelector('[data-action="input"]');
+  if (input) input.value = quantity > 0 ? quantity : '';
+  card.classList.toggle('selected', quantity > 0);
+  let tag = card.querySelector('.selected-tag');
+  if (quantity > 0) {
+    if (!tag) {
+      tag = document.createElement('span');
+      tag.className = 'selected-tag';
+      card.prepend(tag);
+    }
+    tag.textContent = `已选 ${fmt(quantity)}`;
+  } else if (tag) {
+    tag.remove();
+  }
+}
+
 function addQuantity(orderId, delta) {
   const order = snapshot.orders.find((item) => item.id === orderId);
   if (!order) return;
@@ -512,7 +534,7 @@ function addQuantity(orderId, delta) {
   const next = Math.max(0, Math.min(order.remaining, current + delta));
   if (next > 0) selected.set(orderId, next);
   else selected.delete(orderId);
-  renderMobileList();
+  updateOrderCardSelection(orderId);
   renderMobileSummary();
   renderCart();
 }
@@ -523,6 +545,7 @@ function setQuantity(orderId, value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) selected.delete(orderId);
   else selected.set(orderId, Math.min(order.remaining, numeric));
+  updateOrderCardSelection(orderId);
   renderMobileSummary();
   renderCart();
 }
@@ -576,7 +599,8 @@ async function submitShipment() {
     selected.clear();
     els.shipmentForm.reset();
     closeSubmitModal();
-    showToast(`${result.shipment.id} 已保存，电脑端正在更新`);
+    const shipmentId = result.shipmentId || result.shipment?.id || '本次发货';
+    showToast(`${shipmentId} 已保存，电脑端正在更新`);
     await loadState();
   } catch (error) {
     showToast(error.message || '提交失败');
@@ -793,7 +817,7 @@ els.mobileOrderList.addEventListener('click', (event) => {
   if (action === 'minus') addQuantity(id, -1);
   if (action === 'fill') {
     selected.set(id, order.remaining);
-    renderMobileList();
+    updateOrderCardSelection(id);
     renderMobileSummary();
     renderCart();
   }
@@ -806,7 +830,7 @@ els.mobileOrderList.addEventListener('input', (event) => {
 els.mobileOrderList.addEventListener('change', (event) => {
   const input = event.target.closest('[data-action="input"]');
   if (!input) return;
-  renderMobileList();
+  updateOrderCardSelection(input.dataset.id);
 });
 $('#openSubmit').addEventListener('click', openSubmitModal);
 $('#closeModal').addEventListener('click', closeSubmitModal);
