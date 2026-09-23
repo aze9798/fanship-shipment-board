@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=15">
+  <link rel="stylesheet" href="./styles.css?v=16">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -93,7 +93,7 @@
             <div class="panel-head">
               <div>
                 <h2>剩余未交明细</h2>
-                <p>按交期优先排序，数据随手机提交自动刷新。</p>
+                <p>按交期优先排序，数据随手机提交自动刷新。拖动表头边界可调整列宽。</p>
               </div>
               <div class="status-pill"><span id="desktopLiveDot" class="live-dot"></span><span id="desktopLiveText">实时同步</span></div>
             </div>
@@ -113,16 +113,26 @@
             </div>
             <div class="table-wrap">
               <table class="orders-table">
+                <colgroup id="desktopOrdersColgroup">
+                  <col style="width: 118px">
+                  <col style="width: 92px">
+                  <col style="width: 220px">
+                  <col style="width: 170px">
+                  <col style="width: 50px">
+                  <col style="width: 78px">
+                  <col style="width: 68px">
+                  <col style="width: 76px">
+                </colgroup>
                 <thead>
                   <tr>
-                    <th>采购单号</th>
-                    <th>编号</th>
-                    <th>品名</th>
-                    <th>图号</th>
-                    <th class="number">项次</th>
-                    <th>交期</th>
-                    <th class="number">未交</th>
-                    <th class="number">实时已发</th>
+                    <th>采购单号<span class="col-resizer" data-col-index="0" role="separator" title="拖动调整列宽，双击恢复默认"></span></th>
+                    <th>编号<span class="col-resizer" data-col-index="1" role="separator" title="拖动调整列宽，双击恢复默认"></span></th>
+                    <th>品名<span class="col-resizer" data-col-index="2" role="separator" title="拖动调整列宽，双击恢复默认"></span></th>
+                    <th>图号<span class="col-resizer" data-col-index="3" role="separator" title="拖动调整列宽，双击恢复默认"></span></th>
+                    <th class="number">项次<span class="col-resizer" data-col-index="4" role="separator" title="拖动调整列宽，双击恢复默认"></span></th>
+                    <th>交期<span class="col-resizer" data-col-index="5" role="separator" title="拖动调整列宽，双击恢复默认"></span></th>
+                    <th class="number">未交<span class="col-resizer" data-col-index="6" role="separator" title="拖动调整列宽，双击恢复默认"></span></th>
+                    <th class="number">实时已发<span class="col-resizer" data-col-index="7" role="separator" title="拖动调整列宽，双击恢复默认"></span></th>
                   </tr>
                 </thead>
                 <tbody id="desktopTableBody"></tbody>
@@ -265,9 +275,10 @@
   <input id="importFileInput" type="file" accept=".xlsx,.xls" hidden>
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="./app.js?v=15" type="module"></script>
+  <script src="./app.js?v=16" type="module"></script>
 </body>
 </html>
+
 
 
 
