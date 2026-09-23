@@ -413,11 +413,36 @@ function renderMobileRemaining() {
     ${rows.map((order) => {
       const badge = dueBadge(order);
       return `<article class="mobile-remaining-card">
-        <div class="mobile-remaining-head">
-          <div><strong>${escapeHtml(order.name)}</strong><span class="mono">${escapeHtml(order.material)} · ${escapeHtml(order.spec)}</span></div>
-          <span class="mobile-remaining-qty">${fmt(order.remaining)}</span>
+        <div class="mobile-remaining-grid">
+          <div class="remaining-field">
+            <span>订单号</span>
+            <strong class="mono">${escapeHtml(order.po)}</strong>
+          </div>
+          <div class="remaining-field">
+            <span>编号</span>
+            <strong class="mono">${escapeHtml(order.material)}</strong>
+          </div>
+          <div class="remaining-field span-2">
+            <span>品名</span>
+            <strong>${escapeHtml(order.name)}</strong>
+          </div>
+          <div class="remaining-field span-2">
+            <span>图号</span>
+            <strong class="mono">${escapeHtml(order.spec || '—')}</strong>
+          </div>
+          <div class="remaining-field">
+            <span>项次</span>
+            <strong>${escapeHtml(order.seq)}</strong>
+          </div>
+          <div class="remaining-field quantity">
+            <span>数量</span>
+            <strong>${fmt(order.remaining)}</strong>
+          </div>
+          <div class="remaining-field span-2 due-field">
+            <span>交期</span>
+            <div><strong>${escapeHtml(formatDate(order.dueDate))}</strong><em class="due-badge ${badge.className}">${escapeHtml(badge.text)}</em></div>
+          </div>
         </div>
-        <span>${escapeHtml(order.po)} · 项次 ${escapeHtml(order.seq)} · ${escapeHtml(badge.text)}</span>
       </article>`;
     }).join('')}`;
 }
