@@ -413,13 +413,15 @@ body[data-view="mobile"] { background: #dfe7e9; }
 @media (max-width: 620px) {
   .mobile-remaining-panel { gap: 6px; }
   .mobile-remaining-card { border-radius: 9px; }
-  .mobile-remaining-row { grid-template-columns: 84px minmax(120px, 1.7fr) 60px 68px; }
-  .remaining-cell { padding: 6px 7px; }
+  .mobile-remaining-row { grid-template-columns: 76px minmax(96px, 1fr) 48px 56px; }
+  .remaining-cell { padding: 5px 5px; }
   .order-cell > strong,
   .detail-line strong,
   .meta-line strong,
-  .due-cell > strong { font-size: 9px; }
-  .meta-line .quantity-value { font-size: 13px; }
+  .due-cell > strong { font-size: 8px; }
+  .detail-line { grid-template-columns: 16px minmax(0, 1fr); gap: 2px; }
+  .meta-line .quantity-value { font-size: 12px; }
+  .due-cell .due-badge { padding: 1px 4px; font-size: 7px; }
 }
 
 /* 电脑端未交明细：按业务字段独立成列 */
@@ -451,6 +453,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .orders-table th:nth-child(7), .orders-table td:nth-child(7) { min-width: 55px; }
 .orders-table th:nth-child(8), .orders-table td:nth-child(8) { min-width: 62px; }
 .item-name { min-width: 0; }
+
 
 
 
