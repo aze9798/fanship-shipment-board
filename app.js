@@ -10,6 +10,15 @@ const RPC_BASE = window.SHIPMENT_RPC_BASE || '';
 const ACCESS_CODE_KEY = 'shipmentBoardAccessCode';
 
 function getAccessCode() {
+  const url = new URL(location.href);
+  const queryCode = url.searchParams.get('code');
+  if (queryCode) {
+    const normalized = queryCode.trim();
+    localStorage.setItem(ACCESS_CODE_KEY, normalized);
+    url.searchParams.delete('code');
+    history.replaceState(null, '', url);
+    return normalized;
+  }
   return localStorage.getItem(ACCESS_CODE_KEY) || '';
 }
 
@@ -623,6 +632,7 @@ function setupRpcExportLink() {
 setupRpcExportLink();
 await loadState();
 connectEvents();
+
 
 
 
