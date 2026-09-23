@@ -388,3 +388,16 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .import-warning { margin: 0 24px 18px; padding: 12px 14px; border: 1px solid #f1d7a6; border-radius: 12px; background: #fff9ec; color: #8b5e13; font-size: 12px; line-height: 1.65; }
 
 
+
+/* 手机未交清单：按字段分栏，避免长信息挤在一行 */
+.mobile-remaining-card { display: block; padding: 0; overflow: hidden; }
+.mobile-remaining-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: #edf2f3; }
+.remaining-field { min-width: 0; padding: 11px 13px; background: #fff; }
+.remaining-field.span-2 { grid-column: span 2; }
+.remaining-field > span { display: block; margin-bottom: 4px; color: #87979d; font-size: 9px; font-weight: 700; letter-spacing: .06em; }
+.remaining-field > strong { display: block; color: #24383f; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.remaining-field.quantity > strong { color: var(--primary); font-size: 19px; font-weight: 800; }
+.remaining-field .mono { font-size: 11px; }
+.due-field > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.due-field > div strong { font-size: 12px; }
+.due-field em { font-style: normal; }
