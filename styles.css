@@ -417,3 +417,17 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .item-name { display: block; min-width: 180px; color: #24383f; font-weight: 700; line-height: 1.45; }
 .material-code, .spec-code { display: block; color: #536970; white-space: nowrap; }
 .shipped-number { color: #435a62; font-weight: 700; }
+
+/* 让电脑端 8 个业务列在常见屏幕上完整显示 */
+.dashboard-grid { grid-template-columns: minmax(0, 1fr) 220px; }
+.orders-table { min-width: 830px; }
+.orders-table th, .orders-table td { padding-left: 8px; padding-right: 8px; }
+.orders-table th:nth-child(1), .orders-table td:nth-child(1) { min-width: 115px; }
+.orders-table th:nth-child(2), .orders-table td:nth-child(2) { min-width: 82px; }
+.orders-table th:nth-child(3), .orders-table td:nth-child(3) { min-width: 155px; }
+.orders-table th:nth-child(4), .orders-table td:nth-child(4) { min-width: 120px; }
+.orders-table th:nth-child(5), .orders-table td:nth-child(5) { min-width: 42px; }
+.orders-table th:nth-child(6), .orders-table td:nth-child(6) { min-width: 62px; }
+.orders-table th:nth-child(7), .orders-table td:nth-child(7) { min-width: 55px; }
+.orders-table th:nth-child(8), .orders-table td:nth-child(8) { min-width: 62px; }
+.item-name { min-width: 0; }
