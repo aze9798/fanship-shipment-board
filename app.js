@@ -63,6 +63,11 @@ async function requestRpc(url, options = {}) {
     return (await callRpc('board_get_state', { p_code: accessCode })).response;
   }
 
+  if (pathname.endsWith('/api/import-orders') && String(options.method || 'GET').toUpperCase() === 'POST') {
+    const payload = JSON.parse(options.body || '{}');
+    return (await callRpc('board_import_orders', { p_code: accessCode, p_orders: payload.items || [] })).response;
+  }
+
   if (pathname.endsWith('/api/export.csv')) {
     const result = await callRpc('board_get_state', { p_code: accessCode });
     if (!result.response.ok) return result.response;
@@ -124,6 +129,7 @@ let desktopSearch = '';
 let mobileSearch = '';
 let eventSource = null;
 let refreshing = false;
+let pendingImportOrders = null;
 
 const els = {
   liveDot: $('#liveDot'),
@@ -134,6 +140,13 @@ const els = {
   sourceTitle: $('#sourceTitle'),
   sourceStamp: $('#sourceStamp'),
   resetButton: $('#resetButton'),
+  importButton: $('#importButton'),
+  importFileInput: $('#importFileInput'),
+  importModal: $('#importModal'),
+  importPreview: $('#importPreview'),
+  confirmImport: $('#confirmImport'),
+  closeImportModal: $('#closeImportModal'),
+  cancelImport: $('#cancelImport'),
   metricRemaining: $('#metricRemaining'),
   metricRemainingHint: $('#metricRemainingHint'),
   metricItems: $('#metricItems'),
@@ -276,6 +289,7 @@ function renderAll() {
     ? `${snapshot.source.sheet} · 实时同步`
     : `生成于 ${snapshot.source.generatedAt}`;
   els.resetButton.hidden = Boolean(snapshot.storage?.cloud);
+  els.importButton.hidden = !RPC_BASE;
 }
 
 function renderDesktopMetrics() {
@@ -530,6 +544,156 @@ async function resetRecords() {
   }
 }
 
+function excelNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function excelDate(value) {
+  if (!value && value !== 0) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Date(value.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  }
+  if (typeof value === 'number' && window.XLSX?.SSF?.parse_date_code) {
+    const parsed = window.XLSX.SSF.parse_date_code(value);
+    if (parsed) return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
+  }
+  const text = String(value).trim();
+  let match = text.match(/^(\d{2})\/(\d{1,2})\/(\d{1,2})$/);
+  if (match) return `20${match[1]}-${String(match[2]).padStart(2, '0')}-${String(match[3]).padStart(2, '0')}`;
+  match = text.match(/^(\d{4})[\/.\-](\d{1,2})[\/.\-](\d{1,2})/);
+  if (match) return `${match[1]}-${String(match[2]).padStart(2, '0')}-${String(match[3]).padStart(2, '0')}`;
+  return null;
+}
+
+function parseExcelRows(workbook) {
+  const sheetNames = workbook.SheetNames || [];
+  const preferred = ['艾沃意特', '复制最新采购订单', '未交清单打印', '粘贴', '公式', ...sheetNames];
+  const tried = new Set();
+  for (const sheetName of preferred) {
+    if (!sheetName || tried.has(sheetName) || !workbook.Sheets[sheetName]) continue;
+    tried.add(sheetName);
+    const matrix = window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, raw: true, defval: '' });
+    let headerIndex = -1;
+    let headers = [];
+    for (let index = 0; index < Math.min(matrix.length, 25); index += 1) {
+      const candidate = matrix[index].map((value) => String(value ?? '').trim());
+      const has = (name) => candidate.includes(name);
+      if ((has('订单号') && has('物料编号') && has('未交') && has('项次')) ||
+          (has('采购单号') && has('未交') && has('项次')) ||
+          (has('采购单号') && has('未交量') && has('项次'))) {
+        headerIndex = index;
+        headers = candidate;
+        break;
+      }
+    }
+    if (headerIndex < 0) continue;
+
+    const at = (...names) => names.map((name) => headers.indexOf(name)).find((index) => index >= 0) ?? -1;
+    const poIndex = at('订单号', '采购单号');
+    const materialIndex = at('物料编号', '料件编号');
+    const nameIndex = at('名称', '品名');
+    const specIndex = at('图号', '规格');
+    const orderQtyIndex = at('订单量', '采购数量');
+    const returnQtyIndex = at('验退量');
+    const remainingIndex = at('未交', '未交量');
+    const seqIndex = at('项次');
+    const dueDateIndex = at('交货日期', '交货日');
+    const purchaseDateIndex = at('采购日期');
+    const batchIndex = at('批号', '备注');
+    const orders = [];
+
+    for (let rowIndex = headerIndex + 1; rowIndex < matrix.length; rowIndex += 1) {
+      const row = matrix[rowIndex];
+      const po = String(row[poIndex] ?? '').trim();
+      const material = String(row[materialIndex] ?? '').trim();
+      const name = String(row[nameIndex] ?? '').trim();
+      const seq = Math.trunc(excelNumber(row[seqIndex]));
+      const openingRemaining = excelNumber(row[remainingIndex]);
+      if (!po || !material || !name || seq <= 0 || openingRemaining <= 0) continue;
+      orders.push({
+        id: `${po}#${String(seq).padStart(3, '0')}`,
+        customer: '艾沃意特',
+        po,
+        purchaseDate: excelDate(row[purchaseDateIndex]),
+        seq,
+        material,
+        name,
+        spec: String(row[specIndex] ?? '').trim(),
+        orderQty: excelNumber(row[orderQtyIndex]) || openingRemaining,
+        returnQty: excelNumber(row[returnQtyIndex]),
+        openingRemaining,
+        dueDate: excelDate(row[dueDateIndex]),
+        batch: String(row[batchIndex] ?? '').trim(),
+        todayTask: false,
+        sourceRow: rowIndex + 1,
+      });
+    }
+    if (orders.length) return { orders, sheetName };
+  }
+  return { orders: [], sheetName: '' };
+}
+
+function closeImportDialog() {
+  els.importModal.hidden = true;
+}
+
+async function handleImportFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (!window.XLSX) {
+    showToast('Excel 解析组件加载失败，请刷新页面后重试');
+    return;
+  }
+  try {
+    const workbook = window.XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+    const { orders, sheetName } = parseExcelRows(workbook);
+    if (!orders.length) throw new Error('没有识别到未交数量大于 0 的订单');
+    pendingImportOrders = orders;
+    const total = orders.reduce((sum, order) => sum + order.openingRemaining, 0);
+    const poCount = new Set(orders.map((order) => order.po)).size;
+    els.importPreview.innerHTML = [
+      `<div class="submit-summary-row"><span>工作表</span><strong>${escapeHtml(sheetName)}</strong></div>`,
+      `<div class="submit-summary-row"><span>有效未交</span><strong>${fmt(orders.length)} 行</strong></div>`,
+      `<div class="submit-summary-row"><span>未交总量</span><strong>${fmt(total)} 件</strong></div>`,
+      `<div class="submit-summary-row"><span>采购单数</span><strong>${fmt(poCount)} 个</strong></div>`,
+    ].join('');
+    els.confirmImport.disabled = false;
+    els.importModal.hidden = false;
+  } catch (error) {
+    pendingImportOrders = null;
+    els.confirmImport.disabled = true;
+    showToast(error.message || 'Excel 解析失败');
+  } finally {
+    event.target.value = '';
+  }
+}
+
+async function confirmImportOrders() {
+  if (!pendingImportOrders?.length) return;
+  const button = els.confirmImport;
+  button.disabled = true;
+  button.textContent = '正在覆盖云端...';
+  try {
+    const response = await requestWithAccessCode(apiUrl('/api/import-orders'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: pendingImportOrders }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || '导入失败');
+    showToast(`已导入 ${fmt(result.count)} 行，共 ${fmt(result.totalQuantity)} 件`);
+    pendingImportOrders = null;
+    closeImportDialog();
+    await loadState();
+  } catch (error) {
+    showToast(error.message || '导入失败');
+  } finally {
+    button.disabled = false;
+    button.textContent = '确认覆盖导入';
+  }
+}
+
 function switchMobileTab(tab) {
   mobileTab = tab;
   for (const button of document.querySelectorAll('.mobile-tab')) button.classList.toggle('active', button.dataset.tab === tab);
@@ -581,6 +745,11 @@ $('#clearSelection').addEventListener('click', () => { selected.clear(); closeSu
 $('#submitShipment').addEventListener('click', submitShipment);
 $('#mobileRefresh').addEventListener('click', () => loadState());
 $('#resetButton').addEventListener('click', resetRecords);
+$('#importButton').addEventListener('click', () => els.importFileInput.click());
+els.importFileInput.addEventListener('change', handleImportFile);
+els.confirmImport.addEventListener('click', confirmImportOrders);
+els.closeImportModal.addEventListener('click', closeImportDialog);
+els.cancelImport.addEventListener('click', closeImportDialog);
 els.submitModal.addEventListener('click', (event) => { if (event.target === els.submitModal) closeSubmitModal(); });
 els.shipmentHistory.addEventListener('click', (event) => {
   const button = event.target.closest('[data-undo]');
