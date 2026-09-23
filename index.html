@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=21">
+  <link rel="stylesheet" href="./styles.css?v=22">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -81,11 +81,6 @@
             <strong id="metricShipped">--</strong>
             <small id="metricShipmentCount">尚未提交发货</small>
           </article>
-          <article class="metric-card alert">
-            <span class="metric-label">逾期与今日到期</span>
-            <strong id="metricUrgent">--</strong>
-            <small>需要优先处理</small>
-          </article>
         </section>
 
         <section class="dashboard-grid">
@@ -108,14 +103,6 @@
                   <option value="all">全部公司</option>
                   <option value="4074">帆顺金属 4074</option>
                   <option value="4137">帆顺金属科技 4137</option>
-                </select>
-              </label>
-              <label class="select-box">
-                <span>筛选</span>
-                <select id="desktopFilter">
-                  <option value="active">全部未交</option>
-                  <option value="urgent">逾期与今日</option>
-                  <option value="partial">已有发货记录</option>
                 </select>
               </label>
             </div>
@@ -155,10 +142,17 @@
           <aside id="shipment-history" class="panel activity-panel">
             <div class="panel-head compact">
               <div>
-                <h2>实时发货动态</h2>
-                <p>最新记录显示在最上面</p>
+                <h2>发货记录</h2>
+                <p id="historySummary">最新记录显示在最上面</p>
               </div>
               <button id="generateDeliveryNote" class="button ghost" type="button">生成当天送货单</button>
+            </div>
+            <div class="history-tools">
+              <input id="historySearch" type="search" placeholder="搜索采购单号 / 物料编号 / 名称">
+              <div class="history-tools-row">
+                <input id="historyDate" type="date" title="按发货日期筛选">
+                <button id="historyClear" class="button ghost" type="button">全部日期</button>
+              </div>
             </div>
             <div id="shipmentHistory" class="shipment-history"></div>
           </aside>
@@ -312,7 +306,7 @@
   <input id="importFileInput" type="file" accept=".xlsx,.xls" hidden>
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="./app.js?v=21" type="module"></script>
+  <script src="./app.js?v=22" type="module"></script>
 </body>
 </html>
 

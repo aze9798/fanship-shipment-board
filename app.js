@@ -130,6 +130,9 @@ let desktopFilter = 'active';
 let desktopCompany = 'all';
 let desktopSearch = '';
 let mobileSearch = '';
+let historyDate = '';
+let historyQuery = '';
+const expandedShipments = new Set();
 let eventSource = null;
 let refreshing = false;
 let pendingImportOrders = null;
@@ -162,6 +165,10 @@ const els = {
   desktopTableBody: $('#desktopTableBody'),
   desktopEmpty: $('#desktopEmpty'),
   shipmentHistory: $('#shipmentHistory'),
+  historySummary: $('#historySummary'),
+  historySearch: $('#historySearch'),
+  historyDate: $('#historyDate'),
+  historyClear: $('#historyClear'),
   mobileSelectedQty: $('#mobileSelectedQty'),
   mobileSelectedItems: $('#mobileSelectedItems'),
   mobileRemainingQty: $('#mobileRemainingQty'),
@@ -244,7 +251,7 @@ function filteredOrders(filter) {
 
 function desktopRows() {
   const query = desktopSearch.trim().toLowerCase();
-  let rows = filteredOrders(desktopFilter);
+  let rows = filteredOrders('active');
   if (desktopCompany !== 'all') rows = rows.filter((order) => orderCompany(order) === desktopCompany);
   if (query) rows = rows.filter((order) => searchable(order).includes(query));
   return rows;
@@ -322,7 +329,7 @@ function renderDesktopMetrics() {
   els.metricRemainingHint.textContent = `源数据未交 ${fmt(summary.sourceRemainingQuantity)} 件起算`;
   els.metricShipped.textContent = fmt(summary.shippedQuantity);
   els.metricShipmentCount.textContent = summary.shipmentCount ? `${summary.shipmentCount} 笔发货记录` : '尚未提交发货';
-  els.metricUrgent.textContent = fmt(summary.overdue + summary.dueToday);
+  if (els.metricUrgent) els.metricUrgent.textContent = fmt(summary.overdue + summary.dueToday);
 }
 
 const DESKTOP_COLUMN_WIDTH_KEY = 'shipmentDesktopColumnWidths';
@@ -415,25 +422,73 @@ function renderDesktopTable() {
   els.desktopEmpty.hidden = rows.length > 0;
 }
 
+function shipmentDate(shipment) {
+  const text = shipShanghaiDate(shipment.createdAt);
+  return text;
+}
+
+function shipShanghaiDate(value) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return '';
+  const shanghai = new Date(date.getTime() + 8 * 3600 * 1000);
+  return shanghai.toISOString().slice(0, 10);
+}
+
+function shipmentMatches(shipment, query) {
+  if (!query) return true;
+  const text = [
+    shipment.id, shipment.vehicle, shipment.operator, shipment.note,
+    ...shipment.items.flatMap((line) => [line.material, line.name, line.spec, line.orderId]),
+  ].join(' ').toLowerCase();
+  return text.includes(query);
+}
+
+function filteredShipments() {
+  const query = historyQuery.trim().toLowerCase();
+  return snapshot.shipments.filter((shipment) => {
+    if (historyDate && shipShanghaiDate(shipment.createdAt) !== historyDate) return false;
+    return shipmentMatches(shipment, query);
+  });
+}
+
 function renderHistoryCards(shipments) {
-  if (!shipments.length) return '<div class="empty-state"><strong>还没有发货记录</strong><span>打开手机录入页，提交后会显示在这里。</span></div>';
-  return shipments.map((shipment) => `
+  if (!shipments.length) return '<div class="empty-state"><strong>没有符合条件的发货记录</strong><span>换个日期或清空搜索词再试。</span></div>';
+  return shipments.map((shipment) => {
+    const items = shipment.items || [];
+    const expanded = expandedShipments.has(shipment.id);
+    const shown = expanded ? items : items.slice(0, 5);
+    const hidden = items.length - shown.length;
+    const time = new Date(shipment.createdAt);
+    const stamp = Number.isNaN(time.getTime())
+      ? ''
+      : `${time.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Shanghai' })} ${time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' })}`;
+    return `
     <article class="history-card">
       <div class="history-head">
         <strong>${escapeHtml(shipment.vehicle)}</strong>
-        <span>${new Date(shipment.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+        <span>${escapeHtml(stamp)}</span>
       </div>
       <div class="history-meta">${escapeHtml(shipment.id)} · ${escapeHtml(shipment.operator)}${shipment.note ? ` · ${escapeHtml(shipment.note)}` : ''}</div>
       <div class="history-lines">
-        ${shipment.items.slice(0, 5).map((line) => `<div class="history-line"><span>${escapeHtml(line.material)} ${escapeHtml(line.name)}</span><strong>${fmt(line.quantity)} 件</strong></div>`).join('')}
-        ${shipment.items.length > 5 ? `<div class="history-line"><span>还有 ${shipment.items.length - 5} 项</span><strong>${fmt(shipment.totalQuantity)} 件</strong></div>` : ''}
+        ${shown.map((line) => `<div class="history-line"><span>${escapeHtml(line.material)} ${escapeHtml(line.name)}</span><strong>${fmt(line.quantity)} 件</strong></div>`).join('')}
       </div>
+      ${items.length > 5 ? `<button class="history-expand" type="button" data-expand="${escapeHtml(shipment.id)}">${expanded ? '收起明细' : `展开全部 ${items.length} 项（还有 ${hidden} 项）`}</button>` : ''}
+      <div class="history-total">合计 ${fmt(shipment.totalQuantity)} 件 · ${items.length} 项</div>
       <button class="undo-button" type="button" data-undo="${escapeHtml(shipment.id)}">撤销这笔发货</button>
-    </article>`).join('');
+    </article>`;
+  }).join('');
 }
 
 function renderDesktopHistory() {
-  els.shipmentHistory.innerHTML = renderHistoryCards(snapshot.shipments);
+  if (!snapshot) return;
+  const rows = filteredShipments();
+  const quantity = rows.reduce((sum, item) => sum + Number(item.totalQuantity || 0), 0);
+  if (els.historySummary) {
+    els.historySummary.textContent = rows.length === snapshot.shipments.length
+      ? `共 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`
+      : `筛选出 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`;
+  }
+  els.shipmentHistory.innerHTML = renderHistoryCards(rows);
 }
 
 function orderCard(order) {
@@ -520,7 +575,14 @@ function renderMobileRemaining() {
 }
 
 function renderMobileRecords() {
-  els.mobileRecordsPanel.innerHTML = `<div class="records-head"><strong>发货记录</strong><span>电脑端会同步显示这些记录。</span></div>${renderHistoryCards(snapshot.shipments)}`;
+  els.mobileRecordsPanel.innerHTML = `<div class="records-head"><strong>发货记录</strong><span>电脑端会同步显示这些记录，点“展开全部”可看完整明细。</span></div>${renderHistoryCards(snapshot.shipments)}`;
+  els.mobileRecordsPanel.querySelectorAll('[data-expand]').forEach((button) => button.addEventListener('click', () => {
+    const id = button.dataset.expand;
+    if (expandedShipments.has(id)) expandedShipments.delete(id);
+    else expandedShipments.add(id);
+    renderMobileRecords();
+    renderDesktopHistory();
+  }));
 }
 
 function renderCart() {
@@ -927,7 +989,6 @@ function switchMobileTab(tab) {
 }
 
 els.desktopSearch.addEventListener('input', (event) => { desktopSearch = event.target.value; renderDesktopTable(); });
-els.desktopFilter.addEventListener('change', (event) => { desktopFilter = event.target.value; renderDesktopTable(); });
 els.desktopCompanyFilter.addEventListener('change', (event) => { desktopCompany = event.target.value; renderDesktopTable(); });
 els.mobileSearch.addEventListener('input', (event) => { mobileSearch = event.target.value; renderMobileList(); });
 document.querySelectorAll('.mobile-tab').forEach((button) => button.addEventListener('click', () => switchMobileTab(button.dataset.tab)));
@@ -938,6 +999,20 @@ els.mobileFilters.addEventListener('click', (event) => {
   document.querySelectorAll('#mobileFilters .chip').forEach((chip) => chip.classList.toggle('active', chip === button));
   renderMobileList();
 });
+if (els.historySearch) els.historySearch.addEventListener('input', (event) => { historyQuery = event.target.value; renderDesktopHistory(); });
+if (els.historyDate) els.historyDate.addEventListener('change', (event) => { historyDate = event.target.value; renderDesktopHistory(); });
+if (els.historyClear) els.historyClear.addEventListener('click', () => { historyDate = ''; if (els.historyDate) els.historyDate.value = ''; renderDesktopHistory(); });
+function handleHistoryClick(event) {
+  const expand = event.target.closest('[data-expand]');
+  if (expand) {
+    const id = expand.dataset.expand;
+    if (expandedShipments.has(id)) expandedShipments.delete(id);
+    else expandedShipments.add(id);
+    renderDesktopHistory();
+    renderMobileRecords();
+  }
+}
+if (els.shipmentHistory) els.shipmentHistory.addEventListener('click', handleHistoryClick);
 els.mobileOrderList.addEventListener('click', (event) => {
   const button = event.target.closest('[data-action]');
   if (!button || button.dataset.action === 'input') return;

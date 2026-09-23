@@ -213,7 +213,13 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 .empty-state strong { color: #53666d; font-size: 13px; }
 .empty-state span { font-size: 11px; }
 .activity-panel { position: sticky; top: 17px; max-height: calc(100vh - 60px); overflow: hidden; }
-.shipment-history { max-height: calc(100vh - 150px); overflow-y: auto; padding: 0 15px 16px; }
+.shipment-history { max-height: calc(100vh - 235px); overflow-y: auto; padding: 0 15px 16px; }
+.history-tools { display: grid; gap: 6px; margin-bottom: 10px; padding: 0 15px; }
+.history-tools input { height: 34px; padding: 0 10px; border: 1px solid #d7e1e3; border-radius: 9px; font: inherit; font-size: 12px; background: #fbfcfc; color: #17333b; }
+.history-tools-row { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+.history-tools-row button { min-height: 34px; padding: 0 12px; font-size: 12px; }
+.history-expand { width: 100%; margin-top: 6px; padding: 6px 0; border: 1px dashed #cfe0e2; border-radius: 8px; background: #f5fbfb; color: #0d7371; font-size: 11px; font-weight: 700; cursor: pointer; }
+.history-total { margin-top: 6px; color: #60747a; font-size: 11px; font-weight: 700; }
 .history-card { padding: 14px; border: 1px solid #e6ecee; border-radius: 13px; background: #fbfcfc; }
 .history-card + .history-card { margin-top: 9px; }
 .history-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
