@@ -401,3 +401,19 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .due-field > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .due-field > div strong { font-size: 12px; }
 .due-field em { font-style: normal; }
+
+/* 电脑端未交明细：按业务字段独立成列 */
+.dashboard-grid { grid-template-columns: minmax(0, 1fr) 250px; }
+.orders-table { min-width: 940px; }
+.orders-table td { padding-top: 12px; padding-bottom: 12px; }
+.orders-table th:nth-child(1), .orders-table td:nth-child(1) { min-width: 125px; }
+.orders-table th:nth-child(2), .orders-table td:nth-child(2) { min-width: 92px; }
+.orders-table th:nth-child(3), .orders-table td:nth-child(3) { min-width: 190px; }
+.orders-table th:nth-child(4), .orders-table td:nth-child(4) { min-width: 145px; }
+.orders-table th:nth-child(5), .orders-table td:nth-child(5) { min-width: 54px; }
+.orders-table th:nth-child(6), .orders-table td:nth-child(6) { min-width: 76px; }
+.orders-table th:nth-child(7), .orders-table td:nth-child(7) { min-width: 66px; }
+.orders-table th:nth-child(8), .orders-table td:nth-child(8) { min-width: 76px; }
+.item-name { display: block; min-width: 180px; color: #24383f; font-weight: 700; line-height: 1.45; }
+.material-code, .spec-code { display: block; color: #536970; white-space: nowrap; }
+.shipped-number { color: #435a62; font-weight: 700; }
