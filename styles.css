@@ -389,29 +389,37 @@ body[data-view="mobile"] { background: #dfe7e9; }
 
 
 
-/* 手机未交清单：三行紧凑布局，保留关键字段 */
+/* 手机未交清单：单行四列表格式 */
 .mobile-remaining-card { display: block; padding: 0; overflow: hidden; }
-.mobile-remaining-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: #edf2f3; }
-.remaining-field { min-width: 0; padding: 8px 11px; background: #fff; }
-.remaining-field.span-2 { grid-column: span 2; }
-.remaining-field > span { display: block; margin-bottom: 2px; color: #87979d; font-size: 9px; font-weight: 700; letter-spacing: .05em; }
-.remaining-field > strong { display: block; color: #24383f; font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
-.remaining-field.quantity > strong { color: var(--primary); font-size: 17px; font-weight: 800; }
-.remaining-field .mono { font-size: 11px; }
-.remaining-field.compact-meta > span { margin-bottom: 1px; }
-.remaining-field.compact-meta > strong { font-size: 11px; }
-.due-field > div { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
-.due-field > div strong { font-size: 11px; }
-.due-field em { font-style: normal; }
+.mobile-remaining-row { display: grid; grid-template-columns: 88px minmax(128px, 1.7fr) 64px 72px; gap: 1px; background: #edf2f3; }
+.remaining-cell { min-width: 0; padding: 7px 8px; background: #fff; }
+.remaining-cell > span,
+.detail-line span,
+.meta-line span { color: #87979d; font-size: 8px; font-weight: 700; letter-spacing: .04em; }
+.order-cell > span { display: block; margin-bottom: 3px; }
+.order-cell > strong { display: block; color: #24383f; font-size: 10px; line-height: 1.25; overflow-wrap: anywhere; }
+.detail-cell { display: grid; gap: 4px; }
+.detail-line { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px; align-items: baseline; }
+.detail-line span { white-space: nowrap; }
+.detail-line strong { min-width: 0; color: #24383f; font-size: 10px; line-height: 1.2; overflow-wrap: anywhere; }
+.meta-cell { display: grid; gap: 5px; }
+.meta-line { min-width: 0; }
+.meta-line span { display: block; margin-bottom: 2px; }
+.meta-line strong { display: block; color: #24383f; font-size: 10px; line-height: 1.2; }
+.meta-line .quantity-value { color: var(--primary); font-size: 14px; font-weight: 800; }
+.due-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.due-cell > strong { color: #24383f; font-size: 10px; line-height: 1.2; }
+.due-cell .due-badge { padding: 2px 5px; font-size: 8px; }
 @media (max-width: 620px) {
-  .mobile-remaining-panel { gap: 7px; }
-  .mobile-remaining-card { border-radius: 10px; }
-  .remaining-field { padding: 7px 9px; }
-  .remaining-field > span { margin-bottom: 1px; font-size: 8px; }
-  .remaining-field > strong { font-size: 11px; }
-  .remaining-field.quantity > strong { font-size: 16px; }
-  .remaining-field .mono { font-size: 10px; }
-  .due-badge { padding: 2px 6px; font-size: 9px; }
+  .mobile-remaining-panel { gap: 6px; }
+  .mobile-remaining-card { border-radius: 9px; }
+  .mobile-remaining-row { grid-template-columns: 84px minmax(120px, 1.7fr) 60px 68px; }
+  .remaining-cell { padding: 6px 7px; }
+  .order-cell > strong,
+  .detail-line strong,
+  .meta-line strong,
+  .due-cell > strong { font-size: 9px; }
+  .meta-line .quantity-value { font-size: 13px; }
 }
 
 /* 电脑端未交明细：按业务字段独立成列 */
@@ -443,6 +451,8 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .orders-table th:nth-child(7), .orders-table td:nth-child(7) { min-width: 55px; }
 .orders-table th:nth-child(8), .orders-table td:nth-child(8) { min-width: 62px; }
 .item-name { min-width: 0; }
+
+
 
 
 
