@@ -304,29 +304,16 @@ function renderDesktopTable() {
   const rows = desktopRows();
   els.desktopTableBody.innerHTML = rows.map((order) => {
     const badge = dueBadge(order);
-    const progress = order.openingRemaining > 0 ? Math.min(100, Math.round(order.shipped / order.openingRemaining * 100)) : 100;
     return `
       <tr>
-        <td>
-          <div class="item-main">
-            <strong>${escapeHtml(order.name)}</strong>
-            <span class="mono">${escapeHtml(order.material)} · ${escapeHtml(order.spec)}</span>
-          </div>
-        </td>
-        <td>
-          <span class="order-id">${escapeHtml(order.po)}</span>
-          <span class="subtle">项次 ${escapeHtml(order.seq)}</span>
-        </td>
+        <td><span class="order-id">${escapeHtml(order.po)}</span></td>
+        <td><span class="material-code mono">${escapeHtml(order.material)}</span></td>
+        <td><span class="item-name">${escapeHtml(order.name)}</span></td>
+        <td><span class="spec-code mono">${escapeHtml(order.spec || '—')}</span></td>
+        <td class="number">${escapeHtml(order.seq)}</td>
         <td><span class="due-badge ${badge.className}">${escapeHtml(badge.text)}</span></td>
-        <td class="number">${fmt(order.openingRemaining)}</td>
-        <td class="number">${fmt(order.shipped)}</td>
         <td class="number"><span class="remaining-number">${fmt(order.remaining)}</span></td>
-        <td>
-          <div class="progress">
-            <div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div>
-            <small>${progress}% 已录入</small>
-          </div>
-        </td>
+        <td class="number"><span class="shipped-number">${fmt(order.shipped)}</span></td>
       </tr>`;
   }).join('');
   els.desktopEmpty.hidden = rows.length > 0;
