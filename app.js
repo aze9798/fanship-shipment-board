@@ -669,9 +669,8 @@ async function refreshDeliveryPreview() {
 function openDeliveryModal() {
   const date = snapshot?.today || TODAY;
   const url = `${PRINT_HELPER_BASE}/preview?date=${encodeURIComponent(date)}`;
-  const opened = window.open(url, '_blank', 'noopener');
-  if (opened) showToast('已打开本地送货单预览，请确认日期和批次号后打印');
-  else showToast('浏览器阻止了新窗口，请允许弹窗后重试');
+  showToast('正在打开本地送货单预览...');
+  window.location.href = url;
 }
 function closeDeliveryModal() {
   els.deliveryModal.hidden = true;
