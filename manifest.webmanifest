@@ -1,0 +1,9 @@
+{
+  "name": "帆顺发货实时看板",
+  "short_name": "发货看板",
+  "start_url": "./?view=mobile",
+  "display": "standalone",
+  "background_color": "#f2f5f6",
+  "theme_color": "#0d7371",
+  "lang": "zh-CN"
+}

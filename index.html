@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d2a33">
+  <title>发货实时看板</title>
+  <script>
+    window.SHIPMENT_RPC_BASE = "https://dkbeigqtiilgxthwkixg.supabase.co/rest/v1/rpc";
+    window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
+  </script>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
+  <div id="app" class="app-shell">
+    <aside class="sidebar desktop-only">
+      <div class="brand">
+        <div class="brand-mark">帆</div>
+        <div>
+          <strong>帆顺发货台</strong>
+          <span>订单未交实时协同</span>
+        </div>
+      </div>
+
+      <nav class="side-nav" aria-label="主导航">
+        <a class="side-link active" href="./">
+          <span class="nav-dot"></span>
+          实时总览
+        </a>
+        <a class="side-link" href="./?view=mobile">
+          <span class="nav-dot"></span>
+          手机装车
+        </a>
+        <a class="side-link" href="#shipment-history">
+          <span class="nav-dot"></span>
+          发货记录
+        </a>
+      </nav>
+
+      <div class="live-card">
+        <div class="live-row">
+          <span id="liveDot" class="live-dot"></span>
+          <strong id="liveText">正在连接</strong>
+        </div>
+        <p>手机保存后，电脑表格自动更新，无需手工改 Excel。</p>
+      </div>
+
+      <div class="sidebar-foot">
+        <span>数据来源</span>
+        <strong id="sourceTitle">现有计划表导入</strong>
+        <small id="sourceStamp">--</small>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <section id="desktopView" class="desktop-view desktop-only">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">艾沃意特 · 实时未交</p>
+            <h1>发货计划总览</h1>
+            <p class="subhead">手机录入发货数量，电脑端自动扣减未交。</p>
+          </div>
+          <div class="topbar-actions">
+            <a class="button ghost" href="./?view=mobile" target="_blank">打开手机录入页</a>
+            <a class="button ghost" href="https://dkbeigqtiilgxthwkixg.supabase.co/functions/v1/shipment-board/api/export.csv">导出未交 CSV</a>
+            <button id="resetButton" class="button ghost danger-text" type="button">清空演示记录</button>
+          </div>
+        </header>
+
+        <section class="metrics-grid" aria-label="关键数据">
+          <article class="metric-card primary">
+            <span class="metric-label">当前未交数量</span>
+            <strong id="metricRemaining">--</strong>
+            <small id="metricRemainingHint">全部订单明细</small>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">未交项数</span>
+            <strong id="metricItems">--</strong>
+            <small>仍需要发货的物料行</small>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">今日已装</span>
+            <strong id="metricShipped">--</strong>
+            <small id="metricShipmentCount">尚未提交发货</small>
+          </article>
+          <article class="metric-card alert">
+            <span class="metric-label">逾期与今日到期</span>
+            <strong id="metricUrgent">--</strong>
+            <small>需要优先处理</small>
+          </article>
+        </section>
+
+        <section class="dashboard-grid">
+          <div class="panel orders-panel">
+            <div class="panel-head">
+              <div>
+                <h2>剩余未交明细</h2>
+                <p>按交期优先排序，数据随手机提交自动刷新。</p>
+              </div>
+              <div class="status-pill"><span id="desktopLiveDot" class="live-dot"></span><span id="desktopLiveText">实时同步</span></div>
+            </div>
+            <div class="toolbar">
+              <label class="search-box">
+                <span>搜索</span>
+                <input id="desktopSearch" type="search" placeholder="采购单号 / 物料编号 / 名称 / 规格">
+              </label>
+              <label class="select-box">
+                <span>筛选</span>
+                <select id="desktopFilter">
+                  <option value="active">全部未交</option>
+                  <option value="urgent">逾期与今日</option>
+                  <option value="task">重点待装</option>
+                  <option value="partial">已有发货记录</option>
+                </select>
+              </label>
+            </div>
+            <div class="table-wrap">
+              <table class="orders-table">
+                <thead>
+                  <tr>
+                    <th>物料 / 规格</th>
+                    <th>采购单号</th>
+                    <th>交期</th>
+                    <th class="number">计划未交</th>
+                    <th class="number">实时已发</th>
+                    <th class="number">当前剩余</th>
+                    <th>进度</th>
+                  </tr>
+                </thead>
+                <tbody id="desktopTableBody"></tbody>
+              </table>
+              <div id="desktopEmpty" class="empty-state" hidden>
+                <strong>没有符合条件的未交明细</strong>
+                <span>可以调整搜索词或筛选条件。</span>
+              </div>
+            </div>
+          </div>
+
+          <aside id="shipment-history" class="panel activity-panel">
+            <div class="panel-head compact">
+              <div>
+                <h2>实时发货动态</h2>
+                <p>最新记录显示在最上面</p>
+              </div>
+            </div>
+            <div id="shipmentHistory" class="shipment-history"></div>
+          </aside>
+        </section>
+      </section>
+
+      <section id="mobileView" class="mobile-view mobile-only">
+        <header class="mobile-head">
+          <div class="mobile-brand">
+            <div class="brand-mark small">帆</div>
+            <div>
+              <strong>手机装车登记</strong>
+              <span id="mobileLiveLabel">正在连接</span>
+            </div>
+          </div>
+          <button id="mobileRefresh" class="icon-button" type="button" aria-label="刷新数据">↻</button>
+        </header>
+
+        <section class="mobile-summary">
+          <div>
+            <span>本次已选</span>
+            <strong id="mobileSelectedQty">0</strong>
+            <small id="mobileSelectedItems">0 项物料</small>
+          </div>
+          <div>
+            <span>当前未交</span>
+            <strong id="mobileRemainingQty">--</strong>
+            <small>全部剩余</small>
+          </div>
+          <div>
+            <span>今日待装</span>
+            <strong id="mobileTaskCount">--</strong>
+            <small>交期优先</small>
+          </div>
+        </section>
+
+        <nav class="mobile-tabs" aria-label="手机功能">
+          <button class="mobile-tab active" data-tab="entry" type="button">装车录入</button>
+          <button class="mobile-tab" data-tab="remaining" type="button">未交清单</button>
+          <button class="mobile-tab" data-tab="records" type="button">发货记录</button>
+        </nav>
+
+        <section id="mobileEntryPanel" class="mobile-panel">
+          <div class="mobile-tools">
+            <label class="mobile-search">
+              <span aria-hidden="true">⌕</span>
+              <input id="mobileSearch" type="search" placeholder="搜索物料编号、名称或规格">
+            </label>
+            <div id="mobileFilters" class="filter-chips">
+              <button class="chip active" data-filter="task" type="button">重点待装</button>
+              <button class="chip" data-filter="dueToday" type="button">今日到期</button>
+              <button class="chip" data-filter="overdue" type="button">已逾期</button>
+              <button class="chip" data-filter="active" type="button">全部未交</button>
+            </div>
+          </div>
+          <div id="mobileOrderList" class="mobile-order-list"></div>
+          <div id="mobileEmpty" class="empty-state mobile-empty" hidden>
+            <strong>没有符合条件的数据</strong>
+            <span>换个筛选条件或清空搜索词。</span>
+          </div>
+        </section>
+
+        <section id="mobileRemainingPanel" class="mobile-panel" hidden></section>
+        <section id="mobileRecordsPanel" class="mobile-panel" hidden></section>
+
+        <div id="mobileCartBar" class="mobile-cart-bar" hidden>
+          <div>
+            <span>本次装车</span>
+            <strong><b id="cartQty">0</b> 件 · <b id="cartItems">0</b> 项</strong>
+          </div>
+          <button id="openSubmit" class="button primary" type="button">确认装车</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="submitModal" class="modal-backdrop" hidden>
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="submitTitle">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow">发货确认</p>
+          <h2 id="submitTitle">确认本次装车</h2>
+        </div>
+        <button id="closeModal" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <div id="submitSummary" class="submit-summary"></div>
+      <form id="shipmentForm" class="form-grid">
+        <label>
+          <span>录入人</span>
+          <input name="operator" required placeholder="例如：张师傅">
+        </label>
+        <label>
+          <span>车牌 / 装车批次</span>
+          <input name="vehicle" required placeholder="例如：苏B12345 / 下午第一车">
+        </label>
+        <label class="full">
+          <span>备注</span>
+          <textarea name="note" rows="2" placeholder="可不填"></textarea>
+        </label>
+      </form>
+      <div class="modal-actions">
+        <button id="clearSelection" class="button ghost" type="button">清空本次</button>
+        <button id="submitShipment" class="button primary" type="button">保存并同步电脑</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="./app.js" type="module"></script>
+</body>
+</html>
+
+
+
