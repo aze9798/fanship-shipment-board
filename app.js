@@ -595,7 +595,7 @@ document.addEventListener('keydown', (event) => { if (event.key === 'Escape') cl
 function connectEvents() {
   if (eventSource) eventSource.close();
   setLiveStatus('connecting');
-  if (API_BASE) {
+  if (API_BASE || RPC_BASE) {
     setLiveStatus('online');
     clearInterval(connectEvents.pollTimer);
     connectEvents.pollTimer = setInterval(() => loadState({ quiet: true }), 5000);
@@ -632,6 +632,7 @@ function setupRpcExportLink() {
 setupRpcExportLink();
 await loadState();
 connectEvents();
+
 
 
 
