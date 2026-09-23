@@ -130,7 +130,7 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 .danger-text { color: var(--danger) !important; }
 .danger-text:hover { border-color: #f2b4af !important; }
 
-.metrics-grid { margin-top: 25px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.metrics-grid { margin-top: 25px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .metric-card {
   position: relative;
   min-height: 130px;
@@ -386,4 +386,5 @@ body[data-view="mobile"] { background: #dfe7e9; }
 
 
 .import-warning { margin: 0 24px 18px; padding: 12px 14px; border: 1px solid #f1d7a6; border-radius: 12px; background: #fff9ec; color: #8b5e13; font-size: 12px; line-height: 1.65; }
+
 
