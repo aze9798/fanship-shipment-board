@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=17">
+  <link rel="stylesheet" href="./styles.css?v=18">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -150,6 +150,7 @@
                 <h2>实时发货动态</h2>
                 <p>最新记录显示在最上面</p>
               </div>
+              <button id="generateDeliveryNote" class="button ghost" type="button">生成当天送货单</button>
             </div>
             <div id="shipmentHistory" class="shipment-history"></div>
           </aside>
@@ -252,6 +253,34 @@
     </section>
   </div>
 
+  <div id="deliveryModal" class="modal-backdrop" hidden>
+    <section class="modal-card delivery-modal" role="dialog" aria-modal="true" aria-labelledby="deliveryTitle">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow">送货单</p>
+          <h2 id="deliveryTitle">生成当天送货单</h2>
+        </div>
+        <button id="closeDeliveryModal" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <form id="deliveryForm" class="form-grid">
+        <label>
+          <span>送货日期</span>
+          <input id="deliveryDate" name="date" type="date">
+        </label>
+        <label>
+          <span>批次号（可修改）</span>
+          <input id="deliveryBatch" name="batch" type="number" min="1" step="1">
+        </label>
+      </form>
+      <div id="deliveryStatus" class="delivery-status">正在连接打印助手...</div>
+      <div id="deliveryPreview" class="delivery-preview"></div>
+      <div class="modal-actions">
+        <button id="closeDeliveryModalAction" class="button ghost" type="button">关闭</button>
+        <button id="refreshDeliveryPreview" class="button ghost" type="button">重新生成预览</button>
+        <button id="printDeliveryNotes" class="button primary" type="button">打印送货单</button>
+      </div>
+    </section>
+  </div>
   <div id="importModal" class="modal-backdrop" hidden>
     <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="importTitle">
       <div class="modal-head">
@@ -275,7 +304,7 @@
   <input id="importFileInput" type="file" accept=".xlsx,.xls" hidden>
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="./app.js?v=17" type="module"></script>
+  <script src="./app.js?v=18" type="module"></script>
 </body>
 </html>
 
