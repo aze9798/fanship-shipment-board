@@ -161,7 +161,6 @@ const els = {
   mobileSelectedQty: $('#mobileSelectedQty'),
   mobileSelectedItems: $('#mobileSelectedItems'),
   mobileRemainingQty: $('#mobileRemainingQty'),
-  mobileTaskCount: $('#mobileTaskCount'),
   mobileSearch: $('#mobileSearch'),
   mobileFilters: $('#mobileFilters'),
   mobileOrderList: $('#mobileOrderList'),
@@ -390,7 +389,6 @@ function renderMobileSummary() {
   els.mobileSelectedQty.textContent = fmt(selectedQty);
   els.mobileSelectedItems.textContent = `${selectedItems} 项物料`;
   els.mobileRemainingQty.textContent = fmt(snapshot.summary.remainingQuantity);
-  els.mobileTaskCount.textContent = fmt(snapshot.summary.overdue + snapshot.summary.dueToday);
 }
 
 function renderMobileRemaining() {
@@ -400,34 +398,24 @@ function renderMobileRemaining() {
     ${rows.map((order) => {
       const badge = dueBadge(order);
       return `<article class="mobile-remaining-card">
-        <div class="mobile-remaining-grid">
-          <div class="remaining-field span-2">
+        <div class="mobile-remaining-row">
+          <div class="remaining-cell order-cell">
             <span>订单号</span>
             <strong class="mono">${escapeHtml(order.po)}</strong>
           </div>
-          <div class="remaining-field">
-            <span>编号</span>
-            <strong class="mono">${escapeHtml(order.material)}</strong>
+          <div class="remaining-cell detail-cell">
+            <div class="detail-line"><span>编号</span><strong class="mono">${escapeHtml(order.material)}</strong></div>
+            <div class="detail-line"><span>品名</span><strong>${escapeHtml(order.name)}</strong></div>
+            <div class="detail-line"><span>图号</span><strong class="mono">${escapeHtml(order.spec || '—')}</strong></div>
           </div>
-          <div class="remaining-field span-2">
-            <span>品名</span>
-            <strong>${escapeHtml(order.name)}</strong>
+          <div class="remaining-cell meta-cell">
+            <div class="meta-line"><span>数量</span><strong class="quantity-value">${fmt(order.remaining)}</strong></div>
+            <div class="meta-line"><span>项次</span><strong>${escapeHtml(order.seq)}</strong></div>
           </div>
-          <div class="remaining-field span-2">
-            <span>图号</span>
-            <strong class="mono">${escapeHtml(order.spec || '—')}</strong>
-          </div>
-          <div class="remaining-field compact-meta">
-            <span>项次</span>
-            <strong>${escapeHtml(order.seq)}</strong>
-          </div>
-          <div class="remaining-field quantity compact-meta">
-            <span>未交</span>
-            <strong>${fmt(order.remaining)}</strong>
-          </div>
-          <div class="remaining-field due-field compact-meta">
+          <div class="remaining-cell due-cell">
             <span>交期</span>
-            <div><strong>${escapeHtml(formatDate(order.dueDate))}</strong><em class="due-badge ${badge.className}">${escapeHtml(badge.text)}</em></div>
+            <strong>${escapeHtml(formatDate(order.dueDate))}</strong>
+            <em class="due-badge ${badge.className}">${escapeHtml(badge.text)}</em>
           </div>
         </div>
       </article>`;
@@ -811,6 +799,8 @@ function setupRpcExportLink() {
 setupRpcExportLink();
 await loadState();
 connectEvents();
+
+
 
 
 
