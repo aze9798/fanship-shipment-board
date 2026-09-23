@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=3">
+  <link rel="stylesheet" href="./styles.css?v=4">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -64,6 +64,7 @@
           </div>
           <div class="topbar-actions">
             <a class="button ghost" href="./?view=mobile" target="_blank">打开手机录入页</a>
+            <button id="importButton" class="button ghost" type="button">导入实际未交</button>
             <a class="button ghost" href="https://dkbeigqtiilgxthwkixg.supabase.co/functions/v1/shipment-board/api/export.csv">导出未交 CSV</a>
             <button id="resetButton" class="button ghost danger-text" type="button">清空演示记录</button>
           </div>
@@ -251,10 +252,33 @@
     </section>
   </div>
 
+  <div id="importModal" class="modal-backdrop" hidden>
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="importTitle">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow">实际未交同步</p>
+          <h2 id="importTitle">导入 Excel 未交数据</h2>
+        </div>
+        <button id="closeImportModal" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <div id="importPreview" class="submit-summary">
+        <div class="submit-summary-row"><span>选择文件</span><strong>请选择计划表或未交清单</strong></div>
+      </div>
+      <p class="import-warning">导入会以 Excel 中的“未交”为准，替换云端当前未交清单，并重置已有发货流水，避免重复扣减。</p>
+      <div class="modal-actions">
+        <button id="cancelImport" class="button ghost" type="button">取消</button>
+        <button id="confirmImport" class="button primary" type="button" disabled>确认覆盖导入</button>
+      </div>
+    </section>
+  </div>
+
+  <input id="importFileInput" type="file" accept=".xlsx,.xls" hidden>
   <div id="toast" class="toast" hidden></div>
-  <script src="./app.js?v=3" type="module"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="./app.js?v=4" type="module"></script>
 </body>
 </html>
+
 
 
 
