@@ -401,7 +401,7 @@ function renderMobileRemaining() {
       const badge = dueBadge(order);
       return `<article class="mobile-remaining-card">
         <div class="mobile-remaining-grid">
-          <div class="remaining-field">
+          <div class="remaining-field span-2">
             <span>订单号</span>
             <strong class="mono">${escapeHtml(order.po)}</strong>
           </div>
@@ -417,15 +417,15 @@ function renderMobileRemaining() {
             <span>图号</span>
             <strong class="mono">${escapeHtml(order.spec || '—')}</strong>
           </div>
-          <div class="remaining-field">
+          <div class="remaining-field compact-meta">
             <span>项次</span>
             <strong>${escapeHtml(order.seq)}</strong>
           </div>
-          <div class="remaining-field quantity">
-            <span>数量</span>
+          <div class="remaining-field quantity compact-meta">
+            <span>未交</span>
             <strong>${fmt(order.remaining)}</strong>
           </div>
-          <div class="remaining-field span-2 due-field">
+          <div class="remaining-field due-field compact-meta">
             <span>交期</span>
             <div><strong>${escapeHtml(formatDate(order.dueDate))}</strong><em class="due-badge ${badge.className}">${escapeHtml(badge.text)}</em></div>
           </div>
@@ -498,8 +498,8 @@ async function submitShipment() {
   const form = new FormData(els.shipmentForm);
   const payload = {
     customer: snapshot.customer,
-    operator: form.get('operator'),
-    vehicle: form.get('vehicle'),
+    operator: String(form.get('operator') || '').trim() || '未填写',
+    vehicle: String(form.get('vehicle') || '').trim() || '未填写',
     note: form.get('note'),
     items: [...selected.entries()].map(([orderId, quantity]) => ({ orderId, quantity })),
   };
@@ -811,6 +811,10 @@ function setupRpcExportLink() {
 setupRpcExportLink();
 await loadState();
 connectEvents();
+
+
+
+
 
 
 

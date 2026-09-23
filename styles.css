@@ -389,18 +389,30 @@ body[data-view="mobile"] { background: #dfe7e9; }
 
 
 
-/* 手机未交清单：按字段分栏，避免长信息挤在一行 */
+/* 手机未交清单：三行紧凑布局，保留关键字段 */
 .mobile-remaining-card { display: block; padding: 0; overflow: hidden; }
-.mobile-remaining-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: #edf2f3; }
-.remaining-field { min-width: 0; padding: 11px 13px; background: #fff; }
+.mobile-remaining-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: #edf2f3; }
+.remaining-field { min-width: 0; padding: 8px 11px; background: #fff; }
 .remaining-field.span-2 { grid-column: span 2; }
-.remaining-field > span { display: block; margin-bottom: 4px; color: #87979d; font-size: 9px; font-weight: 700; letter-spacing: .06em; }
-.remaining-field > strong { display: block; color: #24383f; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
-.remaining-field.quantity > strong { color: var(--primary); font-size: 19px; font-weight: 800; }
+.remaining-field > span { display: block; margin-bottom: 2px; color: #87979d; font-size: 9px; font-weight: 700; letter-spacing: .05em; }
+.remaining-field > strong { display: block; color: #24383f; font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+.remaining-field.quantity > strong { color: var(--primary); font-size: 17px; font-weight: 800; }
 .remaining-field .mono { font-size: 11px; }
-.due-field > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.due-field > div strong { font-size: 12px; }
+.remaining-field.compact-meta > span { margin-bottom: 1px; }
+.remaining-field.compact-meta > strong { font-size: 11px; }
+.due-field > div { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.due-field > div strong { font-size: 11px; }
 .due-field em { font-style: normal; }
+@media (max-width: 620px) {
+  .mobile-remaining-panel { gap: 7px; }
+  .mobile-remaining-card { border-radius: 10px; }
+  .remaining-field { padding: 7px 9px; }
+  .remaining-field > span { margin-bottom: 1px; font-size: 8px; }
+  .remaining-field > strong { font-size: 11px; }
+  .remaining-field.quantity > strong { font-size: 16px; }
+  .remaining-field .mono { font-size: 10px; }
+  .due-badge { padding: 2px 6px; font-size: 9px; }
+}
 
 /* 电脑端未交明细：按业务字段独立成列 */
 .dashboard-grid { grid-template-columns: minmax(0, 1fr) 250px; }
@@ -431,3 +443,6 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .orders-table th:nth-child(7), .orders-table td:nth-child(7) { min-width: 55px; }
 .orders-table th:nth-child(8), .orders-table td:nth-child(8) { min-width: 62px; }
 .item-name { min-width: 0; }
+
+
+
