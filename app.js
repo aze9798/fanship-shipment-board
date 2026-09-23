@@ -122,7 +122,7 @@ const $ = (selector) => document.querySelector(selector);
 const numberFormat = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 });
 let snapshot = null;
 let selected = new Map();
-let mobileFilter = 'task';
+let mobileFilter = 'active';
 let mobileTab = 'entry';
 let desktopFilter = 'active';
 let desktopSearch = '';
@@ -214,7 +214,6 @@ function dueBadge(order) {
 function filteredOrders(filter) {
   const active = snapshot.orders.filter((order) => order.remaining > 0);
   if (filter === 'urgent') return active.filter((order) => order.dueDate <= TODAY);
-  if (filter === 'task') return active.filter((order) => order.todayTask);
   if (filter === 'dueToday') return active.filter((order) => order.dueDate === TODAY);
   if (filter === 'overdue') return active.filter((order) => order.dueDate < TODAY);
   if (filter === 'partial') return active.filter((order) => order.shipped > 0);
@@ -296,7 +295,6 @@ function renderDesktopMetrics() {
   const { summary } = snapshot;
   els.metricRemaining.textContent = fmt(summary.remainingQuantity);
   els.metricRemainingHint.textContent = `源数据未交 ${fmt(summary.sourceRemainingQuantity)} 件起算`;
-  els.metricItems.textContent = fmt(summary.activeItems);
   els.metricShipped.textContent = fmt(summary.shippedQuantity);
   els.metricShipmentCount.textContent = summary.shipmentCount ? `${summary.shipmentCount} 笔发货记录` : '尚未提交发货';
   els.metricUrgent.textContent = fmt(summary.overdue + summary.dueToday);
@@ -801,6 +799,7 @@ function setupRpcExportLink() {
 setupRpcExportLink();
 await loadState();
 connectEvents();
+
 
 
 
