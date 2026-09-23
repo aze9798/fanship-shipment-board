@@ -187,6 +187,18 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 .item-main strong { font-size: 12px; line-height: 1.35; }
 .item-main span, .subtle { color: #87969c; font-size: 10px; }
 .mono { font-family: "Cascadia Mono", Consolas, monospace; font-size: 11px; }
+.company-tag {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: #e6f2f1;
+  color: #0d7371;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
 .order-id { display: block; font-weight: 700; color: #344e57; }
 .due-badge { display: inline-flex; align-items: center; min-height: 23px; padding: 0 8px; border-radius: 7px; color: #65777d; background: #f2f5f6; font-size: 10px; white-space: nowrap; }
 .due-badge.overdue { color: var(--danger); background: var(--danger-soft); }

@@ -127,6 +127,7 @@ let selected = new Map();
 let mobileFilter = 'active';
 let mobileTab = 'entry';
 let desktopFilter = 'active';
+let desktopCompany = 'all';
 let desktopSearch = '';
 let mobileSearch = '';
 let eventSource = null;
@@ -157,6 +158,7 @@ const els = {
   metricUrgent: $('#metricUrgent'),
   desktopSearch: $('#desktopSearch'),
   desktopFilter: $('#desktopFilter'),
+  desktopCompanyFilter: $('#desktopCompanyFilter'),
   desktopTableBody: $('#desktopTableBody'),
   desktopEmpty: $('#desktopEmpty'),
   shipmentHistory: $('#shipmentHistory'),
@@ -198,7 +200,7 @@ const escapeHtml = (value) => String(value ?? '')
   .replaceAll("'", '&#039;');
 
 const fmt = (value) => numberFormat.format(Number(value || 0));
-const searchable = (order) => [order.po, order.material, order.name, order.spec, order.batch, order.seq].join(' ').toLowerCase();
+const searchable = (order) => [order.po, order.material, order.name, order.spec, order.batch, order.seq, order.customer].join(' ').toLowerCase();
 
 function dayDiff(dateText) {
   const a = new Date(`${TODAY}T00:00:00+08:00`).getTime();
@@ -223,6 +225,14 @@ function dueBadge(order) {
   return { className: '', text: `${formatDate(order.dueDate)} 到期` };
 }
 
+// 公司编号存在订单的 customer 字段：4074 老公司（无锡市帆顺金属制品厂）/ 4137 新公司（无锡市帆顺金属科技有限公司）
+const COMPANY_NAMES = {
+  '4074': '无锡市帆顺金属制品厂',
+  '4137': '无锡市帆顺金属科技有限公司',
+};
+const orderCompany = (order) => String(order.customer || '').trim();
+const companyName = (code) => COMPANY_NAMES[code] || code || '未标注公司';
+
 function filteredOrders(filter) {
   const active = snapshot.orders.filter((order) => order.remaining > 0);
   if (filter === 'urgent') return active.filter((order) => order.dueDate <= TODAY);
@@ -235,6 +245,7 @@ function filteredOrders(filter) {
 function desktopRows() {
   const query = desktopSearch.trim().toLowerCase();
   let rows = filteredOrders(desktopFilter);
+  if (desktopCompany !== 'all') rows = rows.filter((order) => orderCompany(order) === desktopCompany);
   if (query) rows = rows.filter((order) => searchable(order).includes(query));
   return rows;
 }
@@ -391,7 +402,7 @@ function renderDesktopTable() {
     const badge = dueBadge(order);
     return `
       <tr>
-        <td><span class="order-id">${escapeHtml(order.po)}</span></td>
+        <td><span class="order-id">${escapeHtml(order.po)}</span><span class="company-tag" title="${escapeHtml(companyName(orderCompany(order)))}">${escapeHtml(orderCompany(order) || '—')}</span></td>
         <td><span class="material-code mono">${escapeHtml(order.material)}</span></td>
         <td><span class="item-name">${escapeHtml(order.name)}</span></td>
         <td><span class="spec-code mono">${escapeHtml(order.spec || '—')}</span></td>
@@ -917,6 +928,7 @@ function switchMobileTab(tab) {
 
 els.desktopSearch.addEventListener('input', (event) => { desktopSearch = event.target.value; renderDesktopTable(); });
 els.desktopFilter.addEventListener('change', (event) => { desktopFilter = event.target.value; renderDesktopTable(); });
+els.desktopCompanyFilter.addEventListener('change', (event) => { desktopCompany = event.target.value; renderDesktopTable(); });
 els.mobileSearch.addEventListener('input', (event) => { mobileSearch = event.target.value; renderMobileList(); });
 document.querySelectorAll('.mobile-tab').forEach((button) => button.addEventListener('click', () => switchMobileTab(button.dataset.tab)));
 els.mobileFilters.addEventListener('click', (event) => {
