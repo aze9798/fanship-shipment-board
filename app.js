@@ -666,25 +666,13 @@ async function refreshDeliveryPreview() {
   }
 }
 
-async function openDeliveryModal() {
-  els.deliveryModal.hidden = false;
-  els.deliveryDate.value = snapshot?.today || TODAY;
-  els.deliveryBatch.value = '';
-  deliveryPlan = null;
-  els.deliveryPreview.innerHTML = '';
-  els.printDeliveryNotes.disabled = true;
-  setDeliveryStatus('正在连接打印助手...');
-  try {
-    const health = await deliveryHelper('/health');
-    if (!health.templateExists) throw new Error('打印助手找不到“发货单模板.xlsx”');
-    els.deliveryBatch.value = String(health.nextBatch || 155);
-    setDeliveryStatus(`打印助手已连接：${health.printerName || '使用默认打印机'}。正在生成预览...`);
-    await refreshDeliveryPreview();
-  } catch (error) {
-    setDeliveryStatus(`${error.message || '打印助手未启动'}。请先在连接 EPSON 的电脑上双击“启动打印助手.cmd”。`, 'error');
-  }
+function openDeliveryModal() {
+  const date = snapshot?.today || TODAY;
+  const url = `${PRINT_HELPER_BASE}/preview?date=${encodeURIComponent(date)}`;
+  const opened = window.open(url, '_blank', 'noopener');
+  if (opened) showToast('已打开本地送货单预览，请确认日期和批次号后打印');
+  else showToast('浏览器阻止了新窗口，请允许弹窗后重试');
 }
-
 function closeDeliveryModal() {
   els.deliveryModal.hidden = true;
 }
