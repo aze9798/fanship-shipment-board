@@ -299,6 +299,77 @@ function renderDesktopMetrics() {
   els.metricUrgent.textContent = fmt(summary.overdue + summary.dueToday);
 }
 
+const DESKTOP_COLUMN_WIDTH_KEY = 'shipmentDesktopColumnWidths';
+const DESKTOP_COLUMN_DEFAULT_WIDTHS = [118, 92, 220, 170, 50, 78, 68, 76];
+
+function readDesktopColumnWidths() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DESKTOP_COLUMN_WIDTH_KEY) || '[]');
+    if (Array.isArray(saved) && saved.length === DESKTOP_COLUMN_DEFAULT_WIDTHS.length) {
+      return saved.map((value, index) => {
+        const width = Number(value);
+        return Number.isFinite(width) ? Math.max(44, Math.min(420, Math.round(width))) : DESKTOP_COLUMN_DEFAULT_WIDTHS[index];
+      });
+    }
+  } catch {}
+  return [...DESKTOP_COLUMN_DEFAULT_WIDTHS];
+}
+
+function writeDesktopColumnWidths(widths) {
+  try { localStorage.setItem(DESKTOP_COLUMN_WIDTH_KEY, JSON.stringify(widths)); } catch {}
+}
+
+function applyDesktopColumnWidths(widths = readDesktopColumnWidths()) {
+  const columns = [...document.querySelectorAll('#desktopOrdersColgroup col')];
+  if (!columns.length) return;
+  const normalized = columns.map((_, index) => {
+    const width = Number(widths[index]);
+    return Number.isFinite(width)
+      ? Math.max(44, Math.min(420, Math.round(width)))
+      : DESKTOP_COLUMN_DEFAULT_WIDTHS[index];
+  });
+  const total = normalized.reduce((sum, width) => sum + width, 0);
+  columns.forEach((column, index) => { column.style.width = `${normalized[index]}px`; });
+  const table = columns[0].closest('table');
+  if (table) table.style.minWidth = `${Math.max(760, total)}px`;
+}
+
+function setupDesktopColumnResize() {
+  const table = document.querySelector('.orders-table');
+  if (!table) return;
+  const headers = [...table.querySelectorAll('thead th')];
+  headers.forEach((header, index) => {
+    const handle = header.querySelector('.col-resizer');
+    if (!handle) return;
+    handle.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      const startX = event.clientX;
+      const widths = readDesktopColumnWidths();
+      const startWidth = widths[index];
+      const onMove = (moveEvent) => {
+        widths[index] = Math.max(44, Math.min(420, Math.round(startWidth + moveEvent.clientX - startX)));
+        applyDesktopColumnWidths(widths);
+      };
+      const onUp = () => {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        handle.classList.remove('dragging');
+        writeDesktopColumnWidths(widths);
+      };
+      handle.classList.add('dragging');
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    });
+    handle.addEventListener('dblclick', () => {
+      const widths = readDesktopColumnWidths();
+      widths[index] = DESKTOP_COLUMN_DEFAULT_WIDTHS[index];
+      applyDesktopColumnWidths(widths);
+      writeDesktopColumnWidths(widths);
+    });
+  });
+}
+
 function renderDesktopTable() {
   const rows = desktopRows();
   els.desktopTableBody.innerHTML = rows.map((order) => {
@@ -796,6 +867,8 @@ function setupRpcExportLink() {
   }
 }
 
+applyDesktopColumnWidths();
+setupDesktopColumnResize();
 setupRpcExportLink();
 await loadState();
 connectEvents();
