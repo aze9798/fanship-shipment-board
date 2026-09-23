@@ -384,3 +384,6 @@ body[data-view="mobile"] { background: #dfe7e9; }
   body[data-view="mobile"] .mobile-head { top: 0; }
 }
 
+
+.import-warning { margin: 0 24px 18px; padding: 12px 14px; border: 1px solid #f1d7a6; border-radius: 12px; background: #fff9ec; color: #8b5e13; font-size: 12px; line-height: 1.65; }
+
