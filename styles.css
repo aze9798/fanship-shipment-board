@@ -339,6 +339,14 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
   z-index: 40;
 }
 
+.remaining-tools { display: grid; gap: 8px; margin-bottom: 10px; }
+.remaining-tools input[type="search"], .remaining-tools select, .remaining-tools input[type="date"] {
+  height: 38px; padding: 0 10px; border: 1px solid #d7e1e3; border-radius: 10px; font: inherit; font-size: 13px; background: #fbfcfc; color: #17333b;
+}
+.remaining-due-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+
+.due-date { display: block; color: #35565e; font-size: 12px; font-weight: 700; margin-bottom: 2px; }
+
 .suggest-list {
   display: grid;
   gap: 4px;

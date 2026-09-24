@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=32">
+  <link rel="stylesheet" href="./styles.css?v=34">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -98,6 +98,21 @@
                 <input id="desktopSearch" type="search" placeholder="采购单号 / 物料编号 / 名称 / 规格" autocomplete="off">
               </label>
               <div id="desktopSuggest" class="suggest-list desktop-suggest" hidden></div>
+              <label class="select-box">
+                <span>交期</span>
+                <select id="desktopDueSelect">
+                  <option value="all">全部交期</option>
+                  <option value="overdue">已逾期</option>
+                  <option value="today">今天到期</option>
+                  <option value="tomorrow">明天到期</option>
+                  <option value="week">7天内到期</option>
+                  <option value="custom">指定日期…</option>
+                </select>
+              </label>
+              <label class="select-box" id="desktopDueBox" hidden>
+                <span>指定交期</span>
+                <input id="desktopDueDate" type="date">
+              </label>
               <label class="select-box">
                 <span>公司</span>
                 <select id="desktopCompanyFilter">
@@ -226,7 +241,23 @@
           </div>
         </section>
 
-        <section id="mobileRemainingPanel" class="mobile-panel" hidden></section>
+        <section id="mobileRemainingPanel" class="mobile-panel" hidden>
+          <div class="remaining-tools">
+            <input id="remainingSearch" type="search" placeholder="搜索料号 / 名称 / 采购单号" autocomplete="off">
+            <div class="remaining-due-row">
+              <select id="remainingDueSelect">
+                <option value="all">全部交期</option>
+                <option value="overdue">已逾期</option>
+                <option value="today">今天到期</option>
+                <option value="tomorrow">明天到期</option>
+                <option value="week">7天内到期</option>
+                <option value="custom">指定日期…</option>
+              </select>
+              <input id="remainingDueDate" type="date" hidden>
+            </div>
+          </div>
+          <div id="remainingList"></div>
+        </section>
         <section id="mobileRecordsPanel" class="mobile-panel" hidden></section>
 
         <section id="cartDetail" class="cart-detail" hidden></section>
@@ -324,7 +355,7 @@
   <input id="importFileInput" type="file" accept=".xlsx,.xls" hidden>
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="./app.js?v=32" type="module"></script>
+  <script src="./app.js?v=34" type="module"></script>
 </body>
 </html>
 

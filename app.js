@@ -128,6 +128,11 @@ let mobileFilter = 'active';
 let mobileTab = 'entry';
 let desktopFilter = 'active';
 let desktopCompany = 'all';
+let remainingSearch = '';
+let remainingDue = 'all';
+let remainingDueDate = '';
+let desktopDueFilter = 'all';
+let desktopDueDate = '';
 let desktopSearch = '';
 let mobileSearch = '';
 let historyDate = '';
@@ -168,6 +173,9 @@ const els = {
   desktopFilter: $('#desktopFilter'),
   desktopSuggest: $('#desktopSuggest'),
   desktopCompanyFilter: $('#desktopCompanyFilter'),
+  desktopDueSelect: $('#desktopDueSelect'),
+  desktopDueBox: $('#desktopDueBox'),
+  desktopDueDate: $('#desktopDueDate'),
   desktopTableBody: $('#desktopTableBody'),
   desktopEmpty: $('#desktopEmpty'),
   shipmentHistory: $('#shipmentHistory'),
@@ -187,6 +195,10 @@ const els = {
   mobileEmpty: $('#mobileEmpty'),
   mobileEntryPanel: $('#mobileEntryPanel'),
   mobileRemainingPanel: $('#mobileRemainingPanel'),
+  remainingSearch: $('#remainingSearch'),
+  remainingDueSelect: $('#remainingDueSelect'),
+  remainingDueDate: $('#remainingDueDate'),
+  remainingList: $('#remainingList'),
   mobileRecordsPanel: $('#mobileRecordsPanel'),
   mobileCartBar: $('#mobileCartBar'),
   mobileCartSummary: $('#mobileCartSummary'),
@@ -260,10 +272,29 @@ function filteredOrders(filter) {
   return active;
 }
 
+// 交期列：显示具体日期 + 逾期/今天到期/几天后
+function dueStatus(order) {
+  const badge = dueBadge(order);
+  const text = String(badge.text).replace(`${formatDate(order.dueDate)} `, '');
+  return { className: badge.className, text };
+}
+
 function desktopRows() {
   const query = desktopSearch.trim().toLowerCase();
   let rows = filteredOrders('active');
   if (desktopCompany !== 'all') rows = rows.filter((order) => orderCompany(order) === desktopCompany);
+  if (desktopDueFilter !== 'all') {
+    rows = rows.filter((order) => {
+      const diff = dayDiff(order.dueDate);
+      if (!Number.isFinite(diff)) return false;
+      if (desktopDueFilter === 'overdue') return diff < 0;
+      if (desktopDueFilter === 'today') return diff === 0;
+      if (desktopDueFilter === 'tomorrow') return diff === 1;
+      if (desktopDueFilter === 'week') return diff >= 0 && diff <= 7;
+      if (desktopDueFilter === 'custom') return desktopDueDate ? order.dueDate === desktopDueDate : true;
+      return true;
+    });
+  }
   if (query) rows = rows.filter((order) => searchable(order).includes(query));
   return rows;
 }
@@ -584,7 +615,7 @@ function renderDesktopMetrics() {
 }
 
 const DESKTOP_COLUMN_WIDTH_KEY = 'shipmentDesktopColumnWidths';
-const DESKTOP_COLUMN_DEFAULT_WIDTHS = [118, 92, 220, 170, 50, 78, 68, 76];
+const DESKTOP_COLUMN_DEFAULT_WIDTHS = [118, 92, 220, 170, 50, 118, 68, 76];
 
 function readDesktopColumnWidths() {
   try {
@@ -665,7 +696,7 @@ function renderDesktopTable() {
         <td><span class="item-name">${escapeHtml(order.name)}</span></td>
         <td><span class="spec-code mono">${escapeHtml(order.spec || '—')}</span></td>
         <td class="number">${escapeHtml(order.seq)}</td>
-        <td><span class="due-badge ${badge.className}">${escapeHtml(badge.text)}</span></td>
+        <td><span class="due-date">${escapeHtml(formatDate(order.dueDate))}</span><span class="due-badge ${badge.className}">${escapeHtml(dueStatus(order).text)}</span></td>
         <td class="number"><span class="remaining-number">${fmt(order.remaining)}</span></td>
         <td class="number"><span class="shipped-number">${fmt(order.shipped)}</span></td>
       </tr>`;
@@ -797,10 +828,31 @@ function renderMobileSummary() {
   els.mobileRemainingQty.textContent = fmt(snapshot.summary.remainingQuantity);
 }
 
+function remainingRows() {
+  let rows = filteredOrders('active');
+  const query = remainingSearch.trim().toLowerCase();
+  if (query) rows = rows.filter((order) => searchable(order).includes(query));
+  if (remainingDue !== 'all') {
+    rows = rows.filter((order) => {
+      const diff = dayDiff(order.dueDate);
+      if (!Number.isFinite(diff)) return false;
+      if (remainingDue === 'overdue') return diff < 0;
+      if (remainingDue === 'today') return diff === 0;
+      if (remainingDue === 'tomorrow') return diff === 1;
+      if (remainingDue === 'week') return diff >= 0 && diff <= 7;
+      if (remainingDue === 'custom') return remainingDueDate ? order.dueDate === remainingDueDate : true;
+      return true;
+    });
+  }
+  return rows;
+}
+
 function renderMobileRemaining() {
-  const rows = filteredOrders('active').slice(0, 120);
-  els.mobileRemainingPanel.innerHTML = `
-    <div class="records-head"><strong>全部未交清单</strong><span>共 ${fmt(snapshot.summary.activeItems)} 项，显示交期优先的前 ${Math.min(120, rows.length)} 项。</span></div>
+  if (!els.remainingList) return;
+  const all = remainingRows();
+  const rows = all.slice(0, 120);
+  els.remainingList.innerHTML = `
+    <div class="records-head"><strong>未交清单</strong><span>共 ${fmt(all.length)} 项${all.length > 120 ? `，显示交期优先的前 120 项` : ''}。</span></div>
     ${rows.map((order) => {
       const badge = dueBadge(order);
       return `<article class="mobile-remaining-card">
@@ -1390,6 +1442,16 @@ if (els.desktopSuggest) {
   });
 }
 els.desktopCompanyFilter.addEventListener('change', (event) => { desktopCompany = event.target.value; renderDesktopTable(); });
+if (els.desktopDueSelect) els.desktopDueSelect.addEventListener('change', (event) => {
+  desktopDueFilter = event.target.value;
+  if (desktopDueFilter !== 'custom') desktopDueDate = '';
+  if (els.desktopDueBox) els.desktopDueBox.hidden = desktopDueFilter !== 'custom';
+  renderDesktopTable();
+});
+if (els.desktopDueDate) els.desktopDueDate.addEventListener('change', (event) => {
+  desktopDueDate = event.target.value;
+  renderDesktopTable();
+});
 els.mobileSearch.addEventListener('input', (event) => { mobileSearch = event.target.value; renderMobileList(); renderSuggestions(); });
 els.mobileSearch.addEventListener('focus', () => { renderSuggestions(); });
 if (els.mobileSuggest) {
@@ -1510,6 +1572,29 @@ if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', async
     button.disabled = false;
   }
 });
+
+if (els.mobileRemainingPanel) {
+  els.mobileRemainingPanel.addEventListener('input', (event) => {
+    if (event.target.id !== 'remainingSearch') return;
+    remainingSearch = event.target.value;
+    renderMobileRemaining();
+  });
+  els.mobileRemainingPanel.addEventListener('change', (event) => {
+    if (event.target.id === 'remainingDueSelect') {
+      remainingDue = event.target.value;
+      if (remainingDue !== 'custom') remainingDueDate = '';
+      if (els.remainingDueDate) {
+        els.remainingDueDate.hidden = remainingDue !== 'custom';
+        if (remainingDue !== 'custom') els.remainingDueDate.value = '';
+      }
+      renderMobileRemaining();
+    }
+    if (event.target.id === 'remainingDueDate') {
+      remainingDueDate = event.target.value;
+      renderMobileRemaining();
+    }
+  });
+}
 
 document.querySelectorAll('[data-desktop-view]').forEach((link) => {
   link.addEventListener('click', (event) => {
