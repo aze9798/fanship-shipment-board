@@ -279,32 +279,42 @@ function dueStatus(order) {
   return { className: badge.className, text };
 }
 
+// 交期筛选统一判断（列表和下拉建议共用）
+function matchDueFilter(order, filter, customDate) {
+  if (filter === 'all') return true;
+  const diff = dayDiff(order.dueDate);
+  if (!Number.isFinite(diff)) return false;
+  if (filter === 'overdue') return diff < 0;
+  if (filter === 'today') return diff === 0;
+  if (filter === 'tomorrow') return diff === 1;
+  if (filter === 'week') return diff >= 0 && diff <= 7;
+  if (filter === 'custom') return customDate ? order.dueDate === customDate : true;
+  return true;
+}
+
+// 当前筛选（交期+公司）之后的结果集——搜索、下拉建议都在这个范围里做
+function desktopDueRows() {
+  let rows = filteredOrders('active');
+  if (desktopCompany !== 'all') rows = rows.filter((order) => orderCompany(order) === desktopCompany);
+  rows = rows.filter((order) => matchDueFilter(order, desktopDueFilter, desktopDueDate));
+  return rows;
+}
+
 function desktopRows() {
   const query = desktopSearch.trim().toLowerCase();
   let rows = filteredOrders('active');
-  if (desktopCompany !== 'all') rows = rows.filter((order) => orderCompany(order) === desktopCompany);
-  if (desktopDueFilter !== 'all') {
-    rows = rows.filter((order) => {
-      const diff = dayDiff(order.dueDate);
-      if (!Number.isFinite(diff)) return false;
-      if (desktopDueFilter === 'overdue') return diff < 0;
-      if (desktopDueFilter === 'today') return diff === 0;
-      if (desktopDueFilter === 'tomorrow') return diff === 1;
-      if (desktopDueFilter === 'week') return diff >= 0 && diff <= 7;
-      if (desktopDueFilter === 'custom') return desktopDueDate ? order.dueDate === desktopDueDate : true;
-      return true;
-    });
-  }
+  rows = desktopDueRows();
   if (query) rows = rows.filter((order) => searchable(order).includes(query));
   return rows;
 }
 
 // 搜索时给出相近的料号/名称下拉，点一下精准选中
-function materialOptions(query) {
+function materialOptions(query, sourceRows) {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return [];
+  const pool = Array.isArray(sourceRows) ? sourceRows : snapshot.orders;
   const map = new Map();
-  for (const order of snapshot.orders) {
+  for (const order of pool) {
     if (!(order.remaining > 0)) continue;
     const material = String(order.material || '').trim();
     if (!material) continue;
@@ -320,9 +330,9 @@ function materialOptions(query) {
     .slice(0, 20);
 }
 
-function renderSuggestFor(input, box) {
+function renderSuggestFor(input, box, sourceRows) {
   if (!box || !snapshot) return;
-  const rows = materialOptions(input ? input.value : '');
+  const rows = materialOptions(input ? input.value : '', sourceRows);
   if (!rows.length) {
     box.hidden = true;
     box.innerHTML = '';
@@ -338,7 +348,8 @@ function renderSuggestFor(input, box) {
 }
 
 function renderSuggestions() {
-  renderSuggestFor(els.mobileSearch, els.mobileSuggest);
+  // 先按顶部筛选（全部未交/今日到期/已逾期），再在这个范围里给建议
+  renderSuggestFor(els.mobileSearch, els.mobileSuggest, filteredOrders(mobileFilter));
 }
 
 function pickSuggestion(button, input, box) {
@@ -1431,8 +1442,8 @@ function switchMobileTab(tab) {
   renderCart();
 }
 
-els.desktopSearch.addEventListener('input', (event) => { desktopSearch = event.target.value; renderDesktopTable(); renderSuggestFor(els.desktopSearch, els.desktopSuggest); });
-els.desktopSearch.addEventListener('focus', () => renderSuggestFor(els.desktopSearch, els.desktopSuggest));
+els.desktopSearch.addEventListener('input', (event) => { desktopSearch = event.target.value; renderDesktopTable(); renderSuggestFor(els.desktopSearch, els.desktopSuggest, desktopDueRows()); });
+els.desktopSearch.addEventListener('focus', () => renderSuggestFor(els.desktopSearch, els.desktopSuggest, desktopDueRows()));
 if (els.desktopSuggest) {
   els.desktopSuggest.addEventListener('click', (event) => {
     const button = event.target.closest('[data-suggest]');
