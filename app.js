@@ -1369,9 +1369,12 @@ function openSubmitModal() {
     return;
   }
   const total = entries.reduce((sum, [, quantity]) => sum + Number(quantity), 0);
+  const overRows = [...sessionOver.values()].filter((item) => item.pending && Number(item.quantity) > 0);
+  const overTotal = overRows.reduce((sum, item) => sum + Number(item.quantity), 0);
   els.submitSummary.innerHTML = `
     <div class="submit-summary-row"><span>本次物料</span><strong>${entries.length} 项</strong></div>
     <div class="submit-summary-row"><span>本次总数量</span><strong>${fmt(total)} 件</strong></div>
+    ${overTotal ? `<div class="submit-summary-row"><span>其中无订单发货</span><strong>${fmt(overTotal)} 件（提交时自动登记）</strong></div>` : ''}
     <div class="submit-summary-row"><span>提交后</span><strong>电脑端自动扣减未交</strong></div>`;
   els.submitModal.hidden = false;
 }
