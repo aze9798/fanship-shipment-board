@@ -176,6 +176,7 @@ const els = {
   mobileFilters: $('#mobileFilters'),
   mobileOrderList: $('#mobileOrderList'),
   mobileAllocNotice: $('#mobileAllocNotice'),
+  mobileOffsetBox: $('#mobileOffsetBox'),
   mobileEmpty: $('#mobileEmpty'),
   mobileEntryPanel: $('#mobileEntryPanel'),
   mobileRemainingPanel: $('#mobileRemainingPanel'),
@@ -346,6 +347,44 @@ function renderOverDeliveryList() {
     </section>`;
 }
 
+// 之前多送、现在有订单可以冲抵的候选
+function offsetCandidates() {
+  const rows = overDeliveries();
+  if (!rows.length) return [];
+  const out = [];
+  for (const over of rows) {
+    const material = String(over.material || '').trim();
+    const remaining = Number(over.remaining || 0);
+    if (!material || remaining <= 0) continue;
+    const orders = materialOrders(material).filter((order) => !over.customer || String(order.customer || '') === String(over.customer));
+    if (!orders.length) continue;
+    const total = orders.reduce((sum, order) => sum + Number(order.remaining || 0), 0);
+    out.push({ over, orders, total, take: Math.min(remaining, Number(orders[0].remaining || 0)) });
+  }
+  return out;
+}
+
+function renderOffsetBox() {
+  if (!els.mobileOffsetBox) return;
+  const list = offsetCandidates();
+  if (!list.length) {
+    els.mobileOffsetBox.hidden = true;
+    els.mobileOffsetBox.innerHTML = '';
+    return;
+  }
+  els.mobileOffsetBox.hidden = false;
+  els.mobileOffsetBox.innerHTML = list.map((item) => `
+    <div class="offset-row">
+      <div class="offset-text">
+        <strong>前期多送可以冲抵了</strong>
+        <span class="mono">${escapeHtml(item.over.material)}</span>
+        <span>${escapeHtml(item.over.name)}${item.over.spec ? ' · ' + escapeHtml(item.over.spec) : ''}</span>
+        <span>之前多送 <b>${fmt(item.over.remaining)}</b> 件；现有未交 ${fmt(item.total)} 件（最早 ${escapeHtml(item.orders[0].po)} 项次${escapeHtml(item.orders[0].seq)}）</span>
+      </div>
+      <button type="button" class="over-button" data-offset-over="${escapeHtml(item.over.id)}">冲抵 ${fmt(item.take)} 件</button>
+    </div>`).join('');
+}
+
 function reconcileSelection() {
   const map = new Map(snapshot.orders.map((order) => [order.id, order]));
   for (const [id, quantity] of [...selected.entries()]) {
@@ -363,6 +402,7 @@ function renderAll() {
   renderDesktopMetrics();
   renderDesktopTable();
   renderDesktopHistory();
+  renderOffsetBox();
   renderMobileSummary();
   renderMobileList();
   renderMobileRemaining();
@@ -1137,6 +1177,30 @@ els.mobileFilters.addEventListener('click', (event) => {
   document.querySelectorAll('#mobileFilters .chip').forEach((chip) => chip.classList.toggle('active', chip === button));
   renderMobileList();
 });
+if (els.mobileOffsetBox) els.mobileOffsetBox.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-offset-over]');
+  if (!button) return;
+  const overId = button.dataset.offsetOver;
+  const over = overDeliveries().find((row) => String(row.id) === String(overId));
+  if (!over) { showToast('找不到这条无订单发货记录'); return; }
+  const target = materialOrders(over.material).filter((order) => !over.customer || String(order.customer || '') === String(over.customer))[0];
+  if (!target) { showToast('暂时没有可以冲抵的订单'); return; }
+  button.disabled = true;
+  try {
+    const result = await callRpc('board_apply_offset', {
+      p_code: getAccessCode(), p_over_id: overId, p_order_id: target.id,
+    });
+    if (!result.response.ok) throw new Error(result.data?.message || '冲抵失败');
+    const applied = Number(result.data?.applied || 0);
+    showToast(`已冲抵 ${fmt(applied)} 件到 ${target.po} 项次${target.seq}`);
+    await loadState({ quiet: true });
+    renderAll();
+  } catch (error) {
+    showToast(error.message || '冲抵失败');
+    button.disabled = false;
+  }
+});
+
 if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', async (event) => {
   const button = event.target.closest('[data-over-material]');
   if (!button) return;

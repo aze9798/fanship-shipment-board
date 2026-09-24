@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=24">
+  <link rel="stylesheet" href="./styles.css?v=25">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -203,6 +203,7 @@
               <button class="chip" data-filter="overdue" type="button">已逾期</button>
             </div>
           </div>
+          <div id="mobileOffsetBox" class="offset-box" hidden></div>
           <div id="mobileAllocNotice" class="alloc-notice" hidden></div>
           <div id="mobileOrderList" class="mobile-order-list"></div>
           <div id="mobileEmpty" class="empty-state mobile-empty" hidden>
@@ -307,7 +308,7 @@
   <input id="importFileInput" type="file" accept=".xlsx,.xls" hidden>
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="./app.js?v=24" type="module"></script>
+  <script src="./app.js?v=25" type="module"></script>
 </body>
 </html>
 

@@ -252,6 +252,20 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 
 .material-total.over { background: #fdf1e3; color: #8a5a12; }
 
+.offset-box {
+  margin: 8px 0;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: #fff3e0;
+  border: 1px solid #f3ddb8;
+}
+
+.offset-row { display: grid; gap: 8px; }
+.offset-row + .offset-row { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #f0dcc0; }
+.offset-text { display: grid; gap: 3px; font-size: 12px; color: #6b5330; line-height: 1.5; }
+.offset-text strong { color: #a1571a; font-size: 13px; }
+.offset-text b { color: #a1571a; }
+
 .over-button {
   display: block;
   margin-top: 8px;
