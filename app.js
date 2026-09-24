@@ -626,7 +626,7 @@ function renderDesktopMetrics() {
 }
 
 const DESKTOP_COLUMN_WIDTH_KEY = 'shipmentDesktopColumnWidths';
-const DESKTOP_COLUMN_DEFAULT_WIDTHS = [118, 92, 220, 170, 50, 118, 68, 76];
+const DESKTOP_COLUMN_DEFAULT_WIDTHS = [118, 92, 220, 170, 64, 118, 68, 76];
 
 function readDesktopColumnWidths() {
   try {

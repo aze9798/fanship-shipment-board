@@ -677,7 +677,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .orders-table th:nth-child(2), .orders-table td:nth-child(2) { min-width: 92px; }
 .orders-table th:nth-child(3), .orders-table td:nth-child(3) { min-width: 190px; }
 .orders-table th:nth-child(4), .orders-table td:nth-child(4) { min-width: 145px; }
-.orders-table th:nth-child(5), .orders-table td:nth-child(5) { min-width: 54px; }
+.orders-table th:nth-child(5), .orders-table td:nth-child(5) { min-width: 64px; }
 .orders-table th:nth-child(6), .orders-table td:nth-child(6) { min-width: 76px; }
 .orders-table th:nth-child(7), .orders-table td:nth-child(7) { min-width: 66px; }
 .orders-table th:nth-child(8), .orders-table td:nth-child(8) { min-width: 76px; }
@@ -693,7 +693,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .orders-table th:nth-child(2), .orders-table td:nth-child(2) { min-width: 82px; }
 .orders-table th:nth-child(3), .orders-table td:nth-child(3) { min-width: 155px; }
 .orders-table th:nth-child(4), .orders-table td:nth-child(4) { min-width: 120px; }
-.orders-table th:nth-child(5), .orders-table td:nth-child(5) { min-width: 42px; }
+.orders-table th:nth-child(5), .orders-table td:nth-child(5) { min-width: 64px; }
 .orders-table th:nth-child(6), .orders-table td:nth-child(6) { min-width: 62px; }
 .orders-table th:nth-child(7), .orders-table td:nth-child(7) { min-width: 55px; }
 .orders-table th:nth-child(8), .orders-table td:nth-child(8) { min-width: 62px; }
@@ -710,6 +710,9 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .orders-table { width: max-content; min-width: 760px; table-layout: fixed; }
 .orders-table th,
 .orders-table td { padding-left: 6px; padding-right: 6px; }
+.orders-table thead th,
+.orders-table thead th.number { text-align: center; }
+
 .orders-table th {
   position: relative;
   overflow: visible;
@@ -743,9 +746,9 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .col-resizer {
   position: absolute;
   top: 0;
-  right: -2px;
+  right: -5px;
   z-index: 2;
-  width: 6px;
+  width: 10px;
   height: 100%;
   cursor: col-resize;
   touch-action: none;
