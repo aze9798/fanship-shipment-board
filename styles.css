@@ -945,3 +945,16 @@ body[data-view="mobile"] { background: #dfe7e9; }
   height: 34px;
   justify-self: stretch;
 }
+
+
+/* 手机端头部：回电脑版 + 刷新 */
+.mobile-head-actions { display: flex; align-items: center; gap: 8px; }
+.mobile-back {
+  padding: 7px 11px;
+  border: 1px solid rgba(255, 255, 255, .45);
+  border-radius: 9px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
