@@ -136,6 +136,8 @@ let desktopDueDate = '';
 let desktopSearch = '';
 let mobileSearch = '';
 let historyDate = '';
+let recordsSearch = '';
+let recordsDate = '';
 let historyQuery = '';
 const expandedShipments = new Set();
 let autoOffsetNote = '';
@@ -201,6 +203,10 @@ const els = {
   remainingDueDate: $('#remainingDueDate'),
   remainingList: $('#remainingList'),
   mobileRecordsPanel: $('#mobileRecordsPanel'),
+  recordsSearch: $('#recordsSearch'),
+  recordsDate: $('#recordsDate'),
+  recordsClear: $('#recordsClear'),
+  recordsList: $('#recordsList'),
   mobileCartBar: $('#mobileCartBar'),
   mobileCartSummary: $('#mobileCartSummary'),
   cartDetail: $('#cartDetail'),
@@ -737,12 +743,33 @@ function shipmentMatches(shipment, query) {
   return text.includes(query);
 }
 
-function filteredShipments() {
-  const query = historyQuery.trim().toLowerCase();
+function filterShipments(date, queryText) {
+  const query = String(queryText || '').trim().toLowerCase();
   return snapshot.shipments.filter((shipment) => {
-    if (historyDate && shipShanghaiDate(shipment.createdAt) !== historyDate) return false;
+    if (date && shipShanghaiDate(shipment.createdAt) !== date) return false;
     return shipmentMatches(shipment, query);
   });
+}
+
+function filteredShipments() {
+  return filterShipments(historyDate, historyQuery);
+}
+
+// 把同一天的多笔发货合并成一张汇总（按物料汇总数量）
+function mergedShipmentsByDate(shipments) {
+  const map = new Map();
+  for (const shipment of shipments) {
+    const day = shipShanghaiDate(shipment.createdAt);
+    if (!map.has(day)) map.set(day, { day, count: 0, total: 0, items: new Map() });
+    const row = map.get(day);
+    row.count += 1;
+    row.total += Number(shipment.totalQuantity || 0);
+    for (const item of shipment.items || []) {
+      const key = [item.material, item.name, item.spec].map((v) => String(v || '')).join('|');
+      row.items.set(key, (row.items.get(key) || 0) + Number(item.quantity || 0));
+    }
+  }
+  return [...map.values()].sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0));
 }
 
 function renderHistoryCards(shipments) {
@@ -893,8 +920,23 @@ function renderMobileRemaining() {
 }
 
 function renderMobileRecords() {
-  els.mobileRecordsPanel.innerHTML = `<div class="records-head"><strong>发货记录</strong><span>电脑端会同步显示这些记录，点“展开全部”可看完整明细。</span></div>${renderOverDeliveryList()}${renderOverOffsetList()}${renderHistoryCards(snapshot.shipments)}`;
-  els.mobileRecordsPanel.querySelectorAll('[data-expand]').forEach((button) => button.addEventListener('click', () => {
+  if (!els.recordsList) return;
+  const filtering = Boolean(recordsDate) || Boolean(recordsSearch.trim());
+  const rows = filterShipments(recordsDate, recordsSearch);
+  const merged = filtering ? mergedShipmentsByDate(rows) : [];
+  const mergedTotal = merged.reduce((sum, row) => sum + row.total, 0);
+  const mergedHtml = filtering ? `
+    <div class="records-head"><strong>按日期合并查看</strong><span>${merged.length} 天 · 合计 ${fmt(mergedTotal)} 件 · ${rows.length} 笔发货</span></div>
+    ${merged.length ? merged.map((row) => `
+      <article class="over-box merged-day">
+        <div class="over-head"><strong>${escapeHtml(row.day)}</strong><span>${row.count} 笔 · ${fmt(row.total)} 件</span></div>
+        ${[...row.items.entries()].map(([key, quantity]) => {
+          const [material, name, spec] = key.split('|');
+          return `<div class="over-row"><span class="mono">${escapeHtml(material)}</span><span>${escapeHtml(name)}${spec ? ' · ' + escapeHtml(spec) : ''}</span><strong>${fmt(quantity)} 件</strong></div>`;
+        }).join('')}
+      </article>`).join('') : '<div class="empty-state"><strong>这几天没有发货记录</strong><span>换个日期或清空搜索词再试。</span></div>'}` : '';
+  els.recordsList.innerHTML = renderOverDeliveryList() + renderOverOffsetList() + mergedHtml + renderHistoryCards(rows);
+  els.recordsList.querySelectorAll('[data-expand]').forEach((button) => button.addEventListener('click', () => {
     const id = button.dataset.expand;
     if (expandedShipments.has(id)) expandedShipments.delete(id);
     else expandedShipments.add(id);
@@ -1606,6 +1648,25 @@ if (els.mobileRemainingPanel) {
       remainingDueDate = event.target.value;
       renderMobileRemaining();
     }
+  });
+}
+
+if (els.mobileRecordsPanel) {
+  els.mobileRecordsPanel.addEventListener('input', (event) => {
+    if (event.target.id !== 'recordsSearch') return;
+    recordsSearch = event.target.value;
+    renderMobileRecords();
+  });
+  els.mobileRecordsPanel.addEventListener('change', (event) => {
+    if (event.target.id !== 'recordsDate') return;
+    recordsDate = event.target.value;
+    renderMobileRecords();
+  });
+  els.mobileRecordsPanel.addEventListener('click', (event) => {
+    if (event.target.id !== 'recordsClear') return;
+    recordsDate = '';
+    if (els.recordsDate) els.recordsDate.value = '';
+    renderMobileRecords();
   });
 }
 

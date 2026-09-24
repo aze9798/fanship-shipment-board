@@ -925,3 +925,8 @@ body[data-view="mobile"] { background: #dfe7e9; }
   font: inherit;
   font-size: 12px;
 }
+
+
+/* 手机发货记录：同一天合并汇总卡片 */
+.merged-day { background: #f7fbfb; border-color: #dce5e7; }
+.merged-day .over-head strong { color: #0d6b66; }
