@@ -860,7 +860,7 @@ function renderAll() {
     ? `${snapshot.source.sheet} · 实时同步`
     : `生成于 ${snapshot.source.generatedAt}`;
   els.resetButton.hidden = Boolean(snapshot.storage?.cloud);
-  els.importButton.hidden = !RPC_BASE;
+  if (els.importButton) els.importButton.hidden = !RPC_BASE;
 }
 
 function renderDesktopMetrics() {
@@ -2042,7 +2042,9 @@ els.deliveryDate.addEventListener('change', refreshDeliveryPreview);
 els.deliveryBatch.addEventListener('change', refreshDeliveryPreview);
 $('#mobileRefresh').addEventListener('click', () => loadState());
 $('#resetButton').addEventListener('click', resetRecords);
-$('#importButton').addEventListener('click', () => els.importFileInput.click());
+if (els.importButton && els.importFileInput) {
+  els.importButton.addEventListener('click', () => els.importFileInput.click());
+}
 
 // 采购订单 PDF 导入
 if (window.pdfjsLib) {
@@ -2055,10 +2057,10 @@ if (els.pdfImportButton && els.pdfFileInput) {
 if (els.confirmPdf) els.confirmPdf.addEventListener('click', confirmPdfImport);
 if (els.cancelPdf) els.cancelPdf.addEventListener('click', closePdfModal);
 if (els.closePdfModal) els.closePdfModal.addEventListener('click', closePdfModal);
-els.importFileInput.addEventListener('change', handleImportFile);
-els.confirmImport.addEventListener('click', confirmImportOrders);
-els.closeImportModal.addEventListener('click', closeImportDialog);
-els.cancelImport.addEventListener('click', closeImportDialog);
+if (els.importFileInput) els.importFileInput.addEventListener('change', handleImportFile);
+if (els.confirmImport) els.confirmImport.addEventListener('click', confirmImportOrders);
+if (els.closeImportModal) els.closeImportModal.addEventListener('click', closeImportDialog);
+if (els.cancelImport) els.cancelImport.addEventListener('click', closeImportDialog);
 els.submitModal.addEventListener('click', (event) => { if (event.target === els.submitModal) closeSubmitModal(); });
 els.deliveryModal.addEventListener('click', (event) => { if (event.target === els.deliveryModal) closeDeliveryModal(); });
 els.shipmentHistory.addEventListener('click', (event) => {
