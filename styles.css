@@ -345,6 +345,18 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 }
 .remaining-due-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 
+.select-box input[type="date"] {
+  margin-top: 4px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid #d7e1e3;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  background: #fbfcfc;
+  color: #17333b;
+}
+
 .due-date { display: block; color: #35565e; font-size: 12px; font-weight: 700; margin-bottom: 2px; }
 
 .suggest-list {
@@ -711,7 +723,14 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .orders-table th,
 .orders-table td { padding-left: 6px; padding-right: 6px; }
 .orders-table thead th,
-.orders-table thead th.number { text-align: center; }
+.orders-table thead th.number,
+.orders-table tbody td,
+.orders-table tbody td.number { text-align: center; }
+
+/* 数据跟着标题列居中，去掉内部最小宽度限制，避免看着没跟着列走 */
+.orders-table tbody td .item-name,
+.orders-table tbody td .material-code,
+.orders-table tbody td .spec-code { min-width: 0; }
 
 .orders-table th {
   position: relative;

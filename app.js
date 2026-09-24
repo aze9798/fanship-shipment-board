@@ -1456,7 +1456,7 @@ els.desktopCompanyFilter.addEventListener('change', (event) => { desktopCompany 
 if (els.desktopDueSelect) els.desktopDueSelect.addEventListener('change', (event) => {
   desktopDueFilter = event.target.value;
   if (desktopDueFilter !== 'custom') desktopDueDate = '';
-  if (els.desktopDueBox) els.desktopDueBox.hidden = desktopDueFilter !== 'custom';
+  if (els.desktopDueDate) els.desktopDueDate.hidden = desktopDueFilter !== 'custom';
   renderDesktopTable();
 });
 if (els.desktopDueDate) els.desktopDueDate.addEventListener('change', (event) => {
