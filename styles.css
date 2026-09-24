@@ -969,3 +969,9 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .pdf-note { margin-top: 4px; font-size: 11px; color: #7c8f95; }
 .pdf-note.bad { color: #a0443d; font-weight: 700; }
 .submit-summary-row strong.bad { color: #a0443d; }
+
+
+/* 交期/公司去掉图标后，单列排布 */
+.toolbar .select-box { grid-template-columns: 1fr; }
+.toolbar .select-box .due-date-row { grid-template-columns: 1fr; }
+.toolbar .select-box select { padding-left: 2px; }

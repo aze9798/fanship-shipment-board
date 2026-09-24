@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=47">
+  <link rel="stylesheet" href="./styles.css?v=48">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -63,9 +63,8 @@
             <p class="subhead">手机录入发货数量，电脑端自动扣减未交。</p>
           </div>
           <div class="topbar-actions">
-            <a class="button ghost" href="./?view=mobile">打开手机录入页（本页切换）</a>
             <button id="pdfImportButton" class="button primary" type="button">导入采购订单 PDF</button>
-            <button id="importButton" class="button ghost" type="button" title="用 Excel 整表重置未交基线">重置未交(Excel)</button>
+            <button id="importButton" class="button ghost" type="button" title="按 Excel 整表重置未交基线（慎用）">导入未交(Excel整表)</button>
             <a class="button ghost" href="https://dkbeigqtiilgxthwkixg.supabase.co/functions/v1/shipment-board/api/export.csv">导出未交 CSV</a>
             <button id="resetButton" class="button ghost danger-text" type="button">清空演示记录</button>
           </div>
@@ -100,7 +99,6 @@
               </label>
               <div id="desktopSuggest" class="suggest-list desktop-suggest" hidden></div>
               <label class="select-box">
-                <span class="tool-icon" aria-hidden="true">📅</span>
                 <select id="desktopDueSelect">
                   <option value="all">全部交期</option>
                   <option value="overdue">已逾期</option>
@@ -110,12 +108,10 @@
                   <option value="custom">指定日期…</option>
                 </select>
                 <div id="desktopDueRow" class="due-date-row" hidden>
-                  <span class="tool-icon" aria-hidden="true">📅</span>
                   <input id="desktopDueDate" type="date">
                 </div>
               </label>
               <label class="select-box">
-                <span class="tool-icon" aria-hidden="true">🏢</span>
                 <select id="desktopCompanyFilter">
                   <option value="all">全部公司</option>
                   <option value="4074">帆顺金属 4074</option>
@@ -384,7 +380,7 @@
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-  <script src="./app.js?v=47" type="module"></script>
+  <script src="./app.js?v=48" type="module"></script>
 </body>
 </html>
 
