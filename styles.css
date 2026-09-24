@@ -958,3 +958,14 @@ body[data-view="mobile"] { background: #dfe7e9; }
   font-weight: 700;
   text-decoration: none;
 }
+
+
+/* 采购订单 PDF 识别结果 */
+.pdf-doc { margin-top: 8px; padding: 9px 11px; border: 1px solid #dce5e7; border-radius: 10px; background: #fbfcfc; }
+.pdf-doc.dup { background: #f4f7f8; }
+.pdf-doc.bad { border-color: #e6b8b2; background: #fdf3f2; }
+.pdf-doc-head { display: grid; gap: 3px; font-size: 12px; color: #35565e; }
+.pdf-doc-head strong { color: #17333b; font-size: 13px; }
+.pdf-note { margin-top: 4px; font-size: 11px; color: #7c8f95; }
+.pdf-note.bad { color: #a0443d; font-weight: 700; }
+.submit-summary-row strong.bad { color: #a0443d; }

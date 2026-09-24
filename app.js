@@ -160,6 +160,13 @@ const els = {
   resetButton: $('#resetButton'),
   importButton: $('#importButton'),
   importFileInput: $('#importFileInput'),
+  pdfImportButton: $('#pdfImportButton'),
+  pdfFileInput: $('#pdfFileInput'),
+  pdfModal: $('#pdfModal'),
+  pdfPreview: $('#pdfPreview'),
+  confirmPdf: $('#confirmPdf'),
+  cancelPdf: $('#cancelPdf'),
+  closePdfModal: $('#closePdfModal'),
   importModal: $('#importModal'),
   importPreview: $('#importPreview'),
   confirmImport: $('#confirmImport'),
@@ -404,6 +411,133 @@ async function loadState({ quiet = false } = {}) {
   }
   // 数据到位后，护栏/护脚栏类的前期多送自动冲抵
   setTimeout(() => { autoOffsetBangfan(); }, 0);
+}
+
+// ================= 采购订单 PDF 识别导入 =================
+const PDF_ITEM_RE = /^(\d+)\s+(\S+)\s+(\d{4}\/\d{2}\/\d{2})\s+([\d,]+(?:\.\d+)?)\s+(\S+)\s+([\d,]+(?:\.\d+)?)\s+([\d,]+(?:\.\d+)?)/;
+const PDF_NAME_RE = /^(.*?)\s+([\d,]+(?:\.\d+)?)\s+([\d,]+(?:\.\d+)?)$/;
+const pdfNum = (v) => Number(String(v || '').replace(/,/g, '')) || 0;
+const pdfIso = (v) => {
+  const m = String(v || '').match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+  return m ? `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}` : null;
+};
+
+async function pdfToLines(file) {
+  const data = await file.arrayBuffer();
+  const pdf = await window.pdfjsLib.getDocument({ data }).promise;
+  const lines = [];
+  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
+    const page = await pdf.getPage(pageNo);
+    const content = await page.getTextContent();
+    const rows = [];
+    for (const item of content.items) {
+      const text = String(item.str || '');
+      if (!text.trim()) continue;
+      const y = item.transform[5];
+      const x = item.transform[4];
+      let row = rows.find((r) => Math.abs(r.y - y) <= 2.5);
+      if (!row) { row = { y, items: [] }; rows.push(row); }
+      row.items.push({ x, text });
+    }
+    rows.sort((a, b) => b.y - a.y);
+    for (const row of rows) {
+      lines.push(row.items.sort((a, b) => a.x - b.x).map((i) => i.text).join(' ').replace(/\s+/g, ' ').trim());
+    }
+  }
+  return lines;
+}
+
+async function parsePdfOrder(file) {
+  const lines = await pdfToLines(file);
+  const text = lines.join('\n');
+  const doc = { file: file.name, po: null, purchaseDate: null, vendor: null, pdfTotal: null, items: [], error: '' };
+  let m = text.match(/采购单号[:：]\s*(\S+)/); doc.po = m ? m[1].trim() : null;
+  m = text.match(/采购日期[:：]\s*(\S+)/); doc.purchaseDate = pdfIso(m ? m[1] : null);
+  m = text.match(/供应厂商[:：]\s*(\S+)/); doc.vendor = m ? m[1].trim() : null;
+  m = text.match(/含税金额总和[:：]\s*([\d,]+(?:\.\d+)?)/); doc.pdfTotal = m ? pdfNum(m[1]) : null;
+  for (let i = 0; i < lines.length; i += 1) {
+    const item = lines[i].match(PDF_ITEM_RE);
+    if (!item) continue;
+    const row = { seq: Number(item[1]), material: item[2], dueDate: pdfIso(item[3]), quantity: pdfNum(item[4]), netAmount: pdfNum(item[7]), name: '', spec: '', grossAmount: null };
+    const named = (lines[i + 1] || '').match(PDF_NAME_RE);
+    if (named) {
+      row.name = named[1].trim();
+      row.grossAmount = pdfNum(named[3]);
+      const next = lines[i + 2] || '';
+      if (next && !PDF_ITEM_RE.test(next) && !next.includes('总和') && !next.includes('备注')) row.spec = next.trim();
+    }
+    doc.items.push(row);
+  }
+  doc.qtyTotal = doc.items.reduce((sum, x) => sum + x.quantity, 0);
+  doc.amountTotal = Math.round(doc.items.reduce((sum, x) => sum + (x.grossAmount != null ? x.grossAmount : x.netAmount * 1.13), 0) * 100) / 100;
+  if (!doc.items.length) doc.error = '没有识别到明细行';
+  return doc;
+}
+
+let pendingPdfRows = [];
+
+function closePdfModal() {
+  if (els.pdfModal) els.pdfModal.hidden = true;
+  if (els.pdfFileInput) els.pdfFileInput.value = '';
+  pendingPdfRows = [];
+}
+
+function renderPdfPreview(docs) {
+  const existing = new Set(snapshot.orders.map((o) => String(o.po || '').trim()));
+  const rows = [];
+  const blocks = docs.map((doc) => {
+    const problems = [];
+    if (doc.error) problems.push(doc.error);
+    if (!doc.po) problems.push('读不到采购单号');
+    if (doc.pdfTotal != null && Math.abs(doc.amountTotal - doc.pdfTotal) > 0.02) {
+      problems.push(`金额对不上：明细算出 ${doc.amountTotal}，PDF 合计 ${doc.pdfTotal}`);
+    }
+    const company = /科技/.test(doc.vendor || '') ? '4137' : (/制品厂/.test(doc.vendor || '') ? '4074' : '');
+    if (!company) problems.push('认不出公司（供应厂商）');
+    const duplicated = Boolean(doc.po) && existing.has(doc.po);
+    if (!problems.length && !duplicated) {
+      for (const item of doc.items) {
+        rows.push({ id: `${doc.po}#${String(item.seq).padStart(3, '0')}`, customer: company, po: doc.po, purchaseDate: doc.purchaseDate, seq: item.seq, material: item.material, name: item.name, spec: item.spec, orderQty: item.quantity, openingRemaining: item.quantity, dueDate: item.dueDate });
+      }
+    }
+    return { doc, problems, duplicated, company };
+  });
+  pendingPdfRows = rows;
+  const totalQty = rows.reduce((sum, r) => sum + r.openingRemaining, 0);
+  const bad = blocks.filter((b) => b.problems.length);
+  const html = blocks.map((b) => `
+    <div class="pdf-doc${b.problems.length ? ' bad' : b.duplicated ? ' dup' : ''}">
+      <div class="pdf-doc-head">
+        <strong>${escapeHtml(b.doc.po || b.doc.file)}</strong>
+        <span>${b.company ? (b.company === '4137' ? '帆顺金属科技' : '帆顺金属(老)') : '公司未知'} · ${b.doc.items.length} 行 · 数量 ${fmt(b.doc.qtyTotal)} · 金额 ${fmt(b.doc.amountTotal)}${b.doc.pdfTotal != null ? ` / PDF ${fmt(b.doc.pdfTotal)}` : ''}</span>
+      </div>
+      ${b.duplicated ? '<div class="pdf-note">系统里已有这个采购单号，将跳过</div>' : ''}
+      ${b.problems.map((p) => `<div class="pdf-note bad">${escapeHtml(p)}</div>`).join('')}
+    </div>`).join('');
+  els.pdfPreview.innerHTML = `
+    <div class="submit-summary-row"><span>识别到</span><strong>${docs.length} 个 PDF</strong></div>
+    <div class="submit-summary-row"><span>本次将新增</span><strong>${new Set(rows.map((r) => r.po)).size} 张单 · ${rows.length} 行 · 数量 ${fmt(totalQty)}</strong></div>
+    ${bad.length ? `<div class="submit-summary-row"><span>有问题（不会导入）</span><strong class="bad">${bad.length} 个</strong></div>` : ''}
+    ${html}`;
+  els.confirmPdf.disabled = !rows.length || bad.length > 0;
+  els.pdfModal.hidden = false;
+}
+
+async function confirmPdfImport() {
+  if (!pendingPdfRows.length) return;
+  els.confirmPdf.disabled = true;
+  try {
+    const result = await callRpc('board_add_orders', { p_code: getAccessCode(), p_orders: pendingPdfRows });
+    if (!result.response.ok) throw new Error(result.data?.message || '导入失败');
+    const count = Number(result.data?.count || pendingPdfRows.length);
+    closePdfModal();
+    showToast(`已导入 ${count} 行新订单（未交已更新）`);
+    await loadState({ quiet: true });
+    renderAll();
+  } catch (error) {
+    showToast(error.message || '导入失败');
+    els.confirmPdf.disabled = false;
+  }
 }
 
 async function loadOverDeliveries() {
@@ -1740,6 +1874,18 @@ els.deliveryBatch.addEventListener('change', refreshDeliveryPreview);
 $('#mobileRefresh').addEventListener('click', () => loadState());
 $('#resetButton').addEventListener('click', resetRecords);
 $('#importButton').addEventListener('click', () => els.importFileInput.click());
+
+// 采购订单 PDF 导入
+if (window.pdfjsLib) {
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+}
+if (els.pdfImportButton && els.pdfFileInput) {
+  els.pdfImportButton.addEventListener('click', () => els.pdfFileInput.click());
+  els.pdfFileInput.addEventListener('change', (event) => handlePdfFiles(event.target.files));
+}
+if (els.confirmPdf) els.confirmPdf.addEventListener('click', confirmPdfImport);
+if (els.cancelPdf) els.cancelPdf.addEventListener('click', closePdfModal);
+if (els.closePdfModal) els.closePdfModal.addEventListener('click', closePdfModal);
 els.importFileInput.addEventListener('change', handleImportFile);
 els.confirmImport.addEventListener('click', confirmImportOrders);
 els.closeImportModal.addEventListener('click', closeImportDialog);

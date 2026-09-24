@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=46">
+  <link rel="stylesheet" href="./styles.css?v=47">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -64,7 +64,8 @@
           </div>
           <div class="topbar-actions">
             <a class="button ghost" href="./?view=mobile">打开手机录入页（本页切换）</a>
-            <button id="importButton" class="button ghost" type="button">导入实际未交</button>
+            <button id="pdfImportButton" class="button primary" type="button">导入采购订单 PDF</button>
+            <button id="importButton" class="button ghost" type="button" title="用 Excel 整表重置未交基线">重置未交(Excel)</button>
             <a class="button ghost" href="https://dkbeigqtiilgxthwkixg.supabase.co/functions/v1/shipment-board/api/export.csv">导出未交 CSV</a>
             <button id="resetButton" class="button ghost danger-text" type="button">清空演示记录</button>
           </div>
@@ -365,9 +366,25 @@
   </div>
 
   <input id="importFileInput" type="file" accept=".xlsx,.xls" hidden>
+  <input id="pdfFileInput" type="file" accept="application/pdf,.pdf" multiple hidden>
+  <div id="pdfModal" class="modal-backdrop" hidden>
+    <section class="modal-card" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <div><p class="eyebrow">采购订单 PDF</p><h2>识别结果核对</h2></div>
+        <button id="closePdfModal" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <p class="import-warning">核对无误后再点“确认导入”。只追加新单，已存在的采购单号会自动跳过，已有未交和发货流水不会变动。</p>
+      <div id="pdfPreview" class="submit-summary"></div>
+      <div class="modal-actions">
+        <button id="cancelPdf" class="button ghost" type="button">取消</button>
+        <button id="confirmPdf" class="button primary" type="button" disabled>确认导入</button>
+      </div>
+    </section>
+  </div>
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="./app.js?v=46" type="module"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <script src="./app.js?v=47" type="module"></script>
 </body>
 </html>
 
