@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=40">
+  <link rel="stylesheet" href="./styles.css?v=41">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -99,7 +99,7 @@
               </label>
               <div id="desktopSuggest" class="suggest-list desktop-suggest" hidden></div>
               <label class="select-box">
-                <span class="tool-icon" aria-hidden="true">📅</span>
+                <span class="tool-icon" aria-hidden="true">⌕</span>
                 <select id="desktopDueSelect">
                   <option value="all">全部交期</option>
                   <option value="overdue">已逾期</option>
@@ -111,7 +111,7 @@
                 <input id="desktopDueDate" type="date" hidden>
               </label>
               <label class="select-box">
-                <span class="tool-icon" aria-hidden="true">🏢</span>
+                <span class="tool-icon" aria-hidden="true">⌕</span>
                 <select id="desktopCompanyFilter">
                   <option value="all">全部公司</option>
                   <option value="4074">帆顺金属 4074</option>
@@ -352,7 +352,7 @@
   <input id="importFileInput" type="file" accept=".xlsx,.xls" hidden>
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="./app.js?v=40" type="module"></script>
+  <script src="./app.js?v=41" type="module"></script>
 </body>
 </html>
 
