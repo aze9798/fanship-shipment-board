@@ -133,6 +133,9 @@ let mobileSearch = '';
 let historyDate = '';
 let historyQuery = '';
 const expandedShipments = new Set();
+let autoOffsetNote = '';
+let autoOffsetRunning = false;
+const isBangfanName = (name) => /护栏|护脚栏/.test(String(name || ''));
 let eventSource = null;
 let refreshing = false;
 let pendingImportOrders = null;
@@ -294,6 +297,8 @@ async function loadState({ quiet = false } = {}) {
   } finally {
     refreshing = false;
   }
+  // 数据到位后，护栏/护脚栏类的前期多送自动冲抵
+  setTimeout(() => { autoOffsetBangfan(); }, 0);
 }
 
 async function loadOverDeliveries() {
@@ -364,16 +369,53 @@ function offsetCandidates() {
   return out;
 }
 
+// 护栏/护脚栏类：不用手工点，自动冲抵，并把结果告诉用户（不影响送货单）
+async function autoOffsetBangfan() {
+  if (autoOffsetRunning || !snapshot) return;
+  const list = offsetCandidates().filter((item) => isBangfanName(item.over.name));
+  if (!list.length) return;
+  autoOffsetRunning = true;
+  const done = [];
+  try {
+    for (const item of list) {
+      let over = item.over;
+      for (let guard = 0; guard < 20; guard += 1) {
+        const remaining = Number(over.remaining || 0);
+        if (remaining <= 0) break;
+        const target = materialOrders(over.material)
+          .filter((order) => !over.customer || String(order.customer || '') === String(over.customer))[0];
+        if (!target) break;
+        const result = await callRpc('board_apply_offset', {
+          p_code: getAccessCode(), p_over_id: over.id, p_order_id: target.id,
+        });
+        if (!result.response.ok) break;
+        const applied = Number(result.data?.applied || 0);
+        if (applied <= 0) break;
+        done.push(`${over.material} ${fmt(applied)} 件`);
+        over = Object.assign({}, over, { remaining: remaining - applied });
+      }
+    }
+  } finally {
+    autoOffsetRunning = false;
+  }
+  if (!done.length) return;
+  autoOffsetNote = `已自动冲抵前期多送：${done.join('、')}（护栏/护脚栏类，不影响送货单）`;
+  showToast(autoOffsetNote);
+  await loadState({ quiet: true });
+  renderAll();
+}
+
 function renderOffsetBox() {
   if (!els.mobileOffsetBox) return;
-  const list = offsetCandidates();
-  if (!list.length) {
+  const list = offsetCandidates().filter((item) => !isBangfanName(item.over.name));
+  if (!list.length && !autoOffsetNote) {
     els.mobileOffsetBox.hidden = true;
     els.mobileOffsetBox.innerHTML = '';
     return;
   }
   els.mobileOffsetBox.hidden = false;
-  els.mobileOffsetBox.innerHTML = list.map((item) => `
+  const noteHtml = autoOffsetNote ? `<div class="offset-note">${escapeHtml(autoOffsetNote)}</div>` : '';
+  els.mobileOffsetBox.innerHTML = noteHtml + list.map((item) => `
     <div class="offset-row">
       <div class="offset-text">
         <strong>前期多送可以冲抵了</strong>
