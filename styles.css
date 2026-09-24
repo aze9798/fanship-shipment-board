@@ -930,3 +930,18 @@ body[data-view="mobile"] { background: #dfe7e9; }
 /* 手机发货记录：同一天合并汇总卡片 */
 .merged-day { background: #f7fbfb; border-color: #dce5e7; }
 .merged-day .over-head strong { color: #0d6b66; }
+
+
+/* 工具栏细节：图标更大、整框可点、日期框与下拉等宽等高 */
+.toolbar .tool-icon { font-size: 19px; }
+.toolbar .search-box { cursor: text; }
+.toolbar .search-box input,
+.toolbar .select-box select { height: 34px; cursor: pointer; }
+.toolbar .search-box input { cursor: text; }
+.toolbar .select-box .due-date-row { align-items: stretch; }
+.toolbar .select-box .due-date-row input[type="date"] {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  justify-self: stretch;
+}

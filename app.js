@@ -1485,6 +1485,16 @@ function switchMobileTab(tab) {
   renderCart();
 }
 
+// 点搜索框任意位置都能直接输入
+[els.desktopSearch, els.remainingSearch, els.recordsSearch].forEach((input) => {
+  if (!input) return;
+  const box = input.closest('label');
+  if (!box) return;
+  box.addEventListener('mousedown', (event) => {
+    if (event.target !== input) { event.preventDefault(); input.focus(); }
+  });
+});
+
 els.desktopSearch.addEventListener('input', (event) => { desktopSearch = event.target.value; renderDesktopTable(); renderSuggestFor(els.desktopSearch, els.desktopSuggest, desktopDueRows()); });
 els.desktopSearch.addEventListener('focus', () => renderSuggestFor(els.desktopSearch, els.desktopSuggest, desktopDueRows()));
 if (els.desktopSuggest) {
