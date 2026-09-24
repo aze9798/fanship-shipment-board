@@ -534,8 +534,8 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .mobile-summary span, .mobile-summary small { display: block; color: #7e8d93; font-size: 10px; }
 .mobile-summary strong { display: block; margin: 5px 0 2px; color: #16333a; font-size: 21px; line-height: 1; font-variant-numeric: tabular-nums; }
 .mobile-summary > div:first-child strong { color: var(--primary); }
-.mobile-tabs { margin: 14px 12px 0; padding: 4px; display: grid; grid-template-columns: repeat(3, 1fr); border-radius: 13px; background: #e6ebed; }
-.mobile-tab { min-height: 38px; border: 0; border-radius: 10px; color: #72848b; background: transparent; font-size: 12px; font-weight: 700; }
+.mobile-tabs { margin: 14px 12px 0; padding: 4px; display: grid; grid-template-columns: repeat(4, 1fr); border-radius: 13px; background: #e6ebed; }
+.mobile-tab { min-height: 38px; padding: 0 2px; border: 0; border-radius: 10px; color: #72848b; background: transparent; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .mobile-tab.active { color: #1c4b4c; background: #fff; box-shadow: 0 2px 9px rgba(32, 57, 64, .09); }
 .mobile-panel { padding: 12px 12px 0; }
 .mobile-tools { position: sticky; top: 68px; z-index: 12; padding-bottom: 8px; background: linear-gradient(#f2f5f6 78%, rgba(242, 245, 246, 0)); }

@@ -139,6 +139,10 @@ let historyDate = '';
 let recordsSearch = '';
 let recordsDate = '';
 let historyQuery = '';
+let filesQuery = '';
+let filesDate = '';
+let mobileFilesQuery = '';
+let mobileFilesDate = '';
 const expandedShipments = new Set();
 let autoOffsetNote = '';
 let cartOpen = false;
@@ -189,6 +193,17 @@ const els = {
   desktopTableBody: $('#desktopTableBody'),
   desktopEmpty: $('#desktopEmpty'),
   shipmentHistory: $('#shipmentHistory'),
+  desktopFilesView: $('#desktopFilesView'),
+  cloudFileList: $('#cloudFileList'),
+  filesSummary: $('#filesSummary'),
+  filesSearch: $('#filesSearch'),
+  filesDate: $('#filesDate'),
+  filesClear: $('#filesClear'),
+  mobileFilesPanel: $('#mobileFilesPanel'),
+  mobileCloudFileList: $('#mobileCloudFileList'),
+  mobileFilesSearch: $('#mobileFilesSearch'),
+  mobileFilesDate: $('#mobileFilesDate'),
+  mobileFilesClear: $('#mobileFilesClear'),
   historySummary: $('#historySummary'),
   historySearch: $('#historySearch'),
   historyDate: $('#historyDate'),
@@ -578,25 +593,40 @@ function deliveryFiles() {
   return (snapshot && Array.isArray(snapshot.deliveryFiles)) ? snapshot.deliveryFiles : [];
 }
 
-// 云端送货单清单：按“发货日期 / 批次号 / 文件名”筛选，点一下就能下载 Excel
-function renderDeliveryFiles(dateFilter, queryText) {
+// 云端送货单：独立页面（电脑端一个页面、手机端一个标签），Excel 和 PDF 各一份
+function renderCloudFiles() {
+  const desktopHtml = renderDeliveryFiles(filesDate, filesQuery);
+  if (els.cloudFileList) els.cloudFileList.innerHTML = desktopHtml || '<div class="empty-state"><strong>还没有上传过送货单</strong><span>在打印助手预览页点“确认上传到云端”就会出现在这里。</span></div>';
+  if (els.filesSummary) {
+    const rows = filterDeliveryFiles(filesDate, filesQuery);
+    els.filesSummary.textContent = rows.length ? `共 ${rows.length} 个文件 · 最新上传排在最上面` : '还没有上传过送货单';
+  }
+  const mobileHtml = renderDeliveryFiles(mobileFilesDate, mobileFilesQuery);
+  if (els.mobileCloudFileList) els.mobileCloudFileList.innerHTML = mobileHtml || '<div class="empty-state"><strong>还没有上传过送货单</strong><span>在打印助手预览页点“确认上传到云端”就会出现在这里。</span></div>';
+}
+
+function filterDeliveryFiles(dateFilter, queryText) {
   const query = String(queryText || '').trim().toLowerCase();
-  const rows = deliveryFiles().filter((row) => {
+  return deliveryFiles().filter((row) => {
     if (dateFilter && String(row.deliveryDate || '') !== String(dateFilter)) return false;
     if (!query) return true;
     return [row.deliveryDate, row.batch, row.fileName, row.kind].join(' ').toLowerCase().includes(query);
   });
-  if (!rows.length && !dateFilter && !query) return '';
+}
+
+function renderDeliveryFiles(dateFilter, queryText) {
+  const rows = filterDeliveryFiles(dateFilter, queryText);
+  if (!rows.length && !dateFilter && !String(queryText || '').trim()) return '';
   return `
     <section class="file-box">
-      <div class="over-head"><strong>云端送货单（已上传的 Excel）</strong><span>${rows.length} 个文件</span></div>
+      <div class="over-head"><strong>已上传的送货单</strong><span>${rows.length} 个文件</span></div>
       ${rows.length ? rows.map((row) => `
         <div class="over-row file-row">
           <span class="mono">${escapeHtml(row.deliveryDate)}</span>
           <span>${escapeHtml(row.fileName)}${row.kind ? ` · ${escapeHtml(row.kind)}` : ''}${row.noteCount ? ` · ${fmt(row.noteCount)} 张` : ''}</span>
-          <button type="button" class="file-download" data-file-id="${escapeHtml(row.id)}">下载 Excel</button>
+          <button type="button" class="file-download" data-file-id="${escapeHtml(row.id)}">下载 ${String(row.fileName || '').toLowerCase().endsWith('.pdf') ? 'PDF' : 'Excel'}</button>
         </div>`).join('')
-        : '<p class="over-tip">这几天还没有上传送货单，或换个日期再找。</p>'}
+        : '<p class="over-tip">这几天还没有上传送货单，或换个日期/搜索词再找。</p>'}
     </section>`;
 }
 
@@ -611,7 +641,10 @@ async function downloadDeliveryFile(id, button) {
     const binary = atob(String(data.contentBase64 || ''));
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-    const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const isPdf = String(data.fileName || row?.fileName || '').toLowerCase().endsWith('.pdf');
+    const blob = new Blob([bytes], {
+      type: isPdf ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -667,8 +700,9 @@ function renderOverDeliveryList() {
           <span class="mono">${escapeHtml(row.material)}</span>
           <span>${escapeHtml(row.name)}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</span>
           <strong>${fmt(row.remaining)} 件</strong>
+          <button type="button" class="over-revoke" data-revoke-over="${escapeHtml(row.id)}">撤回</button>
         </div>`).join('')}
-      <p class="over-tip">这些货已经发出但没有对应采购单；等出现同料号的新订单时，导入新订单会提示你冲抵。</p>
+      <p class="over-tip">这些货已经发出但没有对应采购单；点“撤回”可以撤销这笔登记，等出现同料号的新订单时导入新订单会提示你冲抵。</p>
     </section>`;
 }
 
@@ -791,16 +825,21 @@ function reconcileSelection() {
 
 // 电脑端两个页面：实时总览 / 发货记录
 function showDesktopView(name) {
-  const overview = document.getElementById('desktopView');
-  const shipments = document.getElementById('desktopShipmentsView');
-  if (!overview || !shipments) return;
-  const isShipments = name === 'shipments';
-  overview.hidden = isShipments;
-  shipments.hidden = !isShipments;
+  const pages = {
+    overview: document.getElementById('desktopView'),
+    shipments: document.getElementById('desktopShipmentsView'),
+    files: document.getElementById('desktopFilesView'),
+  };
+  if (!pages.overview || !pages.shipments) return;
+  const target = pages[name] ? name : 'overview';
+  for (const [key, section] of Object.entries(pages)) {
+    if (section) section.hidden = key !== target;
+  }
   document.querySelectorAll('[data-desktop-view]').forEach((link) => {
-    link.classList.toggle('active', link.dataset.desktopView === name);
+    link.classList.toggle('active', link.dataset.desktopView === target);
   });
-  if (isShipments) renderDesktopHistory();
+  if (target === 'shipments') renderDesktopHistory();
+  if (target === 'files') renderCloudFiles();
   window.scrollTo({ top: 0 });
 }
 
@@ -814,6 +853,7 @@ function renderAll() {
   renderMobileList();
   renderMobileRemaining();
   renderMobileRecords();
+  renderCloudFiles();
   renderCart();
   els.sourceTitle.textContent = snapshot.storage?.label || '现有计划表导入';
   els.sourceStamp.textContent = snapshot.storage?.cloud
@@ -1009,8 +1049,8 @@ function renderDesktopHistory() {
       ? `共 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`
       : `筛选出 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`;
   }
-  els.shipmentHistory.innerHTML = renderDeliveryFiles(historyDate, historyQuery)
-    + renderOverDeliveryList() + renderOverOffsetList() + renderHistoryCards(rows);
+  els.shipmentHistory.innerHTML = renderOverDeliveryList() + renderOverOffsetList() + renderHistoryCards(rows);
+  void renderCloudFiles();
 }
 
 function orderCard(order) {
@@ -1136,8 +1176,8 @@ function renderMobileRecords() {
           return `<div class="over-row"><span class="mono">${escapeHtml(material)}</span><span>${escapeHtml(name)}${spec ? ' · ' + escapeHtml(spec) : ''}</span><strong>${fmt(quantity)} 件</strong></div>`;
         }).join('')}
       </article>`).join('') : '<div class="empty-state"><strong>这几天没有发货记录</strong><span>换个日期或清空搜索词再试。</span></div>'}` : '';
-  els.recordsList.innerHTML = renderDeliveryFiles(recordsDate, recordsSearch)
-    + renderOverDeliveryList() + renderOverOffsetList() + mergedHtml + renderHistoryCards(rows);
+  els.recordsList.innerHTML = renderOverDeliveryList() + renderOverOffsetList() + mergedHtml + renderHistoryCards(rows);
+  void renderCloudFiles();
   els.recordsList.querySelectorAll('[data-expand]').forEach((button) => button.addEventListener('click', () => {
     const id = button.dataset.expand;
     if (expandedShipments.has(id)) expandedShipments.delete(id);
@@ -1160,7 +1200,9 @@ async function revokeOverDelivery(overId) {
   if (!window.confirm('要把这笔“无订单发货”撤回吗？\n会同时撤销它引起的冲抵，订单未交恢复原样。')) return;
   const result = await callRpc('board_revoke_over_delivery', { p_code: getAccessCode(), p_over_id: overId });
   if (!result.response.ok) { showToast(result.data?.message || '撤回失败'); return; }
-  sessionOver.clear();
+  for (const [material, item] of [...sessionOver.entries()]) {
+    if (String(item.id) === String(overId)) sessionOver.delete(material);
+  }
   showToast('已撤回这笔无订单发货');
   await loadState({ quiet: true });
   renderAll();
@@ -1728,6 +1770,8 @@ function switchMobileTab(tab) {
   els.mobileEntryPanel.hidden = tab !== 'entry';
   els.mobileRemainingPanel.hidden = tab !== 'remaining';
   els.mobileRecordsPanel.hidden = tab !== 'records';
+  if (els.mobileFilesPanel) els.mobileFilesPanel.hidden = tab !== 'files';
+  if (tab === 'files') renderCloudFiles();
   renderCart();
 }
 
@@ -1835,6 +1879,8 @@ if (els.shipmentHistory) els.shipmentHistory.addEventListener('click', (event) =
 if (els.mobileRecordsPanel) els.mobileRecordsPanel.addEventListener('click', (event) => {
   const fileButton = event.target.closest('[data-file-id]');
   if (fileButton) { downloadDeliveryFile(fileButton.dataset.fileId, fileButton); return; }
+  const overButton = event.target.closest('[data-revoke-over]');
+  if (overButton) { revokeOverDelivery(overButton.dataset.revokeOver); return; }
   const button = event.target.closest('[data-revoke-offset]');
   if (button) revokeOffset(button.dataset.revokeOffset);
 });
@@ -1921,12 +1967,24 @@ document.querySelectorAll('[data-desktop-view]').forEach((link) => {
   });
 });
 
+if (els.filesSearch) els.filesSearch.addEventListener('input', (event) => { filesQuery = event.target.value; renderCloudFiles(); });
+if (els.filesDate) els.filesDate.addEventListener('change', (event) => { filesDate = event.target.value; renderCloudFiles(); });
+if (els.filesClear) els.filesClear.addEventListener('click', () => { filesDate = ''; if (els.filesDate) els.filesDate.value = ''; renderCloudFiles(); });
+if (els.mobileFilesSearch) els.mobileFilesSearch.addEventListener('input', (event) => { mobileFilesQuery = event.target.value; renderCloudFiles(); });
+if (els.mobileFilesDate) els.mobileFilesDate.addEventListener('change', (event) => { mobileFilesDate = event.target.value; renderCloudFiles(); });
+if (els.mobileFilesClear) els.mobileFilesClear.addEventListener('click', () => {
+  mobileFilesDate = '';
+  if (els.mobileFilesDate) els.mobileFilesDate.value = '';
+  renderCloudFiles();
+});
 if (els.historySearch) els.historySearch.addEventListener('input', (event) => { historyQuery = event.target.value; renderDesktopHistory(); });
 if (els.historyDate) els.historyDate.addEventListener('change', (event) => { historyDate = event.target.value; renderDesktopHistory(); });
 if (els.historyClear) els.historyClear.addEventListener('click', () => { historyDate = ''; if (els.historyDate) els.historyDate.value = ''; renderDesktopHistory(); });
 function handleHistoryClick(event) {
   const fileButton = event.target.closest('[data-file-id]');
   if (fileButton) { downloadDeliveryFile(fileButton.dataset.fileId, fileButton); return; }
+  const overButton = event.target.closest('[data-revoke-over]');
+  if (overButton) { revokeOverDelivery(overButton.dataset.revokeOver); return; }
   const expand = event.target.closest('[data-expand]');
   if (expand) {
     const id = expand.dataset.expand;
@@ -1937,6 +1995,14 @@ function handleHistoryClick(event) {
   }
 }
 if (els.shipmentHistory) els.shipmentHistory.addEventListener('click', handleHistoryClick);
+if (els.cloudFileList) els.cloudFileList.addEventListener('click', (event) => {
+  const fileButton = event.target.closest('[data-file-id]');
+  if (fileButton) downloadDeliveryFile(fileButton.dataset.fileId, fileButton);
+});
+if (els.mobileCloudFileList) els.mobileCloudFileList.addEventListener('click', (event) => {
+  const fileButton = event.target.closest('[data-file-id]');
+  if (fileButton) downloadDeliveryFile(fileButton.dataset.fileId, fileButton);
+});
 els.mobileOrderList.addEventListener('click', (event) => {
   const button = event.target.closest('[data-action]');
   if (!button || button.dataset.action === 'input') return;

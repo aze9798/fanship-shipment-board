@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=49">
+  <link rel="stylesheet" href="./styles.css?v=50">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -36,6 +36,10 @@
         <a class="side-link" href="#shipment-history" data-desktop-view="shipments">
           <span class="nav-dot"></span>
           发货记录
+        </a>
+        <a class="side-link" href="#delivery-files" data-desktop-view="files">
+          <span class="nav-dot"></span>
+          云端送货单
         </a>
       </nav>
 
@@ -184,6 +188,32 @@
         </section>
       </section>
 
+      <section id="desktopFilesView" class="desktop-view desktop-only" hidden>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">送货单存档</p>
+            <h1>云端送货单</h1>
+            <p class="subhead">每天生成并确认上传的送货单都存这里，Excel 和 PDF 各一份，随时下载。</p>
+          </div>
+        </header>
+        <section class="panel shipments-page">
+          <div class="panel-head compact">
+            <div>
+              <h2>云端存档</h2>
+              <p id="filesSummary">最新上传的排在最上面</p>
+            </div>
+          </div>
+          <div class="history-tools">
+            <div class="history-tools-row">
+              <input id="filesSearch" type="search" placeholder="搜索发货日期 / 批次号 / 文件名">
+              <input id="filesDate" type="date" title="按发货日期筛选">
+              <button id="filesClear" class="button ghost" type="button">全部日期</button>
+            </div>
+          </div>
+          <div id="cloudFileList" class="shipment-history"></div>
+        </section>
+      </section>
+
       <section id="mobileView" class="mobile-view mobile-only">
         <header class="mobile-head">
           <div class="mobile-brand">
@@ -194,7 +224,6 @@
             </div>
           </div>
           <div class="mobile-head-actions">
-            <a class="mobile-back" href="./">电脑版</a>
             <button id="mobileRefresh" class="icon-button" type="button" aria-label="刷新数据">↻</button>
           </div>
         </header>
@@ -217,6 +246,7 @@
           <button class="mobile-tab active" data-tab="entry" type="button">装车录入</button>
           <button class="mobile-tab" data-tab="remaining" type="button">未交清单</button>
           <button class="mobile-tab" data-tab="records" type="button">发货记录</button>
+          <button class="mobile-tab" data-tab="files" type="button">云端送货单</button>
         </nav>
 
         <section id="mobileEntryPanel" class="mobile-panel">
@@ -267,6 +297,16 @@
             </div>
           </div>
           <div id="recordsList"></div>
+        </section>
+        <section id="mobileFilesPanel" class="mobile-panel" hidden>
+          <div class="remaining-tools">
+            <input id="mobileFilesSearch" type="search" placeholder="搜索发货日期 / 批次号 / 文件名" autocomplete="off">
+            <div class="remaining-due-row">
+              <input id="mobileFilesDate" type="date" title="按发货日期查看">
+              <button id="mobileFilesClear" class="button ghost" type="button">全部日期</button>
+            </div>
+          </div>
+          <div id="mobileCloudFileList"></div>
         </section>
 
         <section id="cartDetail" class="cart-detail" hidden></section>
@@ -380,7 +420,7 @@
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-  <script src="./app.js?v=49" type="module"></script>
+  <script src="./app.js?v=50" type="module"></script>
 </body>
 </html>
 
