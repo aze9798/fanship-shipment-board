@@ -787,7 +787,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .col-resizer.dragging::after { background: #7fc4bb; }
 
 
-/* ---- 工具栏排版：标签醒目小框 + 控件上下居中 + 日期框独立一行 ---- */
+/* ---- 工具栏统一成“图标 + 提示词”的输入框样式（与手机装车搜索一致） ---- */
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -801,29 +801,47 @@ body[data-view="mobile"] { background: #dfe7e9; }
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #d7e1e3;
+  border-radius: 11px;
+  background: #fbfcfc;
 }
 
 .toolbar .search-box { flex: 1 1 340px; }
-.toolbar .search-box input { flex: 1 1 auto; }
 
-.toolbar .search-box > span,
-.toolbar .select-box > span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 42px;
-  padding: 0 14px;
-  border-radius: 10px;
-  background: #e8f4f3;
-  color: #0d6b66;
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: .06em;
-  white-space: nowrap;
+.toolbar .tool-icon {
+  flex: 0 0 auto;
+  color: #0d7371;
+  font-size: 16px;
+  line-height: 1;
 }
+
+.toolbar .search-box input,
+.toolbar .select-box select {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 42px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #17333b;
+  font: inherit;
+  font-size: 13px;
+}
+
+.toolbar .search-box input::placeholder { color: #93a3a8; }
 
 .toolbar .select-box input[type="date"] {
   flex: 1 1 100%;
-  margin: 2px 0 0;
+  height: 34px;
+  margin: 0 0 8px;
+  padding: 0 8px;
+  border: 1px solid #d7e1e3;
+  border-radius: 8px;
+  background: #fff;
+  color: #17333b;
+  font: inherit;
+  font-size: 12px;
   text-align: center;
 }
