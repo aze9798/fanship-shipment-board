@@ -175,6 +175,7 @@ const els = {
   mobileSearch: $('#mobileSearch'),
   mobileFilters: $('#mobileFilters'),
   mobileOrderList: $('#mobileOrderList'),
+  mobileAllocNotice: $('#mobileAllocNotice'),
   mobileEmpty: $('#mobileEmpty'),
   mobileEntryPanel: $('#mobileEntryPanel'),
   mobileRemainingPanel: $('#mobileRemainingPanel'),
@@ -280,6 +281,7 @@ async function loadState({ quiet = false } = {}) {
     const response = await requestWithAccessCode(apiUrl('/api/state'), { cache: 'no-store' });
     if (!response.ok) throw new Error('数据加载失败');
     const nextSnapshot = await response.json();
+    nextSnapshot.overDeliveries = await loadOverDeliveries();
     const changed = !snapshot || nextSnapshot.revision !== snapshot.revision;
     snapshot = nextSnapshot;
     if (snapshot.today) TODAY = snapshot.today;
@@ -291,6 +293,57 @@ async function loadState({ quiet = false } = {}) {
   } finally {
     refreshing = false;
   }
+}
+
+async function loadOverDeliveries() {
+  if (!RPC_BASE) return [];
+  const accessCode = getAccessCode();
+  if (!accessCode) return [];
+  try {
+    const result = await callRpc('board_get_over_deliveries', { p_code: accessCode });
+    if (!result.response.ok) return [];
+    return Array.isArray(result.data) ? result.data : [];
+  } catch { return []; }
+}
+
+function overDeliveries() {
+  return (snapshot && Array.isArray(snapshot.overDeliveries)) ? snapshot.overDeliveries : [];
+}
+
+function overDeliveryFor(material) {
+  const key = String(material || '').trim();
+  return overDeliveries().filter((row) => String(row.material || '').trim() === key);
+}
+
+async function registerOverDelivery(payload) {
+  const accessCode = getAccessCode();
+  if (!accessCode) { showToast('缺少访问码'); return false; }
+  try {
+    const result = await callRpc('board_add_over_delivery', { p_code: accessCode, p_payload: payload });
+    if (!result.response.ok) throw new Error(result.data?.message || '登记失败');
+    return true;
+  } catch (error) {
+    showToast(error.message || '登记超发失败');
+    return false;
+  }
+}
+
+// 无订单发货清单（等后续同料号订单来了再冲抵）
+function renderOverDeliveryList() {
+  const rows = overDeliveries();
+  if (!rows.length) return '';
+  const total = rows.reduce((sum, row) => sum + Number(row.remaining || 0), 0);
+  return `
+    <section class="over-box">
+      <div class="over-head"><strong>无订单发货（待后续订单冲抵）</strong><span>${rows.length} 项 · ${fmt(total)} 件</span></div>
+      ${rows.map((row) => `
+        <div class="over-row">
+          <span class="mono">${escapeHtml(row.material)}</span>
+          <span>${escapeHtml(row.name)}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</span>
+          <strong>${fmt(row.remaining)} 件</strong>
+        </div>`).join('')}
+      <p class="over-tip">这些货已经发出但没有对应采购单；等出现同料号的新订单时，导入新订单会提示你冲抵。</p>
+    </section>`;
 }
 
 function reconcileSelection() {
@@ -410,7 +463,7 @@ function renderDesktopTable() {
     return `
       <tr>
         <td><span class="order-id">${escapeHtml(order.po)}</span><span class="company-tag" title="${escapeHtml(companyName(orderCompany(order)))}">${escapeHtml(orderCompany(order) || '—')}</span></td>
-        <td><span class="material-code mono">${escapeHtml(order.material)}</span></td>
+        <td><span class="material-code mono">${escapeHtml(order.material)}</span>${(() => { const info = materialSummary(order); return info.count > 1 ? `<span class="material-total-tag" title="同一物料编号所有采购单合计未交">共${fmt(info.total)}/${info.count}单</span>` : ''; })()}</td>
         <td><span class="item-name">${escapeHtml(order.name)}</span></td>
         <td><span class="spec-code mono">${escapeHtml(order.spec || '—')}</span></td>
         <td class="number">${escapeHtml(order.seq)}</td>
@@ -488,7 +541,7 @@ function renderDesktopHistory() {
       ? `共 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`
       : `筛选出 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`;
   }
-  els.shipmentHistory.innerHTML = renderHistoryCards(rows);
+  els.shipmentHistory.innerHTML = renderOverDeliveryList() + renderHistoryCards(rows);
 }
 
 function orderCard(order) {
@@ -506,6 +559,9 @@ function orderCard(order) {
         </div>
         <span class="due-badge ${badge.className}">${escapeHtml(badge.text)}</span>
       </div>
+      ${(() => { const info = materialSummary(order); return info.count > 1
+        ? `<div class="material-total">同料号共 ${info.count} 单 · 未交合计 <b>${fmt(info.total)}</b></div>` : ''; })()}
+      ${overDeliveryFor(order.material).length ? `<div class="material-total over">该料号已有无订单发货 <b>${fmt(overDeliveryFor(order.material).reduce((sum, row) => sum + Number(row.remaining || 0), 0))}</b> 件待冲抵</div>` : ''}
       <div class="order-numbers">
         <div class="order-number"><span>计划未交</span><strong>${fmt(order.openingRemaining)}</strong></div>
         <div class="order-number"><span>已录发货</span><strong>${fmt(order.shipped)}</strong></div>
@@ -575,7 +631,7 @@ function renderMobileRemaining() {
 }
 
 function renderMobileRecords() {
-  els.mobileRecordsPanel.innerHTML = `<div class="records-head"><strong>发货记录</strong><span>电脑端会同步显示这些记录，点“展开全部”可看完整明细。</span></div>${renderHistoryCards(snapshot.shipments)}`;
+  els.mobileRecordsPanel.innerHTML = `<div class="records-head"><strong>发货记录</strong><span>电脑端会同步显示这些记录，点“展开全部”可看完整明细。</span></div>${renderOverDeliveryList()}${renderHistoryCards(snapshot.shipments)}`;
   els.mobileRecordsPanel.querySelectorAll('[data-expand]').forEach((button) => button.addEventListener('click', () => {
     const id = button.dataset.expand;
     if (expandedShipments.has(id)) expandedShipments.delete(id);
@@ -591,6 +647,77 @@ function renderCart() {
   els.cartQty.textContent = fmt(quantity);
   els.cartItems.textContent = fmt(entries.length);
   els.mobileCartBar.hidden = mobileTab !== 'entry' || !entries.length;
+}
+
+// 同一物料编号在多个采购单上都还有未交时的汇总（物料编号 -> 总未交/单数）
+function materialSummary(order) {
+  const key = String(order.material || '').trim();
+  const map = new Map();
+  for (const item of snapshot.orders) {
+    if (!(item.remaining > 0)) continue;
+    const itemKey = String(item.material || '').trim();
+    if (!itemKey) continue;
+    const row = map.get(itemKey) || { total: 0, count: 0 };
+    row.total += Number(item.remaining || 0);
+    row.count += 1;
+    map.set(itemKey, row);
+  }
+  return map.get(key) || { total: Number(order.remaining || 0), count: 1 };
+}
+
+// 同一物料的所有未交行，按交期从早到晚（同交期按项次）
+function materialOrders(material) {
+  const key = String(material || '').trim();
+  return snapshot.orders
+    .filter((item) => String(item.material || '').trim() === key && item.remaining > 0)
+    .sort((a, b) => {
+      const left = String(a.dueDate || '9999-12-31');
+      const right = String(b.dueDate || '9999-12-31');
+      if (left !== right) return left < right ? -1 : 1;
+      return Number(a.seq || 0) - Number(b.seq || 0);
+    });
+}
+
+function showAllocationNotice(text, level = '', actionHtml = '') {
+  if (!els.mobileAllocNotice) return;
+  els.mobileAllocNotice.hidden = !text;
+  els.mobileAllocNotice.className = `alloc-notice${level ? ' ' + level : ''}`;
+  els.mobileAllocNotice.innerHTML = escapeHtml(text || '') + (actionHtml || '');
+}
+
+// 输入的总数超过本行未交时：按交期把这个总数分配到该物料的所有未交行
+function allocateByDueDate(order, requested) {
+  const rows = materialOrders(order.material);
+  const totalRemaining = rows.reduce((sum, item) => sum + Number(item.remaining || 0), 0);
+  if (totalRemaining <= 0) return;
+  const target = Math.min(requested, totalRemaining);
+  let left = target;
+  const parts = [];
+  for (const item of rows) {
+    const take = left > 0 ? Math.min(left, Number(item.remaining || 0)) : 0;
+    left -= take;
+    if (take > 0) {
+      selected.set(item.id, take);
+      parts.push(`${fmt(take)}`);
+    } else {
+      selected.delete(item.id);
+    }
+    updateOrderCardSelection(item.id);
+  }
+  renderMobileSummary();
+  renderCart();
+  const excess = Math.max(0, requested - totalRemaining);
+  const head = `${order.material} 共 ${rows.length} 单、合计未交 ${fmt(totalRemaining)}，本次 ${fmt(requested)} 件`;
+  if (excess > 0) {
+    const action = `<button type="button" class="over-button" data-over-material="${escapeHtml(order.material)}"`
+      + ` data-over-name="${escapeHtml(order.name)}" data-over-spec="${escapeHtml(order.spec || '')}"`
+      + ` data-over-customer="${escapeHtml(orderCompany(order))}" data-over-qty="${excess}">`
+      + `登记无订单发货 ${fmt(excess)} 件</button>`;
+    showAllocationNotice(`${head}：已按交期分配 ${parts.join(' + ')} = ${fmt(target)} 件；`
+      + `还有 ${fmt(excess)} 件没有对应订单。`, 'warn', action);
+  } else {
+    showAllocationNotice(`${head}：已按交期分配 ${parts.join(' + ')} = ${fmt(target)} 件。`, 'ok');
+  }
 }
 
 function updateOrderCardSelection(orderId) {
@@ -629,11 +756,22 @@ function setQuantity(orderId, value) {
   const order = snapshot.orders.find((item) => item.id === orderId);
   if (!order) return;
   const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) selected.delete(orderId);
-  else selected.set(orderId, Math.min(order.remaining, numeric));
-  updateOrderCardSelection(orderId);
-  renderMobileSummary();
-  renderCart();
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    selected.delete(orderId);
+    updateOrderCardSelection(orderId);
+    renderMobileSummary();
+    renderCart();
+    return;
+  }
+  // 本行够装就只填本行；超过本行未交，就把这个总数按交期分配到该物料的后续采购单
+  if (numeric <= Number(order.remaining || 0)) {
+    selected.set(orderId, numeric);
+    updateOrderCardSelection(orderId);
+    renderMobileSummary();
+    renderCart();
+    return;
+  }
+  allocateByDueDate(order, numeric);
 }
 
 function showToast(message) {
@@ -999,6 +1137,29 @@ els.mobileFilters.addEventListener('click', (event) => {
   document.querySelectorAll('#mobileFilters .chip').forEach((chip) => chip.classList.toggle('active', chip === button));
   renderMobileList();
 });
+if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-over-material]');
+  if (!button) return;
+  button.disabled = true;
+  const quantity = Number(button.dataset.overQty || 0);
+  const ok = await registerOverDelivery({
+    material: button.dataset.overMaterial,
+    name: button.dataset.overName,
+    spec: button.dataset.overSpec,
+    customer: button.dataset.overCustomer,
+    quantity,
+    note: '装车时超出所有未交采购单的部分',
+  });
+  if (ok) {
+    showAllocationNotice(`已登记无订单发货 ${fmt(quantity)} 件（${button.dataset.overMaterial}）。`
+      + `等出现同料号的新采购订单时，导入时会提示冲抵。`, 'ok');
+    await loadState({ quiet: true });
+    renderAll();
+  } else {
+    button.disabled = false;
+  }
+});
+
 if (els.historySearch) els.historySearch.addEventListener('input', (event) => { historyQuery = event.target.value; renderDesktopHistory(); });
 if (els.historyDate) els.historyDate.addEventListener('change', (event) => { historyDate = event.target.value; renderDesktopHistory(); });
 if (els.historyClear) els.historyClear.addEventListener('click', () => { historyDate = ''; if (els.historyDate) els.historyDate.value = ''; renderDesktopHistory(); });
