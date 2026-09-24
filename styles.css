@@ -785,3 +785,45 @@ body[data-view="mobile"] { background: #dfe7e9; }
 }
 .orders-table th:hover .col-resizer::after,
 .col-resizer.dragging::after { background: #7fc4bb; }
+
+
+/* ---- 工具栏排版：标签醒目小框 + 控件上下居中 + 日期框独立一行 ---- */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 14px;
+}
+
+.toolbar .search-box,
+.toolbar .select-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar .search-box { flex: 1 1 340px; }
+.toolbar .search-box input { flex: 1 1 auto; }
+
+.toolbar .search-box > span,
+.toolbar .select-box > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: #e8f4f3;
+  color: #0d6b66;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  white-space: nowrap;
+}
+
+.toolbar .select-box input[type="date"] {
+  flex: 1 1 100%;
+  margin: 2px 0 0;
+  text-align: center;
+}

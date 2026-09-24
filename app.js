@@ -1457,6 +1457,9 @@ if (els.desktopDueSelect) els.desktopDueSelect.addEventListener('change', (event
   desktopDueFilter = event.target.value;
   if (desktopDueFilter !== 'custom') desktopDueDate = '';
   if (els.desktopDueDate) els.desktopDueDate.hidden = desktopDueFilter !== 'custom';
+  const dueLabel = els.desktopDueSelect ? els.desktopDueSelect.closest('label') : null;
+  const dueSpan = dueLabel ? dueLabel.querySelector('span') : null;
+  if (dueSpan) dueSpan.textContent = desktopDueFilter === 'custom' ? '选择日期' : '交期';
   renderDesktopTable();
 });
 if (els.desktopDueDate) els.desktopDueDate.addEventListener('change', (event) => {
