@@ -286,6 +286,7 @@ async function loadState({ quiet = false } = {}) {
     if (!response.ok) throw new Error('数据加载失败');
     const nextSnapshot = await response.json();
     nextSnapshot.overDeliveries = await loadOverDeliveries();
+    nextSnapshot.overOffsets = await loadOverOffsets();
     const changed = !snapshot || nextSnapshot.revision !== snapshot.revision;
     snapshot = nextSnapshot;
     if (snapshot.today) TODAY = snapshot.today;
@@ -310,6 +311,21 @@ async function loadOverDeliveries() {
     if (!result.response.ok) return [];
     return Array.isArray(result.data) ? result.data : [];
   } catch { return []; }
+}
+
+async function loadOverOffsets() {
+  if (!RPC_BASE) return [];
+  const accessCode = getAccessCode();
+  if (!accessCode) return [];
+  try {
+    const result = await callRpc('board_get_over_delivery_offsets', { p_code: accessCode, p_limit: 30 });
+    if (!result.response.ok) return [];
+    return Array.isArray(result.data) ? result.data : [];
+  } catch { return []; }
+}
+
+function overOffsets() {
+  return (snapshot && Array.isArray(snapshot.overOffsets)) ? snapshot.overOffsets : [];
 }
 
 function overDeliveries() {
@@ -391,7 +407,7 @@ async function autoOffsetBangfan() {
         if (!result.response.ok) break;
         const applied = Number(result.data?.applied || 0);
         if (applied <= 0) break;
-        done.push(`${over.material} ${fmt(applied)} 件`);
+        done.push({ material: over.material, quantity: applied });
         over = Object.assign({}, over, { remaining: remaining - applied });
       }
     }
@@ -399,7 +415,10 @@ async function autoOffsetBangfan() {
     autoOffsetRunning = false;
   }
   if (!done.length) return;
-  autoOffsetNote = `已自动冲抵前期多送：${done.join('、')}（护栏/护脚栏类，不影响送货单）`;
+  const merged = new Map();
+  for (const item of done) merged.set(item.material, (merged.get(item.material) || 0) + item.quantity);
+  const summary = [...merged.entries()].map(([material, quantity]) => `${material} ${fmt(quantity)} 件`).join('、');
+  autoOffsetNote = `已自动冲抵前期多送：${summary}（护栏/护脚栏类，不影响送货单）`;
   showToast(autoOffsetNote);
   await loadState({ quiet: true });
   renderAll();
@@ -425,6 +444,30 @@ function renderOffsetBox() {
       </div>
       <button type="button" class="over-button" data-offset-over="${escapeHtml(item.over.id)}">冲抵 ${fmt(item.take)} 件</button>
     </div>`).join('');
+}
+
+// 冲抵记录（把前期多送的货冲抵到新订单上的流水）
+function renderOverOffsetList() {
+  const rows = overOffsets().slice(0, 12);
+  if (!rows.length) return '';
+  const stamp = (value) => {
+    const date = value ? new Date(value) : null;
+    if (!date || Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' });
+  };
+  return `
+    <section class="over-box offset-history">
+      <div class="over-head"><strong>冲抵记录</strong><span>最近 ${rows.length} 笔</span></div>
+      ${rows.map((row) => {
+        const orderId = String(row.orderId || '');
+        const [po, seq] = orderId.split('#');
+        return `<div class="over-row">
+          <span class="mono">${escapeHtml(row.material)}</span>
+          <span>${escapeHtml(row.name || '')}<br><em>冲抵到 ${escapeHtml(po)}${seq ? ' 项次' + escapeHtml(seq) : ''} · ${escapeHtml(stamp(row.appliedAt))}</em></span>
+          <strong>${fmt(row.quantity)} 件</strong>
+        </div>`;
+      }).join('')}
+    </section>`;
 }
 
 function reconcileSelection() {
@@ -623,7 +666,7 @@ function renderDesktopHistory() {
       ? `共 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`
       : `筛选出 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`;
   }
-  els.shipmentHistory.innerHTML = renderOverDeliveryList() + renderHistoryCards(rows);
+  els.shipmentHistory.innerHTML = renderOverDeliveryList() + renderOverOffsetList() + renderHistoryCards(rows);
 }
 
 function orderCard(order) {
@@ -713,7 +756,7 @@ function renderMobileRemaining() {
 }
 
 function renderMobileRecords() {
-  els.mobileRecordsPanel.innerHTML = `<div class="records-head"><strong>发货记录</strong><span>电脑端会同步显示这些记录，点“展开全部”可看完整明细。</span></div>${renderOverDeliveryList()}${renderHistoryCards(snapshot.shipments)}`;
+  els.mobileRecordsPanel.innerHTML = `<div class="records-head"><strong>发货记录</strong><span>电脑端会同步显示这些记录，点“展开全部”可看完整明细。</span></div>${renderOverDeliveryList()}${renderOverOffsetList()}${renderHistoryCards(snapshot.shipments)}`;
   els.mobileRecordsPanel.querySelectorAll('[data-expand]').forEach((button) => button.addEventListener('click', () => {
     const id = button.dataset.expand;
     if (expandedShipments.has(id)) expandedShipments.delete(id);

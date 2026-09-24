@@ -320,6 +320,9 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 
 .over-row strong { color: #a1571a; }
 
+.offset-history .over-row em { color: #9a8264; font-style: normal; font-size: 11px; }
+.offset-history .over-head span { color: #9a8264; }
+
 .over-tip {
   margin: 7px 0 0;
   color: #9a8264;
