@@ -178,6 +178,7 @@ const els = {
   mobileSelectedItems: $('#mobileSelectedItems'),
   mobileRemainingQty: $('#mobileRemainingQty'),
   mobileSearch: $('#mobileSearch'),
+  mobileSuggest: $('#mobileSuggest'),
   mobileFilters: $('#mobileFilters'),
   mobileOrderList: $('#mobileOrderList'),
   mobileAllocNotice: $('#mobileAllocNotice'),
@@ -264,6 +265,45 @@ function desktopRows() {
   if (desktopCompany !== 'all') rows = rows.filter((order) => orderCompany(order) === desktopCompany);
   if (query) rows = rows.filter((order) => searchable(order).includes(query));
   return rows;
+}
+
+// 搜索时给出相近的料号/名称下拉，点一下精准选中
+function materialOptions(query) {
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return [];
+  const map = new Map();
+  for (const order of snapshot.orders) {
+    if (!(order.remaining > 0)) continue;
+    const material = String(order.material || '').trim();
+    if (!material) continue;
+    const name = String(order.name || '');
+    if (!(material.toLowerCase().includes(q) || name.toLowerCase().includes(q))) continue;
+    const row = map.get(material) || { material, name, spec: String(order.spec || ''), total: 0, count: 0 };
+    row.total += Number(order.remaining || 0);
+    row.count += 1;
+    map.set(material, row);
+  }
+  return [...map.values()]
+    .sort((a, b) => a.material.localeCompare(b.material, 'zh-CN'))
+    .slice(0, 20);
+}
+
+function renderSuggestions() {
+  if (!els.mobileSuggest || !snapshot) return;
+  const query = els.mobileSearch ? els.mobileSearch.value : mobileSearch;
+  const rows = materialOptions(query);
+  if (!rows.length) {
+    els.mobileSuggest.hidden = true;
+    els.mobileSuggest.innerHTML = '';
+    return;
+  }
+  els.mobileSuggest.hidden = false;
+  els.mobileSuggest.innerHTML = rows.map((row) => `
+    <button type="button" class="suggest-row" data-suggest="${escapeHtml(row.material)}">
+      <span class="mono">${escapeHtml(row.material)}</span>
+      <span>${escapeHtml(row.name)}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</span>
+      <em>共 ${fmt(row.total)} 件 · ${row.count} 单</em>
+    </button>`).join('');
 }
 
 function mobileRows() {
@@ -1315,7 +1355,23 @@ function switchMobileTab(tab) {
 
 els.desktopSearch.addEventListener('input', (event) => { desktopSearch = event.target.value; renderDesktopTable(); });
 els.desktopCompanyFilter.addEventListener('change', (event) => { desktopCompany = event.target.value; renderDesktopTable(); });
-els.mobileSearch.addEventListener('input', (event) => { mobileSearch = event.target.value; renderMobileList(); });
+els.mobileSearch.addEventListener('input', (event) => { mobileSearch = event.target.value; renderMobileList(); renderSuggestions(); });
+els.mobileSearch.addEventListener('focus', () => { renderSuggestions(); });
+if (els.mobileSuggest) {
+  els.mobileSuggest.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-suggest]');
+    if (!button) return;
+    mobileSearch = button.dataset.suggest;
+    if (els.mobileSearch) els.mobileSearch.value = mobileSearch;
+    els.mobileSuggest.hidden = true;
+    renderMobileList();
+  });
+}
+document.addEventListener('click', (event) => {
+  if (!els.mobileSuggest || els.mobileSuggest.hidden) return;
+  if (els.mobileSuggest.contains(event.target) || event.target === els.mobileSearch) return;
+  els.mobileSuggest.hidden = true;
+});
 document.querySelectorAll('.mobile-tab').forEach((button) => button.addEventListener('click', () => switchMobileTab(button.dataset.tab)));
 els.mobileFilters.addEventListener('click', (event) => {
   const button = event.target.closest('[data-filter]');

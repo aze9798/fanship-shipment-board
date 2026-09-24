@@ -330,6 +330,34 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
   font-size: 11px;
   cursor: pointer;
 }
+.suggest-list {
+  display: grid;
+  gap: 4px;
+  max-height: 46vh;
+  overflow-y: auto;
+  margin-top: 6px;
+  padding: 6px;
+  border: 1px solid #dce5e7;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(20, 50, 60, .12);
+}
+.suggest-row {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: #f7fbfb;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.suggest-row:hover { background: #eef7f6; }
+.suggest-row .mono { font-weight: 700; color: #0d7371; font-size: 13px; }
+.suggest-row span:nth-child(2) { color: #35565e; font-size: 12px; }
+.suggest-row em { color: #84949a; font-size: 11px; font-style: normal; }
+
 .cart-summary { cursor: pointer; }
 .cart-detail {
   position: fixed;
