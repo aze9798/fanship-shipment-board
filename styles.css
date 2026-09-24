@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --bg: #eef2f4;
   --surface: #ffffff;
   --surface-soft: #f7f9fa;
@@ -423,6 +423,41 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
   font-size: 11px;
   line-height: 1.5;
 }
+
+/* 云端送货单（已上传的 Excel） */
+.file-box {
+  margin-bottom: 10px;
+  padding: 11px 12px;
+  border: 1px solid #cfe6e1;
+  border-radius: 12px;
+  background: #f4fbf9;
+}
+
+.file-box .over-head { color: #0f766e; }
+.file-box .over-head span { color: #4f7d78; }
+
+.file-box .over-row {
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  border-top: 1px dashed #d8ebe6;
+  color: #294a45;
+}
+
+.file-box .over-row strong { color: #0f766e; }
+
+.file-download {
+  padding: 5px 10px;
+  border: 1px solid #b7ded6;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.file-download:hover { border-color: #0f766e; }
+.file-download:disabled { opacity: .6; cursor: default; }
 
 .shipments-page { padding: 4px 0 10px; }
 .shipments-page .history-tools { padding: 0 18px; }

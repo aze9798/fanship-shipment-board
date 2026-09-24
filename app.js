@@ -1,4 +1,4 @@
-let TODAY = '2026-09-22';
+﻿let TODAY = '2026-09-22';
 const view = /\/mobile\/?$/.test(location.pathname) || new URLSearchParams(location.search).get('view') === 'mobile' ? 'mobile' : 'desktop';
 const functionMarker = '/functions/v1/';
 const functionMarkerIndex = location.pathname.indexOf(functionMarker);
@@ -398,6 +398,7 @@ async function loadState({ quiet = false } = {}) {
     const nextSnapshot = await response.json();
     nextSnapshot.overDeliveries = await loadOverDeliveries();
     nextSnapshot.overOffsets = await loadOverOffsets();
+    nextSnapshot.deliveryFiles = await loadDeliveryFiles();
     const changed = !snapshot || nextSnapshot.revision !== snapshot.revision;
     snapshot = nextSnapshot;
     if (snapshot.today) TODAY = snapshot.today;
@@ -560,6 +561,71 @@ async function loadOverOffsets() {
     if (!result.response.ok) return [];
     return Array.isArray(result.data) ? result.data : [];
   } catch { return []; }
+}
+
+async function loadDeliveryFiles() {
+  if (!RPC_BASE) return [];
+  const accessCode = getAccessCode();
+  if (!accessCode) return [];
+  try {
+    const result = await callRpc('board_get_delivery_files', { p_code: accessCode, p_limit: 200 });
+    if (!result.response.ok) return [];
+    return Array.isArray(result.data) ? result.data : [];
+  } catch { return []; }
+}
+
+function deliveryFiles() {
+  return (snapshot && Array.isArray(snapshot.deliveryFiles)) ? snapshot.deliveryFiles : [];
+}
+
+// 云端送货单清单：按“发货日期 / 批次号 / 文件名”筛选，点一下就能下载 Excel
+function renderDeliveryFiles(dateFilter, queryText) {
+  const query = String(queryText || '').trim().toLowerCase();
+  const rows = deliveryFiles().filter((row) => {
+    if (dateFilter && String(row.deliveryDate || '') !== String(dateFilter)) return false;
+    if (!query) return true;
+    return [row.deliveryDate, row.batch, row.fileName, row.kind].join(' ').toLowerCase().includes(query);
+  });
+  if (!rows.length && !dateFilter && !query) return '';
+  return `
+    <section class="file-box">
+      <div class="over-head"><strong>云端送货单（已上传的 Excel）</strong><span>${rows.length} 个文件</span></div>
+      ${rows.length ? rows.map((row) => `
+        <div class="over-row file-row">
+          <span class="mono">${escapeHtml(row.deliveryDate)}</span>
+          <span>${escapeHtml(row.fileName)}${row.kind ? ` · ${escapeHtml(row.kind)}` : ''}${row.noteCount ? ` · ${fmt(row.noteCount)} 张` : ''}</span>
+          <button type="button" class="file-download" data-file-id="${escapeHtml(row.id)}">下载 Excel</button>
+        </div>`).join('')
+        : '<p class="over-tip">这几天还没有上传送货单，或换个日期再找。</p>'}
+    </section>`;
+}
+
+async function downloadDeliveryFile(id, button) {
+  const row = deliveryFiles().find((item) => String(item.id) === String(id));
+  const original = button ? button.textContent : '';
+  if (button) { button.disabled = true; button.textContent = '下载中...'; }
+  try {
+    const result = await callRpc('board_get_delivery_file', { p_code: getAccessCode(), p_id: id });
+    if (!result.response.ok) throw new Error(result.data?.message || '下载失败');
+    const data = result.data || {};
+    const binary = atob(String(data.contentBase64 || ''));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = data.fileName || row?.fileName || '送货单.xlsx';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    showToast(`已开始下载 ${link.download}`);
+  } catch (error) {
+    showToast(error.message || '下载失败');
+  } finally {
+    if (button) { button.disabled = false; button.textContent = original || '下载 Excel'; }
+  }
 }
 
 function overOffsets() {
@@ -943,7 +1009,8 @@ function renderDesktopHistory() {
       ? `共 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`
       : `筛选出 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`;
   }
-  els.shipmentHistory.innerHTML = renderOverDeliveryList() + renderOverOffsetList() + renderHistoryCards(rows);
+  els.shipmentHistory.innerHTML = renderDeliveryFiles(historyDate, historyQuery)
+    + renderOverDeliveryList() + renderOverOffsetList() + renderHistoryCards(rows);
 }
 
 function orderCard(order) {
@@ -1069,7 +1136,8 @@ function renderMobileRecords() {
           return `<div class="over-row"><span class="mono">${escapeHtml(material)}</span><span>${escapeHtml(name)}${spec ? ' · ' + escapeHtml(spec) : ''}</span><strong>${fmt(quantity)} 件</strong></div>`;
         }).join('')}
       </article>`).join('') : '<div class="empty-state"><strong>这几天没有发货记录</strong><span>换个日期或清空搜索词再试。</span></div>'}` : '';
-  els.recordsList.innerHTML = renderOverDeliveryList() + renderOverOffsetList() + mergedHtml + renderHistoryCards(rows);
+  els.recordsList.innerHTML = renderDeliveryFiles(recordsDate, recordsSearch)
+    + renderOverDeliveryList() + renderOverOffsetList() + mergedHtml + renderHistoryCards(rows);
   els.recordsList.querySelectorAll('[data-expand]').forEach((button) => button.addEventListener('click', () => {
     const id = button.dataset.expand;
     if (expandedShipments.has(id)) expandedShipments.delete(id);
@@ -1123,10 +1191,12 @@ function renderCartDetail() {
   const overLines = overRows.map(([material, item]) => `<div class="cart-line over">
       <div class="cart-line-info">
         <strong>${escapeHtml(material)} ${escapeHtml(item.name || '')}</strong>
-        <span>无订单发货（超出所有未交订单）</span>
+        <span>${item.pending ? '无订单发货（提交装车时自动登记）' : '无订单发货（已登记，可撤回）'}</span>
       </div>
       <strong class="cart-over-qty">${fmt(item.quantity)} 件</strong>
-      <button type="button" class="cart-remove" data-cart-over="${escapeHtml(item.id)}">撤回</button>
+      ${item.pending
+        ? `<button type="button" class="cart-remove" data-cart-over-cancel="${escapeHtml(material)}">取消</button>`
+        : `<button type="button" class="cart-remove" data-cart-over="${escapeHtml(item.id)}">撤回</button>`}
     </div>`).join('');
   els.cartDetail.innerHTML = `<div class="cart-detail-head"><strong>本次装车明细</strong>`
     + `<span>${entries.length} 项订单${overRows.length ? ` + ${overRows.length} 项无订单发货` : ''}，可直接改数量或取消</span></div>`
@@ -1138,7 +1208,8 @@ function renderCart() {
   const quantity = entries.reduce((sum, [, value]) => sum + Number(value), 0);
   els.cartQty.textContent = fmt(quantity);
   els.cartItems.textContent = fmt(entries.length);
-  els.mobileCartBar.hidden = mobileTab !== 'entry' || !entries.length;
+  const overCount = [...sessionOver.values()].filter((item) => Number(item.quantity) > 0).length;
+  els.mobileCartBar.hidden = mobileTab !== 'entry' || (!entries.length && !overCount);
   renderCartDetail();
 }
 
@@ -1202,15 +1273,30 @@ function allocateByDueDate(order, requested) {
   const excess = Math.max(0, requested - totalRemaining);
   const head = `${order.material} 共 ${rows.length} 单、合计未交 ${fmt(totalRemaining)}，本次 ${fmt(requested)} 件`;
   if (excess > 0) {
-    const action = `<button type="button" class="over-button" data-over-material="${escapeHtml(order.material)}"`
-      + ` data-over-name="${escapeHtml(order.name)}" data-over-spec="${escapeHtml(order.spec || '')}"`
-      + ` data-over-customer="${escapeHtml(orderCompany(order))}" data-over-qty="${excess}">`
-      + `登记无订单发货 ${fmt(excess)} 件</button>`;
+    // 超出所有未交订单的部分先记在本次装车里，等提交装车时自动登记成“无订单发货”
+    sessionOver.set(String(order.material || '').trim(), {
+      id: '',
+      pending: true,
+      quantity: excess,
+      name: order.name || '',
+      spec: order.spec || '',
+      customer: orderCompany(order),
+    });
+    const action = `<button type="button" class="over-button" data-over-cancel="${escapeHtml(order.material)}">`
+      + `取消这部分无订单发货</button>`;
     showAllocationNotice(`${head}：已按交期分配 ${parts.join(' + ')} = ${fmt(target)} 件；`
-      + `还有 ${fmt(excess)} 件没有对应订单。`, 'warn', action);
+      + `还有 ${fmt(excess)} 件没有对应订单，已自动记为「无订单发货」，提交装车时一起保存。`, 'warn', action);
   } else {
+    clearPendingOver(order.material);
     showAllocationNotice(`${head}：已按交期分配 ${parts.join(' + ')} = ${fmt(target)} 件。`, 'ok');
   }
+}
+
+// 本次装车里还没真正登记的无订单发货（改了数量或取消时清掉）
+function clearPendingOver(material) {
+  const key = String(material || '').trim();
+  const entry = sessionOver.get(key);
+  if (entry && entry.pending) sessionOver.delete(key);
 }
 
 function updateOrderCardSelection(orderId) {
@@ -1240,6 +1326,7 @@ function addQuantity(orderId, delta) {
   const next = Math.max(0, Math.min(order.remaining, current + delta));
   if (next > 0) selected.set(orderId, next);
   else selected.delete(orderId);
+  clearPendingOver(order.material);
   updateOrderCardSelection(orderId);
   renderMobileSummary();
   renderCart();
@@ -1259,6 +1346,7 @@ function setQuantity(orderId, value) {
   // 本行够装就只填本行；超过本行未交，就把这个总数按交期分配到该物料的后续采购单
   if (numeric <= Number(order.remaining || 0)) {
     selected.set(orderId, numeric);
+    clearPendingOver(order.material);
     updateOrderCardSelection(orderId);
     renderMobileSummary();
     renderCart();
@@ -1419,12 +1507,33 @@ async function submitShipment() {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || '提交失败');
+    const shipmentId = result.shipmentId || result.shipment?.id || '本次发货';
+    // 超出所有未交订单的部分：提交时自动登记成“无订单发货”，不用再手动点一次
+    const pendingOvers = [...sessionOver.entries()].filter(([, item]) => item.pending && Number(item.quantity) > 0);
+    const overSaved = [];
+    const overFailed = [];
+    for (const [material, item] of pendingOvers) {
+      const created = await registerOverDelivery({
+        material,
+        name: item.name,
+        spec: item.spec,
+        customer: item.customer,
+        quantity: Number(item.quantity),
+        note: '装车时超出所有未交采购单的部分',
+      });
+      if (created && created.ok !== false) {
+        sessionOver.delete(material);
+        overSaved.push(`${material} ${fmt(item.quantity)} 件`);
+      } else {
+        overFailed.push(material);
+      }
+    }
     selected.clear();
     els.shipmentForm.reset();
     closeSubmitModal();
-    const shipmentId = result.shipmentId || result.shipment?.id || '本次发货';
-    showToast(`${shipmentId} 已保存，电脑端正在更新`);
+    showToast(`${shipmentId} 已保存${overSaved.length ? `，含无订单发货 ${overSaved.join('、')}` : ''}`);
     await loadState();
+    if (overFailed.length) showToast(`无订单发货登记失败：${overFailed.join('、')}，请在本次装车明细里重新提交`);
   } catch (error) {
     showToast(error.message || '提交失败');
   } finally {
@@ -1705,6 +1814,13 @@ if (els.cartDetail) {
       renderCart();
       return;
     }
+    const overCancel = event.target.closest('[data-cart-over-cancel]');
+    if (overCancel) {
+      sessionOver.delete(String(overCancel.dataset.cartOverCancel || '').trim());
+      renderCart();
+      showAllocationNotice(`已取消 ${overCancel.dataset.cartOverCancel} 的无订单发货。`, 'ok');
+      return;
+    }
     const over = event.target.closest('[data-cart-over]');
     if (over) revokeOverDelivery(over.dataset.cartOver);
   });
@@ -1714,6 +1830,8 @@ if (els.shipmentHistory) els.shipmentHistory.addEventListener('click', (event) =
   if (button) revokeOffset(button.dataset.revokeOffset);
 });
 if (els.mobileRecordsPanel) els.mobileRecordsPanel.addEventListener('click', (event) => {
+  const fileButton = event.target.closest('[data-file-id]');
+  if (fileButton) { downloadDeliveryFile(fileButton.dataset.fileId, fileButton); return; }
   const button = event.target.closest('[data-revoke-offset]');
   if (button) revokeOffset(button.dataset.revokeOffset);
 });
@@ -1742,34 +1860,13 @@ if (els.mobileOffsetBox) els.mobileOffsetBox.addEventListener('click', async (ev
   }
 });
 
-if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', async (event) => {
-  const button = event.target.closest('[data-over-material]');
+if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-over-cancel]');
   if (!button) return;
-  button.disabled = true;
-  const quantity = Number(button.dataset.overQty || 0);
-  const created = await registerOverDelivery({
-    material: button.dataset.overMaterial,
-    name: button.dataset.overName,
-    spec: button.dataset.overSpec,
-    customer: button.dataset.overCustomer,
-    quantity,
-    note: '装车时超出所有未交采购单的部分',
-  });
-  if (created && created.ok !== false) {
-    sessionOver.set(button.dataset.overMaterial, {
-      id: (created && created.id) ? created.id : '',
-      quantity,
-      name: button.dataset.overName || '',
-      spec: button.dataset.overSpec || '',
-    });
-    cartOpen = true;
-    showAllocationNotice(`已登记无订单发货 ${fmt(quantity)} 件（${button.dataset.overMaterial}），可在本次装车明细里查看/撤回。`
-      + `等出现同料号的新采购订单时，导入时会提示冲抵。`, 'ok');
-    await loadState({ quiet: true });
-    renderAll();
-  } else {
-    button.disabled = false;
-  }
+  const material = button.dataset.overCancel;
+  sessionOver.delete(String(material || '').trim());
+  renderCart();
+  showAllocationNotice(`已取消 ${material} 的无订单发货，只保留有采购单的数量。`, 'ok');
 });
 
 if (els.mobileRemainingPanel) {
@@ -1825,6 +1922,8 @@ if (els.historySearch) els.historySearch.addEventListener('input', (event) => { 
 if (els.historyDate) els.historyDate.addEventListener('change', (event) => { historyDate = event.target.value; renderDesktopHistory(); });
 if (els.historyClear) els.historyClear.addEventListener('click', () => { historyDate = ''; if (els.historyDate) els.historyDate.value = ''; renderDesktopHistory(); });
 function handleHistoryClick(event) {
+  const fileButton = event.target.closest('[data-file-id]');
+  if (fileButton) { downloadDeliveryFile(fileButton.dataset.fileId, fileButton); return; }
   const expand = event.target.closest('[data-expand]');
   if (expand) {
     const id = expand.dataset.expand;
@@ -1845,6 +1944,7 @@ els.mobileOrderList.addEventListener('click', (event) => {
   if (action === 'minus') addQuantity(id, -1);
   if (action === 'fill') {
     selected.set(id, order.remaining);
+    clearPendingOver(order.material);
     updateOrderCardSelection(id);
     renderMobileSummary();
     renderCart();
