@@ -176,6 +176,7 @@ const els = {
   desktopDueSelect: $('#desktopDueSelect'),
   desktopDueBox: $('#desktopDueBox'),
   desktopDueDate: $('#desktopDueDate'),
+  desktopDueRow: $('#desktopDueRow'),
   desktopTableBody: $('#desktopTableBody'),
   desktopEmpty: $('#desktopEmpty'),
   shipmentHistory: $('#shipmentHistory'),
@@ -1456,7 +1457,8 @@ els.desktopCompanyFilter.addEventListener('change', (event) => { desktopCompany 
 if (els.desktopDueSelect) els.desktopDueSelect.addEventListener('change', (event) => {
   desktopDueFilter = event.target.value;
   if (desktopDueFilter !== 'custom') desktopDueDate = '';
-  if (els.desktopDueDate) els.desktopDueDate.hidden = desktopDueFilter !== 'custom';
+  if (els.desktopDueRow) els.desktopDueRow.hidden = desktopDueFilter !== 'custom';
+  else if (els.desktopDueDate) els.desktopDueDate.hidden = desktopDueFilter !== 'custom';
   renderDesktopTable();
 });
 if (els.desktopDueDate) els.desktopDueDate.addEventListener('change', (event) => {

@@ -845,3 +845,29 @@ body[data-view="mobile"] { background: #dfe7e9; }
   font-size: 12px;
   text-align: center;
 }
+
+
+/* 交期框换行时靠上，避免图标突然跑到中间 */
+.toolbar .select-box { align-content: flex-start; }
+
+/* 指定日期那一行：图标 + 日期框 */
+.toolbar .due-date-row {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 8px;
+}
+
+.toolbar .due-date-row input[type="date"] {
+  flex: 1 1 auto;
+  height: 34px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid #d7e1e3;
+  border-radius: 8px;
+  background: #fff;
+  color: #17333b;
+  font: inherit;
+  font-size: 12px;
+}
