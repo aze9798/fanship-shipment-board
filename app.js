@@ -166,6 +166,7 @@ const els = {
   metricUrgent: $('#metricUrgent'),
   desktopSearch: $('#desktopSearch'),
   desktopFilter: $('#desktopFilter'),
+  desktopSuggest: $('#desktopSuggest'),
   desktopCompanyFilter: $('#desktopCompanyFilter'),
   desktopTableBody: $('#desktopTableBody'),
   desktopEmpty: $('#desktopEmpty'),
@@ -288,22 +289,32 @@ function materialOptions(query) {
     .slice(0, 20);
 }
 
-function renderSuggestions() {
-  if (!els.mobileSuggest || !snapshot) return;
-  const query = els.mobileSearch ? els.mobileSearch.value : mobileSearch;
-  const rows = materialOptions(query);
+function renderSuggestFor(input, box) {
+  if (!box || !snapshot) return;
+  const rows = materialOptions(input ? input.value : '');
   if (!rows.length) {
-    els.mobileSuggest.hidden = true;
-    els.mobileSuggest.innerHTML = '';
+    box.hidden = true;
+    box.innerHTML = '';
     return;
   }
-  els.mobileSuggest.hidden = false;
-  els.mobileSuggest.innerHTML = rows.map((row) => `
+  box.hidden = false;
+  box.innerHTML = rows.map((row) => `
     <button type="button" class="suggest-row" data-suggest="${escapeHtml(row.material)}">
       <span class="mono">${escapeHtml(row.material)}</span>
       <span>${escapeHtml(row.name)}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</span>
       <em>共 ${fmt(row.total)} 件 · ${row.count} 单</em>
     </button>`).join('');
+}
+
+function renderSuggestions() {
+  renderSuggestFor(els.mobileSearch, els.mobileSuggest);
+}
+
+function pickSuggestion(button, input, box) {
+  const value = button.dataset.suggest;
+  if (input) input.value = value;
+  box.hidden = true;
+  return value;
 }
 
 function mobileRows() {
@@ -1353,7 +1364,16 @@ function switchMobileTab(tab) {
   renderCart();
 }
 
-els.desktopSearch.addEventListener('input', (event) => { desktopSearch = event.target.value; renderDesktopTable(); });
+els.desktopSearch.addEventListener('input', (event) => { desktopSearch = event.target.value; renderDesktopTable(); renderSuggestFor(els.desktopSearch, els.desktopSuggest); });
+els.desktopSearch.addEventListener('focus', () => renderSuggestFor(els.desktopSearch, els.desktopSuggest));
+if (els.desktopSuggest) {
+  els.desktopSuggest.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-suggest]');
+    if (!button) return;
+    desktopSearch = pickSuggestion(button, els.desktopSearch, els.desktopSuggest);
+    renderDesktopTable();
+  });
+}
 els.desktopCompanyFilter.addEventListener('change', (event) => { desktopCompany = event.target.value; renderDesktopTable(); });
 els.mobileSearch.addEventListener('input', (event) => { mobileSearch = event.target.value; renderMobileList(); renderSuggestions(); });
 els.mobileSearch.addEventListener('focus', () => { renderSuggestions(); });
@@ -1368,9 +1388,11 @@ if (els.mobileSuggest) {
   });
 }
 document.addEventListener('click', (event) => {
-  if (!els.mobileSuggest || els.mobileSuggest.hidden) return;
-  if (els.mobileSuggest.contains(event.target) || event.target === els.mobileSearch) return;
-  els.mobileSuggest.hidden = true;
+  for (const [box, input] of [[els.mobileSuggest, els.mobileSearch], [els.desktopSuggest, els.desktopSearch]]) {
+    if (!box || box.hidden) continue;
+    if (box.contains(event.target) || event.target === input) continue;
+    box.hidden = true;
+  }
 });
 document.querySelectorAll('.mobile-tab').forEach((button) => button.addEventListener('click', () => switchMobileTab(button.dataset.tab)));
 els.mobileFilters.addEventListener('click', (event) => {

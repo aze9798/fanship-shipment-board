@@ -330,6 +330,15 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
   font-size: 11px;
   cursor: pointer;
 }
+.toolbar { position: relative; }
+.desktop-suggest {
+  position: absolute;
+  top: 58px;
+  left: 0;
+  width: 420px;
+  z-index: 40;
+}
+
 .suggest-list {
   display: grid;
   gap: 4px;
