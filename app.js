@@ -134,6 +134,8 @@ let historyDate = '';
 let historyQuery = '';
 const expandedShipments = new Set();
 let autoOffsetNote = '';
+let cartOpen = false;
+const sessionOver = new Map();
 let autoOffsetRunning = false;
 const isBangfanName = (name) => /护栏|护脚栏/.test(String(name || ''));
 let eventSource = null;
@@ -185,6 +187,8 @@ const els = {
   mobileRemainingPanel: $('#mobileRemainingPanel'),
   mobileRecordsPanel: $('#mobileRecordsPanel'),
   mobileCartBar: $('#mobileCartBar'),
+  mobileCartSummary: $('#mobileCartSummary'),
+  cartDetail: $('#cartDetail'),
   cartQty: $('#cartQty'),
   cartItems: $('#cartItems'),
   submitModal: $('#submitModal'),
@@ -343,7 +347,7 @@ async function registerOverDelivery(payload) {
   try {
     const result = await callRpc('board_add_over_delivery', { p_code: accessCode, p_payload: payload });
     if (!result.response.ok) throw new Error(result.data?.message || '登记失败');
-    return true;
+    return result.data || { ok: true };
   } catch (error) {
     showToast(error.message || '登记超发失败');
     return false;
@@ -388,6 +392,8 @@ function offsetCandidates() {
 // 护栏/护脚栏类：不用手工点，自动冲抵，并把结果告诉用户（不影响送货单）
 async function autoOffsetBangfan() {
   if (autoOffsetRunning || !snapshot) return;
+  // 本次装车还有未提交的勾选时先不自动冲抵，避免和正在装的货冲突
+  if (selected.size > 0) return;
   const list = offsetCandidates().filter((item) => isBangfanName(item.over.name));
   if (!list.length) return;
   autoOffsetRunning = true;
@@ -465,6 +471,7 @@ function renderOverOffsetList() {
           <span class="mono">${escapeHtml(row.material)}</span>
           <span>${escapeHtml(row.name || '')}<br><em>冲抵到 ${escapeHtml(po)}${seq ? ' 项次' + escapeHtml(seq) : ''} · ${escapeHtml(stamp(row.appliedAt))}</em></span>
           <strong>${fmt(row.quantity)} 件</strong>
+          <button type="button" class="over-revoke" data-revoke-offset="${escapeHtml(row.id)}">撤回</button>
         </div>`;
       }).join('')}
     </section>`;
@@ -766,12 +773,67 @@ function renderMobileRecords() {
   }));
 }
 
+async function revokeOffset(offsetId) {
+  if (!window.confirm('要把这笔冲抵撤回吗？\n撤回后：订单未交会加回去，前期多送记录会恢复。')) return;
+  const result = await callRpc('board_revoke_offset', { p_code: getAccessCode(), p_offset_id: offsetId });
+  if (!result.response.ok) { showToast(result.data?.message || '撤回失败'); return; }
+  showToast('已撤回这笔冲抵');
+  await loadState({ quiet: true });
+  renderAll();
+}
+
+async function revokeOverDelivery(overId) {
+  if (!window.confirm('要把这笔“无订单发货”撤回吗？\n会同时撤销它引起的冲抵，订单未交恢复原样。')) return;
+  const result = await callRpc('board_revoke_over_delivery', { p_code: getAccessCode(), p_over_id: overId });
+  if (!result.response.ok) { showToast(result.data?.message || '撤回失败'); return; }
+  sessionOver.clear();
+  showToast('已撤回这笔无订单发货');
+  await loadState({ quiet: true });
+  renderAll();
+}
+
+function renderCartDetail() {
+  if (!els.cartDetail) return;
+  const entries = [...selected.entries()].filter(([, quantity]) => Number(quantity) > 0);
+  const overRows = [...sessionOver.entries()];
+  if (!cartOpen || (!entries.length && !overRows.length)) {
+    els.cartDetail.hidden = true;
+    els.cartDetail.innerHTML = '';
+    return;
+  }
+  els.cartDetail.hidden = false;
+  const lines = entries.map(([id, quantity]) => {
+    const order = snapshot.orders.find((item) => item.id === id);
+    if (!order) return '';
+    return `<div class="cart-line">
+      <div class="cart-line-info">
+        <strong>${escapeHtml(order.material)} ${escapeHtml(order.name)}</strong>
+        <span>${escapeHtml(order.po)} 项次${escapeHtml(order.seq)} · 本行最多 ${fmt(order.remaining)}</span>
+      </div>
+      <input type="number" min="0" max="${order.remaining}" step="1" inputmode="decimal" value="${quantity}" data-cart-id="${escapeHtml(id)}" aria-label="本次数量">
+      <button type="button" class="cart-remove" data-cart-remove="${escapeHtml(id)}">取消</button>
+    </div>`;
+  }).join('');
+  const overLines = overRows.map(([material, item]) => `<div class="cart-line over">
+      <div class="cart-line-info">
+        <strong>${escapeHtml(material)} ${escapeHtml(item.name || '')}</strong>
+        <span>无订单发货（超出所有未交订单）</span>
+      </div>
+      <strong class="cart-over-qty">${fmt(item.quantity)} 件</strong>
+      <button type="button" class="cart-remove" data-cart-over="${escapeHtml(item.id)}">撤回</button>
+    </div>`).join('');
+  els.cartDetail.innerHTML = `<div class="cart-detail-head"><strong>本次装车明细</strong>`
+    + `<span>${entries.length} 项订单${overRows.length ? ` + ${overRows.length} 项无订单发货` : ''}，可直接改数量或取消</span></div>`
+    + lines + overLines;
+}
+
 function renderCart() {
   const entries = [...selected.entries()].filter(([, quantity]) => Number(quantity) > 0);
   const quantity = entries.reduce((sum, [, value]) => sum + Number(value), 0);
   els.cartQty.textContent = fmt(quantity);
   els.cartItems.textContent = fmt(entries.length);
   els.mobileCartBar.hidden = mobileTab !== 'entry' || !entries.length;
+  renderCartDetail();
 }
 
 // 同一物料编号在多个采购单上都还有未交时的汇总（物料编号 -> 总未交/单数）
@@ -1262,6 +1324,46 @@ els.mobileFilters.addEventListener('click', (event) => {
   document.querySelectorAll('#mobileFilters .chip').forEach((chip) => chip.classList.toggle('active', chip === button));
   renderMobileList();
 });
+if (els.mobileCartSummary) {
+  const toggleCart = () => { cartOpen = !cartOpen; renderCartDetail(); };
+  els.mobileCartSummary.addEventListener('click', toggleCart);
+  els.mobileCartSummary.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleCart(); } });
+}
+if (els.cartDetail) {
+  els.cartDetail.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-cart-id]');
+    if (!input) return;
+    const order = snapshot.orders.find((item) => item.id === input.dataset.cartId);
+    if (!order) return;
+    const numeric = Number(input.value);
+    if (!Number.isFinite(numeric) || numeric <= 0) selected.delete(order.id);
+    else selected.set(order.id, Math.min(Number(order.remaining || 0), numeric));
+    updateOrderCardSelection(order.id);
+    renderMobileSummary();
+    renderCart();
+  });
+  els.cartDetail.addEventListener('click', (event) => {
+    const remove = event.target.closest('[data-cart-remove]');
+    if (remove) {
+      selected.delete(remove.dataset.cartRemove);
+      updateOrderCardSelection(remove.dataset.cartRemove);
+      renderMobileSummary();
+      renderCart();
+      return;
+    }
+    const over = event.target.closest('[data-cart-over]');
+    if (over) revokeOverDelivery(over.dataset.cartOver);
+  });
+}
+if (els.shipmentHistory) els.shipmentHistory.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-revoke-offset]');
+  if (button) revokeOffset(button.dataset.revokeOffset);
+});
+if (els.mobileRecordsPanel) els.mobileRecordsPanel.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-revoke-offset]');
+  if (button) revokeOffset(button.dataset.revokeOffset);
+});
+
 if (els.mobileOffsetBox) els.mobileOffsetBox.addEventListener('click', async (event) => {
   const button = event.target.closest('[data-offset-over]');
   if (!button) return;
@@ -1291,7 +1393,7 @@ if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', async
   if (!button) return;
   button.disabled = true;
   const quantity = Number(button.dataset.overQty || 0);
-  const ok = await registerOverDelivery({
+  const created = await registerOverDelivery({
     material: button.dataset.overMaterial,
     name: button.dataset.overName,
     spec: button.dataset.overSpec,
@@ -1299,8 +1401,15 @@ if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', async
     quantity,
     note: '装车时超出所有未交采购单的部分',
   });
-  if (ok) {
-    showAllocationNotice(`已登记无订单发货 ${fmt(quantity)} 件（${button.dataset.overMaterial}）。`
+  if (created && created.ok !== false) {
+    sessionOver.set(button.dataset.overMaterial, {
+      id: (created && created.id) ? created.id : '',
+      quantity,
+      name: button.dataset.overName || '',
+      spec: button.dataset.overSpec || '',
+    });
+    cartOpen = true;
+    showAllocationNotice(`已登记无订单发货 ${fmt(quantity)} 件（${button.dataset.overMaterial}），可在本次装车明细里查看/撤回。`
       + `等出现同料号的新采购订单时，导入时会提示冲抵。`, 'ok');
     await loadState({ quiet: true });
     renderAll();
