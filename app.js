@@ -540,6 +540,21 @@ function reconcileSelection() {
   }
 }
 
+// 电脑端两个页面：实时总览 / 发货记录
+function showDesktopView(name) {
+  const overview = document.getElementById('desktopView');
+  const shipments = document.getElementById('desktopShipmentsView');
+  if (!overview || !shipments) return;
+  const isShipments = name === 'shipments';
+  overview.hidden = isShipments;
+  shipments.hidden = !isShipments;
+  document.querySelectorAll('[data-desktop-view]').forEach((link) => {
+    link.classList.toggle('active', link.dataset.desktopView === name);
+  });
+  if (isShipments) renderDesktopHistory();
+  window.scrollTo({ top: 0 });
+}
+
 function renderAll() {
   if (!snapshot) return;
   renderDesktopMetrics();
@@ -1494,6 +1509,13 @@ if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', async
   } else {
     button.disabled = false;
   }
+});
+
+document.querySelectorAll('[data-desktop-view]').forEach((link) => {
+  link.addEventListener('click', (event) => {
+    event.preventDefault();
+    showDesktopView(link.dataset.desktopView);
+  });
 });
 
 if (els.historySearch) els.historySearch.addEventListener('input', (event) => { historyQuery = event.target.value; renderDesktopHistory(); });

@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=31">
+  <link rel="stylesheet" href="./styles.css?v=32">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -25,7 +25,7 @@
       </div>
 
       <nav class="side-nav" aria-label="主导航">
-        <a class="side-link active" href="./">
+        <a class="side-link active" href="./" data-desktop-view="overview">
           <span class="nav-dot"></span>
           实时总览
         </a>
@@ -33,7 +33,7 @@
           <span class="nav-dot"></span>
           手机装车
         </a>
-        <a class="side-link" href="#shipment-history">
+        <a class="side-link" href="#shipment-history" data-desktop-view="shipments">
           <span class="nav-dot"></span>
           发货记录
         </a>
@@ -140,23 +140,35 @@
             </div>
           </div>
 
-          <aside id="shipment-history" class="panel activity-panel">
-            <div class="panel-head compact">
-              <div>
-                <h2>发货记录</h2>
-                <p id="historySummary">最新记录显示在最上面</p>
-              </div>
-              <button id="generateDeliveryNote" class="button ghost" type="button">生成当天送货单</button>
+        </section>
+      </section>
+
+      <section id="desktopShipmentsView" class="desktop-view desktop-only" hidden>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">发货流水</p>
+            <h1>发货记录</h1>
+            <p class="subhead">按日期查看每天的发货、无订单发货与冲抵记录。</p>
+          </div>
+          <div class="topbar-actions">
+            <button id="generateDeliveryNote" class="button primary" type="button">生成当天送货单</button>
+          </div>
+        </header>
+        <section class="panel shipments-page">
+          <div class="panel-head compact">
+            <div>
+              <h2>发货流水</h2>
+              <p id="historySummary">最新记录显示在最上面</p>
             </div>
-            <div class="history-tools">
+          </div>
+          <div class="history-tools">
+            <div class="history-tools-row">
               <input id="historySearch" type="search" placeholder="搜索采购单号 / 物料编号 / 名称">
-              <div class="history-tools-row">
-                <input id="historyDate" type="date" title="按发货日期筛选">
-                <button id="historyClear" class="button ghost" type="button">全部日期</button>
-              </div>
+              <input id="historyDate" type="date" title="按发货日期筛选">
+              <button id="historyClear" class="button ghost" type="button">全部日期</button>
             </div>
-            <div id="shipmentHistory" class="shipment-history"></div>
-          </aside>
+          </div>
+          <div id="shipmentHistory" class="shipment-history"></div>
         </section>
       </section>
 
@@ -312,7 +324,7 @@
   <input id="importFileInput" type="file" accept=".xlsx,.xls" hidden>
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="./app.js?v=31" type="module"></script>
+  <script src="./app.js?v=32" type="module"></script>
 </body>
 </html>
 

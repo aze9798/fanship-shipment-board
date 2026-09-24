@@ -153,7 +153,7 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 .metric-card strong { position: relative; z-index: 1; margin: 8px 0 4px; font-size: clamp(26px, 2.5vw, 38px); line-height: 1; letter-spacing: -.04em; }
 .metric-card small { position: relative; z-index: 1; color: #8c9ca3; font-size: 11px; }
 
-.dashboard-grid { margin-top: 17px; display: grid; grid-template-columns: minmax(0, 1fr) 286px; gap: 17px; align-items: start; }
+.dashboard-grid { margin-top: 17px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 17px; align-items: start; }
 .panel { border: 1px solid rgba(220, 229, 232, .9); border-radius: var(--radius); background: #fff; box-shadow: var(--shadow-soft); }
 .panel-head { min-height: 81px; padding: 20px 21px 15px; display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .panel-head.compact { min-height: 72px; }
@@ -403,6 +403,12 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
   font-size: 11px;
   line-height: 1.5;
 }
+
+.shipments-page { padding: 4px 0 10px; }
+.shipments-page .history-tools { padding: 0 18px; }
+.shipments-page .history-tools-row { grid-template-columns: minmax(220px, 1fr) minmax(150px, 200px) auto; }
+.shipments-page .shipment-history { max-height: none; padding: 0 18px 14px; }
+.shipments-page .over-box { margin-bottom: 12px; }
 
 .history-tools { display: grid; gap: 6px; margin-bottom: 10px; padding: 0 15px; }
 .history-tools input { height: 34px; padding: 0 10px; border: 1px solid #d7e1e3; border-radius: 9px; font: inherit; font-size: 12px; background: #fbfcfc; color: #17333b; }
