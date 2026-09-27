@@ -1193,3 +1193,15 @@ body[data-view="mobile"] { background: #dfe7e9; }
 
 .archived-card .history-line strong { color: #60747a; }
 .archived-card .history-total { color: #8d9ca1; }
+
+/* 提交失败时的提示（留在弹窗里，方便看清原因） */
+.form-error {
+  margin: 8px 0 2px;
+  padding: 10px 12px;
+  border: 1px solid #e6b8b2;
+  border-radius: 10px;
+  background: #fdf3f2;
+  color: #a0443d;
+  font-size: 12px;
+  line-height: 1.6;
+}

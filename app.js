@@ -274,6 +274,7 @@ const els = {
   cartItems: $('#cartItems'),
   submitModal: $('#submitModal'),
   submitSummary: $('#submitSummary'),
+  submitError: $('#submitError'),
   shipmentForm: $('#shipmentForm'),
   generateDeliveryNote: $('#generateDeliveryNote'),
   deliveryModal: $('#deliveryModal'),
@@ -1806,11 +1807,18 @@ function setQuantity(orderId, value) {
   allocateByDueDate(order, numeric);
 }
 
-function showToast(message) {
+function showToast(message, duration = 2600) {
   els.toast.textContent = message;
   els.toast.hidden = false;
   clearTimeout(showToast.timer);
-  showToast.timer = setTimeout(() => { els.toast.hidden = true; }, 2600);
+  showToast.timer = setTimeout(() => { els.toast.hidden = true; }, duration);
+}
+
+function showSubmitError(message) {
+  if (!els.submitError) return;
+  if (!message) { els.submitError.hidden = true; els.submitError.textContent = ''; return; }
+  els.submitError.hidden = false;
+  els.submitError.textContent = '提交失败：' + message;
 }
 
 function openSubmitModal() {
@@ -1819,6 +1827,7 @@ function openSubmitModal() {
     showToast('请先录入至少一项装车数量');
     return;
   }
+  showSubmitError('');
   // 打开确认框时顺手同步一次最新未交，减少"别的设备刚发过货"造成的误差
   loadState({ quiet: true }).then(() => renderAll()).catch(() => {});
   const total = entries.reduce((sum, [, quantity]) => sum + Number(quantity), 0);
@@ -2014,11 +2023,17 @@ async function submitShipment() {
     selected.clear();
     els.shipmentForm.reset();
     closeSubmitModal();
+    showSubmitError('');
     showToast(`${shipmentId} 已保存${reallocated ? '（已按最新未交重新分配）' : ''}${overSaved.length ? `，含无订单发货 ${overSaved.join('、')}` : ''}`);
     await loadState();
     if (overFailed.length) showToast(`无订单发货登记失败：${overFailed.join('、')}，请在本次装车明细里重新提交`);
   } catch (error) {
-    showToast(`${error.message || '提交失败'}｜已刷新最新未交，请重新确认数量`);
+    const raw = String(error.message || '提交失败');
+    const friendly = /duplicate key/i.test(raw)
+      ? '发货单号重复（撤销发货后编号会撞车，需要在云端执行一次修复脚本）'
+      : raw;
+    showSubmitError(friendly);
+    showToast(`${friendly}｜已刷新最新未交，请重新确认数量`, 9000);
     await loadState({ quiet: true });
     renderAll();
   } finally {
