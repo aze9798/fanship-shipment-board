@@ -433,6 +433,13 @@ async function loadState({ quiet = false } = {}) {
 const PDF_ITEM_RE = /^(\d+)\s+(\S+)\s+(\d{4}\/\d{2}\/\d{2})\s+([\d,]+(?:\.\d+)?)\s+(\S+)\s+([\d,]+(?:\.\d+)?)\s+([\d,]+(?:\.\d+)?)/;
 const PDF_NAME_RE = /^(.*?)\s+([\d,]+(?:\.\d+)?)\s+([\d,]+(?:\.\d+)?)$/;
 const pdfNum = (v) => Number(String(v || '').replace(/,/g, '')) || 0;
+// pdf.js 抽出来的中文常带多余空格，这里统一收紧（只用于名称/图号）
+const tidyText = (v) => String(v || '')
+  .replace(/\s*([()])\s*/g, '$1')
+  .replace(/([\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])/g, '$1')
+  .replace(/\s{2,}/g, ' ')
+  .trim();
+
 const pdfIso = (v) => {
   const m = String(v || '').match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
   return m ? `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}` : null;
@@ -466,21 +473,32 @@ async function pdfToLines(file) {
 async function parsePdfOrder(file) {
   const lines = await pdfToLines(file);
   const text = lines.join('\n');
-  const doc = { file: file.name, po: null, purchaseDate: null, vendor: null, pdfTotal: null, items: [], error: '' };
-  let m = text.match(/采购单号[:：]\s*(\S+)/); doc.po = m ? m[1].trim() : null;
-  m = text.match(/采购日期[:：]\s*(\S+)/); doc.purchaseDate = pdfIso(m ? m[1] : null);
-  m = text.match(/供应厂商[:：]\s*(\S+)/); doc.vendor = m ? m[1].trim() : null;
-  m = text.match(/含税金额总和[:：]\s*([\d,]+(?:\.\d+)?)/); doc.pdfTotal = m ? pdfNum(m[1]) : null;
+  // pdf.js 常把“采购单号 : PN01-…”抽成冒号前带空格，先统一成紧贴冒号再识别
+  const flat = text.replace(/[ \t]*([:：])[ \t]*/g, '$1').replace(/[ \t]+/g, ' ');
+  const doc = { file: file.name, po: null, purchaseDate: null, vendor: null, pdfTotal: null, items: [], error: '', warnings: [], poFromFile: false };
+  let m = flat.match(/采购单号[:：]\s*(\S+)/); doc.po = m ? m[1].trim() : null;
+  if (!doc.po) {
+    // 读不到表头单号时，用文件名兜底（采购订单 PDF 的文件名就是单号）
+    const fromName = String(file.name || '').match(/PN0?\d{1,2}-?\d{5,}/i);
+    if (fromName) { doc.po = fromName[0].replace(/[()（）]/g, ''); doc.poFromFile = true; }
+  }
+  m = flat.match(/采购日期[:：]\s*(\S+)/); doc.purchaseDate = pdfIso(m ? m[1] : null);
+  m = flat.match(/供应厂商[:：]\s*(\S+)/); doc.vendor = m ? m[1].trim() : null;
+  if (!doc.vendor) {
+    const vendorLine = flat.match(/(无锡市帆顺金属[^\s]*)/);
+    if (vendorLine) doc.vendor = vendorLine[1];
+  }
+  m = flat.match(/含税金额总和[:：]\s*([\d,]+(?:\.\d+)?)/); doc.pdfTotal = m ? pdfNum(m[1]) : null;
   for (let i = 0; i < lines.length; i += 1) {
     const item = lines[i].match(PDF_ITEM_RE);
     if (!item) continue;
     const row = { seq: Number(item[1]), material: item[2], dueDate: pdfIso(item[3]), quantity: pdfNum(item[4]), netAmount: pdfNum(item[7]), name: '', spec: '', grossAmount: null };
     const named = (lines[i + 1] || '').match(PDF_NAME_RE);
     if (named) {
-      row.name = named[1].trim();
+      row.name = tidyText(named[1]);
       row.grossAmount = pdfNum(named[3]);
       const next = lines[i + 2] || '';
-      if (next && !PDF_ITEM_RE.test(next) && !next.includes('总和') && !next.includes('备注')) row.spec = next.trim();
+      if (next && !PDF_ITEM_RE.test(next) && !next.includes('总和') && !next.includes('备注')) row.spec = tidyText(next);
     }
     doc.items.push(row);
   }
@@ -531,6 +549,8 @@ function renderPdfPreview(docs) {
   const rows = [];
   const blocks = docs.map((doc) => {
     const problems = [];
+    const warnings = [];
+    if (doc.poFromFile) warnings.push('采购单号取自文件名，请核对一下');
     if (doc.error) problems.push(doc.error);
     if (!doc.po) problems.push('读不到采购单号');
     if (doc.pdfTotal != null && Math.abs(doc.amountTotal - doc.pdfTotal) > 0.02) {
@@ -544,7 +564,7 @@ function renderPdfPreview(docs) {
         rows.push({ id: `${doc.po}#${String(item.seq).padStart(3, '0')}`, customer: company, po: doc.po, purchaseDate: doc.purchaseDate, seq: item.seq, material: item.material, name: item.name, spec: item.spec, orderQty: item.quantity, openingRemaining: item.quantity, dueDate: item.dueDate });
       }
     }
-    return { doc, problems, duplicated, company };
+    return { doc, problems, warnings, duplicated, company };
   });
   pendingPdfRows = rows;
   const totalQty = rows.reduce((sum, r) => sum + r.openingRemaining, 0);
@@ -556,6 +576,7 @@ function renderPdfPreview(docs) {
         <span>${b.company ? (b.company === '4137' ? '帆顺金属科技' : '帆顺金属(老)') : '公司未知'} · ${b.doc.items.length} 行 · 数量 ${fmt(b.doc.qtyTotal)} · 金额 ${fmt(b.doc.amountTotal)}${b.doc.pdfTotal != null ? ` / PDF ${fmt(b.doc.pdfTotal)}` : ''}</span>
       </div>
       ${b.duplicated ? '<div class="pdf-note">系统里已有这个采购单号，将跳过</div>' : ''}
+      ${(b.warnings || []).map((w) => `<div class="pdf-note">${escapeHtml(w)}</div>`).join('')}
       ${b.problems.map((p) => `<div class="pdf-note bad">${escapeHtml(p)}</div>`).join('')}
     </div>`).join('');
   els.pdfPreview.innerHTML = `
