@@ -364,6 +364,16 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
   height: 38px; padding: 0 10px; border: 1px solid #d7e1e3; border-radius: 10px; font: inherit; font-size: 13px; background: #fbfcfc; color: #17333b;
 }
 .remaining-due-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.desktop-remaining-tools { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(360px, 1.4fr); gap: 12px; align-items: end; padding: 0 18px 14px; }
+.desktop-remaining-tools .search-box { height: 38px; }
+.desktop-remaining-panel .table-wrap { max-height: none; }
+.grouped-remaining-table { min-width: 1000px; }
+.grouped-remaining-table td { vertical-align: middle; }
+.grouped-remaining-table .qty { color: var(--primary); font-size: 15px; font-weight: 800; }
+.grouped-remaining-table .mark { color: #9b6b14; font-size: 14px; font-weight: 800; text-align: center; }
+@media (max-width: 900px) {
+  .desktop-remaining-tools { grid-template-columns: 1fr; }
+}
 .remaining-date-box { display: grid; gap: 7px; padding: 9px 10px; border: 1px solid #dce5e7; border-radius: 12px; background: #fbfcfc; }
 .remaining-date-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #35565e; font-size: 11px; }
 .remaining-date-head strong { font-size: 12px; }
@@ -737,17 +747,6 @@ body[data-view="mobile"] { background: #dfe7e9; }
 
 
 
-.desktop-remaining-tools { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(360px, 1.4fr); gap: 12px; align-items: end; padding: 0 18px 14px; }
-.desktop-remaining-tools .search-box { height: 38px; }
-.desktop-remaining-panel .table-wrap { max-height: none; }
-.grouped-remaining-table { min-width: 1000px; }
-.grouped-remaining-table td { vertical-align: middle; }
-.grouped-remaining-table .qty { color: var(--primary); font-size: 15px; font-weight: 800; }
-.grouped-remaining-table .mark { color: #9b6b14; font-size: 14px; font-weight: 800; text-align: center; }
-@media (max-width: 900px) {
-  .desktop-remaining-tools { grid-template-columns: 1fr; }
-}
-
 /* 手机未交清单：单行四列表格式 */
 .mobile-remaining-card { display: block; padding: 0; overflow: hidden; }
 .mobile-remaining-row { display: grid; grid-template-columns: 88px minmax(128px, 1.7fr) 64px 72px; gap: 1px; background: #edf2f3; }
@@ -1078,7 +1077,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .toolbar .select-box .due-date-row { grid-template-columns: 1fr; }
 .toolbar .select-box select { padding-left: 2px; }
 
-/* ===== 电脑端「剩余未交明细」工具栏：搜索框、交期、公司统一成同一种样式 ===== */
+/* ===== 电脑端「剩余未交明细」工具栏：搜索框、交期、公司三个框完全一致 ===== */
 #desktopView .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -1094,30 +1093,40 @@ body[data-view="mobile"] { background: #dfe7e9; }
   align-items: center;
   gap: 8px;
   box-sizing: border-box;
-  min-height: 40px;
+  height: 40px;
   padding: 0 12px;
   border: 1px solid var(--line);
   border-radius: 11px;
   background: #fbfcfc;
 }
 
-#desktopView .toolbar .search-box { flex: 1 1 320px; }
+#desktopView .toolbar .search-box { flex: 1 1 320px; min-width: 0; cursor: text; }
 #desktopView .toolbar .select-box { flex: 0 0 auto; }
 
+/* 放大镜：固定大小、垂直居中，紧贴后面的提示词 */
 #desktopView .toolbar .tool-icon {
   position: static;
   left: auto;
   top: auto;
   transform: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
   color: #8b9aa0;
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1;
 }
 
+/* 输入框铺满剩余空间：点框里任何位置都能直接输入 */
 #desktopView .toolbar .search-box input,
 #desktopView .toolbar .select-box select {
+  flex: 1 1 auto;
+  min-width: 0;
   width: 100%;
-  height: 38px;
+  height: 100%;
   padding: 0;
   border: 0;
   outline: none;
@@ -1128,7 +1137,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
 }
 
 #desktopView .toolbar .search-box input { cursor: text; }
-#desktopView .toolbar .select-box select { padding-right: 16px; cursor: pointer; }
+#desktopView .toolbar .select-box select { cursor: pointer; }
 
 #desktopView .toolbar .search-box:focus-within,
 #desktopView .toolbar .select-box:focus-within {
