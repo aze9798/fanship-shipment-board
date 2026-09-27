@@ -1475,6 +1475,14 @@ function remainingDateText(dates) {
   return dates.map((dueDate) => formatDate(dueDate)).join('、');
 }
 
+function remainingDatePrintText(dates) {
+  if (!dates.length) return '未填';
+  return dates.map((dueDate) => {
+    const match = String(dueDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return match ? `${match[1].slice(2)}/${match[2]}/${match[3]}` : String(dueDate || '');
+  }).join('、');
+}
+
 function renderMobileRemaining() {
   if (!els.remainingList) return;
   renderRemainingDateChips();
@@ -1530,7 +1538,7 @@ function printRemainingList(groups = remainingGroups()) {
       <td>${escapeHtml(group.material)}</td>
       <td>${escapeHtml(group.name)}</td>
       <td>${escapeHtml(qtyText(group.total))}</td>
-      <td>${escapeHtml(remainingDateText(group.dates))}</td>
+      <td>${escapeHtml(remainingDatePrintText(group.dates))}</td>
       <td>${group.mark ? '✅' : ''}</td>
     </tr>`).join('');
   const printWindow = window.open('', '_blank');
@@ -1577,7 +1585,7 @@ function exportRemainingList(groups = remainingGroups()) {
       group.material,
       group.name,
       qtyText(group.total),
-      remainingDateText(group.dates),
+      remainingDatePrintText(group.dates),
       group.mark ? '✅' : '',
     ]),
   ];
