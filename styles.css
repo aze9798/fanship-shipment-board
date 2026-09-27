@@ -1157,3 +1157,23 @@ body[data-view="mobile"] { background: #dfe7e9; }
 }
 
 #desktopView .orders-table th .col-resizer { cursor: col-resize; }
+
+/* ===== 满 7 天归档：不能再撤回 ===== */
+.row-locked {
+  justify-self: end;
+  padding: 3px 9px;
+  border: 1px dashed #d9d3c7;
+  border-radius: 7px;
+  background: #f7f8f8;
+  color: #8a8f92;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.history-card.archived-card {
+  background: #f7f9f9;
+  border-color: #e2e8ea;
+}
+
+.archived-card .history-line strong { color: #60747a; }
+.archived-card .history-total { color: #8d9ca1; }

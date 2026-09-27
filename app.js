@@ -763,6 +763,26 @@ async function registerOverDelivery(payload) {
 }
 
 // 无订单发货清单（等后续同料号订单来了再冲抵）
+// 发货记录：满 7 天后自动归档（同一天合并、不能再撤回）
+const REVOKE_WINDOW_DAYS = 7;
+
+function daysSince(value) {
+  const day = shipShanghaiDate(value);
+  if (!day) return 0;
+  const then = new Date(`${day}T00:00:00+08:00`).getTime();
+  return Math.floor((Date.now() - then) / 86400000);
+}
+
+function isLockedRecord(value) {
+  return daysSince(value) >= REVOKE_WINDOW_DAYS;
+}
+
+function lockDaysText(value) {
+  const left = REVOKE_WINDOW_DAYS - daysSince(value);
+  if (left <= 0) return '已归档';
+  return `${left} 天后归档`;
+}
+
 // 记录日期（按上海时区取 YYYY-MM-DD）
 function recordDay(value) {
   if (!value) return '';
@@ -799,7 +819,9 @@ function renderOverDeliveryList() {
           <span class="mono">${escapeHtml(row.material)}</span>
           <span>${escapeHtml(row.name)}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</span>
           <strong>${fmt(row.remaining)} 件</strong>
-          <button type="button" class="row-revoke" data-revoke-over="${escapeHtml(row.id)}">撤回</button>
+          ${isLockedRecord(row.createdAt)
+            ? '<span class="row-locked" title="登记满 7 天后不能再撤回">已归档</span>'
+            : `<button type="button" class="row-revoke" data-revoke-over="${escapeHtml(row.id)}">撤回</button>`}
         </div>`).join('')}
       <p class="over-tip">这些货已经发出但没有对应采购单；点“撤回”可以撤销这笔登记，等出现同料号的新订单时导入新订单会提示你冲抵。</p>
     </section>`;
@@ -904,7 +926,9 @@ function renderOverOffsetList() {
           <span class="mono">${escapeHtml(row.material)}</span>
           <span>${escapeHtml(row.name || '')}<br><em>冲抵到 ${escapeHtml(po)}${seq ? ' 项次' + escapeHtml(seq) : ''} · ${escapeHtml(stamp(row.appliedAt))}</em></span>
           <strong>${fmt(row.quantity)} 件</strong>
-          <button type="button" class="row-revoke" data-revoke-offset="${escapeHtml(row.id)}">撤回</button>
+          ${isLockedRecord(row.appliedAt)
+            ? '<span class="row-locked" title="冲抵满 7 天后不能再撤回">已归档</span>'
+            : `<button type="button" class="row-revoke" data-revoke-offset="${escapeHtml(row.id)}">撤回</button>`}
         </div>`;
       }).join('')}
     </section>`;
@@ -1199,6 +1223,36 @@ function renderQueryPanes(containerShipments, containerOffsets, containerOvers, 
   applyQueryTab();
 }
 
+// 满 7 天的发货记录：同一天合并成一张卡（不能再撤回）
+function renderMergedDayCards(rows) {
+  if (!rows.length) return '';
+  return rows.map((row) => `
+    <article class="history-card archived-card">
+      <div class="history-head">
+        <strong>${escapeHtml(row.day)}</strong>
+        <span>${row.count} 笔 · 合计 ${fmt(row.total)} 件</span>
+      </div>
+      <div class="history-lines">
+        ${[...row.items.entries()].map(([key, quantity]) => {
+          const [material, name, spec] = key.split('|');
+          return `<div class="history-line"><span>${escapeHtml(material)} ${escapeHtml(name)}${spec ? ' · ' + escapeHtml(spec) : ''}</span><strong>${fmt(quantity)} 件</strong></div>`;
+        }).join('')}
+      </div>
+      <div class="history-foot">
+        <span class="history-total">已合并归档（超过 7 天，不能再撤回）</span>
+      </div>
+    </article>`).join('');
+}
+
+function renderShipmentSection(shipments) {
+  const locked = shipments.filter((item) => isLockedRecord(item.createdAt));
+  const recent = shipments.filter((item) => !isLockedRecord(item.createdAt));
+  const archivedHtml = renderMergedDayCards(mergedShipmentsByDate(locked));
+  const recentHtml = recent.length ? renderHistoryCards(recent) : '';
+  if (!archivedHtml && !recentHtml) return renderHistoryCards([]);
+  return recentHtml + archivedHtml;
+}
+
 function renderDesktopHistory() {
   if (!snapshot) return;
   const rows = filteredShipments();
@@ -1208,7 +1262,7 @@ function renderDesktopHistory() {
       ? `共 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`
       : `筛选出 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`;
   }
-  renderQueryPanes(els.shipmentHistory, els.offsetHistory, els.overHistory, renderHistoryCards(rows));
+  renderQueryPanes(els.shipmentHistory, els.offsetHistory, els.overHistory, renderShipmentSection(rows));
   void renderCloudFiles();
 }
 
@@ -1335,7 +1389,7 @@ function renderMobileRecords() {
           return `<div class="over-row"><span class="mono">${escapeHtml(material)}</span><span>${escapeHtml(name)}${spec ? ' · ' + escapeHtml(spec) : ''}</span><strong>${fmt(quantity)} 件</strong></div>`;
         }).join('')}
       </article>`).join('') : '<div class="empty-state"><strong>这几天没有发货记录</strong><span>换个日期或清空搜索词再试。</span></div>'}` : '';
-  renderQueryPanes(els.recordsList, els.recordsOffsetList, els.recordsOverList, mergedHtml + renderHistoryCards(rows));
+  renderQueryPanes(els.recordsList, els.recordsOffsetList, els.recordsOverList, mergedHtml + renderShipmentSection(rows));
   void renderCloudFiles();
   els.recordsList.querySelectorAll('[data-expand]').forEach((button) => button.addEventListener('click', () => {
     const id = button.dataset.expand;
@@ -1347,6 +1401,11 @@ function renderMobileRecords() {
 }
 
 async function revokeOffset(offsetId) {
+  const offsetRow = overOffsets().find((row) => String(row.id) === String(offsetId));
+  if (offsetRow && isLockedRecord(offsetRow.appliedAt)) {
+    showToast('这笔冲抵已满 7 天，不能再撤回');
+    return;
+  }
   if (!window.confirm('要把这笔冲抵撤回吗？\n撤回后：订单未交会加回去，前期多送记录会恢复。')) return;
   const result = await callRpc('board_revoke_offset', { p_code: getAccessCode(), p_offset_id: offsetId });
   if (!result.response.ok) { showToast(result.data?.message || '撤回失败'); return; }
@@ -1356,6 +1415,11 @@ async function revokeOffset(offsetId) {
 }
 
 async function revokeOverDelivery(overId) {
+  const overRow = overDeliveries().find((row) => String(row.id) === String(overId));
+  if (overRow && isLockedRecord(overRow.createdAt)) {
+    showToast('这笔无订单发货已满 7 天，不能再撤回');
+    return;
+  }
   if (!window.confirm('要把这笔“无订单发货”撤回吗？\n会同时撤销它引起的冲抵，订单未交恢复原样。')) return;
   const result = await callRpc('board_revoke_over_delivery', { p_code: getAccessCode(), p_over_id: overId });
   if (!result.response.ok) { showToast(result.data?.message || '撤回失败'); return; }
