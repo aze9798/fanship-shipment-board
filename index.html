@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=59">
+  <link rel="stylesheet" href="./styles.css?v=60">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -294,16 +294,16 @@
         <section id="mobileRemainingPanel" class="mobile-panel" hidden>
           <div class="remaining-tools">
             <input id="remainingSearch" type="search" placeholder="搜索料号 / 名称 / 采购单号" autocomplete="off">
-            <div class="remaining-due-row">
-              <select id="remainingDueSelect">
-                <option value="all">全部交期</option>
-                <option value="overdue">已逾期</option>
-                <option value="today">今天到期</option>
-                <option value="tomorrow">明天到期</option>
-                <option value="week">7天内到期</option>
-                <option value="custom">指定日期…</option>
-              </select>
-              <input id="remainingDueDate" type="date" hidden>
+            <div class="remaining-date-box">
+              <div class="remaining-date-head">
+                <strong>按交期筛选（可多选）</strong>
+                <button id="remainingDateClear" class="remaining-date-clear" type="button">全部日期</button>
+              </div>
+              <div id="remainingDateChips" class="remaining-date-chips"></div>
+            </div>
+            <div class="remaining-actions">
+              <button id="remainingPrint" class="button ghost" type="button">打印清单</button>
+              <button id="remainingExport" class="button primary" type="button">导出 Excel</button>
             </div>
           </div>
           <div id="remainingList"></div>
@@ -440,7 +440,7 @@
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-  <script src="./app.js?v=59" type="module"></script>
+  <script src="./app.js?v=60" type="module"></script>
 </body>
 </html>
 

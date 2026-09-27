@@ -118,6 +118,21 @@ async function requestWithAccessCode(url, options = {}, retry = true) {
   return response;
 }
 
+
+let markMaterials = new Set();
+
+async function loadMarkMaterials() {
+  try {
+    const response = await fetch(new URL('mark-materials.json', document.baseURI), { cache: 'no-store' });
+    if (!response.ok) return;
+    const payload = await response.json();
+    const materials = Array.isArray(payload) ? payload : payload.materials;
+    markMaterials = new Set((materials || []).map((value) => String(value || '').trim()).filter(Boolean));
+  } catch (error) {
+    console.warn('打标料号加载失败', error);
+  }
+}
+
 document.body.dataset.view = view;
 
 const $ = (selector) => document.querySelector(selector);
@@ -129,8 +144,7 @@ let mobileTab = 'entry';
 let desktopFilter = 'active';
 let desktopCompany = 'all';
 let remainingSearch = '';
-let remainingDue = 'all';
-let remainingDueDate = '';
+const remainingDates = new Set();
 let desktopDueFilter = 'all';
 let desktopDueDate = '';
 let desktopSearch = '';
@@ -241,8 +255,10 @@ const els = {
   mobileEntryPanel: $('#mobileEntryPanel'),
   mobileRemainingPanel: $('#mobileRemainingPanel'),
   remainingSearch: $('#remainingSearch'),
-  remainingDueSelect: $('#remainingDueSelect'),
-  remainingDueDate: $('#remainingDueDate'),
+  remainingDateChips: $('#remainingDateChips'),
+  remainingDateClear: $('#remainingDateClear'),
+  remainingPrint: $('#remainingPrint'),
+  remainingExport: $('#remainingExport'),
   remainingList: $('#remainingList'),
   mobileRecordsPanel: $('#mobileRecordsPanel'),
   recordsSearch: $('#recordsSearch'),
@@ -1321,56 +1337,226 @@ function renderMobileSummary() {
   els.mobileRemainingQty.textContent = fmt(snapshot.summary.remainingQuantity);
 }
 
+function qtyText(value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number)) return '0';
+  return Number.isInteger(number) ? String(number) : String(Math.round(number * 100) / 100);
+}
+
+function selectedRemainingDates() {
+  return [...remainingDates].filter(Boolean).sort();
+}
+
+function remainingDateOptions() {
+  const counts = new Map();
+  for (const order of filteredOrders('active')) {
+    const dueDate = String(order.dueDate || '').trim();
+    if (!dueDate) continue;
+    counts.set(dueDate, (counts.get(dueDate) || 0) + 1);
+  }
+  return [...counts.entries()].sort((left, right) => left[0].localeCompare(right[0]));
+}
+
+function renderRemainingDateChips() {
+  if (!els.remainingDateChips) return;
+  const options = remainingDateOptions();
+  const activeDates = new Set(options.map(([dueDate]) => dueDate));
+  for (const dueDate of [...remainingDates]) {
+    if (!activeDates.has(dueDate)) remainingDates.delete(dueDate);
+  }
+  const allActive = remainingDates.size === 0;
+  els.remainingDateChips.innerHTML = [
+    `<button type="button" class="remaining-date-chip${allActive ? ' active' : ''}" data-remaining-date="" aria-pressed="${allActive}">全部日期</button>`,
+    ...options.map(([dueDate, count]) => {
+      const active = remainingDates.has(dueDate);
+      return `<button type="button" class="remaining-date-chip${active ? ' active' : ''}" data-remaining-date="${escapeHtml(dueDate)}" aria-pressed="${active}">${escapeHtml(formatDate(dueDate))} <b>${fmt(count)}</b></button>`;
+    }),
+  ].join('');
+}
+
 function remainingRows() {
   let rows = filteredOrders('active');
   const query = remainingSearch.trim().toLowerCase();
   if (query) rows = rows.filter((order) => searchable(order).includes(query));
-  if (remainingDue !== 'all') {
-    rows = rows.filter((order) => {
-      const diff = dayDiff(order.dueDate);
-      if (!Number.isFinite(diff)) return false;
-      if (remainingDue === 'overdue') return diff < 0;
-      if (remainingDue === 'today') return diff === 0;
-      if (remainingDue === 'tomorrow') return diff === 1;
-      if (remainingDue === 'week') return diff >= 0 && diff <= 7;
-      if (remainingDue === 'custom') return remainingDueDate ? order.dueDate === remainingDueDate : true;
-      return true;
-    });
-  }
+  if (remainingDates.size) rows = rows.filter((order) => remainingDates.has(String(order.dueDate || '').trim()));
   return rows;
+}
+
+function groupRemainingRows(rows) {
+  const groups = new Map();
+  for (const order of rows) {
+    const material = String(order.material || '').trim();
+    const name = String(order.name || '').trim();
+    const key = `${material}\u0000${name}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        key,
+        material,
+        name,
+        specs: new Set(),
+        dates: new Set(),
+        companies: new Set(),
+        total: 0,
+        detailCount: 0,
+        mark: markMaterials.has(material),
+      };
+      groups.set(key, group);
+    }
+    const spec = String(order.spec || '').trim();
+    const dueDate = String(order.dueDate || '').trim();
+    const company = String(order.customer || '').trim();
+    if (spec) group.specs.add(spec);
+    if (dueDate) group.dates.add(dueDate);
+    if (company) group.companies.add(company);
+    group.total += Number(order.remaining || 0);
+    group.detailCount += 1;
+  }
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      specs: [...group.specs].sort(),
+      dates: [...group.dates].sort(),
+      companies: [...group.companies].sort(),
+    }))
+    .sort((left, right) => {
+      const leftDate = left.dates[0] || '9999-12-31';
+      const rightDate = right.dates[0] || '9999-12-31';
+      return leftDate.localeCompare(rightDate)
+        || left.material.localeCompare(right.material)
+        || left.name.localeCompare(right.name);
+    });
+}
+
+function remainingGroups() {
+  return groupRemainingRows(remainingRows());
+}
+
+function remainingDateText(dates) {
+  if (!dates.length) return '未填';
+  return dates.map((dueDate) => formatDate(dueDate)).join('、');
 }
 
 function renderMobileRemaining() {
   if (!els.remainingList) return;
+  renderRemainingDateChips();
   const all = remainingRows();
-  const rows = all.slice(0, 120);
+  const groups = groupRemainingRows(all);
+  const total = groups.reduce((sum, group) => sum + group.total, 0);
+  const selectedText = selectedRemainingDates().length
+    ? selectedRemainingDates().map((dueDate) => formatDate(dueDate)).join('、')
+    : '全部交期';
+  const rows = groups.slice(0, 150);
   els.remainingList.innerHTML = `
-    <div class="records-head"><strong>未交清单</strong><span>共 ${fmt(all.length)} 项${all.length > 120 ? `，显示交期优先的前 120 项` : ''}。</span></div>
-    ${rows.map((order) => {
-      const badge = dueBadge(order);
+    <div class="remaining-list-summary">
+      <div><strong>${fmt(groups.length)} 项物料</strong><span>${fmt(all.length)} 条订单明细 · 合计 ${qtyText(total)} 件</span></div>
+      <em>${escapeHtml(selectedText)}</em>
+    </div>
+    ${rows.map((group) => {
+      const companyText = group.companies.length > 1
+        ? '两家公司'
+        : companyName(group.companies[0] || '');
       return `<article class="mobile-remaining-card">
         <div class="mobile-remaining-row">
           <div class="remaining-cell order-cell">
-            <span>订单号</span>
-            <strong class="mono">${escapeHtml(order.po)}</strong>
+            <span>编号</span>
+            <strong class="mono">${escapeHtml(group.material)}</strong>
+            ${group.mark ? '<em class="mark-badge">需打标</em>' : ''}
           </div>
           <div class="remaining-cell detail-cell">
-            <div class="detail-line"><span>编号</span><strong class="mono">${escapeHtml(order.material)}</strong></div>
-            <div class="detail-line"><span>品名</span><strong>${escapeHtml(order.name)}</strong></div>
-            <div class="detail-line"><span>图号</span><strong class="mono">${escapeHtml(order.spec || '—')}</strong></div>
+            <div class="detail-line"><span>品名</span><strong>${escapeHtml(group.name)}</strong></div>
+            <div class="detail-line"><span>规格</span><strong class="mono">${escapeHtml(group.specs.join('、') || '—')}</strong></div>
+            <div class="detail-line"><span>公司</span><strong>${escapeHtml(companyText)}</strong></div>
           </div>
           <div class="remaining-cell meta-cell">
-            <div class="meta-line"><span>数量</span><strong class="quantity-value">${fmt(order.remaining)}</strong></div>
-            <div class="meta-line"><span>项次</span><strong>${escapeHtml(order.seq)}</strong></div>
+            <div class="meta-line"><span>未交</span><strong class="quantity-value">${escapeHtml(qtyText(group.total))}</strong></div>
+            <div class="meta-line"><span>明细</span><strong>${fmt(group.detailCount)} 行</strong></div>
           </div>
           <div class="remaining-cell due-cell">
             <span>交期</span>
-            <strong>${escapeHtml(formatDate(order.dueDate))}</strong>
-            <em class="due-badge ${badge.className}">${escapeHtml(badge.text)}</em>
+            <strong>${escapeHtml(remainingDateText(group.dates))}</strong>
           </div>
         </div>
       </article>`;
-    }).join('')}`;
+    }).join('')}
+    ${groups.length > 150 ? `<div class="empty-state mobile-empty"><strong>还有 ${fmt(groups.length - 150)} 项未显示</strong><span>请用搜索或交期筛选缩小范围。</span></div>` : ''}`;
+}
+
+function printRemainingList() {
+  const groups = remainingGroups();
+  if (!groups.length) {
+    showToast('没有可打印的未交数据');
+    return;
+  }
+  const selectedText = selectedRemainingDates().length
+    ? selectedRemainingDates().map((dueDate) => formatDate(dueDate)).join('、')
+    : '全部交期';
+  const rows = groups.map((group) => `
+    <tr>
+      <td>${escapeHtml(group.material)}</td>
+      <td>${escapeHtml(group.name)}</td>
+      <td>${escapeHtml(group.specs.join('、'))}</td>
+      <td class="qty">${escapeHtml(qtyText(group.total))}</td>
+      <td>${group.mark ? '✅' : ''}</td>
+      <td>${escapeHtml(remainingDateText(group.dates))}</td>
+    </tr>`).join('');
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    showToast('浏览器阻止了打印窗口，请允许弹出窗口后重试');
+    return;
+  }
+  printWindow.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>未交清单</title>
+    <style>
+      body { margin: 18px; color: #111; font: 13px/1.5 "Microsoft YaHei", sans-serif; }
+      h1 { margin: 0 0 4px; font-size: 20px; }
+      p { margin: 0 0 12px; color: #555; }
+      table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+      th, td { padding: 6px 7px; border: 1px solid #999; vertical-align: middle; overflow-wrap: anywhere; }
+      th { text-align: center; background: #fff; }
+      td:nth-child(4), td:nth-child(5), td:nth-child(6) { text-align: center; }
+      td.qty { font-weight: 700; }
+      @page { size: A4 portrait; margin: 10mm; }
+    </style></head><body>
+    <h1>未交清单</h1>
+    <p>交期：${escapeHtml(selectedText)} · 共 ${groups.length} 项物料 · 合计 ${escapeHtml(qtyText(groups.reduce((sum, group) => sum + group.total, 0)))} 件</p>
+    <table><thead><tr><th>物料编号</th><th>名称</th><th>规格</th><th>未交</th><th>打标</th><th>交货日期</th></tr></thead><tbody>${rows}</tbody></table>
+    </body></html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => printWindow.print(), 300);
+}
+
+function exportRemainingList() {
+  const groups = remainingGroups();
+  if (!groups.length) {
+    showToast('没有可导出的未交数据');
+    return;
+  }
+  if (!window.XLSX) {
+    showToast('Excel 导出组件尚未加载');
+    return;
+  }
+  const selectedText = selectedRemainingDates().length
+    ? selectedRemainingDates().map((dueDate) => formatDate(dueDate)).join('、')
+    : '全部交期';
+  const data = [
+    ['物料编号', '名称', '规格', '未交', '打标', '交货日期'],
+    ...groups.map((group) => [
+      group.material,
+      group.name,
+      group.specs.join('、'),
+      qtyText(group.total),
+      group.mark ? '✅' : '',
+      remainingDateText(group.dates),
+    ]),
+  ];
+  const sheet = XLSX.utils.aoa_to_sheet(data);
+  sheet['!cols'] = [{ wch: 18 }, { wch: 40 }, { wch: 30 }, { wch: 10 }, { wch: 8 }, { wch: 18 }];
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, sheet, '未交清单');
+  const suffix = selectedRemainingDates().length ? selectedRemainingDates().join('_') : '全部交期';
+  XLSX.writeFile(workbook, `未交清单_${suffix}.xlsx`, { compression: true });
+  showToast(`已导出 ${groups.length} 项未交物料`);
 }
 
 function renderMobileRecords() {
@@ -1633,6 +1819,8 @@ function openSubmitModal() {
     showToast('请先录入至少一项装车数量');
     return;
   }
+  // 打开确认框时顺手同步一次最新未交，减少"别的设备刚发过货"造成的误差
+  loadState({ quiet: true }).then(() => renderAll()).catch(() => {});
   const total = entries.reduce((sum, [, quantity]) => sum + Number(quantity), 0);
   const overRows = [...sessionOver.values()].filter((item) => item.pending && Number(item.quantity) > 0);
   const overTotal = overRows.reduce((sum, item) => sum + Number(item.quantity), 0);
@@ -1756,18 +1944,45 @@ async function printDeliveryNotes() {
 
 async function submitShipment() {
   if (!els.shipmentForm.reportValidity()) return;
-  const form = new FormData(els.shipmentForm);
-  const payload = {
-    customer: snapshot.customer,
-    operator: String(form.get('operator') || '').trim() || '未填写',
-    vehicle: String(form.get('vehicle') || '').trim() || '未填写',
-    note: form.get('note'),
-    items: [...selected.entries()].map(([orderId, quantity]) => ({ orderId, quantity })),
-  };
   const button = $('#submitShipment');
   button.disabled = true;
-  button.textContent = '正在同步...';
+  button.textContent = '正在核对未交...';
+  let reallocated = false;
   try {
+    // ① 先记住本次每个料号打算发多少
+    const wantedByMaterial = new Map();
+    for (const [orderId, quantity] of selected.entries()) {
+      const order = snapshot.orders.find((item) => item.id === orderId);
+      if (!order) continue;
+      const key = String(order.material || '').trim();
+      wantedByMaterial.set(key, (wantedByMaterial.get(key) || 0) + Number(quantity || 0));
+    }
+    // ② 拉一次最新未交（别的手机/电脑可能刚发过货，避免超发报错）
+    await loadState({ quiet: true });
+    // ③ 按最新未交重新按交期分配（超出所有未交的部分仍会自动记成无订单发货）
+    for (const [material, total] of wantedByMaterial) {
+      if (!material || total <= 0) continue;
+      const rows = materialOrders(material);
+      if (!rows.length) continue;
+      const current = rows.reduce((sum, item) => sum + Number(selected.get(item.id) || 0), 0);
+      if (current !== total) {
+        allocateByDueDate(rows[0], total);
+        reallocated = true;
+      }
+    }
+    const items = [...selected.entries()]
+      .filter(([, quantity]) => Number(quantity) > 0)
+      .map(([orderId, quantity]) => ({ orderId, quantity }));
+    if (!items.length) throw new Error('本次可发的数量已经变化，请重新确认装车数量');
+    const form = new FormData(els.shipmentForm);
+    const payload = {
+      customer: snapshot.customer,
+      operator: String(form.get('operator') || '').trim() || '未填写',
+      vehicle: String(form.get('vehicle') || '').trim() || '未填写',
+      note: form.get('note'),
+      items,
+    };
+    button.textContent = '正在同步...';
     const response = await requestWithAccessCode(apiUrl('/api/shipments'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1799,11 +2014,13 @@ async function submitShipment() {
     selected.clear();
     els.shipmentForm.reset();
     closeSubmitModal();
-    showToast(`${shipmentId} 已保存${overSaved.length ? `，含无订单发货 ${overSaved.join('、')}` : ''}`);
+    showToast(`${shipmentId} 已保存${reallocated ? '（已按最新未交重新分配）' : ''}${overSaved.length ? `，含无订单发货 ${overSaved.join('、')}` : ''}`);
     await loadState();
     if (overFailed.length) showToast(`无订单发货登记失败：${overFailed.join('、')}，请在本次装车明细里重新提交`);
   } catch (error) {
-    showToast(error.message || '提交失败');
+    showToast(`${error.message || '提交失败'}｜已刷新最新未交，请重新确认数量`);
+    await loadState({ quiet: true });
+    renderAll();
   } finally {
     button.disabled = false;
     button.textContent = '保存并同步电脑';
@@ -2147,19 +2364,27 @@ if (els.mobileRemainingPanel) {
     remainingSearch = event.target.value;
     renderMobileRemaining();
   });
-  els.mobileRemainingPanel.addEventListener('change', (event) => {
-    if (event.target.id === 'remainingDueSelect') {
-      remainingDue = event.target.value;
-      if (remainingDue !== 'custom') remainingDueDate = '';
-      if (els.remainingDueDate) {
-        els.remainingDueDate.hidden = remainingDue !== 'custom';
-        if (remainingDue !== 'custom') els.remainingDueDate.value = '';
-      }
+  els.mobileRemainingPanel.addEventListener('click', (event) => {
+    const dateButton = event.target.closest('[data-remaining-date]');
+    if (dateButton) {
+      const dueDate = String(dateButton.dataset.remainingDate || '').trim();
+      if (!dueDate) remainingDates.clear();
+      else if (remainingDates.has(dueDate)) remainingDates.delete(dueDate);
+      else remainingDates.add(dueDate);
       renderMobileRemaining();
+      return;
     }
-    if (event.target.id === 'remainingDueDate') {
-      remainingDueDate = event.target.value;
+    if (event.target.id === 'remainingDateClear') {
+      remainingDates.clear();
       renderMobileRemaining();
+      return;
+    }
+    if (event.target.id === 'remainingPrint') {
+      printRemainingList();
+      return;
+    }
+    if (event.target.id === 'remainingExport') {
+      exportRemainingList();
     }
   });
 }
@@ -2366,6 +2591,7 @@ function setupRpcExportLink() {
 applyDesktopColumnWidths();
 setupDesktopColumnResize();
 setupRpcExportLink();
+await loadMarkMaterials();
 await loadState();
 connectEvents();
 
