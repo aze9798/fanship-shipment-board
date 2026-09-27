@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=62">
+  <link rel="stylesheet" href="./styles.css?v=63">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -28,6 +28,10 @@
         <a class="side-link active" href="./" data-desktop-view="overview">
           <span class="nav-dot"></span>
           实时总览
+        </a>
+        <a class="side-link" href="#remaining" data-desktop-view="remaining">
+          <span class="nav-dot"></span>
+          未交清单
         </a>
         <a class="side-link" href="./?view=mobile">
           <span class="nav-dot"></span>
@@ -158,7 +162,71 @@
         </section>
       </section>
 
-      <section id="desktopShipmentsView" class="desktop-view desktop-only" hidden>
+            <section id="desktopRemainingView" class="desktop-view desktop-only" hidden>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">未交清单</p>
+            <h1>按交期生成打印清单</h1>
+            <p class="subhead">可多选交期；相同物料编号 + 品名自动合并；打标按《发货单.xlsx》的“检查打标”表判断。</p>
+          </div>
+          <div class="topbar-actions">
+            <button id="desktopRemainingPrint" class="button ghost" type="button">打印清单</button>
+            <button id="desktopRemainingExport" class="button primary" type="button">导出 Excel</button>
+          </div>
+        </header>
+        <section class="panel desktop-remaining-panel">
+          <div class="panel-head compact">
+            <div>
+              <h2>未交清单</h2>
+              <p id="desktopRemainingSummary">按交期多选后可生成打印清单</p>
+            </div>
+          </div>
+          <div class="desktop-remaining-tools">
+            <label class="search-box">
+              <span class="tool-icon" aria-hidden="true">⌕</span>
+              <input id="desktopRemainingSearch" type="search" placeholder="搜索物料编号 / 名称 / 规格" autocomplete="off">
+            </label>
+            <div class="remaining-date-box desktop">
+              <div class="remaining-date-head">
+                <strong>按交期筛选（可多选）</strong>
+                <button id="desktopRemainingDateClear" class="remaining-date-clear" type="button">全部日期</button>
+              </div>
+              <div id="desktopRemainingDateChips" class="remaining-date-chips"></div>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="orders-table grouped-remaining-table">
+              <colgroup>
+                <col style="width: 130px">
+                <col style="width: 260px">
+                <col style="width: 230px">
+                <col style="width: 80px">
+                <col style="width: 70px">
+                <col style="width: 180px">
+                <col style="width: 70px">
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>物料编号</th>
+                  <th>名称</th>
+                  <th>规格</th>
+                  <th class="number">未交</th>
+                  <th>打标</th>
+                  <th>交货日期</th>
+                  <th class="number">明细</th>
+                </tr>
+              </thead>
+              <tbody id="desktopRemainingBody"></tbody>
+            </table>
+            <div id="desktopRemainingEmpty" class="empty-state" hidden>
+              <strong>没有符合条件的未交数据</strong>
+              <span>可以调整搜索词或交期筛选条件。</span>
+            </div>
+          </div>
+        </section>
+      </section>
+
+<section id="desktopShipmentsView" class="desktop-view desktop-only" hidden>
         <header class="topbar">
           <div>
             <p class="eyebrow">查询</p>
@@ -441,7 +509,7 @@
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-  <script src="./app.js?v=62" type="module"></script>
+  <script src="./app.js?v=63" type="module"></script>
 </body>
 </html>
 

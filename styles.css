@@ -737,6 +737,17 @@ body[data-view="mobile"] { background: #dfe7e9; }
 
 
 
+.desktop-remaining-tools { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(360px, 1.4fr); gap: 12px; align-items: end; padding: 0 18px 14px; }
+.desktop-remaining-tools .search-box { height: 38px; }
+.desktop-remaining-panel .table-wrap { max-height: none; }
+.grouped-remaining-table { min-width: 1000px; }
+.grouped-remaining-table td { vertical-align: middle; }
+.grouped-remaining-table .qty { color: var(--primary); font-size: 15px; font-weight: 800; }
+.grouped-remaining-table .mark { color: #9b6b14; font-size: 14px; font-weight: 800; text-align: center; }
+@media (max-width: 900px) {
+  .desktop-remaining-tools { grid-template-columns: 1fr; }
+}
+
 /* 手机未交清单：单行四列表格式 */
 .mobile-remaining-card { display: block; padding: 0; overflow: hidden; }
 .mobile-remaining-row { display: grid; grid-template-columns: 88px minmax(128px, 1.7fr) 64px 72px; gap: 1px; background: #edf2f3; }

@@ -144,6 +144,7 @@ let mobileTab = 'entry';
 let desktopFilter = 'active';
 let desktopCompany = 'all';
 let remainingSearch = '';
+let desktopRemainingSearch = '';
 const remainingDates = new Set();
 let desktopDueFilter = 'all';
 let desktopDueDate = '';
@@ -260,6 +261,14 @@ const els = {
   remainingPrint: $('#remainingPrint'),
   remainingExport: $('#remainingExport'),
   remainingList: $('#remainingList'),
+  desktopRemainingSearch: $('#desktopRemainingSearch'),
+  desktopRemainingDateChips: $('#desktopRemainingDateChips'),
+  desktopRemainingDateClear: $('#desktopRemainingDateClear'),
+  desktopRemainingPrint: $('#desktopRemainingPrint'),
+  desktopRemainingExport: $('#desktopRemainingExport'),
+  desktopRemainingSummary: $('#desktopRemainingSummary'),
+  desktopRemainingBody: $('#desktopRemainingBody'),
+  desktopRemainingEmpty: $('#desktopRemainingEmpty'),
   mobileRecordsPanel: $('#mobileRecordsPanel'),
   recordsSearch: $('#recordsSearch'),
   recordsDate: $('#recordsDate'),
@@ -991,6 +1000,7 @@ function reconcileSelection() {
 function showDesktopView(name) {
   const pages = {
     overview: document.getElementById('desktopView'),
+    remaining: document.getElementById('desktopRemainingView'),
     shipments: document.getElementById('desktopShipmentsView'),
     files: document.getElementById('desktopFilesView'),
   };
@@ -1002,6 +1012,7 @@ function showDesktopView(name) {
   document.querySelectorAll('[data-desktop-view]').forEach((link) => {
     link.classList.toggle('active', link.dataset.desktopView === target);
   });
+  if (target === 'remaining') renderDesktopRemaining();
   if (target === 'shipments') renderDesktopHistory();
   if (target === 'files') renderCloudFiles();
   window.scrollTo({ top: 0 });
@@ -1015,7 +1026,7 @@ function renderAll() {
   renderOffsetBox();
   renderMobileSummary();
   renderMobileList();
-  renderMobileRemaining();
+  refreshRemainingViews();
   renderMobileRecords();
   renderCloudFiles();
   renderCart();
@@ -1383,25 +1394,27 @@ function remainingDateOptions() {
 }
 
 function renderRemainingDateChips() {
-  if (!els.remainingDateChips) return;
+  const containers = [els.remainingDateChips, els.desktopRemainingDateChips].filter(Boolean);
+  if (!containers.length) return;
   const options = remainingDateOptions();
   const activeDates = new Set(options.map(([dueDate]) => dueDate));
   for (const dueDate of [...remainingDates]) {
     if (!activeDates.has(dueDate)) remainingDates.delete(dueDate);
   }
   const allActive = remainingDates.size === 0;
-  els.remainingDateChips.innerHTML = [
+  const html = [
     `<button type="button" class="remaining-date-chip${allActive ? ' active' : ''}" data-remaining-date="" aria-pressed="${allActive}">全部日期</button>`,
     ...options.map(([dueDate, count]) => {
       const active = remainingDates.has(dueDate);
       return `<button type="button" class="remaining-date-chip${active ? ' active' : ''}" data-remaining-date="${escapeHtml(dueDate)}" aria-pressed="${active}">${escapeHtml(formatDate(dueDate))} <b>${fmt(count)}</b></button>`;
     }),
   ].join('');
+  for (const container of containers) container.innerHTML = html;
 }
 
-function remainingRows() {
+function remainingRows(queryText = remainingSearch) {
   let rows = filteredOrders('active');
-  const query = remainingSearch.trim().toLowerCase();
+  const query = String(queryText || '').trim().toLowerCase();
   if (query) rows = rows.filter((order) => searchable(order).includes(query));
   if (remainingDates.size) rows = rows.filter((order) => remainingDates.has(String(order.dueDate || '').trim()));
   return rows;
@@ -1453,8 +1466,8 @@ function groupRemainingRows(rows) {
     });
 }
 
-function remainingGroups() {
-  return groupRemainingRows(remainingRows());
+function remainingGroups(queryText = remainingSearch) {
+  return groupRemainingRows(remainingRows(queryText));
 }
 
 function remainingDateText(dates) {
@@ -1507,8 +1520,8 @@ function renderMobileRemaining() {
     ${groups.length > 150 ? `<div class="empty-state mobile-empty"><strong>还有 ${fmt(groups.length - 150)} 项未显示</strong><span>请用搜索或交期筛选缩小范围。</span></div>` : ''}`;
 }
 
-function printRemainingList() {
-  const groups = remainingGroups();
+function printRemainingList(groups = remainingGroups()) {
+
   if (!groups.length) {
     showToast('没有可打印的未交数据');
     return;
@@ -1551,8 +1564,8 @@ function printRemainingList() {
   setTimeout(() => printWindow.print(), 300);
 }
 
-function exportRemainingList() {
-  const groups = remainingGroups();
+function exportRemainingList(groups = remainingGroups()) {
+
   if (!groups.length) {
     showToast('没有可导出的未交数据');
     return;
@@ -1582,6 +1595,34 @@ function exportRemainingList() {
   const suffix = selectedRemainingDates().length ? selectedRemainingDates().join('_') : '全部交期';
   XLSX.writeFile(workbook, `未交清单_${suffix}.xlsx`, { compression: true });
   showToast(`已导出 ${groups.length} 项未交物料`);
+}
+
+function renderDesktopRemaining() {
+  if (!els.desktopRemainingBody) return;
+  renderRemainingDateChips();
+  const rows = remainingRows(desktopRemainingSearch);
+  const groups = groupRemainingRows(rows);
+  const total = groups.reduce((sum, group) => sum + group.total, 0);
+  const selectedText = selectedRemainingDates().length
+    ? selectedRemainingDates().map((dueDate) => formatDate(dueDate)).join('、')
+    : '全部交期';
+  els.desktopRemainingSummary.textContent = `共 ${fmt(groups.length)} 项物料 · ${fmt(rows.length)} 条订单明细 · 合计 ${qtyText(total)} 件 · ${selectedText}`;
+  els.desktopRemainingBody.innerHTML = groups.map((group) => `
+    <tr>
+      <td class="mono">${escapeHtml(group.material)}</td>
+      <td>${escapeHtml(group.name)}</td>
+      <td class="mono">${escapeHtml(group.specs.join('、'))}</td>
+      <td class="number qty">${escapeHtml(qtyText(group.total))}</td>
+      <td class="mark">${group.mark ? '✅' : ''}</td>
+      <td>${escapeHtml(remainingDateText(group.dates))}</td>
+      <td class="number">${fmt(group.detailCount)}</td>
+    </tr>`).join('');
+  els.desktopRemainingEmpty.hidden = groups.length > 0;
+}
+
+function refreshRemainingViews() {
+  renderMobileRemaining();
+  renderDesktopRemaining();
 }
 
 function renderMobileRecords() {
@@ -2397,36 +2438,57 @@ if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', (even
   showAllocationNotice(`已取消 ${material} 的无订单发货，只保留有采购单的数量。`, 'ok');
 });
 
+function handleRemainingFilterClick(event) {
+  const dateButton = event.target.closest('[data-remaining-date]');
+  if (dateButton) {
+    const dueDate = String(dateButton.dataset.remainingDate || '').trim();
+    if (!dueDate) remainingDates.clear();
+    else if (remainingDates.has(dueDate)) remainingDates.delete(dueDate);
+    else remainingDates.add(dueDate);
+    refreshRemainingViews();
+    return;
+  }
+  if (event.target.id === 'remainingDateClear' || event.target.id === 'desktopRemainingDateClear') {
+    remainingDates.clear();
+    refreshRemainingViews();
+    return;
+  }
+  if (event.target.id === 'remainingPrint') {
+    printRemainingList();
+    return;
+  }
+  if (event.target.id === 'desktopRemainingPrint') {
+    printRemainingList(remainingGroups(desktopRemainingSearch));
+    return;
+  }
+  if (event.target.id === 'remainingExport') {
+    exportRemainingList();
+    return;
+  }
+  if (event.target.id === 'desktopRemainingExport') {
+    exportRemainingList(remainingGroups(desktopRemainingSearch));
+  }
+}
+
 if (els.mobileRemainingPanel) {
   els.mobileRemainingPanel.addEventListener('input', (event) => {
     if (event.target.id !== 'remainingSearch') return;
     remainingSearch = event.target.value;
-    renderMobileRemaining();
+    refreshRemainingViews();
   });
-  els.mobileRemainingPanel.addEventListener('click', (event) => {
-    const dateButton = event.target.closest('[data-remaining-date]');
-    if (dateButton) {
-      const dueDate = String(dateButton.dataset.remainingDate || '').trim();
-      if (!dueDate) remainingDates.clear();
-      else if (remainingDates.has(dueDate)) remainingDates.delete(dueDate);
-      else remainingDates.add(dueDate);
-      renderMobileRemaining();
-      return;
-    }
-    if (event.target.id === 'remainingDateClear') {
-      remainingDates.clear();
-      renderMobileRemaining();
-      return;
-    }
-    if (event.target.id === 'remainingPrint') {
-      printRemainingList();
-      return;
-    }
-    if (event.target.id === 'remainingExport') {
-      exportRemainingList();
-    }
+  els.mobileRemainingPanel.addEventListener('click', handleRemainingFilterClick);
+}
+
+if (els.desktopRemainingSearch) {
+  els.desktopRemainingSearch.addEventListener('input', (event) => {
+    desktopRemainingSearch = event.target.value;
+    renderDesktopRemaining();
   });
 }
+if (els.desktopRemainingDateChips) els.desktopRemainingDateChips.addEventListener('click', handleRemainingFilterClick);
+if (els.desktopRemainingDateClear) els.desktopRemainingDateClear.addEventListener('click', handleRemainingFilterClick);
+if (els.desktopRemainingPrint) els.desktopRemainingPrint.addEventListener('click', handleRemainingFilterClick);
+if (els.desktopRemainingExport) els.desktopRemainingExport.addEventListener('click', handleRemainingFilterClick);
 
 if (els.mobileRecordsPanel) {
   els.mobileRecordsPanel.addEventListener('input', (event) => {
