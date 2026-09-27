@@ -473,7 +473,7 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 .file-box .over-head span { color: #4f7d78; }
 
 .file-box .over-row {
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr auto auto;
   align-items: center;
   border-top: 1px dashed #d8ebe6;
   color: #294a45;

@@ -717,9 +717,33 @@ function renderDeliveryFiles(dateFilter, queryText) {
           <span class="mono">${escapeHtml(row.deliveryDate)}</span>
           <span>${escapeHtml(row.fileName)}${row.kind ? ` · ${escapeHtml(row.kind)}` : ''}${row.noteCount ? ` · ${fmt(row.noteCount)} 张` : ''}</span>
           <button type="button" class="file-download" data-file-id="${escapeHtml(row.id)}">下载 ${String(row.fileName || '').toLowerCase().endsWith('.pdf') ? 'PDF' : 'Excel'}</button>
+          ${isLockedRecord(row.createdAt)
+            ? '<span class="row-locked" title="上传满 7 天后不能再撤回">已归档</span>'
+            : `<button type="button" class="row-revoke" data-file-delete="${escapeHtml(row.id)}" title="删除这份云端文件，删掉后可以重新上传">撤回</button>`}
         </div>`).join('')
         : '<p class="over-tip">这几天还没有上传送货单，或换个日期/搜索词再找。</p>'}
     </section>`;
+}
+
+async function deleteDeliveryFile(id, button) {
+  const row = deliveryFiles().find((item) => String(item.id) === String(id));
+  const name = row ? row.fileName : '这份文件';
+  if (!window.confirm(`要把云端送货单「${name}」撤回吗？\n撤回后可以重新生成再上传。`)) return;
+  if (row && isLockedRecord(row.createdAt)) {
+    showToast('这份送货单上传已满 7 天，不能再撤回');
+    return;
+  }
+  if (button) { button.disabled = true; button.textContent = '撤回中...'; }
+  try {
+    const result = await callRpc('board_delete_delivery_file', { p_code: getAccessCode(), p_id: id });
+    if (!result.response.ok) throw new Error(result.data?.message || '撤回失败');
+    showToast(`已撤回 ${name}，可以重新上传`);
+    await loadState({ quiet: true });
+    renderAll();
+  } catch (error) {
+    showToast(error.message || '撤回失败');
+    if (button) { button.disabled = false; button.textContent = '撤回'; }
+  }
 }
 
 async function downloadDeliveryFile(id, button) {
@@ -2488,14 +2512,14 @@ function handleHistoryClick(event) {
   }
 }
 if (els.shipmentHistory) els.shipmentHistory.addEventListener('click', handleHistoryClick);
-if (els.cloudFileList) els.cloudFileList.addEventListener('click', (event) => {
+function handleCloudFileClick(event) {
   const fileButton = event.target.closest('[data-file-id]');
-  if (fileButton) downloadDeliveryFile(fileButton.dataset.fileId, fileButton);
-});
-if (els.mobileCloudFileList) els.mobileCloudFileList.addEventListener('click', (event) => {
-  const fileButton = event.target.closest('[data-file-id]');
-  if (fileButton) downloadDeliveryFile(fileButton.dataset.fileId, fileButton);
-});
+  if (fileButton) { downloadDeliveryFile(fileButton.dataset.fileId, fileButton); return; }
+  const delButton = event.target.closest('[data-file-delete]');
+  if (delButton) deleteDeliveryFile(delButton.dataset.fileDelete, delButton);
+}
+if (els.cloudFileList) els.cloudFileList.addEventListener('click', handleCloudFileClick);
+if (els.mobileCloudFileList) els.mobileCloudFileList.addEventListener('click', handleCloudFileClick);
 els.mobileOrderList.addEventListener('click', (event) => {
   const button = event.target.closest('[data-action]');
   if (!button || button.dataset.action === 'input') return;
