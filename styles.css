@@ -310,7 +310,8 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 
 .over-row {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
   gap: 8px;
   padding: 5px 0;
   border-top: 1px dashed #f0e3cf;
@@ -318,9 +319,28 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
   color: #4a3c2a;
 }
 
+.over-row > strong { text-align: right; white-space: nowrap; }
+
 .over-row strong { color: #a1571a; }
 
 .offset-history .over-row { grid-template-columns: auto 1fr auto auto; align-items: center; }
+/* 三个清单统一的操作按钮（固定在每行最右边） */
+.row-revoke {
+  justify-self: end;
+  padding: 3px 10px;
+  border: 1px solid #e3cdb4;
+  border-radius: 7px;
+  background: #fff;
+  color: #a1571a;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.row-revoke:hover { border-color: #c99a63; }
+.row-revoke:disabled { opacity: .55; cursor: default; }
+
 .over-revoke {
   padding: 3px 8px;
   border: 1px solid #e3cdb4;
@@ -470,7 +490,15 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 .history-tools-row { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
 .history-tools-row button { min-height: 34px; padding: 0 12px; font-size: 12px; }
 .history-expand { width: 100%; margin-top: 6px; padding: 6px 0; border: 1px dashed #cfe0e2; border-radius: 8px; background: #f5fbfb; color: #0d7371; font-size: 11px; font-weight: 700; cursor: pointer; }
-.history-total { margin-top: 6px; color: #60747a; font-size: 11px; font-weight: 700; }
+.history-foot {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.history-total { color: #60747a; font-size: 11px; font-weight: 700; }
 .history-card { padding: 14px; border: 1px solid #e6ecee; border-radius: 13px; background: #fbfcfc; }
 .history-card + .history-card { margin-top: 9px; }
 .history-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }

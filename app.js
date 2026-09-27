@@ -753,7 +753,7 @@ function renderOverDeliveryList() {
           <span class="mono">${escapeHtml(row.material)}</span>
           <span>${escapeHtml(row.name)}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</span>
           <strong>${fmt(row.remaining)} 件</strong>
-          <button type="button" class="over-revoke" data-revoke-over="${escapeHtml(row.id)}">撤回</button>
+          <button type="button" class="row-revoke" data-revoke-over="${escapeHtml(row.id)}">撤回</button>
         </div>`).join('')}
       <p class="over-tip">这些货已经发出但没有对应采购单；点“撤回”可以撤销这笔登记，等出现同料号的新订单时导入新订单会提示你冲抵。</p>
     </section>`;
@@ -858,7 +858,7 @@ function renderOverOffsetList() {
           <span class="mono">${escapeHtml(row.material)}</span>
           <span>${escapeHtml(row.name || '')}<br><em>冲抵到 ${escapeHtml(po)}${seq ? ' 项次' + escapeHtml(seq) : ''} · ${escapeHtml(stamp(row.appliedAt))}</em></span>
           <strong>${fmt(row.quantity)} 件</strong>
-          <button type="button" class="over-revoke" data-revoke-offset="${escapeHtml(row.id)}">撤回</button>
+          <button type="button" class="row-revoke" data-revoke-offset="${escapeHtml(row.id)}">撤回</button>
         </div>`;
       }).join('')}
     </section>`;
@@ -1088,8 +1088,10 @@ function renderHistoryCards(shipments) {
         ${shown.map((line) => `<div class="history-line"><span>${escapeHtml(line.material)} ${escapeHtml(line.name)}</span><strong>${fmt(line.quantity)} 件</strong></div>`).join('')}
       </div>
       ${items.length > 5 ? `<button class="history-expand" type="button" data-expand="${escapeHtml(shipment.id)}">${expanded ? '收起明细' : `展开全部 ${items.length} 项（还有 ${hidden} 项）`}</button>` : ''}
-      <div class="history-total">合计 ${fmt(shipment.totalQuantity)} 件 · ${items.length} 项</div>
-      <button class="undo-button" type="button" data-undo="${escapeHtml(shipment.id)}">撤销这笔发货</button>
+      <div class="history-foot">
+        <span class="history-total">合计 ${fmt(shipment.totalQuantity)} 件 · ${items.length} 项</span>
+        <button class="row-revoke" type="button" data-undo="${escapeHtml(shipment.id)}" title="撤销这笔发货">撤回</button>
+      </div>
     </article>`;
   }).join('');
 }
