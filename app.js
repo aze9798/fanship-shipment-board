@@ -492,6 +492,34 @@ async function parsePdfOrder(file) {
 
 let pendingPdfRows = [];
 
+// 选择 PDF 后：逐个识别 -> 弹出核对窗口
+async function handlePdfFiles(fileList) {
+  const files = [...(fileList || [])].filter(Boolean);
+  if (!files.length) return;
+  if (!window.pdfjsLib) {
+    showToast('PDF 识别组件没加载成功，请刷新页面（Ctrl+F5）后重试');
+    if (els.pdfFileInput) els.pdfFileInput.value = '';
+    return;
+  }
+  showToast(`正在识别 ${files.length} 个采购订单 PDF...`);
+  if (els.pdfPreview) {
+    els.pdfPreview.innerHTML = '<div class="submit-summary-row"><span>正在识别</span><strong>请稍等…</strong></div>';
+    els.pdfModal.hidden = false;
+  }
+  try {
+    const docs = [];
+    for (const file of files) docs.push(await parsePdfOrder(file));
+    renderPdfPreview(docs);
+    const okCount = docs.filter((d) => !d.error && d.items.length).length;
+    if (okCount !== docs.length) showToast(`${docs.length} 个文件里只有 ${okCount} 个识别成功，请看核对窗口里的提示`);
+  } catch (error) {
+    if (els.pdfModal) els.pdfModal.hidden = true;
+    showToast(error.message || 'PDF 识别失败');
+  } finally {
+    if (els.pdfFileInput) els.pdfFileInput.value = '';
+  }
+}
+
 function closePdfModal() {
   if (els.pdfModal) els.pdfModal.hidden = true;
   if (els.pdfFileInput) els.pdfFileInput.value = '';
@@ -541,6 +569,10 @@ function renderPdfPreview(docs) {
 
 async function confirmPdfImport() {
   if (!pendingPdfRows.length) return;
+  if (!RPC_BASE) {
+    showToast('这个页面不是云端版，导入不了新订单。请用云端地址打开看板再导入。');
+    return;
+  }
   els.confirmPdf.disabled = true;
   try {
     const result = await callRpc('board_add_orders', { p_code: getAccessCode(), p_orders: pendingPdfRows });
@@ -861,6 +893,7 @@ function renderAll() {
     : `生成于 ${snapshot.source.generatedAt}`;
   els.resetButton.hidden = Boolean(snapshot.storage?.cloud);
   if (els.importButton) els.importButton.hidden = !RPC_BASE;
+  if (els.pdfImportButton) els.pdfImportButton.hidden = !RPC_BASE;
 }
 
 function renderDesktopMetrics() {
