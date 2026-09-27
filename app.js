@@ -139,6 +139,7 @@ let historyDate = '';
 let recordsSearch = '';
 let recordsDate = '';
 let historyQuery = '';
+let queryTab = 'shipments';
 let filesQuery = '';
 let filesDate = '';
 let mobileFilesQuery = '';
@@ -193,6 +194,9 @@ const els = {
   desktopTableBody: $('#desktopTableBody'),
   desktopEmpty: $('#desktopEmpty'),
   shipmentHistory: $('#shipmentHistory'),
+  offsetHistory: $('#offsetHistory'),
+  overHistory: $('#overHistory'),
+  queryTitle: $('#queryTitle'),
   desktopFilesView: $('#desktopFilesView'),
   cloudFileList: $('#cloudFileList'),
   filesSummary: $('#filesSummary'),
@@ -229,6 +233,8 @@ const els = {
   recordsDate: $('#recordsDate'),
   recordsClear: $('#recordsClear'),
   recordsList: $('#recordsList'),
+  recordsOffsetList: $('#recordsOffsetList'),
+  recordsOverList: $('#recordsOverList'),
   mobileCartBar: $('#mobileCartBar'),
   mobileCartSummary: $('#mobileCartSummary'),
   cartDetail: $('#cartDetail'),
@@ -1077,13 +1083,22 @@ function renderHistoryCards(shipments) {
     const stamp = Number.isNaN(time.getTime())
       ? ''
       : `${time.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Shanghai' })} ${time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' })}`;
+    // 没填车牌/录入人时，显示 FS-发货日期（例如 FS-260924）
+    const dayKey = shipShanghaiDate(shipment.createdAt).slice(2).replace(/-/g, '');
+    const fallbackLabel = dayKey ? `FS-${dayKey}` : 'FS';
+    const label = (value) => {
+      const text = String(value || '').trim();
+      return (!text || text === '未填写' || text === '-') ? fallbackLabel : text;
+    };
+    const vehicleLabel = label(shipment.vehicle);
+    const operatorLabel = label(shipment.operator);
     return `
     <article class="history-card">
       <div class="history-head">
-        <strong>${escapeHtml(shipment.vehicle)}</strong>
+        <strong>${escapeHtml(vehicleLabel)}</strong>
         <span>${escapeHtml(stamp)}</span>
       </div>
-      <div class="history-meta">${escapeHtml(shipment.id)} · ${escapeHtml(shipment.operator)}${shipment.note ? ` · ${escapeHtml(shipment.note)}` : ''}</div>
+      <div class="history-meta">${escapeHtml(shipment.id)} · ${escapeHtml(operatorLabel)}${shipment.note ? ` · ${escapeHtml(shipment.note)}` : ''}</div>
       <div class="history-lines">
         ${shown.map((line) => `<div class="history-line"><span>${escapeHtml(line.material)} ${escapeHtml(line.name)}</span><strong>${fmt(line.quantity)} 件</strong></div>`).join('')}
       </div>
@@ -1096,6 +1111,36 @@ function renderHistoryCards(shipments) {
   }).join('');
 }
 
+// 查询页三个子项：发货记录 / 冲抵记录 / 无订单发货记录
+const QUERY_TABS = ['shipments', 'offsets', 'overs'];
+const QUERY_TITLES = { shipments: '发货记录', offsets: '冲抵记录', overs: '无订单发货记录' };
+
+function applyQueryTab() {
+  for (const tab of QUERY_TABS) {
+    const on = tab === queryTab;
+    document.querySelectorAll(`[data-query-tab="${tab}"]`).forEach((button) => button.classList.toggle('active', on));
+    document.querySelectorAll(`[data-query-pane="${tab}"]`).forEach((pane) => { pane.hidden = !on; });
+  }
+  if (els.queryTitle) els.queryTitle.textContent = QUERY_TITLES[queryTab] || '发货记录';
+}
+
+document.querySelectorAll('[data-query-tab]').forEach((button) => {
+  button.addEventListener('click', () => { queryTab = button.dataset.queryTab; applyQueryTab(); });
+});
+
+function renderQueryPanes(containerShipments, containerOffsets, containerOvers, shipmentsHtml) {
+  if (containerShipments) containerShipments.innerHTML = shipmentsHtml;
+  if (containerOffsets) {
+    containerOffsets.innerHTML = renderOverOffsetList()
+      || '<div class="empty-state"><strong>还没有冲抵记录</strong><span>前期多送的货被新订单冲抵后，会显示在这里，可以逐笔撤回。</span></div>';
+  }
+  if (containerOvers) {
+    containerOvers.innerHTML = renderOverDeliveryList()
+      || '<div class="empty-state"><strong>目前没有无订单发货</strong><span>装车时超出所有未交订单的部分，会自动记在这里。</span></div>';
+  }
+  applyQueryTab();
+}
+
 function renderDesktopHistory() {
   if (!snapshot) return;
   const rows = filteredShipments();
@@ -1105,7 +1150,7 @@ function renderDesktopHistory() {
       ? `共 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`
       : `筛选出 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`;
   }
-  els.shipmentHistory.innerHTML = renderOverDeliveryList() + renderOverOffsetList() + renderHistoryCards(rows);
+  renderQueryPanes(els.shipmentHistory, els.offsetHistory, els.overHistory, renderHistoryCards(rows));
   void renderCloudFiles();
 }
 
@@ -1232,7 +1277,7 @@ function renderMobileRecords() {
           return `<div class="over-row"><span class="mono">${escapeHtml(material)}</span><span>${escapeHtml(name)}${spec ? ' · ' + escapeHtml(spec) : ''}</span><strong>${fmt(quantity)} 件</strong></div>`;
         }).join('')}
       </article>`).join('') : '<div class="empty-state"><strong>这几天没有发货记录</strong><span>换个日期或清空搜索词再试。</span></div>'}` : '';
-  els.recordsList.innerHTML = renderOverDeliveryList() + renderOverOffsetList() + mergedHtml + renderHistoryCards(rows);
+  renderQueryPanes(els.recordsList, els.recordsOffsetList, els.recordsOverList, mergedHtml + renderHistoryCards(rows));
   void renderCloudFiles();
   els.recordsList.querySelectorAll('[data-expand]').forEach((button) => button.addEventListener('click', () => {
     const id = button.dataset.expand;

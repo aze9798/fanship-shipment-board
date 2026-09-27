@@ -479,6 +479,18 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 .file-download:hover { border-color: #0f766e; }
 .file-download:disabled { opacity: .6; cursor: default; }
 
+/* 查询页的子项（发货记录 / 冲抵记录 / 无订单发货记录） */
+.query-tabs {
+  display: flex;
+  gap: 7px;
+  padding: 0 18px 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.query-tabs .chip { white-space: nowrap; }
+.mobile-query-tabs { padding: 0 0 10px; }
+
 .shipments-page { padding: 4px 0 10px; }
 .shipments-page .history-tools { padding: 0 18px; }
 .shipments-page .history-tools-row { grid-template-columns: minmax(220px, 1fr) minmax(150px, 200px) auto; }
@@ -1038,3 +1050,96 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .toolbar .select-box { grid-template-columns: 1fr; }
 .toolbar .select-box .due-date-row { grid-template-columns: 1fr; }
 .toolbar .select-box select { padding-left: 2px; }
+
+/* ===== 电脑端「剩余未交明细」工具栏：搜索框、交期、公司统一成同一种样式 ===== */
+#desktopView .toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0 21px 15px;
+}
+
+#desktopView .toolbar .search-box,
+#desktopView .toolbar .select-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fbfcfc;
+}
+
+#desktopView .toolbar .search-box { flex: 1 1 320px; }
+#desktopView .toolbar .select-box { flex: 0 0 auto; }
+
+#desktopView .toolbar .tool-icon {
+  position: static;
+  left: auto;
+  top: auto;
+  transform: none;
+  color: #8b9aa0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+#desktopView .toolbar .search-box input,
+#desktopView .toolbar .select-box select {
+  width: 100%;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+#desktopView .toolbar .search-box input { cursor: text; }
+#desktopView .toolbar .select-box select { padding-right: 16px; cursor: pointer; }
+
+#desktopView .toolbar .search-box:focus-within,
+#desktopView .toolbar .select-box:focus-within {
+  border-color: #83c7bf;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, .09);
+}
+
+#desktopView .toolbar .select-box .due-date-row {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  width: 100%;
+  min-width: 190px;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 12px 24px rgba(20, 50, 60, .10);
+}
+
+#desktopView .toolbar .select-box .due-date-row input[type="date"] {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid #d7e1e3;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  #desktopView .toolbar { padding-inline: 14px; }
+  #desktopView .toolbar .search-box,
+  #desktopView .toolbar .select-box { flex: 1 1 100%; }
+}

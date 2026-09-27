@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=54">
+  <link rel="stylesheet" href="./styles.css?v=55">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -33,9 +33,9 @@
           <span class="nav-dot"></span>
           手机装车
         </a>
-        <a class="side-link" href="#shipment-history" data-desktop-view="shipments">
+        <a class="side-link" href="#query" data-desktop-view="shipments">
           <span class="nav-dot"></span>
-          发货记录
+          查询
         </a>
         <a class="side-link" href="#delivery-files" data-desktop-view="files">
           <span class="nav-dot"></span>
@@ -161,9 +161,9 @@
       <section id="desktopShipmentsView" class="desktop-view desktop-only" hidden>
         <header class="topbar">
           <div>
-            <p class="eyebrow">发货流水</p>
-            <h1>发货记录</h1>
-            <p class="subhead">按日期查看每天的发货、无订单发货与冲抵记录。</p>
+            <p class="eyebrow">查询</p>
+            <h1>查询</h1>
+            <p class="subhead">发货记录 / 冲抵记录 / 无订单发货记录，分类查看。</p>
           </div>
           <div class="topbar-actions">
             <button id="generateDeliveryNote" class="button primary" type="button">生成当天送货单</button>
@@ -172,18 +172,25 @@
         <section class="panel shipments-page">
           <div class="panel-head compact">
             <div>
-              <h2>发货流水</h2>
+              <h2 id="queryTitle">发货记录</h2>
               <p id="historySummary">最新记录显示在最上面</p>
             </div>
           </div>
-          <div class="history-tools">
+          <div class="query-tabs">
+            <button class="chip active" data-query-tab="shipments" type="button">发货记录</button>
+            <button class="chip" data-query-tab="offsets" type="button">冲抵记录</button>
+            <button class="chip" data-query-tab="overs" type="button">无订单发货记录</button>
+          </div>
+          <div class="history-tools" data-query-pane="shipments">
             <div class="history-tools-row">
               <input id="historySearch" type="search" placeholder="搜索采购单号 / 物料编号 / 名称">
               <input id="historyDate" type="date" title="按发货日期筛选">
               <button id="historyClear" class="button ghost" type="button">全部日期</button>
             </div>
           </div>
-          <div id="shipmentHistory" class="shipment-history"></div>
+          <div id="shipmentHistory" class="shipment-history" data-query-pane="shipments"></div>
+          <div id="offsetHistory" class="shipment-history" data-query-pane="offsets" hidden></div>
+          <div id="overHistory" class="shipment-history" data-query-pane="overs" hidden></div>
         </section>
       </section>
 
@@ -244,7 +251,7 @@
         <nav class="mobile-tabs" aria-label="手机功能">
           <button class="mobile-tab active" data-tab="entry" type="button">装车录入</button>
           <button class="mobile-tab" data-tab="remaining" type="button">未交清单</button>
-          <button class="mobile-tab" data-tab="records" type="button">发货记录</button>
+          <button class="mobile-tab" data-tab="records" type="button">查询</button>
           <button class="mobile-tab" data-tab="files" type="button">云端送货单</button>
         </nav>
 
@@ -288,14 +295,21 @@
           <div id="remainingList"></div>
         </section>
         <section id="mobileRecordsPanel" class="mobile-panel" hidden>
-          <div class="remaining-tools">
+          <div class="query-tabs mobile-query-tabs">
+            <button class="chip active" data-query-tab="shipments" type="button">发货记录</button>
+            <button class="chip" data-query-tab="offsets" type="button">冲抵记录</button>
+            <button class="chip" data-query-tab="overs" type="button">无订单发货</button>
+          </div>
+          <div class="remaining-tools" data-query-pane="shipments">
             <input id="recordsSearch" type="search" placeholder="搜索采购单号 / 物料编号 / 名称" autocomplete="off">
             <div class="remaining-due-row">
               <input id="recordsDate" type="date" title="按发货日期查看">
               <button id="recordsClear" class="button ghost" type="button">全部日期</button>
             </div>
           </div>
-          <div id="recordsList"></div>
+          <div id="recordsList" data-query-pane="shipments"></div>
+          <div id="recordsOffsetList" data-query-pane="offsets" hidden></div>
+          <div id="recordsOverList" data-query-pane="overs" hidden></div>
         </section>
         <section id="mobileFilesPanel" class="mobile-panel" hidden>
           <div class="remaining-tools">
@@ -398,7 +412,7 @@
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-  <script src="./app.js?v=54" type="module"></script>
+  <script src="./app.js?v=55" type="module"></script>
 </body>
 </html>
 
