@@ -1143,3 +1143,17 @@ body[data-view="mobile"] { background: #dfe7e9; }
   #desktopView .toolbar .search-box,
   #desktopView .toolbar .select-box { flex: 1 1 100%; }
 }
+
+/* ===== 电脑端未交明细表：列宽完全按拖动的结果来（不再被 100% 宽度摊开） ===== */
+#desktopView .orders-table {
+  table-layout: fixed;
+  width: auto;
+  min-width: 0;
+}
+
+#desktopView .orders-table th,
+#desktopView .orders-table td {
+  min-width: 0;
+}
+
+#desktopView .orders-table th .col-resizer { cursor: col-resize; }

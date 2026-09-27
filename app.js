@@ -964,7 +964,12 @@ function applyDesktopColumnWidths(widths = readDesktopColumnWidths()) {
   const total = normalized.reduce((sum, width) => sum + width, 0);
   columns.forEach((column, index) => { column.style.width = `${normalized[index]}px`; });
   const table = columns[0].closest('table');
-  if (table) table.style.minWidth = `${Math.max(760, total)}px`;
+  if (table) {
+    // 固定表格宽度 = 各列宽度之和，这样拖动列宽才会真的动（而不是被 100% 宽度摊回去）
+    const width = Math.max(760, total);
+    table.style.width = `${width}px`;
+    table.style.minWidth = `${width}px`;
+  }
 }
 
 function setupDesktopColumnResize() {
