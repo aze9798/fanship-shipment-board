@@ -1521,22 +1521,17 @@ function renderMobileRemaining() {
 }
 
 function printRemainingList(groups = remainingGroups()) {
-
   if (!groups.length) {
     showToast('没有可打印的未交数据');
     return;
   }
-  const selectedText = selectedRemainingDates().length
-    ? selectedRemainingDates().map((dueDate) => formatDate(dueDate)).join('、')
-    : '全部交期';
   const rows = groups.map((group) => `
     <tr>
       <td>${escapeHtml(group.material)}</td>
       <td>${escapeHtml(group.name)}</td>
-      <td>${escapeHtml(group.specs.join('、'))}</td>
-      <td class="qty">${escapeHtml(qtyText(group.total))}</td>
-      <td>${group.mark ? '✅' : ''}</td>
+      <td>${escapeHtml(qtyText(group.total))}</td>
       <td>${escapeHtml(remainingDateText(group.dates))}</td>
+      <td>${group.mark ? '✅' : ''}</td>
     </tr>`).join('');
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
@@ -1545,19 +1540,22 @@ function printRemainingList(groups = remainingGroups()) {
   }
   printWindow.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>未交清单</title>
     <style>
-      body { margin: 18px; color: #111; font: 13px/1.5 "Microsoft YaHei", sans-serif; }
-      h1 { margin: 0 0 4px; font-size: 20px; }
-      p { margin: 0 0 12px; color: #555; }
+      @page { size: A4 portrait; margin: 0 0 0 20mm; }
+      html, body { margin: 0; padding: 0; }
       table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-      th, td { padding: 6px 7px; border: 1px solid #999; vertical-align: middle; overflow-wrap: anywhere; }
-      th { text-align: center; background: #fff; }
-      td:nth-child(4), td:nth-child(5), td:nth-child(6) { text-align: center; }
-      td.qty { font-weight: 700; }
-      @page { size: A4 portrait; margin: 10mm; }
+      col:nth-child(1) { width: 18.11%; }
+      col:nth-child(2) { width: 41.18%; }
+      col:nth-child(3) { width: 12.29%; }
+      col:nth-child(4) { width: 20.03%; }
+      col:nth-child(5) { width: 8.39%; }
+      tr { height: 25.05pt; }
+      th, td { height: 25.05pt; padding: 0 2px; border: 0.5pt solid #000; color: #000; font: 14pt "微软雅黑", "Microsoft YaHei", sans-serif; text-align: center; vertical-align: middle; white-space: nowrap; overflow: hidden; }
     </style></head><body>
-    <h1>未交清单</h1>
-    <p>交期：${escapeHtml(selectedText)} · 共 ${groups.length} 项物料 · 合计 ${escapeHtml(qtyText(groups.reduce((sum, group) => sum + group.total, 0)))} 件</p>
-    <table><thead><tr><th>物料编号</th><th>名称</th><th>规格</th><th>未交</th><th>打标</th><th>交货日期</th></tr></thead><tbody>${rows}</tbody></table>
+    <table>
+      <colgroup><col><col><col><col><col></colgroup>
+      <thead><tr><th>物料编号</th><th>名称</th><th>送货数量</th><th>交货日期</th><th>打标</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
     </body></html>`);
   printWindow.document.close();
   printWindow.focus();
@@ -1565,7 +1563,6 @@ function printRemainingList(groups = remainingGroups()) {
 }
 
 function exportRemainingList(groups = remainingGroups()) {
-
   if (!groups.length) {
     showToast('没有可导出的未交数据');
     return;
@@ -1574,22 +1571,25 @@ function exportRemainingList(groups = remainingGroups()) {
     showToast('Excel 导出组件尚未加载');
     return;
   }
-  const selectedText = selectedRemainingDates().length
-    ? selectedRemainingDates().map((dueDate) => formatDate(dueDate)).join('、')
-    : '全部交期';
   const data = [
-    ['物料编号', '名称', '规格', '未交', '打标', '交货日期'],
+    ['物料编号', '名称', '送货数量', '交货日期', '打标'],
     ...groups.map((group) => [
       group.material,
       group.name,
-      group.specs.join('、'),
       qtyText(group.total),
-      group.mark ? '✅' : '',
       remainingDateText(group.dates),
+      group.mark ? '✅' : '',
     ]),
   ];
   const sheet = XLSX.utils.aoa_to_sheet(data);
-  sheet['!cols'] = [{ wch: 18 }, { wch: 40 }, { wch: 30 }, { wch: 10 }, { wch: 8 }, { wch: 18 }];
+  sheet['!cols'] = [
+    { wch: 18.265625 },
+    { wch: 41.53125 },
+    { wch: 12.3984375 },
+    { wch: 20.19921875 },
+    { wch: 8.46484375 },
+  ];
+  sheet['!rows'] = data.map(() => ({ hpt: 25.05 }));
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, '未交清单');
   const suffix = selectedRemainingDates().length ? selectedRemainingDates().join('_') : '全部交期';
