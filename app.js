@@ -140,6 +140,10 @@ let recordsSearch = '';
 let recordsDate = '';
 let historyQuery = '';
 let queryTab = 'shipments';
+let offsetQuery = '';
+let offsetDate = '';
+let overQuery = '';
+let overDate = '';
 let filesQuery = '';
 let filesDate = '';
 let mobileFilesQuery = '';
@@ -197,6 +201,18 @@ const els = {
   offsetHistory: $('#offsetHistory'),
   overHistory: $('#overHistory'),
   queryTitle: $('#queryTitle'),
+  offsetSearch: $('#offsetSearch'),
+  offsetDate: $('#offsetDate'),
+  offsetClear: $('#offsetClear'),
+  overSearch: $('#overSearch'),
+  overDate: $('#overDate'),
+  overClear: $('#overClear'),
+  recordsOffsetSearch: $('#recordsOffsetSearch'),
+  recordsOffsetDate: $('#recordsOffsetDate'),
+  recordsOffsetClear: $('#recordsOffsetClear'),
+  recordsOverSearch: $('#recordsOverSearch'),
+  recordsOverDate: $('#recordsOverDate'),
+  recordsOverClear: $('#recordsOverClear'),
   desktopFilesView: $('#desktopFilesView'),
   cloudFileList: $('#cloudFileList'),
   filesSummary: $('#filesSummary'),
@@ -747,8 +763,32 @@ async function registerOverDelivery(payload) {
 }
 
 // 无订单发货清单（等后续同料号订单来了再冲抵）
+// 记录日期（按上海时区取 YYYY-MM-DD）
+function recordDay(value) {
+  if (!value) return '';
+  return shipShanghaiDate(value);
+}
+
+function overFilteredRows() {
+  const q = overQuery.trim().toLowerCase();
+  return overDeliveries().filter((row) => {
+    if (overDate && recordDay(row.createdAt) !== overDate) return false;
+    if (!q) return true;
+    return [row.material, row.name, row.spec, row.customer].join(' ').toLowerCase().includes(q);
+  });
+}
+
+function offsetFilteredRows() {
+  const q = offsetQuery.trim().toLowerCase();
+  return overOffsets().filter((row) => {
+    if (offsetDate && recordDay(row.appliedAt) !== offsetDate) return false;
+    if (!q) return true;
+    return [row.material, row.name, row.spec, row.orderId, row.customer].join(' ').toLowerCase().includes(q);
+  });
+}
+
 function renderOverDeliveryList() {
-  const rows = overDeliveries();
+  const rows = overFilteredRows();
   if (!rows.length) return '';
   const total = rows.reduce((sum, row) => sum + Number(row.remaining || 0), 0);
   return `
@@ -847,7 +887,7 @@ function renderOffsetBox() {
 
 // 冲抵记录（把前期多送的货冲抵到新订单上的流水）
 function renderOverOffsetList() {
-  const rows = overOffsets().slice(0, 12);
+  const rows = offsetFilteredRows().slice(0, 60);
   if (!rows.length) return '';
   const stamp = (value) => {
     const date = value ? new Date(value) : null;
@@ -1131,16 +1171,31 @@ document.querySelectorAll('[data-query-tab]').forEach((button) => {
   button.addEventListener('click', () => { queryTab = button.dataset.queryTab; applyQueryTab(); });
 });
 
+function syncQueryInputs() {
+  const set = (el, value) => { if (el && el.value !== value) el.value = value; };
+  set(els.offsetSearch, offsetQuery); set(els.offsetDate, offsetDate);
+  set(els.recordsOffsetSearch, offsetQuery); set(els.recordsOffsetDate, offsetDate);
+  set(els.overSearch, overQuery); set(els.overDate, overDate);
+  set(els.recordsOverSearch, overQuery); set(els.recordsOverDate, overDate);
+}
+
 function renderQueryPanes(containerShipments, containerOffsets, containerOvers, shipmentsHtml) {
   if (containerShipments) containerShipments.innerHTML = shipmentsHtml;
+  const offsetFiltering = Boolean(offsetDate) || Boolean(offsetQuery.trim());
+  const overFiltering = Boolean(overDate) || Boolean(overQuery.trim());
   if (containerOffsets) {
     containerOffsets.innerHTML = renderOverOffsetList()
-      || '<div class="empty-state"><strong>还没有冲抵记录</strong><span>前期多送的货被新订单冲抵后，会显示在这里，可以逐笔撤回。</span></div>';
+      || (offsetFiltering
+        ? '<div class="empty-state"><strong>没有符合条件的冲抵记录</strong><span>换个搜索词或清空日期再试。</span></div>'
+        : '<div class="empty-state"><strong>还没有冲抵记录</strong><span>前期多送的货被新订单冲抵后，会显示在这里，可以逐笔撤回。</span></div>');
   }
   if (containerOvers) {
     containerOvers.innerHTML = renderOverDeliveryList()
-      || '<div class="empty-state"><strong>目前没有无订单发货</strong><span>装车时超出所有未交订单的部分，会自动记在这里。</span></div>';
+      || (overFiltering
+        ? '<div class="empty-state"><strong>没有符合条件的无订单发货</strong><span>换个搜索词或清空日期再试。</span></div>'
+        : '<div class="empty-state"><strong>目前没有无订单发货</strong><span>装车时超出所有未交订单的部分，会自动记在这里。</span></div>');
   }
+  syncQueryInputs();
   applyQueryTab();
 }
 
@@ -2081,6 +2136,36 @@ if (els.mobileFilesClear) els.mobileFilesClear.addEventListener('click', () => {
   if (els.mobileFilesDate) els.mobileFilesDate.value = '';
   renderCloudFiles();
 });
+function refreshQueryViews() {
+  renderDesktopHistory();
+  renderMobileRecords();
+}
+
+[['offsetSearch', 'offsetQuery'], ['recordsOffsetSearch', 'offsetQuery']].forEach(([key]) => {
+  const el = els[key];
+  if (el) el.addEventListener('input', (event) => { offsetQuery = event.target.value; refreshQueryViews(); });
+});
+[['overSearch', 'overQuery'], ['recordsOverSearch', 'overQuery']].forEach(([key]) => {
+  const el = els[key];
+  if (el) el.addEventListener('input', (event) => { overQuery = event.target.value; refreshQueryViews(); });
+});
+[['offsetDate', 'offsetDate'], ['recordsOffsetDate', 'offsetDate']].forEach(([key]) => {
+  const el = els[key];
+  if (el) el.addEventListener('change', (event) => { offsetDate = event.target.value; refreshQueryViews(); });
+});
+[['overDate', 'overDate'], ['recordsOverDate', 'overDate']].forEach(([key]) => {
+  const el = els[key];
+  if (el) el.addEventListener('change', (event) => { overDate = event.target.value; refreshQueryViews(); });
+});
+[['offsetClear'], ['recordsOffsetClear']].forEach(([key]) => {
+  const el = els[key];
+  if (el) el.addEventListener('click', () => { offsetDate = ''; refreshQueryViews(); });
+});
+[['overClear'], ['recordsOverClear']].forEach(([key]) => {
+  const el = els[key];
+  if (el) el.addEventListener('click', () => { overDate = ''; refreshQueryViews(); });
+});
+
 if (els.historySearch) els.historySearch.addEventListener('input', (event) => { historyQuery = event.target.value; renderDesktopHistory(); });
 if (els.historyDate) els.historyDate.addEventListener('change', (event) => { historyDate = event.target.value; renderDesktopHistory(); });
 if (els.historyClear) els.historyClear.addEventListener('click', () => { historyDate = ''; if (els.historyDate) els.historyDate.value = ''; renderDesktopHistory(); });
