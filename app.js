@@ -1096,14 +1096,12 @@ function renderHistoryCards(shipments) {
       return (!text || text === '未填写' || text === '-') ? fallbackLabel : text;
     };
     const vehicleLabel = label(shipment.vehicle);
-    const operatorLabel = label(shipment.operator);
     return `
     <article class="history-card">
       <div class="history-head">
         <strong>${escapeHtml(vehicleLabel)}</strong>
         <span>${escapeHtml(stamp)}</span>
       </div>
-      <div class="history-meta">${escapeHtml(shipment.id)} · ${escapeHtml(operatorLabel)}${shipment.note ? ` · ${escapeHtml(shipment.note)}` : ''}</div>
       <div class="history-lines">
         ${shown.map((line) => `<div class="history-line"><span>${escapeHtml(line.material)} ${escapeHtml(line.name)}</span><strong>${fmt(line.quantity)} 件</strong></div>`).join('')}
       </div>
