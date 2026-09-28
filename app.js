@@ -1394,8 +1394,10 @@ function renderMobileList() {
 function renderMobileSummary() {
   const selectedItems = [...selected.values()].filter((value) => value > 0).length;
   const selectedQty = [...selected.values()].reduce((sum, value) => sum + Number(value || 0), 0);
-  els.mobileSelectedQty.textContent = fmt(selectedQty);
-  els.mobileSelectedItems.textContent = `${selectedItems} 项物料`;
+  const pendingOverRows = [...sessionOver.values()].filter((item) => Number(item.quantity) > 0);
+  const pendingOverQty = pendingOverRows.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  els.mobileSelectedQty.textContent = fmt(selectedQty + pendingOverQty);
+  els.mobileSelectedItems.textContent = `${selectedItems + pendingOverRows.length} 项物料`;
   els.mobileRemainingQty.textContent = fmt(snapshot.summary.remainingQuantity);
 }
 
@@ -1757,10 +1759,13 @@ function renderCartDetail() {
 
 function renderCart() {
   const entries = [...selected.entries()].filter(([, quantity]) => Number(quantity) > 0);
-  const quantity = entries.reduce((sum, [, value]) => sum + Number(value), 0);
+  const overRows = [...sessionOver.values()].filter((item) => Number(item.quantity) > 0);
+  // 本次装车数量 = 有订单的部分 + 无订单发货的部分
+  const quantity = entries.reduce((sum, [, value]) => sum + Number(value), 0)
+    + overRows.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   els.cartQty.textContent = fmt(quantity);
-  els.cartItems.textContent = fmt(entries.length);
-  const overCount = [...sessionOver.values()].filter((item) => Number(item.quantity) > 0).length;
+  els.cartItems.textContent = fmt(entries.length + overRows.length);
+  const overCount = overRows.length;
   els.mobileCartBar.hidden = mobileTab !== 'entry' || (!entries.length && !overCount);
   renderCartDetail();
 }
@@ -1930,11 +1935,12 @@ function openSubmitModal() {
   showSubmitError('');
   // 打开确认框时顺手同步一次最新未交，减少"别的设备刚发过货"造成的误差
   loadState({ quiet: true }).then(() => renderAll()).catch(() => {});
-  const total = entries.reduce((sum, [, quantity]) => sum + Number(quantity), 0);
+  const orderTotal = entries.reduce((sum, [, quantity]) => sum + Number(quantity), 0);
   const overRows = [...sessionOver.values()].filter((item) => item.pending && Number(item.quantity) > 0);
   const overTotal = overRows.reduce((sum, item) => sum + Number(item.quantity), 0);
+  const total = orderTotal + overTotal;
   els.submitSummary.innerHTML = `
-    <div class="submit-summary-row"><span>本次物料</span><strong>${entries.length} 项</strong></div>
+    <div class="submit-summary-row"><span>本次物料</span><strong>${entries.length + overRows.length} 项</strong></div>
     <div class="submit-summary-row"><span>本次总数量</span><strong>${fmt(total)} 件</strong></div>
     ${overTotal ? `<div class="submit-summary-row"><span>其中无订单发货</span><strong>${fmt(overTotal)} 件（提交时自动登记）</strong></div>` : ''}
     <div class="submit-summary-row"><span>提交后</span><strong>电脑端自动扣减未交</strong></div>`;
