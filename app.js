@@ -2253,7 +2253,14 @@ async function switchAccessCode() {
   } else {
     showToast('这个访问码无效，请重新输入', 4000);
   }
-  setTimeout(() => { location.reload(); }, 1500);
+  setTimeout(() => {
+    try {
+      const url = new URL(location.href);
+      url.searchParams.delete('code');       // 关键：清掉网址里残留的旧访问码
+      url.searchParams.set('v', currentAssetVersion());
+      location.replace(url.toString());
+    } catch { location.reload(); }
+  }, 1200);
 }
 
 if (els.switchCodeButton) els.switchCodeButton.addEventListener('click', switchAccessCode);
