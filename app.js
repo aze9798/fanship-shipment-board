@@ -1472,15 +1472,14 @@ function remainingGroups(queryText = remainingSearch) {
 
 function remainingDateText(dates) {
   if (!dates.length) return '未填';
-  return dates.map((dueDate) => formatDate(dueDate)).join('、');
+  return formatDate([...dates].sort()[0]);
 }
 
 function remainingDatePrintText(dates) {
   if (!dates.length) return '未填';
-  return dates.map((dueDate) => {
-    const match = String(dueDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    return match ? `${match[1].slice(2)}/${match[2]}/${match[3]}` : String(dueDate || '');
-  }).join('、');
+  const dueDate = [...dates].sort()[0];
+  const match = String(dueDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[1].slice(2)}/${match[2]}/${match[3]}` : String(dueDate || '');
 }
 
 function renderMobileRemaining() {
