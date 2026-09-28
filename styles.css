@@ -1322,3 +1322,24 @@ body[data-view="mobile"] { background: #dfe7e9; }
 /* 云端送货单：PDF / Excel 切换 + 去掉日期列 */
 .file-format-tabs { display: flex; gap: 7px; margin: 2px 0 8px; }
 .file-box .over-row.file-row { grid-template-columns: 1fr auto auto; }
+
+/* ===== 未交清单 交期筛选：底部常显横向滚动条 + 去掉多余的“全部日期”按钮 ===== */
+.remaining-date-box.desktop,
+#desktopRemainingDateChips {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  padding-bottom: 10px !important;
+  scrollbar-width: thin;
+  scrollbar-color: #b8c6cb #eef2f3;
+}
+
+.remaining-date-box.desktop::-webkit-scrollbar,
+#desktopRemainingDateChips::-webkit-scrollbar { height: 10px; }
+
+.remaining-date-box.desktop::-webkit-scrollbar-thumb,
+#desktopRemainingDateChips::-webkit-scrollbar-thumb { background: #b8c6cb; border-radius: 6px; }
+
+.remaining-date-box.desktop::-webkit-scrollbar-track,
+#desktopRemainingDateChips::-webkit-scrollbar-track { background: #eef2f3; border-radius: 6px; }
+
+#desktopRemainingDateClear { display: none !important; }
