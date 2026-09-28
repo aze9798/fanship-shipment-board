@@ -1927,7 +1927,7 @@ function renderCart() {
     + replacementTotalQty();
   els.cartQty.textContent = fmt(quantity);
   els.cartItems.textContent = fmt(entries.length + overRows.length + sessionReplacements.length);
-  const overCount = overRows.length;
+  const overCount = overRows.length + sessionReplacements.length;
   els.mobileCartBar.hidden = mobileTab !== 'entry' || (!entries.length && !overCount);
   renderCartDetail();
 }
@@ -2090,8 +2090,8 @@ function showSubmitError(message) {
 
 function openSubmitModal() {
   const entries = [...selected.entries()].filter(([, quantity]) => Number(quantity) > 0);
-  if (!entries.length) {
-    showToast('请先录入至少一项装车数量');
+  if (!entries.length && !sessionReplacements.length) {
+    showToast('请先录入至少一项装车数量或补发');
     return;
   }
   showSubmitError('');
@@ -2252,7 +2252,8 @@ async function submitShipment() {
     const items = [...selected.entries()]
       .filter(([, quantity]) => Number(quantity) > 0)
       .map(([orderId, quantity]) => ({ orderId, quantity }));
-    if (!items.length) throw new Error('本次可发的数量已经变化，请重新确认装车数量');
+    const onlyReplacement = !items.length && sessionReplacements.length > 0;
+    if (!items.length && !onlyReplacement) throw new Error('本次可发的数量已经变化，请重新确认装车数量');
     const form = new FormData(els.shipmentForm);
     const payload = {
       customer: snapshot.customer,
@@ -2262,14 +2263,19 @@ async function submitShipment() {
       items,
     };
     button.textContent = '正在同步...';
-    const response = await requestWithAccessCode(apiUrl('/api/shipments'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || '提交失败');
-    const shipmentId = result.shipmentId || result.shipment?.id || '本次发货';
+    let shipmentId = '';
+    if (!onlyReplacement) {
+      const response = await requestWithAccessCode(apiUrl('/api/shipments'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || '提交失败');
+      shipmentId = result.shipmentId || result.shipment?.id || '本次发货';
+    } else {
+      shipmentId = '本次补发';
+    }
     // 超出所有未交订单的部分：提交时自动登记成“无订单发货”，不用再手动点一次
     const pendingOvers = [...sessionOver.entries()].filter(([, item]) => item.pending && Number(item.quantity) > 0);
     const overSaved = [];
