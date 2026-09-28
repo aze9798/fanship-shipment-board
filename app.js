@@ -149,6 +149,7 @@ const remainingDates = new Set();
 let desktopDueFilter = 'all';
 let desktopDueDate = '';
 let desktopSearch = '';
+const desktopPicked = new Set();   // 下拉里勾选多个料号一起看
 let mobileSearch = '';
 let historyDate = '';
 let recordsSearch = '';
@@ -484,7 +485,11 @@ function desktopRows() {
   let rows = filteredOrders('active');
   rows = desktopDueRows();
   if (query) rows = rows.filter((order) => searchable(order).includes(query));
-  return rows;
+    if (desktopPicked.size) {
+    const picks = [...desktopPicked].map((v) => String(v).toLowerCase());
+    rows = rows.filter((order) => picks.some((pick) => searchable(order).includes(pick)));
+  }
+return rows;
 }
 
 // 搜索时给出相近的料号/名称下拉，点一下精准选中
@@ -2481,13 +2486,15 @@ function switchMobileTab(tab) {
   });
 });
 
-els.desktopSearch.addEventListener('input', (event) => { desktopSearch = event.target.value; renderDesktopTable(); renderSuggestFor(els.desktopSearch, els.desktopSuggest, desktopDueRows()); });
+els.desktopSearch.addEventListener('input', (event) => { desktopSearch = event.target.value; desktopPicked.clear(); renderDesktopTable(); renderSuggestFor(els.desktopSearch, els.desktopSuggest, desktopDueRows()); });
 els.desktopSearch.addEventListener('focus', () => renderSuggestFor(els.desktopSearch, els.desktopSuggest, desktopDueRows()));
 if (els.desktopSuggest) {
   els.desktopSuggest.addEventListener('click', (event) => {
     const button = event.target.closest('[data-suggest]');
     if (!button) return;
-    desktopSearch = pickSuggestion(button, els.desktopSearch, els.desktopSuggest);
+    const value = String(button.dataset.suggest || '');
+    if (desktopPicked.has(value)) desktopPicked.delete(value); else desktopPicked.add(value);
+    button.classList.toggle('active', desktopPicked.has(value));
     renderDesktopTable();
   });
 }

@@ -1348,3 +1348,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
 #desktopRemainingView .search-box > span,
 #desktopRemainingView .search-box .tool-icon { display: none !important; }
 #desktopRemainingView #desktopRemainingSearch { padding-left: 10px !important; }
+
+/* 下拉勾选多选：选中项打勾 */
+.suggest-list button.active { background: #e8f5f2; box-shadow: inset 0 0 0 1px #83c7bf; }
+.suggest-list button.active::after { content: " ✓"; color: #0f766e; font-weight: 700; }
