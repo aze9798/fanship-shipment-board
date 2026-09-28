@@ -1892,7 +1892,6 @@ function renderDesktopRemaining() {
       <td class="number qty">${escapeHtml(qtyText(group.total))}</td>
       <td class="mark">${group.mark ? '✅' : ''}</td>
       <td>${escapeHtml(remainingDateText(group.dates))}</td>
-      <td class="number">${fmt(group.detailCount)}</td>
     </tr>`).join('');
   els.desktopRemainingEmpty.hidden = groups.length > 0;
 }
