@@ -1283,3 +1283,38 @@ body[data-view="mobile"] { background: #dfe7e9; }
   margin: 0 !important;
   line-height: 1 !important;
 }
+
+/* ===== 以「查询」页为标准：去掉放大镜，三个控件统一成一样的输入框/下拉框 ===== */
+#desktopView .toolbar .tool-icon { display: none !important; }
+
+#desktopView .toolbar .search-box,
+#desktopView .toolbar .select-box {
+  position: relative;
+  border: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  gap: 0 !important;
+}
+
+#desktopView .toolbar .search-box { flex: 1 1 320px !important; min-width: 0; }
+#desktopView .toolbar .select-box { flex: 0 0 auto !important; }
+
+#desktopView .toolbar .search-box input,
+#desktopView .toolbar .select-box select {
+  height: 34px !important;
+  line-height: 34px !important;
+  padding: 0 10px !important;
+  border: 1px solid #d7e1e3 !important;
+  border-radius: 9px !important;
+  background: #fbfcfc !important;
+  color: #17333b !important;
+  font: inherit !important;
+  font-size: 12px !important;
+}
+
+#desktopView .toolbar .select-box select { min-width: 132px; cursor: pointer; }
+#desktopView .toolbar .search-box input:focus,
+#desktopView .toolbar .select-box select:focus { border-color: #83c7bf !important; box-shadow: 0 0 0 3px rgba(15,118,110,.09) !important; }
+#desktopView .toolbar .select-box .due-date-row { top: calc(100% + 6px); left: auto; right: 0; }
