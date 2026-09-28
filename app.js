@@ -1781,11 +1781,9 @@ function renderMobileRemaining() {
           <div class="remaining-cell detail-cell">
             <div class="detail-line"><span>品名</span><strong>${escapeHtml(group.name)}</strong></div>
             <div class="detail-line"><span>规格</span><strong class="mono">${escapeHtml(group.specs.join('、') || '—')}</strong></div>
-            <div class="detail-line"><span>公司</span><strong>${escapeHtml(companyText)}</strong></div>
           </div>
           <div class="remaining-cell meta-cell">
             <div class="meta-line"><span>未交</span><strong class="quantity-value">${escapeHtml(qtyText(group.total))}</strong></div>
-            <div class="meta-line"><span>明细</span><strong>${fmt(group.detailCount)} 行</strong></div>
           </div>
           <div class="remaining-cell due-cell">
             <span>交期</span>
