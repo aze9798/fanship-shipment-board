@@ -1420,3 +1420,6 @@ body[data-view="mobile"] { background: #dfe7e9; }
   cursor: pointer;
 }
 .sidebar-switch:hover { background: rgba(255,255,255,.12); }
+
+/* 管理码：未交/金额提示行 */
+.amount-line { display: block; margin-top: 2px; color: #8a6d3b; font-size: 10px; white-space: nowrap; }

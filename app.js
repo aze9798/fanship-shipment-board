@@ -588,6 +588,7 @@ async function loadState({ quiet = false } = {}) {
     const response = await requestWithAccessCode(apiUrl('/api/state'), { cache: 'no-store' });
     if (!response.ok) throw new Error('数据加载失败');
     const nextSnapshot = await response.json();
+    nextSnapshot.amounts = (boardRole === 'admin') ? await loadAmounts() : [];
     nextSnapshot.overDeliveries = await loadOverDeliveries();
     nextSnapshot.overOffsets = await loadOverOffsets();
     nextSnapshot.deliveryFiles = await loadDeliveryFiles();
@@ -790,6 +791,22 @@ async function confirmPdfImport() {
     showToast(error.message || '导入失败');
     els.confirmPdf.disabled = false;
   }
+}
+
+async function loadAmounts() {
+  if (!RPC_BASE) return [];
+  const code = getAccessCode();
+  if (!code) return [];
+  try {
+    const r = await callRpc('board_get_amounts', { p_code: code });
+    if (!r.response.ok) return [];
+    return Array.isArray(r.data) ? r.data : [];
+  } catch { return []; }
+}
+
+function amountFor(orderId) {
+  const rows = (snapshot && Array.isArray(snapshot.amounts)) ? snapshot.amounts : [];
+  return rows.find((row) => String(row.orderId) === String(orderId)) || null;
 }
 
 async function loadOverDeliveries() {
@@ -1336,13 +1353,13 @@ function renderDesktopTable() {
     const badge = dueBadge(order);
     return `
       <tr>
-        <td><span class="order-id">${escapeHtml(order.po)}</span><span class="company-tag" title="${escapeHtml(companyName(orderCompany(order)))}">${escapeHtml(orderCompany(order) || '—')}</span></td>
+        <td><span class="order-id">${escapeHtml(order.po)}</span><span class="company-tag" title="${escapeHtml(companyName(orderCompany(order)))}">${escapeHtml(orderCompany(order) || '—')}</span>${(() => { const am = amountFor(order.id); return boardRole === 'admin' && am && am.orderAmount != null ? `<span class="amount-line">单总 ${fmt(am.orderAmount)}</span>` : ''; })()}</td>
         <td><span class="material-code mono">${escapeHtml(order.material)}</span>${(() => { const info = materialSummary(order); return info.count > 1 ? `<span class="material-total-tag" title="同一物料编号所有采购单合计未交">共${fmt(info.total)}/${info.count}单</span>` : ''; })()}</td>
         <td><span class="item-name">${escapeHtml(order.name)}</span></td>
         <td><span class="spec-code mono">${escapeHtml(order.spec || '—')}</span></td>
         <td class="number">${escapeHtml(order.seq)}</td>
         <td><span class="due-date">${escapeHtml(formatDate(order.dueDate))}</span><span class="due-badge ${badge.className}">${escapeHtml(dueStatus(order).text)}</span></td>
-        <td class="number"><span class="remaining-number">${fmt(order.remaining)}</span></td>
+        <td class="number"><span class="remaining-number">${fmt(order.remaining)}</span>${(() => { const am = amountFor(order.id); return boardRole === 'admin' && am && am.unitPrice != null ? `<span class="amount-line">单价 ${am.unitPrice} · 金额 ${fmt(am.amount)}</span>` : ''; })()}</td>
         <td class="number"><span class="shipped-number">${fmt(order.shipped)}</span></td>
       </tr>`;
   }).join('');
