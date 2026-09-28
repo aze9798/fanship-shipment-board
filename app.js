@@ -2915,7 +2915,17 @@ els.refreshDeliveryPreview.addEventListener('click', refreshDeliveryPreview);
 els.printDeliveryNotes.addEventListener('click', printDeliveryNotes);
 els.deliveryDate.addEventListener('change', refreshDeliveryPreview);
 els.deliveryBatch.addEventListener('change', refreshDeliveryPreview);
-$('#mobileRefresh').addEventListener('click', () => loadState());
+$('#mobileRefresh').addEventListener('click', async () => {
+  showToast('正在刷新最新数据…');
+  try {
+    refreshing = false;
+    await loadState({ quiet: false });
+    renderAll();
+    showToast('已刷新（未交/发货记录都是最新的）');
+  } catch (error) {
+    showToast('刷新失败，请检查网络后重试');
+  }
+});
 $('#resetButton').addEventListener('click', resetRecords);
 if (els.importButton && els.importFileInput) {
   els.importButton.addEventListener('click', () => els.importFileInput.click());
