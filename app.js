@@ -14,14 +14,23 @@ let boardRole = 'user';            // user=普通，admin=管理（可看金额�
 let boardCanSeeAmount = false;
 
 async function loadBoardRole() {
+  // 先用上次验证到的角色兜底，避免网络抖动导致模式显示不对
+  try {
+    const cached = localStorage.getItem('shipmentBoardRole');
+    if (cached === 'admin' || cached === 'user') {
+      boardRole = cached;
+      boardCanSeeAmount = cached === 'admin';
+    }
+  } catch { }
   if (!RPC_BASE) return;
   const code = getAccessCode();
   if (!code) return;
   try {
     const r = await callRpc('board_whoami', { p_code: code });
-    if (r.response.ok && r.data) {
-      boardRole = String(r.data.role || 'user');
+    if (r.response.ok && r.data && r.data.role) {
+      boardRole = String(r.data.role);
       boardCanSeeAmount = Boolean(r.data.canSeeAmount);
+      try { localStorage.setItem('shipmentBoardRole', boardRole); } catch { }
     }
   } catch { }
 }
@@ -3009,11 +3018,25 @@ els.printDeliveryNotes.addEventListener('click', printDeliveryNotes);
 els.deliveryDate.addEventListener('change', refreshDeliveryPreview);
 els.deliveryBatch.addEventListener('change', refreshDeliveryPreview);
 async function switchAccessCode() {
-  const entered = prompt('请输入要使用的访问码（管理码 = 管理员模式，普通码 = 普通模式）');
+  const entered = prompt('请输入访问码：\n管理码 = 管理员模式（可看金额）\n普通码 = 普通模式');
   if (!entered || !entered.trim()) return;
-  localStorage.setItem(ACCESS_CODE_KEY, entered.trim());
-  showToast('已切换，正在重新加载…');
-  setTimeout(() => { location.reload(); }, 600);
+  const code = entered.trim();
+  try { localStorage.setItem(ACCESS_CODE_KEY, code); } catch { }
+  let role = '';
+  try {
+    const r = await callRpc('board_whoami', { p_code: code });
+    role = String((r.data && r.data.role) || '');
+  } catch { }
+  if (role === 'admin') {
+    try { localStorage.setItem('shipmentBoardRole', 'admin'); } catch { }
+    showToast('管理码正确 → 正在切换到管理员模式…', 4000);
+  } else if (role === 'user') {
+    try { localStorage.setItem('shipmentBoardRole', 'user'); } catch { }
+    showToast('这是普通码 → 已切换为普通模式', 4000);
+  } else {
+    showToast('这个访问码无效，请重新输入', 4000);
+  }
+  setTimeout(() => { location.reload(); }, 1500);
 }
 
 if (els.switchCodeButton) els.switchCodeButton.addEventListener('click', switchAccessCode);
