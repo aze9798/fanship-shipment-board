@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=101">
+  <link rel="stylesheet" href="./styles.css?v=479f8dfd6ab0">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -528,7 +528,24 @@
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-  <script src="./app.js?v=101" type="module"></script>
+    <script>
+    (() => {
+      const fallbackVersion = "479f8dfd6ab0";
+      const stylesheet = document.querySelector('link[href*="styles.css"]');
+      const start = (version) => {
+        const safeVersion = encodeURIComponent(version || fallbackVersion);
+        if (stylesheet) stylesheet.href = './styles.css?v=' + safeVersion;
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = './app.js?v=' + safeVersion;
+        document.body.appendChild(script);
+      };
+      fetch('./version.json?t=' + Date.now(), { cache: 'no-store' })
+        .then((response) => response.ok ? response.json() : Promise.reject(new Error('version unavailable')))
+        .then((data) => start(data && data.version))
+        .catch(() => start(fallbackVersion));
+    })();
+  </script>
 </body>
 </html>
 
