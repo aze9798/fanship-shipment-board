@@ -10,6 +10,21 @@ const RPC_BASE = window.SHIPMENT_RPC_BASE || '';
 const ACCESS_CODE_KEY = 'shipmentBoardAccessCode';
 const PRINT_HELPER_BASE = 'http://127.0.0.1:8790';
 let deliveryPlan = null;
+let boardRole = 'user';            // user=普通，admin=管理（可看金额）
+let boardCanSeeAmount = false;
+
+async function loadBoardRole() {
+  if (!RPC_BASE) return;
+  const code = getAccessCode();
+  if (!code) return;
+  try {
+    const r = await callRpc('board_whoami', { p_code: code });
+    if (r.response.ok && r.data) {
+      boardRole = String(r.data.role || 'user');
+      boardCanSeeAmount = Boolean(r.data.canSeeAmount);
+    }
+  } catch { }
+}
 
 function getAccessCode() {
   const url = new URL(location.href);
@@ -1212,6 +1227,9 @@ function renderAll() {
   renderCloudFiles();
   renderCart();
   els.sourceTitle.textContent = snapshot.storage?.label || '现有计划表导入';
+  const roleTag = boardRole === 'admin' ? '管理码（可看金额）' : '普通码';
+  if (els.sourceStamp) els.sourceStamp.dataset.role = boardRole;
+  if (els.liveText && els.liveText.dataset) els.liveText.title = roleTag;
   els.sourceStamp.textContent = snapshot.storage?.cloud
     ? `${snapshot.source.sheet} · 实时同步`
     : `生成于 ${snapshot.source.generatedAt}`;
@@ -2332,7 +2350,8 @@ async function submitShipment() {
     closeSubmitModal();
     showSubmitError('');
     showToast(`${shipmentId} 已保存${reallocated ? '（已按最新未交重新分配）' : ''}${overSaved.length ? `，含无订单发货 ${overSaved.join('、')}` : ''}`);
-    await loadState();
+    await loadBoardRole();
+await loadState();
     if (replacementSaved.length) showToast(`补发已登记：${replacementSaved.join('、')}`);
     if (replacementFailed.length) showToast(`补发登记失败：${replacementFailed.join('、')}，请重新提交`);
     if (overFailed.length) showToast(`无订单发货登记失败：${overFailed.join('、')}，请在本次装车明细里重新提交`);
