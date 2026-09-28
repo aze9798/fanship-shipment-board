@@ -418,6 +418,8 @@ const els = {
   refreshDeliveryPreview: $('#refreshDeliveryPreview'),
   printDeliveryNotes: $('#printDeliveryNotes'),
   toast: $('#toast'),
+  brandTitle: $('#brandTitle'),
+  mobileBrandTitle: $('#mobileBrandTitle'),
   switchCodeButton: $('#switchCodeButton'),
   mobileSwitchCode: $('#mobileSwitchCode'),
 };
@@ -1230,6 +1232,9 @@ function renderAll() {
   renderCart();
   els.sourceTitle.textContent = snapshot.storage?.label || '现有计划表导入';
   const roleTag = boardRole === 'admin' ? '管理码（可看金额）' : '普通码';
+  const suffix = boardRole === 'admin' ? '（管理员）' : '';
+  if (els.brandTitle) els.brandTitle.textContent = '帆顺发货台' + suffix;
+  if (els.mobileBrandTitle) els.mobileBrandTitle.textContent = '手机装车登记' + suffix;
   if (els.sourceStamp) els.sourceStamp.dataset.role = boardRole;
   if (els.liveText && els.liveText.dataset) els.liveText.title = roleTag;
   els.sourceStamp.textContent = snapshot.storage?.cloud
