@@ -851,6 +851,14 @@ async function loadAmounts() {
 
 let amountMap = new Map();
 
+function currentAssetVersion() {
+  try {
+    const tag = document.querySelector('script[src*="app.js"]');
+    const m = String(tag && tag.src || '').match(/v=(\d+)/);
+    return m ? m[1] : '?';
+  } catch { return '?'; }
+}
+
 function applyRoleUI() {
   const isAdmin = boardRole === 'admin';
   const suffix = isAdmin ? '（管理员）' : '';
@@ -861,6 +869,8 @@ function applyRoleUI() {
   const stamp = document.getElementById('sourceStamp');
   if (stamp) stamp.dataset.role = boardRole;
   document.title = '帆顺发货台' + suffix;
+  const badge = document.getElementById('modeBadge');
+  if (badge) badge.textContent = `v${currentAssetVersion()} · ${isAdmin ? '管理员' : '普通'}模式`;
 }
 
 function rebuildAmountMap() {

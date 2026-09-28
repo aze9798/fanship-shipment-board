@@ -1423,3 +1423,6 @@ body[data-view="mobile"] { background: #dfe7e9; }
 
 /* 管理码：未交/金额提示行 */
 .amount-line { display: block; margin-top: 2px; color: #8a6d3b; font-size: 10px; white-space: nowrap; }
+
+/* 左下角：版本 + 当前模式 */
+.mode-badge { display: block; margin-top: 6px; color: #7fb7ae; font-size: 10px; }
