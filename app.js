@@ -849,6 +849,18 @@ async function loadAmounts() {
 
 let amountMap = new Map();
 
+function applyRoleUI() {
+  const isAdmin = boardRole === 'admin';
+  const suffix = isAdmin ? '（管理员）' : '';
+  const el = document.getElementById('brandTitle');
+  if (el) el.textContent = '帆顺发货台' + suffix;
+  const el2 = document.getElementById('mobileBrandTitle');
+  if (el2) el2.textContent = '手机装车登记' + suffix;
+  const stamp = document.getElementById('sourceStamp');
+  if (stamp) stamp.dataset.role = boardRole;
+  document.title = '帆顺发货台' + suffix;
+}
+
 function rebuildAmountMap() {
   const rows = (snapshot && Array.isArray(snapshot.amounts)) ? snapshot.amounts : [];
   amountMap = new Map(rows.map((row) => [String(row.orderId), row]));
@@ -1298,9 +1310,7 @@ function renderAll() {
   renderCart();
   els.sourceTitle.textContent = snapshot.storage?.label || '现有计划表导入';
   const roleTag = boardRole === 'admin' ? '管理码（可看金额）' : '普通码';
-  const suffix = boardRole === 'admin' ? '（管理员）' : '';
-  if (els.brandTitle) els.brandTitle.textContent = '帆顺发货台' + suffix;
-  if (els.mobileBrandTitle) els.mobileBrandTitle.textContent = '手机装车登记' + suffix;
+  applyRoleUI();
   if (els.sourceStamp) els.sourceStamp.dataset.role = boardRole;
   if (els.liveText && els.liveText.dataset) els.liveText.title = roleTag;
   els.sourceStamp.textContent = snapshot.storage?.cloud
@@ -2421,7 +2431,9 @@ async function submitShipment() {
     showSubmitError('');
     showToast(`${shipmentId} 已保存${reallocated ? '（已按最新未交重新分配）' : ''}${overSaved.length ? `，含无订单发货 ${overSaved.join('、')}` : ''}`);
     await loadBoardRole();
+applyRoleUI();
 await loadState();
+applyRoleUI();
     if (replacementSaved.length) showToast(`补发已登记：${replacementSaved.join('、')}`);
     if (replacementFailed.length) showToast(`补发登记失败：${replacementFailed.join('、')}，请重新提交`);
     if (overFailed.length) showToast(`无订单发货登记失败：${overFailed.join('、')}，请在本次装车明细里重新提交`);
@@ -3029,6 +3041,7 @@ async function switchAccessCode() {
   } catch { }
   if (role === 'admin') {
     try { localStorage.setItem('shipmentBoardRole', 'admin'); } catch { }
+    boardRole = 'admin'; boardCanSeeAmount = true; applyRoleUI();
     showToast('管理码正确 → 正在切换到管理员模式…', 4000);
   } else if (role === 'user') {
     try { localStorage.setItem('shipmentBoardRole', 'user'); } catch { }
