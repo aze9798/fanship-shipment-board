@@ -8,22 +8,36 @@ const API_BASE = window.SHIPMENT_API_BASE || (functionMarkerIndex >= 0
 const apiUrl = (path) => `${API_BASE}${path}`;
 const RPC_BASE = window.SHIPMENT_RPC_BASE || '';
 const ACCESS_CODE_KEY = 'shipmentBoardAccessCode';
+const BOARD_MODE = (() => {
+  const value = new URLSearchParams(location.search).get('mode');
+  return value === 'admin' || value === 'user' ? value : '';
+})();
+const MODE_KEY_SUFFIX = BOARD_MODE ? ':' + BOARD_MODE : '';
+const ACCESS_CODE_STORAGE_KEY = ACCESS_CODE_KEY + MODE_KEY_SUFFIX;
+const ROLE_STORAGE_KEY = 'shipmentBoardRole' + MODE_KEY_SUFFIX;
 const PRINT_HELPER_BASE = 'http://127.0.0.1:8790';
 let deliveryPlan = null;
 let boardRole = 'user';            // user=普通，admin=管理（可看金额）
 let boardCanSeeAmount = false;
 
+function boardModeName(mode = BOARD_MODE) {
+  return mode === 'admin' ? '管理员模式' : mode === 'user' ? '普通模式' : '通用模式';
+}
+
+function canUseRole(role) {
+  return !BOARD_MODE || role === BOARD_MODE;
+}
+
 async function loadBoardRole() {
-  // 角色始终和访问码绑定。每次打开页面都以云端返回为准；
-  // 只有云端暂时不可用时，才使用同一访问码的上次已验证角色兜底。
+  // 角色始终和访问码绑定。管理员网址、普通网址各用自己的缓存，互不覆盖。
   let cachedRole = '';
   let cachedCode = '';
   try {
-    const raw = String(localStorage.getItem('shipmentBoardRole') || '');
+    const raw = String(localStorage.getItem(ROLE_STORAGE_KEY) || '');
     const parts = raw.split('|');
     cachedRole = parts[0] || '';
     cachedCode = parts.slice(1).join('|') || '';
-    if ((cachedRole === 'admin' || cachedRole === 'user') && cachedCode === getAccessCode()) {
+    if ((cachedRole === 'admin' || cachedRole === 'user') && canUseRole(cachedRole) && cachedCode === getAccessCode()) {
       boardRole = cachedRole;
       boardCanSeeAmount = cachedRole === 'admin';
     }
@@ -43,9 +57,19 @@ async function loadBoardRole() {
     const r = await callRpc('board_whoami', { p_code: code });
     const role = String((r.data && r.data.role) || '');
     if (r.response.ok && (role === 'admin' || role === 'user')) {
-      boardRole = role;
-      boardCanSeeAmount = Boolean(r.data.canSeeAmount);
-      try { localStorage.setItem('shipmentBoardRole', role + '|' + code); } catch { }
+      if (!canUseRole(role)) {
+        boardRole = 'user';
+        boardCanSeeAmount = false;
+        try {
+          localStorage.removeItem(ACCESS_CODE_STORAGE_KEY);
+          localStorage.removeItem(ROLE_STORAGE_KEY);
+        } catch { }
+        setTimeout(() => showToast(BOARD_MODE === 'admin' ? '这个管理员网址需要管理员访问码' : '这个普通网址需要普通访问码', 4500), 0);
+      } else {
+        boardRole = role;
+        boardCanSeeAmount = Boolean(r.data.canSeeAmount);
+        try { localStorage.setItem(ROLE_STORAGE_KEY, role + '|' + code); } catch { }
+      }
     } else if (cachedCode !== code) {
       boardRole = 'user';
       boardCanSeeAmount = false;
@@ -61,19 +85,20 @@ function getAccessCode() {
   const queryCode = url.searchParams.get('code');
   if (queryCode) {
     const normalized = queryCode.trim();
-    localStorage.setItem(ACCESS_CODE_KEY, normalized);
+    try { localStorage.setItem(ACCESS_CODE_STORAGE_KEY, normalized); } catch { }
     url.searchParams.delete('code');
     history.replaceState(null, '', url);
     return normalized;
   }
-  return localStorage.getItem(ACCESS_CODE_KEY) || '';
+  try { return localStorage.getItem(ACCESS_CODE_STORAGE_KEY) || ''; } catch { return ''; }
 }
 
 function askAccessCode() {
-  const entered = prompt('请输入发货看板访问码');
+  const label = BOARD_MODE === 'admin' ? '管理员访问码' : BOARD_MODE === 'user' ? '普通访问码' : '发货看板访问码';
+  const entered = prompt('请输入' + label);
   if (!entered) return '';
   const trimmed = entered.trim();
-  localStorage.setItem(ACCESS_CODE_KEY, trimmed);
+  try { localStorage.setItem(ACCESS_CODE_STORAGE_KEY, trimmed); } catch { }
   return trimmed;
 }
 
@@ -156,7 +181,7 @@ async function requestWithAccessCode(url, options = {}, retry = true) {
   if (accessCode) headers.set('X-Board-Code', accessCode);
   const response = await fetch(url, { ...options, headers });
   if (response.status === 401 && retry) {
-    localStorage.removeItem(ACCESS_CODE_KEY);
+    localStorage.removeItem(ACCESS_CODE_STORAGE_KEY);
     const entered = askAccessCode();
     if (entered) return requestWithAccessCode(url, options, false);
   }
@@ -3061,7 +3086,8 @@ els.printDeliveryNotes.addEventListener('click', printDeliveryNotes);
 els.deliveryDate.addEventListener('change', refreshDeliveryPreview);
 els.deliveryBatch.addEventListener('change', refreshDeliveryPreview);
 async function switchAccessCode() {
-  const entered = prompt('请输入访问码：\n管理码 = 管理员模式（可看金额）\n普通码 = 普通模式');
+  const label = BOARD_MODE === 'admin' ? '管理员访问码' : BOARD_MODE === 'user' ? '普通访问码' : '访问码';
+  const entered = prompt('请输入' + label + '：\n管理码 = 管理员模式（可看金额）\n普通码 = 普通模式');
   if (!entered || !entered.trim()) return;
   const code = entered.trim();
 
@@ -3079,10 +3105,14 @@ async function switchAccessCode() {
     showToast('这个访问码无效，请重新输入', 4000);
     return;
   }
+  if (!canUseRole(role)) {
+    showToast(BOARD_MODE === 'admin' ? '这个网址是管理员模式，请输入管理员码' : '这个网址是普通模式，请输入普通码', 4500);
+    return;
+  }
 
   try {
-    localStorage.setItem(ACCESS_CODE_KEY, code);
-    localStorage.setItem('shipmentBoardRole', role + '|' + code);
+    localStorage.setItem(ACCESS_CODE_STORAGE_KEY, code);
+    localStorage.setItem(ROLE_STORAGE_KEY, role + '|' + code);
   } catch { }
   boardRole = role;
   boardCanSeeAmount = role === 'admin';
@@ -3188,6 +3218,7 @@ function setupRpcExportLink() {
 applyDesktopColumnWidths();
 setupDesktopColumnResize();
 setupRpcExportLink();
+if (!getAccessCode()) askAccessCode();
 await loadBoardRole();
 await loadMarkMaterials();
 await loadState();
