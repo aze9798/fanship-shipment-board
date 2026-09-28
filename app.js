@@ -159,7 +159,7 @@ let offsetQuery = '';
 let offsetDate = '';
 let overQuery = '';
 let overDate = '';
-let cloudFileFormat = 'pdf';   // 云端送货单：pdf / excel 分开看
+let cloudFileFormat = 'excel';   // 云端送货单：pdf / excel 分开看
 let filesQuery = '';
 let filesDate = '';
 let mobileFilesQuery = '';
@@ -828,8 +828,8 @@ function renderDeliveryFiles(dateFilter, queryText) {
     <section class="file-box">
       <div class="over-head"><strong>已上传的送货单</strong><span>${rows.length} 个文件</span></div>
       <div class="file-format-tabs">
-        <button class="chip${wantPdf ? ' active' : ''}" data-cloud-format="pdf" type="button">PDF（打印用）</button>
-        <button class="chip${wantPdf ? '' : ' active'}" data-cloud-format="excel" type="button">Excel</button>
+        <button class="chip${wantPdf ? '' : ' active'}" data-cloud-format="excel" type="button">EXCEL（下载打印送货单）</button>
+        <button class="chip${wantPdf ? ' active' : ''}" data-cloud-format="pdf" type="button">PDF（云端归档）</button>
       </div>
       ${rows.length ? rows.map((row) => `
         <div class="over-row file-row">
