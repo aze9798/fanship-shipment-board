@@ -1343,3 +1343,8 @@ body[data-view="mobile"] { background: #dfe7e9; }
 #desktopRemainingDateChips::-webkit-scrollbar-track { background: #eef2f3; border-radius: 6px; }
 
 #desktopRemainingDateClear { display: none !important; }
+
+/* 未交清单：删掉搜索框里的放大镜图标 */
+#desktopRemainingView .search-box > span,
+#desktopRemainingView .search-box .tool-icon { display: none !important; }
+#desktopRemainingView #desktopRemainingSearch { padding-left: 10px !important; }
