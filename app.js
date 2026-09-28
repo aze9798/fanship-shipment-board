@@ -671,11 +671,13 @@ async function parsePdfOrder(file) {
   for (let i = 0; i < lines.length; i += 1) {
     const item = lines[i].match(PDF_ITEM_RE);
     if (!item) continue;
-    const row = { seq: Number(item[1]), material: item[2], dueDate: pdfIso(item[3]), quantity: pdfNum(item[4]), netAmount: pdfNum(item[7]), name: '', spec: '', grossAmount: null };
+    const row = { seq: Number(item[1]), material: item[2], dueDate: pdfIso(item[3]), quantity: pdfNum(item[4]), netAmount: pdfNum(item[7]), name: '', spec: '', grossAmount: null, unitPrice: null, grossUnitPrice: null };
     const named = (lines[i + 1] || '').match(PDF_NAME_RE);
     if (named) {
       row.name = tidyText(named[1]);
       row.grossAmount = pdfNum(named[3]);
+      row.grossUnitPrice = pdfNum(named[2]);   // 含税单价
+      row.unitPrice = row.grossUnitPrice;
       const next = lines[i + 2] || '';
       const nextText = tidyText(next);
       // 只认“纯编号型”图号（避免把 PDF 底部的条款文字当成图号，比如 “1. 订单 : …6Hrs…”）
@@ -743,11 +745,21 @@ function renderPdfPreview(docs) {
     const company = /科技/.test(doc.vendor || '') ? '4137' : (/制品厂/.test(doc.vendor || '') ? '4074' : '');
     if (!company) problems.push('认不出公司（供应厂商）');
     const duplicated = Boolean(doc.po) && existing.has(doc.po);
+    const priceNotes = [];
     if (!problems.length && !duplicated) {
       for (const item of doc.items) {
-        rows.push({ id: `${doc.po}#${String(item.seq).padStart(3, '0')}`, customer: company, po: doc.po, purchaseDate: doc.purchaseDate, seq: item.seq, material: item.material, name: item.name, spec: item.spec, orderQty: item.quantity, openingRemaining: item.quantity, dueDate: item.dueDate });
+        const id = `${doc.po}#${String(item.seq).padStart(3, '0')}`;
+        // 单价变动提醒：和系统里已有的同明细单价对比
+        const old = amountFor(id);
+        if (old && old.unitPrice != null && item.unitPrice != null && Math.abs(Number(old.unitPrice) - Number(item.unitPrice)) > 0.0001) {
+          const diff = Number(item.unitPrice) - Number(old.unitPrice);
+          const pct = Number(old.unitPrice) ? Math.round((diff / Number(old.unitPrice)) * 1000) / 10 : 0;
+          priceNotes.push(`${item.material} 单价 ${old.unitPrice} → ${item.unitPrice}（${diff > 0 ? '+' : ''}${pct}%）`);
+        }
+        rows.push({ id, customer: company, po: doc.po, purchaseDate: doc.purchaseDate, seq: item.seq, material: item.material, name: item.name, spec: item.spec, orderQty: item.quantity, openingRemaining: item.quantity, dueDate: item.dueDate, unitPrice: item.unitPrice });
       }
     }
+    if (priceNotes.length) warnings.push('单价有变动：' + priceNotes.slice(0, 5).join('；') + (priceNotes.length > 5 ? ` 等 ${priceNotes.length} 处` : ''));
     return { doc, problems, warnings, duplicated, company };
   });
   pendingPdfRows = rows;
@@ -757,7 +769,7 @@ function renderPdfPreview(docs) {
     <div class="pdf-doc${b.problems.length ? ' bad' : b.duplicated ? ' dup' : ''}">
       <div class="pdf-doc-head">
         <strong>${escapeHtml(b.doc.po || b.doc.file)}</strong>
-        <span>${b.company ? (b.company === '4137' ? '帆顺金属科技' : '帆顺金属(老)') : '公司未知'} · ${b.doc.items.length} 行 · 数量 ${fmt(b.doc.qtyTotal)} · 金额 ${fmt(b.doc.amountTotal)}${b.doc.pdfTotal != null ? ` / PDF ${fmt(b.doc.pdfTotal)}` : ''}</span>
+        <span>${b.company ? (b.company === '4137' ? '帆顺金属科技' : '帆顺金属(老)') : '公司未知'} · ${b.doc.items.length} 行 · 数量 ${fmt(b.doc.qtyTotal)} · 含税金额 ${fmt(b.doc.amountTotal)} · 单价 ${fmt(b.doc.items[0]?.unitPrice)}${b.doc.pdfTotal != null ? ` / PDF ${fmt(b.doc.pdfTotal)}` : ''}</span>
       </div>
       ${b.duplicated ? '<div class="pdf-note">系统里已有这个采购单号，将跳过</div>' : ''}
       ${(b.warnings || []).map((w) => `<div class="pdf-note">${escapeHtml(w)}</div>`).join('')}
@@ -783,6 +795,19 @@ async function confirmPdfImport() {
     const result = await callRpc('board_add_orders', { p_code: getAccessCode(), p_orders: pendingPdfRows });
     if (!result.response.ok) throw new Error(result.data?.message || '导入失败');
     const count = Number(result.data?.count || pendingPdfRows.length);
+    // 把 PDF 里的含税单价写进云端（管理码专属），并刷新订单总额
+    if (boardRole === 'admin') {
+      let priced = 0;
+      for (const row of pendingPdfRows) {
+        if (row.unitPrice == null) continue;
+        try {
+          const r = await callRpc('board_set_order_price', { p_code: getAccessCode(), p_payload: { orderId: row.id, unitPrice: row.unitPrice, source: 'pdf' } });
+          if (r.response.ok) priced += 1;
+        } catch { }
+      }
+      try { await callRpc('board_refresh_order_amount', { p_code: getAccessCode() }); } catch { }
+      if (priced) showToast(`已写入 ${priced} 条含税单价（来源：采购订单 PDF）`);
+    }
     closePdfModal();
     showToast(`已导入 ${count} 行新订单（未交已更新）`);
     await loadState({ quiet: true });
