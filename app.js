@@ -167,6 +167,32 @@ const expandedShipments = new Set();
 let autoOffsetNote = '';
 let cartOpen = false;
 const sessionOver = new Map();
+
+// 手工撤回过的冲抵：这条多送记录不再自动冲抵（本地立刻生效，云端也会记一笔）
+const MANUAL_OFFSET_SKIP_KEY = 'shipmentManualOffsetSkip';
+const manualOffsetSkip = new Set((() => {
+  try { return JSON.parse(localStorage.getItem(MANUAL_OFFSET_SKIP_KEY) || '[]'); } catch { return []; }
+})());
+
+function writeManualOffsetSkip() {
+  try { localStorage.setItem(MANUAL_OFFSET_SKIP_KEY, JSON.stringify([...manualOffsetSkip])); } catch {}
+}
+
+function offsetSkipped(over) {
+  if (!over) return false;
+  if (over.autoOffset === false) return true;
+  return manualOffsetSkip.has(String(over.id));
+}
+
+async function markAutoOffset(overId, enabled) {
+  if (!overId) return;
+  if (enabled) manualOffsetSkip.delete(String(overId));
+  else manualOffsetSkip.add(String(overId));
+  writeManualOffsetSkip();
+  try {
+    await callRpc('board_set_auto_offset', { p_code: getAccessCode(), p_over_id: overId, p_enabled: enabled });
+  } catch { /* 云端脚本还没跑时忽略，本地仍然生效 */ }
+}
 let autoOffsetRunning = false;
 const isBangfanName = (name) => /护栏|护脚栏/.test(String(name || ''));
 let eventSource = null;
@@ -899,7 +925,7 @@ async function autoOffsetBangfan() {
   if (autoOffsetRunning || !snapshot) return;
   // 本次装车还有未提交的勾选时先不自动冲抵，避免和正在装的货冲突
   if (selected.size > 0) return;
-  const list = offsetCandidates().filter((item) => isBangfanName(item.over.name));
+  const list = offsetCandidates().filter((item) => isBangfanName(item.over.name) && !offsetSkipped(item.over));
   if (!list.length) return;
   autoOffsetRunning = true;
   const done = [];
@@ -1668,7 +1694,9 @@ async function revokeOffset(offsetId) {
   if (!window.confirm('要把这笔冲抵撤回吗？\n撤回后：订单未交会加回去，前期多送记录会恢复。')) return;
   const result = await callRpc('board_revoke_offset', { p_code: getAccessCode(), p_offset_id: offsetId });
   if (!result.response.ok) { showToast(result.data?.message || '撤回失败'); return; }
-  showToast('已撤回这笔冲抵');
+  // 撤回后不能再被自动冲抵回来：本地 + 云端都标记成“不自动冲抵”
+  if (offsetRow && offsetRow.overId) await markAutoOffset(offsetRow.overId, false);
+  showToast('已撤回这笔冲抵（该笔不会自动冲抵回来了）');
   await loadState({ quiet: true });
   renderAll();
 }
@@ -2427,6 +2455,7 @@ if (els.mobileOffsetBox) els.mobileOffsetBox.addEventListener('click', async (ev
     });
     if (!result.response.ok) throw new Error(result.data?.message || '冲抵失败');
     const applied = Number(result.data?.applied || 0);
+    await markAutoOffset(overId, true);
     showToast(`已冲抵 ${fmt(applied)} 件到 ${target.po} 项次${target.seq}`);
     await loadState({ quiet: true });
     renderAll();
