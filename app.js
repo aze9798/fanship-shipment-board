@@ -588,11 +588,20 @@ async function loadState({ quiet = false } = {}) {
     const response = await requestWithAccessCode(apiUrl('/api/state'), { cache: 'no-store' });
     if (!response.ok) throw new Error('数据加载失败');
     const nextSnapshot = await response.json();
-    nextSnapshot.amounts = (boardRole === 'admin') ? await loadAmounts() : [];
-    nextSnapshot.overDeliveries = await loadOverDeliveries();
-    nextSnapshot.overOffsets = await loadOverOffsets();
-    nextSnapshot.deliveryFiles = await loadDeliveryFiles();
-    nextSnapshot.replacements = await loadReplacements();
+    // 并行拉取，避免一个个排队等（页面卡顿的主因）
+    const [amounts, overDeliveries, overOffsets, deliveryFiles, replacements] = await Promise.all([
+      boardRole === 'admin' ? loadAmounts() : Promise.resolve([]),
+      loadOverDeliveries(),
+      loadOverOffsets(),
+      loadDeliveryFiles(),
+      loadReplacements(),
+    ]);
+    nextSnapshot.amounts = amounts;
+    nextSnapshot.overDeliveries = overDeliveries;
+    nextSnapshot.overOffsets = overOffsets;
+    nextSnapshot.deliveryFiles = deliveryFiles;
+    nextSnapshot.replacements = replacements;
+    rebuildAmountMap();
     const changed = !snapshot || nextSnapshot.revision !== snapshot.revision;
     snapshot = nextSnapshot;
     if (snapshot.today) TODAY = snapshot.today;
@@ -829,9 +838,15 @@ async function loadAmounts() {
   } catch { return []; }
 }
 
-function amountFor(orderId) {
+let amountMap = new Map();
+
+function rebuildAmountMap() {
   const rows = (snapshot && Array.isArray(snapshot.amounts)) ? snapshot.amounts : [];
-  return rows.find((row) => String(row.orderId) === String(orderId)) || null;
+  amountMap = new Map(rows.map((row) => [String(row.orderId), row]));
+}
+
+function amountFor(orderId) {
+  return amountMap.get(String(orderId)) || null;
 }
 
 async function loadOverDeliveries() {
