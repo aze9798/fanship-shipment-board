@@ -1403,3 +1403,6 @@ body[data-view="mobile"] { background: #dfe7e9; }
     font-size: 16px !important;
   }
 }
+
+/* 云端送货单：格式下面再按公司分 */
+.file-company-tabs { margin-top: -2px; }

@@ -160,7 +160,8 @@ let offsetQuery = '';
 let offsetDate = '';
 let overQuery = '';
 let overDate = '';
-let cloudFileFormat = 'excel';   // 云端送货单：pdf / excel 分开看
+let cloudFileFormat = 'excel';
+let cloudFileCompany = '艾沃意特';   // 云端送货单：再按公司分开   // 云端送货单：pdf / excel 分开看
 let filesQuery = '';
 let filesDate = '';
 let mobileFilesQuery = '';
@@ -877,7 +878,9 @@ function renderDeliveryFiles(dateFilter, queryText) {
   const wantPdf = cloudFileFormat === 'pdf';
   const rows = filterDeliveryFiles(dateFilter, queryText).filter((row) => {
     const isPdf = /\.pdf$/i.test(String(row.fileName || ''));
-    return wantPdf ? isPdf : !isPdf;
+    if (wantPdf !== isPdf) return false;
+    const kind = String(row.kind || '');
+    return cloudFileCompany === '邦凡' ? kind === '邦凡' : kind !== '邦凡';
   });
   if (!rows.length && !dateFilter && !String(queryText || '').trim()) return '';
   return `
@@ -886,6 +889,10 @@ function renderDeliveryFiles(dateFilter, queryText) {
       <div class="file-format-tabs">
         <button class="chip${wantPdf ? '' : ' active'}" data-cloud-format="excel" type="button">EXCEL（下载打印送货单）</button>
         <button class="chip${wantPdf ? ' active' : ''}" data-cloud-format="pdf" type="button">PDF（云端归档）</button>
+      </div>
+      <div class="file-format-tabs file-company-tabs">
+        <button class="chip${cloudFileCompany === '艾沃意特' ? ' active' : ''}" data-cloud-company="艾沃意特" type="button">艾沃意特</button>
+        <button class="chip${cloudFileCompany === '邦凡' ? ' active' : ''}" data-cloud-company="邦凡" type="button">邦凡</button>
       </div>
       ${rows.length ? rows.map((row) => `
         <div class="over-row file-row">
@@ -2865,6 +2872,12 @@ if (els.replacementHistory) els.replacementHistory.addEventListener('click', han
 if (els.recordsReplacementList) els.recordsReplacementList.addEventListener('click', handleQueryActionClick);
 
 function handleCloudFileClick(event) {
+  const companyButton = event.target.closest('[data-cloud-company]');
+  if (companyButton) {
+    cloudFileCompany = companyButton.dataset.cloudCompany === '邦凡' ? '邦凡' : '艾沃意特';
+    renderCloudFiles();
+    return;
+  }
   const formatButton = event.target.closest('[data-cloud-format]');
   if (formatButton) {
     cloudFileFormat = formatButton.dataset.cloudFormat === 'excel' ? 'excel' : 'pdf';
