@@ -159,6 +159,7 @@ let offsetQuery = '';
 let offsetDate = '';
 let overQuery = '';
 let overDate = '';
+let cloudFileFormat = 'pdf';   // 云端送货单：pdf / excel 分开看
 let filesQuery = '';
 let filesDate = '';
 let mobileFilesQuery = '';
@@ -817,14 +818,21 @@ function filterDeliveryFiles(dateFilter, queryText) {
 }
 
 function renderDeliveryFiles(dateFilter, queryText) {
-  const rows = filterDeliveryFiles(dateFilter, queryText);
+  const wantPdf = cloudFileFormat === 'pdf';
+  const rows = filterDeliveryFiles(dateFilter, queryText).filter((row) => {
+    const isPdf = /\.pdf$/i.test(String(row.fileName || ''));
+    return wantPdf ? isPdf : !isPdf;
+  });
   if (!rows.length && !dateFilter && !String(queryText || '').trim()) return '';
   return `
     <section class="file-box">
       <div class="over-head"><strong>已上传的送货单</strong><span>${rows.length} 个文件</span></div>
+      <div class="file-format-tabs">
+        <button class="chip${wantPdf ? ' active' : ''}" data-cloud-format="pdf" type="button">PDF（打印用）</button>
+        <button class="chip${wantPdf ? '' : ' active'}" data-cloud-format="excel" type="button">Excel</button>
+      </div>
       ${rows.length ? rows.map((row) => `
         <div class="over-row file-row">
-          <span class="mono">${escapeHtml(row.deliveryDate)}</span>
           <span>${escapeHtml(row.fileName)}${row.kind ? ` · ${escapeHtml(row.kind)}` : ''}${row.noteCount ? ` · ${fmt(row.noteCount)} 张` : ''}</span>
           <button type="button" class="file-download" data-file-id="${escapeHtml(row.id)}">下载 ${String(row.fileName || '').toLowerCase().endsWith('.pdf') ? 'PDF' : 'Excel'}</button>
           ${isLockedRecord(row.createdAt)
@@ -2776,6 +2784,12 @@ if (els.recordsOffsetList) els.recordsOffsetList.addEventListener('click', handl
 if (els.recordsOverList) els.recordsOverList.addEventListener('click', handleQueryActionClick);
 
 function handleCloudFileClick(event) {
+  const formatButton = event.target.closest('[data-cloud-format]');
+  if (formatButton) {
+    cloudFileFormat = formatButton.dataset.cloudFormat === 'excel' ? 'excel' : 'pdf';
+    renderCloudFiles();
+    return;
+  }
   const fileButton = event.target.closest('[data-file-id]');
   if (fileButton) { downloadDeliveryFile(fileButton.dataset.fileId, fileButton); return; }
   const delButton = event.target.closest('[data-file-delete]');

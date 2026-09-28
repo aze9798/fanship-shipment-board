@@ -1318,3 +1318,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
 #desktopView .toolbar .search-box input:focus,
 #desktopView .toolbar .select-box select:focus { border-color: #83c7bf !important; box-shadow: 0 0 0 3px rgba(15,118,110,.09) !important; }
 #desktopView .toolbar .select-box .due-date-row { top: calc(100% + 6px); left: auto; right: 0; }
+
+/* 云端送货单：PDF / Excel 切换 + 去掉日期列 */
+.file-format-tabs { display: flex; gap: 7px; margin: 2px 0 8px; }
+.file-box .over-row.file-row { grid-template-columns: 1fr auto auto; }
