@@ -2610,6 +2610,18 @@ function handleHistoryClick(event) {
   }
 }
 if (els.shipmentHistory) els.shipmentHistory.addEventListener('click', handleHistoryClick);
+// 电脑端「冲抵记录 / 无订单发货记录」两个子项的撤回按钮
+function handleQueryActionClick(event) {
+  const overButton = event.target.closest('[data-revoke-over]');
+  if (overButton) { revokeOverDelivery(overButton.dataset.revokeOver); return; }
+  const offsetButton = event.target.closest('[data-revoke-offset]');
+  if (offsetButton) revokeOffset(offsetButton.dataset.revokeOffset);
+}
+if (els.offsetHistory) els.offsetHistory.addEventListener('click', handleQueryActionClick);
+if (els.overHistory) els.overHistory.addEventListener('click', handleQueryActionClick);
+if (els.recordsOffsetList) els.recordsOffsetList.addEventListener('click', handleQueryActionClick);
+if (els.recordsOverList) els.recordsOverList.addEventListener('click', handleQueryActionClick);
+
 function handleCloudFileClick(event) {
   const fileButton = event.target.closest('[data-file-id]');
   if (fileButton) { downloadDeliveryFile(fileButton.dataset.fileId, fileButton); return; }
@@ -2681,6 +2693,7 @@ els.deliveryModal.addEventListener('click', (event) => { if (event.target === el
 els.shipmentHistory.addEventListener('click', (event) => {
   const button = event.target.closest('[data-undo]');
   if (button) undoShipment(button.dataset.undo);
+  else handleQueryActionClick(event);
 });
 els.mobileRecordsPanel.addEventListener('click', (event) => {
   const button = event.target.closest('[data-undo]');
