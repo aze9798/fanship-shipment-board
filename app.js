@@ -418,6 +418,8 @@ const els = {
   refreshDeliveryPreview: $('#refreshDeliveryPreview'),
   printDeliveryNotes: $('#printDeliveryNotes'),
   toast: $('#toast'),
+  switchCodeButton: $('#switchCodeButton'),
+  mobileSwitchCode: $('#mobileSwitchCode'),
 };
 
 const escapeHtml = (value) => String(value ?? '')
@@ -2947,6 +2949,16 @@ els.refreshDeliveryPreview.addEventListener('click', refreshDeliveryPreview);
 els.printDeliveryNotes.addEventListener('click', printDeliveryNotes);
 els.deliveryDate.addEventListener('change', refreshDeliveryPreview);
 els.deliveryBatch.addEventListener('change', refreshDeliveryPreview);
+async function switchAccessCode() {
+  const entered = prompt('请输入要使用的访问码：\n普通码 = 装车/看未交\n管理码 = 可看金额等敏感数据');
+  if (!entered || !entered.trim()) return;
+  localStorage.setItem(ACCESS_CODE_KEY, entered.trim());
+  showToast('已切换访问码，正在重新加载…');
+  setTimeout(() => { location.reload(); }, 600);
+}
+if (els.switchCodeButton) els.switchCodeButton.addEventListener('click', switchAccessCode);
+if (els.mobileSwitchCode) els.mobileSwitchCode.addEventListener('click', switchAccessCode);
+
 $('#mobileRefresh').addEventListener('click', async () => {
   showToast('正在刷新最新数据…');
   try {
