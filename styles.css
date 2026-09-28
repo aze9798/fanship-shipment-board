@@ -1249,3 +1249,37 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .replacement-form { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; align-items: center; }
 .cart-line.replacement { background: #f2f8fd; }
 @media (max-width: 420px) { .replacement-form { grid-template-columns: 1fr 1fr; } .replacement-form button { grid-column: 1 / -1; } }
+
+/* ===== 搜索框/下拉框最终对齐（放大镜与提示词垂直居中，框同高） ===== */
+#desktopView .toolbar .search-box,
+#desktopView .toolbar .select-box {
+  height: 40px !important;
+  min-height: 40px !important;
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+}
+
+#desktopView .toolbar .search-box input,
+#desktopView .toolbar .select-box select {
+  height: 38px !important;
+  line-height: 38px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  align-self: center !important;
+}
+
+#desktopView .toolbar .tool-icon {
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  transform: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  align-self: center !important;
+  width: 18px !important;
+  height: 38px !important;
+  margin: 0 !important;
+  line-height: 1 !important;
+}
