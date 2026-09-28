@@ -193,7 +193,7 @@ function replacementProducts(queryText) {
   const query = String(queryText || '').trim().toLowerCase();
   const map = new Map();
   for (const order of (snapshot?.orders || [])) {
-    const key = [order.material, order.spec, order.customer].join('|');
+    const key = [String(order.material || '').trim(), String(order.spec || '').trim()].join('|');
     if (!map.has(key)) {
       map.set(key, { material: order.material, name: order.name, spec: order.spec, customer: order.customer });
     }
@@ -309,6 +309,8 @@ const els = {
   shipmentHistory: $('#shipmentHistory'),
   offsetHistory: $('#offsetHistory'),
   overHistory: $('#overHistory'),
+  replacementHistory: $('#replacementHistory'),
+  recordsReplacementList: $('#recordsReplacementList'),
   queryTitle: $('#queryTitle'),
   offsetSearch: $('#offsetSearch'),
   offsetDate: $('#offsetDate'),
@@ -569,6 +571,7 @@ async function loadState({ quiet = false } = {}) {
     nextSnapshot.overDeliveries = await loadOverDeliveries();
     nextSnapshot.overOffsets = await loadOverOffsets();
     nextSnapshot.deliveryFiles = await loadDeliveryFiles();
+    nextSnapshot.replacements = await loadReplacements();
     const changed = !snapshot || nextSnapshot.revision !== snapshot.revision;
     snapshot = nextSnapshot;
     if (snapshot.today) TODAY = snapshot.today;
@@ -800,6 +803,49 @@ async function loadDeliveryFiles() {
     if (!result.response.ok) return [];
     return Array.isArray(result.data) ? result.data : [];
   } catch { return []; }
+}
+
+async function loadReplacements() {
+  if (!RPC_BASE) return [];
+  const accessCode = getAccessCode();
+  if (!accessCode) return [];
+  try {
+    const result = await callRpc('board_get_replacements', { p_code: accessCode, p_limit: 100 });
+    if (!result.response.ok) return [];
+    return Array.isArray(result.data) ? result.data : [];
+  } catch { return []; }
+}
+
+function replacements() {
+  return (snapshot && Array.isArray(snapshot.replacements)) ? snapshot.replacements : [];
+}
+
+function renderReplacementList() {
+  const rows = replacements();
+  if (!rows.length) return '';
+  return `
+    <section class="over-box">
+      <div class="over-head"><strong>补发记录</strong><span>${rows.length} 笔</span></div>
+      ${rows.map((row) => `
+        <div class="over-row">
+          <span class="mono">${escapeHtml(row.material)}</span>
+          <span>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}${row.remark ? ' · 备注：' + escapeHtml(row.remark) : ''}<br><em>${escapeHtml(row.deliveryDate || '')}</em></span>
+          <strong>${fmt(row.quantity)} 件</strong>
+          ${isLockedRecord(row.createdAt)
+            ? '<span class="row-locked">已归档</span>'
+            : `<button type="button" class="row-revoke" data-revoke-replacement="${escapeHtml(row.id)}">撤回</button>`}
+        </div>`).join('')}
+      <p class="over-tip">补发是给前期交货的不良品补货，不扣未交，会进当天送货单（订单号/项次=无，备注按填写内容）。</p>
+    </section>`;
+}
+
+async function revokeReplacement(id) {
+  if (!window.confirm('要把这笔补发撤回吗？撤回后不再出现在送货单里。')) return;
+  const result = await callRpc('board_revoke_replacement', { p_code: getAccessCode(), p_id: id });
+  if (!result.response.ok) { showToast(result.data?.message || '撤回失败'); return; }
+  showToast('已撤回这笔补发');
+  await loadState({ quiet: true });
+  renderAll();
 }
 
 function deliveryFiles() {
@@ -1359,8 +1405,8 @@ function renderHistoryCards(shipments) {
 }
 
 // 查询页三个子项：发货记录 / 冲抵记录 / 无订单发货记录
-const QUERY_TABS = ['shipments', 'offsets', 'overs'];
-const QUERY_TITLES = { shipments: '发货记录', offsets: '冲抵记录', overs: '无订单发货记录' };
+const QUERY_TABS = ['shipments', 'offsets', 'overs', 'replacements'];
+const QUERY_TITLES = { shipments: '发货记录', offsets: '冲抵记录', overs: '无订单发货记录', replacements: '补发记录' };
 
 function applyQueryTab() {
   for (const tab of QUERY_TABS) {
@@ -1383,7 +1429,7 @@ function syncQueryInputs() {
   set(els.recordsOverSearch, overQuery); set(els.recordsOverDate, overDate);
 }
 
-function renderQueryPanes(containerShipments, containerOffsets, containerOvers, shipmentsHtml) {
+function renderQueryPanes(containerShipments, containerOffsets, containerOvers, shipmentsHtml, containerReplacements) {
   if (containerShipments) containerShipments.innerHTML = shipmentsHtml;
   const offsetFiltering = Boolean(offsetDate) || Boolean(offsetQuery.trim());
   const overFiltering = Boolean(overDate) || Boolean(overQuery.trim());
@@ -1398,6 +1444,10 @@ function renderQueryPanes(containerShipments, containerOffsets, containerOvers, 
       || (overFiltering
         ? '<div class="empty-state"><strong>没有符合条件的无订单发货</strong><span>换个搜索词或清空日期再试。</span></div>'
         : '<div class="empty-state"><strong>目前没有无订单发货</strong><span>装车时超出所有未交订单的部分，会自动记在这里。</span></div>');
+  }
+  if (containerReplacements) {
+    containerReplacements.innerHTML = renderReplacementList()
+      || '<div class="empty-state"><strong>还没有补发记录</strong><span>装车时用“补发（不良补货）”登记，就会出现在这里。</span></div>';
   }
   syncQueryInputs();
   applyQueryTab();
@@ -1442,7 +1492,7 @@ function renderDesktopHistory() {
       ? `共 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`
       : `筛选出 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`;
   }
-  renderQueryPanes(els.shipmentHistory, els.offsetHistory, els.overHistory, renderShipmentSection(rows));
+  renderQueryPanes(els.shipmentHistory, els.offsetHistory, els.overHistory, renderShipmentSection(rows), els.replacementHistory);
   void renderCloudFiles();
 }
 
@@ -1779,7 +1829,7 @@ function renderMobileRecords() {
           return `<div class="over-row"><span class="mono">${escapeHtml(material)}</span><span>${escapeHtml(name)}${spec ? ' · ' + escapeHtml(spec) : ''}</span><strong>${fmt(quantity)} 件</strong></div>`;
         }).join('')}
       </article>`).join('') : '<div class="empty-state"><strong>这几天没有发货记录</strong><span>换个日期或清空搜索词再试。</span></div>'}` : '';
-  renderQueryPanes(els.recordsList, els.recordsOffsetList, els.recordsOverList, mergedHtml + renderShipmentSection(rows));
+  renderQueryPanes(els.recordsList, els.recordsOffsetList, els.recordsOverList, mergedHtml + renderShipmentSection(rows), els.recordsReplacementList);
   void renderCloudFiles();
   els.recordsList.querySelectorAll('[data-expand]').forEach((button) => button.addEventListener('click', () => {
     const id = button.dataset.expand;
@@ -2797,12 +2847,16 @@ function handleQueryActionClick(event) {
   const overButton = event.target.closest('[data-revoke-over]');
   if (overButton) { revokeOverDelivery(overButton.dataset.revokeOver); return; }
   const offsetButton = event.target.closest('[data-revoke-offset]');
-  if (offsetButton) revokeOffset(offsetButton.dataset.revokeOffset);
+  if (offsetButton) { revokeOffset(offsetButton.dataset.revokeOffset); return; }
+  const replacementButton = event.target.closest('[data-revoke-replacement]');
+  if (replacementButton) revokeReplacement(replacementButton.dataset.revokeReplacement);
 }
 if (els.offsetHistory) els.offsetHistory.addEventListener('click', handleQueryActionClick);
 if (els.overHistory) els.overHistory.addEventListener('click', handleQueryActionClick);
 if (els.recordsOffsetList) els.recordsOffsetList.addEventListener('click', handleQueryActionClick);
 if (els.recordsOverList) els.recordsOverList.addEventListener('click', handleQueryActionClick);
+if (els.replacementHistory) els.replacementHistory.addEventListener('click', handleQueryActionClick);
+if (els.recordsReplacementList) els.recordsReplacementList.addEventListener('click', handleQueryActionClick);
 
 function handleCloudFileClick(event) {
   const formatButton = event.target.closest('[data-cloud-format]');

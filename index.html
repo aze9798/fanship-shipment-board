@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=80">
+  <link rel="stylesheet" href="./styles.css?v=81">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -246,6 +246,7 @@
             <button class="chip active" data-query-tab="shipments" type="button">发货记录</button>
             <button class="chip" data-query-tab="offsets" type="button">冲抵记录</button>
             <button class="chip" data-query-tab="overs" type="button">无订单发货记录</button>
+            <button class="chip" data-query-tab="replacements" type="button">补发记录</button>
           </div>
           <div class="history-tools" data-query-pane="shipments">
             <div class="history-tools-row">
@@ -271,6 +272,7 @@
             </div>
           </div>
           <div id="overHistory" class="shipment-history" data-query-pane="overs" hidden></div>
+          <div id="replacementHistory" class="shipment-history" data-query-pane="replacements" hidden></div>
         </section>
       </section>
 
@@ -394,6 +396,7 @@
             <button class="chip active" data-query-tab="shipments" type="button">发货记录</button>
             <button class="chip" data-query-tab="offsets" type="button">冲抵记录</button>
             <button class="chip" data-query-tab="overs" type="button">无订单发货</button>
+            <button class="chip" data-query-tab="replacements" type="button">补发记录</button>
           </div>
           <div class="remaining-tools" data-query-pane="shipments">
             <input id="recordsSearch" type="search" placeholder="搜索采购单号 / 物料编号 / 名称" autocomplete="off">
@@ -419,6 +422,7 @@
             </div>
           </div>
           <div id="recordsOverList" data-query-pane="overs" hidden></div>
+          <div id="recordsReplacementList" data-query-pane="replacements" hidden></div>
         </section>
         <section id="mobileFilesPanel" class="mobile-panel" hidden>
           <div class="remaining-tools">
@@ -522,7 +526,7 @@
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-  <script src="./app.js?v=80" type="module"></script>
+  <script src="./app.js?v=81" type="module"></script>
 </body>
 </html>
 
