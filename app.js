@@ -648,7 +648,12 @@ async function parsePdfOrder(file) {
       row.name = tidyText(named[1]);
       row.grossAmount = pdfNum(named[3]);
       const next = lines[i + 2] || '';
-      if (next && !PDF_ITEM_RE.test(next) && !next.includes('总和') && !next.includes('备注')) row.spec = tidyText(next);
+      const nextText = tidyText(next);
+      // 只认“纯编号型”图号（避免把 PDF 底部的条款文字当成图号，比如 “1. 订单 : …6Hrs…”）
+      const looksLikeSpec = nextText.length > 0 && nextText.length <= 40
+        && !/[\u4e00-\u9fa5：。，、；]/.test(nextText)
+        && !/\d+\s*Hrs/i.test(nextText);
+      if (next && !PDF_ITEM_RE.test(next) && !next.includes('总和') && !next.includes('备注') && looksLikeSpec) row.spec = nextText;
     }
     doc.items.push(row);
   }
