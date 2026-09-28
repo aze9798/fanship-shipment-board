@@ -168,6 +168,10 @@ let autoOffsetNote = '';
 let cartOpen = false;
 const sessionOver = new Map();
 
+// 本次装车里的补发（不良补货）：不扣未交，直接进送货单
+const sessionReplacements = [];
+let replacementPick = null;
+
 // 手工撤回过的冲抵：这条多送记录不再自动冲抵（本地立刻生效，云端也会记一笔）
 const MANUAL_OFFSET_SKIP_KEY = 'shipmentManualOffsetSkip';
 const manualOffsetSkip = new Set((() => {
@@ -176,6 +180,68 @@ const manualOffsetSkip = new Set((() => {
 
 function writeManualOffsetSkip() {
   try { localStorage.setItem(MANUAL_OFFSET_SKIP_KEY, JSON.stringify([...manualOffsetSkip])); } catch {}
+}
+
+function replacementTotalQty() {
+  return sessionReplacements.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+}
+
+// 搜索用：把所有出现过的物料都列出来（包括已交清、未交为 0 的，补发常用到）
+function replacementProducts(queryText) {
+  const query = String(queryText || '').trim().toLowerCase();
+  const map = new Map();
+  for (const order of (snapshot?.orders || [])) {
+    const key = [order.material, order.spec, order.customer].join('|');
+    if (!map.has(key)) {
+      map.set(key, { material: order.material, name: order.name, spec: order.spec, customer: order.customer });
+    }
+  }
+  const rows = [...map.values()];
+  if (!query) return rows.slice(0, 12);
+  return rows.filter((row) => [row.material, row.name, row.spec].join(' ').toLowerCase().includes(query)).slice(0, 20);
+}
+
+function renderReplacementSuggest() {
+  if (!els.replacementSuggest || !els.replacementSearch) return;
+  const rows = replacementProducts(els.replacementSearch.value);
+  if (!rows.length) { els.replacementSuggest.hidden = true; els.replacementSuggest.innerHTML = ''; return; }
+  els.replacementSuggest.innerHTML = rows.map((row) => `<button type="button" class="suggest-item" data-replacement-pick="${escapeHtml([row.material, row.name, row.spec, row.customer].join('|'))}">
+      <strong>${escapeHtml(row.material)}</strong>
+      <span>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</span>
+    </button>`).join('');
+  els.replacementSuggest.hidden = false;
+}
+
+function renderReplacementPicked() {
+  if (!els.replacementPicked) return;
+  if (!replacementPick) { els.replacementPicked.hidden = true; els.replacementPicked.innerHTML = ''; return; }
+  els.replacementPicked.hidden = false;
+  els.replacementPicked.innerHTML = `已选：<b>${escapeHtml(replacementPick.material)}</b> ${escapeHtml(replacementPick.name || '')}`
+    + `${replacementPick.spec ? ' · ' + escapeHtml(replacementPick.spec) : ''}`
+    + `${replacementPick.customer ? `（${escapeHtml(replacementPick.customer)}）` : ''}`;
+}
+
+function addReplacement() {
+  if (!replacementPick) { showToast('请先搜索并选择要补发的产品'); return; }
+  const quantity = Number(els.replacementQty?.value || 0);
+  if (!Number.isFinite(quantity) || quantity <= 0) { showToast('请填写补发数量'); return; }
+  const remark = String(els.replacementRemark?.value || '').trim();
+  sessionReplacements.push({
+    material: replacementPick.material,
+    name: replacementPick.name || '',
+    spec: replacementPick.spec || '',
+    customer: replacementPick.customer || '',
+    quantity,
+    remark,
+  });
+  replacementPick = null;
+  if (els.replacementQty) els.replacementQty.value = '';
+  if (els.replacementRemark) els.replacementRemark.value = '';
+  if (els.replacementSearch) els.replacementSearch.value = '';
+  renderReplacementPicked();
+  renderMobileSummary();
+  renderCart();
+  showToast(`已加入补发：${quantity} 件${remark ? '（备注：' + remark + '）' : ''}`);
 }
 
 function offsetSkipped(over) {
@@ -277,6 +343,15 @@ const els = {
   mobileFilters: $('#mobileFilters'),
   mobileOrderList: $('#mobileOrderList'),
   mobileAllocNotice: $('#mobileAllocNotice'),
+  replacementOpen: $('#replacementOpen'),
+  replacementBox: $('#replacementBox'),
+  replacementClose: $('#replacementClose'),
+  replacementSearch: $('#replacementSearch'),
+  replacementSuggest: $('#replacementSuggest'),
+  replacementPicked: $('#replacementPicked'),
+  replacementQty: $('#replacementQty'),
+  replacementRemark: $('#replacementRemark'),
+  replacementAdd: $('#replacementAdd'),
   mobileOffsetBox: $('#mobileOffsetBox'),
   mobileEmpty: $('#mobileEmpty'),
   mobileEntryPanel: $('#mobileEntryPanel'),
@@ -1396,8 +1471,9 @@ function renderMobileSummary() {
   const selectedQty = [...selected.values()].reduce((sum, value) => sum + Number(value || 0), 0);
   const pendingOverRows = [...sessionOver.values()].filter((item) => Number(item.quantity) > 0);
   const pendingOverQty = pendingOverRows.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  els.mobileSelectedQty.textContent = fmt(selectedQty + pendingOverQty);
-  els.mobileSelectedItems.textContent = `${selectedItems + pendingOverRows.length} 项物料`;
+  const replacementQty = replacementTotalQty();
+  els.mobileSelectedQty.textContent = fmt(selectedQty + pendingOverQty + replacementQty);
+  els.mobileSelectedItems.textContent = `${selectedItems + pendingOverRows.length + sessionReplacements.length} 项物料`;
   els.mobileRemainingQty.textContent = fmt(snapshot.summary.remainingQuantity);
 }
 
@@ -1752,9 +1828,17 @@ function renderCartDetail() {
         ? `<button type="button" class="cart-remove" data-cart-over-cancel="${escapeHtml(material)}">取消</button>`
         : `<button type="button" class="cart-remove" data-cart-over="${escapeHtml(item.id)}">撤回</button>`}
     </div>`).join('');
+  const replacementLines = sessionReplacements.map((item, index) => `<div class="cart-line replacement">
+      <div class="cart-line-info">
+        <strong>${escapeHtml(item.material)} ${escapeHtml(item.name || '')}</strong>
+        <span>补发 ${escapeHtml(item.spec || '')}${item.remark ? ' · 备注：' + escapeHtml(item.remark) : '（无备注）'}</span>
+      </div>
+      <strong class="cart-over-qty">${fmt(item.quantity)} 件</strong>
+      <button type="button" class="cart-remove" data-cart-replacement="${index}">取消</button>
+    </div>`).join('');
   els.cartDetail.innerHTML = `<div class="cart-detail-head"><strong>本次装车明细</strong>`
     + `<span>${entries.length} 项订单${overRows.length ? ` + ${overRows.length} 项无订单发货` : ''}，可直接改数量或取消</span></div>`
-    + lines + overLines;
+    + lines + replacementLines + overLines;
 }
 
 function renderCart() {
@@ -1762,9 +1846,10 @@ function renderCart() {
   const overRows = [...sessionOver.values()].filter((item) => Number(item.quantity) > 0);
   // 本次装车数量 = 有订单的部分 + 无订单发货的部分
   const quantity = entries.reduce((sum, [, value]) => sum + Number(value), 0)
-    + overRows.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    + overRows.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+    + replacementTotalQty();
   els.cartQty.textContent = fmt(quantity);
-  els.cartItems.textContent = fmt(entries.length + overRows.length);
+  els.cartItems.textContent = fmt(entries.length + overRows.length + sessionReplacements.length);
   const overCount = overRows.length;
   els.mobileCartBar.hidden = mobileTab !== 'entry' || (!entries.length && !overCount);
   renderCartDetail();
@@ -1938,10 +2023,12 @@ function openSubmitModal() {
   const orderTotal = entries.reduce((sum, [, quantity]) => sum + Number(quantity), 0);
   const overRows = [...sessionOver.values()].filter((item) => item.pending && Number(item.quantity) > 0);
   const overTotal = overRows.reduce((sum, item) => sum + Number(item.quantity), 0);
-  const total = orderTotal + overTotal;
+  const replacementQty = replacementTotalQty();
+  const total = orderTotal + overTotal + replacementQty;
   els.submitSummary.innerHTML = `
-    <div class="submit-summary-row"><span>本次物料</span><strong>${entries.length + overRows.length} 项</strong></div>
+    <div class="submit-summary-row"><span>本次物料</span><strong>${entries.length + overRows.length + sessionReplacements.length} 项</strong></div>
     <div class="submit-summary-row"><span>本次总数量</span><strong>${fmt(total)} 件</strong></div>
+    ${replacementQty ? `<div class="submit-summary-row"><span>其中补发</span><strong>${fmt(replacementQty)} 件（${sessionReplacements.length} 项，进送货单）</strong></div>` : ''}
     ${overTotal ? `<div class="submit-summary-row"><span>其中无订单发货</span><strong>${fmt(overTotal)} 件（提交时自动登记）</strong></div>` : ''}
     <div class="submit-summary-row"><span>提交后</span><strong>电脑端自动扣减未交</strong></div>`;
   els.submitModal.hidden = false;
@@ -2126,12 +2213,38 @@ async function submitShipment() {
         overFailed.push(material);
       }
     }
+    // 补发：逐条登记到云端（进送货单：订单号无、项次无，备注用填写的文字）
+    const replacementSaved = [];
+    const replacementFailed = [];
+    for (const item of [...sessionReplacements]) {
+      try {
+        const r = await callRpc('board_add_replacement', {
+          p_code: getAccessCode(),
+          p_payload: {
+            date: snapshot.today,
+            customer: item.customer,
+            material: item.material,
+            name: item.name,
+            spec: item.spec,
+            quantity: Number(item.quantity),
+            remark: item.remark,
+          },
+        });
+        if (!r.response.ok) throw new Error(r.data?.message || '补发登记失败');
+        replacementSaved.push(`${item.material} ${fmt(item.quantity)} 件`);
+        sessionReplacements.splice(sessionReplacements.indexOf(item), 1);
+      } catch (error) {
+        replacementFailed.push(item.material);
+      }
+    }
     selected.clear();
     els.shipmentForm.reset();
     closeSubmitModal();
     showSubmitError('');
     showToast(`${shipmentId} 已保存${reallocated ? '（已按最新未交重新分配）' : ''}${overSaved.length ? `，含无订单发货 ${overSaved.join('、')}` : ''}`);
     await loadState();
+    if (replacementSaved.length) showToast(`补发已登记：${replacementSaved.join('、')}`);
+    if (replacementFailed.length) showToast(`补发登记失败：${replacementFailed.join('、')}，请重新提交`);
     if (overFailed.length) showToast(`无订单发货登记失败：${overFailed.join('、')}，请在本次装车明细里重新提交`);
   } catch (error) {
     const raw = String(error.message || '提交失败');
@@ -2422,6 +2535,14 @@ if (els.cartDetail) {
       renderCart();
       return;
     }
+    const replacementRemove = event.target.closest('[data-cart-replacement]');
+    if (replacementRemove) {
+      const index = Number(replacementRemove.dataset.cartReplacement);
+      if (Number.isInteger(index) && index >= 0) sessionReplacements.splice(index, 1);
+      renderMobileSummary();
+      renderCart();
+      return;
+    }
     const overCancel = event.target.closest('[data-cart-over-cancel]');
     if (overCancel) {
       sessionOver.delete(String(overCancel.dataset.cartOverCancel || '').trim());
@@ -2470,6 +2591,32 @@ if (els.mobileOffsetBox) els.mobileOffsetBox.addEventListener('click', async (ev
     button.disabled = false;
   }
 });
+
+if (els.replacementOpen) els.replacementOpen.addEventListener('click', () => {
+  if (!els.replacementBox) return;
+  els.replacementBox.hidden = !els.replacementBox.hidden;
+  if (!els.replacementBox.hidden) {
+    renderReplacementSuggest();
+    els.replacementSearch?.focus();
+  }
+});
+if (els.replacementClose) els.replacementClose.addEventListener('click', () => {
+  if (els.replacementBox) els.replacementBox.hidden = true;
+  if (els.replacementSuggest) els.replacementSuggest.hidden = true;
+});
+if (els.replacementSearch) els.replacementSearch.addEventListener('input', renderReplacementSuggest);
+if (els.replacementSearch) els.replacementSearch.addEventListener('focus', renderReplacementSuggest);
+if (els.replacementSuggest) els.replacementSuggest.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-replacement-pick]');
+  if (!button) return;
+  const [material, name, spec, customer] = button.dataset.replacementPick.split('|');
+  replacementPick = { material, name, spec, customer };
+  els.replacementSuggest.hidden = true;
+  els.replacementSearch.value = '';
+  renderReplacementPicked();
+  els.replacementQty?.focus();
+});
+if (els.replacementAdd) els.replacementAdd.addEventListener('click', addReplacement);
 
 if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', (event) => {
   const button = event.target.closest('[data-over-cancel]');

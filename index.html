@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=67">
+  <link rel="stylesheet" href="./styles.css?v=68">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -344,6 +344,21 @@
               <input id="mobileSearch" type="search" placeholder="搜索物料编号、名称或规格" autocomplete="off">
             </label>
             <div id="mobileSuggest" class="suggest-list" hidden></div>
+            <button id="replacementOpen" class="button ghost replacement-open" type="button">＋ 补发（不良补货）</button>
+            <div id="replacementBox" class="replacement-box" hidden>
+              <div class="replacement-head">
+                <strong>补发登记</strong>
+                <button id="replacementClose" class="cart-remove" type="button">关闭</button>
+              </div>
+              <input id="replacementSearch" type="search" placeholder="搜索 物料编号 / 品名 / 图号" autocomplete="off">
+              <div id="replacementSuggest" class="suggest-list" hidden></div>
+              <div id="replacementPicked" class="replacement-picked" hidden></div>
+              <div class="replacement-form">
+                <input id="replacementQty" type="number" min="1" step="1" inputmode="numeric" placeholder="补发数量">
+                <input id="replacementRemark" type="text" placeholder="备注（写到送货单备注栏）">
+                <button id="replacementAdd" class="button primary" type="button">加入补发</button>
+              </div>
+            </div>
             <div id="mobileFilters" class="filter-chips">
               <button class="chip active" data-filter="active" type="button">全部未交</button>
               <button class="chip" data-filter="dueToday" type="button">今日到期</button>
@@ -509,7 +524,7 @@
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-  <script src="./app.js?v=67" type="module"></script>
+  <script src="./app.js?v=68" type="module"></script>
 </body>
 </html>
 
