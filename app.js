@@ -835,9 +835,11 @@ function renderDeliveryFiles(dateFilter, queryText) {
         <div class="over-row file-row">
           <span>${escapeHtml(row.fileName)}${row.kind ? ` · ${escapeHtml(row.kind)}` : ''}${row.noteCount ? ` · ${fmt(row.noteCount)} 张` : ''}</span>
           <button type="button" class="file-download" data-file-id="${escapeHtml(row.id)}">下载 ${String(row.fileName || '').toLowerCase().endsWith('.pdf') ? 'PDF' : 'Excel'}</button>
-          ${isLockedRecord(row.createdAt)
-            ? '<span class="row-locked" title="上传满 7 天后不能再撤回">已归档</span>'
-            : `<button type="button" class="row-revoke" data-file-delete="${escapeHtml(row.id)}" title="删除这份云端文件，删掉后可以重新上传">撤回</button>`}
+          ${/\.pdf$/i.test(String(row.fileName || ''))
+            ? ''   // PDF 不提供单独撤回，删同批次的 Excel 时会一起删掉
+            : (isLockedRecord(row.createdAt)
+              ? '<span class="row-locked" title="上传满 7 天后不能再撤回">已归档</span>'
+              : `<button type="button" class="row-revoke" data-file-delete="${escapeHtml(row.id)}" title="撤回这份 Excel（同批次的 PDF 会一起撤回）">撤回</button>`)}
         </div>`).join('')
         : '<p class="over-tip">这几天还没有上传送货单，或换个日期/搜索词再找。</p>'}
     </section>`;
@@ -846,7 +848,11 @@ function renderDeliveryFiles(dateFilter, queryText) {
 async function deleteDeliveryFile(id, button) {
   const row = deliveryFiles().find((item) => String(item.id) === String(id));
   const name = row ? row.fileName : '这份文件';
-  if (!window.confirm(`要把云端送货单「${name}」撤回吗？\n撤回后可以重新生成再上传。`)) return;
+  const isPdf = /\.pdf$/i.test(name);
+  const mates = isPdf ? [] : deliveryFiles().filter((item) => String(item.deliveryDate) === String(row?.deliveryDate)
+    && String(item.batch) === String(row?.batch) && /\.pdf$/i.test(String(item.fileName || '')));
+  const mateText = mates.length ? `\n同批次的 PDF（${mates.map((m) => m.fileName).join('、')}）也会一起撤回。` : '';
+  if (!window.confirm(`要把云端送货单「${name}」撤回吗？${mateText}\n撤回后可以重新生成再上传。`)) return;
   if (row && isLockedRecord(row.createdAt)) {
     showToast('这份送货单上传已满 7 天，不能再撤回');
     return;
@@ -855,7 +861,10 @@ async function deleteDeliveryFile(id, button) {
   try {
     const result = await callRpc('board_delete_delivery_file', { p_code: getAccessCode(), p_id: id });
     if (!result.response.ok) throw new Error(result.data?.message || '撤回失败');
-    showToast(`已撤回 ${name}，可以重新上传`);
+    for (const mate of mates) {
+      try { await callRpc('board_delete_delivery_file', { p_code: getAccessCode(), p_id: mate.id }); } catch {}
+    }
+    showToast(`已撤回 ${name}${mates.length ? `（连同 ${mates.length} 个 PDF）` : ''}，可以重新上传`);
     await loadState({ quiet: true });
     renderAll();
   } catch (error) {
