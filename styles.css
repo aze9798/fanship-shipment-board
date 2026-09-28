@@ -1393,3 +1393,13 @@ body[data-view="mobile"] { background: #dfe7e9; }
 #replacementSuggest .suggest-item:hover { background: #f2f8f8 !important; }
 #replacementSuggest .suggest-item strong { color: #17333b; font-size: 13px; }
 #replacementSuggest .suggest-item span { color: #7c8f95; font-size: 11px; }
+
+/* ===== 手机端输入框字号改成 16px：避免 iOS 点搜索框自动放大整个页面 ===== */
+@media (max-width: 900px) {
+  input, select, textarea,
+  .mobile-search input, .mobile-search span,
+  #replacementSearch, #replacementQty, #replacementRemark,
+  .remaining-tools input, .remaining-tools select, .history-tools input {
+    font-size: 16px !important;
+  }
+}
