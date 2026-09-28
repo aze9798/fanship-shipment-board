@@ -22,6 +22,8 @@ async function loadBoardRole() {
       boardCanSeeAmount = cached === 'admin';
     }
   } catch { }
+  // 本地记住的模式是准的（只有点“切换访问码”才会改），联网只用来首次确认
+  if (localStorage.getItem('shipmentBoardRole')) { applyRoleUI(); return; }
   if (!RPC_BASE) return;
   const code = getAccessCode();
   if (!code) return;
