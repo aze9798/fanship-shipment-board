@@ -1033,7 +1033,16 @@ async function openDrawing(id) {
   const win = window.open('', '_blank');
   try {
     const result = await callRpc('board_get_drawing', { p_code: getAccessCode(), p_id: id });
-    if (!result.response.ok || !result.data?.contentBase64) throw new Error(result.data?.message || '图纸读取失败');
+    if (!result.response.ok) throw new Error(result.data?.message || '图纸读取失败');
+    if (result.data?.storagePath) {
+      const origin = (window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
+      const encodedPath = String(result.data.storagePath).split('/').map(encodeURIComponent).join('/');
+      const url = `${origin}/storage/v1/object/public/product-drawings/${encodedPath}`;
+      if (win) win.location = url;
+      else window.open(url, '_blank');
+      return;
+    }
+    if (!result.data?.contentBase64) throw new Error(result.data?.message || '图纸读取失败');
     const binary = atob(String(result.data.contentBase64));
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
