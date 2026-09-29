@@ -1,4 +1,4 @@
-﻿let TODAY = '2026-09-22';
+let TODAY = '2026-09-22';
 const view = /\/mobile\/?$/.test(location.pathname) || new URLSearchParams(location.search).get('view') === 'mobile' ? 'mobile' : 'desktop';
 const functionMarker = '/functions/v1/';
 const functionMarkerIndex = location.pathname.indexOf(functionMarker);
@@ -795,6 +795,7 @@ function closePdfModal() {
 }
 
 function renderPdfPreview(docs) {
+  const showAmounts = boardRole === 'admin' && boardCanSeeAmount;
   const existing = new Set(snapshot.orders.map((o) => String(o.po || '').trim()));
   const rows = [];
   const blocks = docs.map((doc) => {
@@ -803,7 +804,7 @@ function renderPdfPreview(docs) {
     if (doc.poFromFile) warnings.push('采购单号取自文件名，请核对一下');
     if (doc.error) problems.push(doc.error);
     if (!doc.po) problems.push('读不到采购单号');
-    if (doc.pdfTotal != null && Math.abs(doc.amountTotal - doc.pdfTotal) > 0.02) {
+    if (showAmounts && doc.pdfTotal != null && Math.abs(doc.amountTotal - doc.pdfTotal) > 0.02) {
       problems.push(`金额对不上：明细算出 ${doc.amountTotal}，PDF 合计 ${doc.pdfTotal}`);
     }
     const company = /科技/.test(doc.vendor || '') ? '4137' : (/制品厂/.test(doc.vendor || '') ? '4074' : '');
@@ -814,8 +815,8 @@ function renderPdfPreview(docs) {
       for (const item of doc.items) {
         const id = `${doc.po}#${String(item.seq).padStart(3, '0')}`;
         // 单价变动提醒：和系统里已有的同明细单价对比
-        const old = amountFor(id);
-        if (old && old.unitPrice != null && item.unitPrice != null && Math.abs(Number(old.unitPrice) - Number(item.unitPrice)) > 0.0001) {
+        const old = showAmounts ? amountFor(id) : null;
+        if (showAmounts && old && old.unitPrice != null && item.unitPrice != null && Math.abs(Number(old.unitPrice) - Number(item.unitPrice)) > 0.0001) {
           const diff = Number(item.unitPrice) - Number(old.unitPrice);
           const pct = Number(old.unitPrice) ? Math.round((diff / Number(old.unitPrice)) * 1000) / 10 : 0;
           priceNotes.push(`${item.material} 单价 ${old.unitPrice} → ${item.unitPrice}（${diff > 0 ? '+' : ''}${pct}%）`);
@@ -833,7 +834,7 @@ function renderPdfPreview(docs) {
     <div class="pdf-doc${b.problems.length ? ' bad' : b.duplicated ? ' dup' : ''}">
       <div class="pdf-doc-head">
         <strong>${escapeHtml(b.doc.po || b.doc.file)}</strong>
-        <span>${b.company ? (b.company === '4137' ? '帆顺金属科技' : '帆顺金属(老)') : '公司未知'} · ${b.doc.items.length} 行 · 数量 ${fmt(b.doc.qtyTotal)} · 含税金额 ${fmt(b.doc.amountTotal)} · 单价 ${fmt(b.doc.items[0]?.unitPrice)}${b.doc.pdfTotal != null ? ` / PDF ${fmt(b.doc.pdfTotal)}` : ''}</span>
+        <span>${b.company ? (b.company === '4137' ? '帆顺金属科技' : '帆顺金属(老)') : '公司未知'} · ${b.doc.items.length} 行 · 数量 ${fmt(b.doc.qtyTotal)}${showAmounts ? ` · 含税金额 ${fmt(b.doc.amountTotal)} · 单价 ${fmt(b.doc.items[0]?.unitPrice)}${b.doc.pdfTotal != null ? ` / PDF ${fmt(b.doc.pdfTotal)}` : ''}` : ''}</span>
       </div>
       ${b.duplicated ? '<div class="pdf-note">系统里已有这个采购单号，将跳过</div>' : ''}
       ${(b.warnings || []).map((w) => `<div class="pdf-note">${escapeHtml(w)}</div>`).join('')}
@@ -850,6 +851,10 @@ function renderPdfPreview(docs) {
 
 async function confirmPdfImport() {
   if (!pendingPdfRows.length) return;
+  if (boardRole !== 'admin') {
+    showToast('含单价金额的信息请使用管理员模式网址导入');
+    return;
+  }
   if (!RPC_BASE) {
     showToast('这个页面不是云端版，导入不了新订单。请用云端地址打开看板再导入。');
     return;
@@ -1374,7 +1379,7 @@ function renderAll() {
     : `生成于 ${snapshot.source.generatedAt}`;
   els.resetButton.hidden = Boolean(snapshot.storage?.cloud);
   if (els.importButton) els.importButton.hidden = !RPC_BASE;
-  if (els.pdfImportButton) els.pdfImportButton.hidden = !RPC_BASE;
+  if (els.pdfImportButton) els.pdfImportButton.hidden = !RPC_BASE || boardRole !== 'admin';
 }
 
 function renderDesktopMetrics() {
@@ -3155,7 +3160,13 @@ if (window.pdfjsLib) {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 }
 if (els.pdfImportButton && els.pdfFileInput) {
-  els.pdfImportButton.addEventListener('click', () => els.pdfFileInput.click());
+  els.pdfImportButton.addEventListener('click', () => {
+    if (boardRole !== 'admin') {
+      showToast('含单价金额的信息请使用管理员模式网址导入');
+      return;
+    }
+    els.pdfFileInput.click();
+  });
   els.pdfFileInput.addEventListener('change', (event) => handlePdfFiles(event.target.files));
 }
 if (els.confirmPdf) els.confirmPdf.addEventListener('click', confirmPdfImport);
@@ -3223,6 +3234,7 @@ await loadBoardRole();
 await loadMarkMaterials();
 await loadState();
 connectEvents();
+
 
 
 
