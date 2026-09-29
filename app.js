@@ -247,6 +247,8 @@ let overDate = '';
 let cloudFileFormat = 'excel';
 let cloudFileCompany = '艾沃意特';   // 云端送货单：再按公司分开   // 云端送货单：pdf / excel 分开看
 let filesQuery = '';
+let drawingQuery = '';
+let drawingCategory = 'all';
 let filesDate = '';
 let mobileFilesQuery = '';
 let mobileFilesDate = '';
@@ -491,6 +493,9 @@ const els = {
   mobileBrandTitle: $('#mobileBrandTitle'),
   switchCodeButton: $('#switchCodeButton'),
   mobileSwitchCode: $('#mobileSwitchCode'),
+  drawingSearch: $('#drawingSearch'),
+  drawingCategoryTabs: $('#drawingCategoryTabs'),
+  drawingList: $('#drawingList'),
 };
 
 const escapeHtml = (value) => String(value ?? '')
@@ -658,22 +663,24 @@ async function loadState({ quiet = false } = {}) {
     if (!response.ok) throw new Error('数据加载失败');
     const nextSnapshot = await response.json();
     // 并行拉取，避免一个个排队等（页面卡顿的主因）
-    const [amounts, overDeliveries, overOffsets, deliveryFiles, replacements] = await Promise.all([
+    const [amounts, overDeliveries, overOffsets, deliveryFiles, replacements, drawings] = await Promise.all([
       boardRole === 'admin' ? loadAmounts() : Promise.resolve([]),
       loadOverDeliveries(),
       loadOverOffsets(),
       loadDeliveryFiles(),
       loadReplacements(),
-      loadBilledStatus(),
+      loadBilledStatus().then(() => loadDrawings()),
     ]);
     nextSnapshot.amounts = amounts;
     nextSnapshot.overDeliveries = overDeliveries;
     nextSnapshot.overOffsets = overOffsets;
     nextSnapshot.deliveryFiles = deliveryFiles;
     nextSnapshot.replacements = replacements;
+    nextSnapshot.drawings = drawings;
     const changed = !snapshot || nextSnapshot.revision !== snapshot.revision;
     snapshot = nextSnapshot;
     rebuildAmountMap();
+    rebuildDrawingMap();
     if (snapshot.today) TODAY = snapshot.today;
     reconcileSelection();
     if (!quiet || changed) renderAll();
@@ -733,7 +740,11 @@ async function parsePdfOrder(file) {
   const text = lines.join('\n');
   // pdf.js 常把“采购单号 : PN01-…”抽成冒号前带空格，先统一成紧贴冒号再识别
   const flat = text.replace(/[ \t]*([:：])[ \t]*/g, '$1').replace(/[ \t]+/g, ' ');
-  const doc = { file: file.name, po: null, purchaseDate: null, vendor: null, pdfTotal: null, items: [], error: '', warnings: [], poFromFile: false };
+  const doc = { file: file.name, po: null, purchaseDate: null, vendor: null, pdfTotal: null, items: [], error: '', warnings: [], poFromFile: false, orderType: 'normal' };
+  const orderTypeText = `${flat}\n${lines.join(' ')}`;
+  if (/工装/.test(orderTypeText)) doc.orderType = 'tooling';
+  else if (/试制/.test(orderTypeText)) doc.orderType = 'trial';
+  else if (/承样|样品|带承样资料/.test(orderTypeText)) doc.orderType = 'sample';
   let m = flat.match(/采购单号[:：]\s*(\S+)/); doc.po = m ? m[1].trim() : null;
   if (!doc.po) {
     // 读不到表头单号时，用文件名兜底（采购订单 PDF 的文件名就是单号）
@@ -861,7 +872,7 @@ function renderPdfPreview(docs) {
           const pct = Number(old.unitPrice) ? Math.round((diff / Number(old.unitPrice)) * 1000) / 10 : 0;
           priceNotes.push(`${item.material} 单价 ${old.unitPrice} → ${item.unitPrice}（${diff > 0 ? '+' : ''}${pct}%）`);
         }
-        rows.push({ id, customer: company, po: doc.po, purchaseDate: doc.purchaseDate, seq: item.seq, material: item.material, name: item.name, spec: item.spec, orderQty: item.quantity, openingRemaining: item.quantity, dueDate: item.dueDate, unitPrice: item.unitPrice });
+        rows.push({ id, customer: company, po: doc.po, purchaseDate: doc.purchaseDate, seq: item.seq, material: item.material, name: item.name, spec: item.spec, orderQty: item.quantity, openingRemaining: item.quantity, dueDate: item.dueDate, unitPrice: item.unitPrice, orderType: doc.orderType });
       }
     }
     if (priceNotes.length) warnings.push('单价有变动：' + priceNotes.slice(0, 5).join('；') + (priceNotes.length > 5 ? ` 等 ${priceNotes.length} 处` : ''));
@@ -905,6 +916,13 @@ async function confirmPdfImport() {
     const result = await callRpc('board_add_orders', { p_code: getAccessCode(), p_orders: pendingPdfRows });
     if (!result.response.ok) throw new Error(result.data?.message || '导入失败');
     const count = Number(result.data?.count || pendingPdfRows.length);
+    // 订单类别：试制 / 承样 / 工装（只对特殊类别多调用一次设置接口）
+    for (const row of pendingPdfRows) {
+      if (!row.orderType || row.orderType === 'normal') continue;
+      try {
+        await callRpc('board_set_order_type', { p_code: getAccessCode(), p_order_id: row.id, p_order_type: row.orderType });
+      } catch { }
+    }
     // 把 PDF 里的含税单价写进云端（管理码专属），并刷新订单总额
     if (boardRole === 'admin') {
       let priced = 0;
@@ -939,6 +957,17 @@ async function loadAmounts() {
   } catch { return []; }
 }
 
+async function loadDrawings() {
+  if (!RPC_BASE) return [];
+  const code = getAccessCode();
+  if (!code) return [];
+  try {
+    const r = await callRpc('board_get_drawings', { p_code: code });
+    if (!r.response.ok) return [];
+    return Array.isArray(r.data) ? r.data : [];
+  } catch { return []; }
+}
+
 let amountMap = new Map();
 
 function currentAssetVersion() {
@@ -966,6 +995,56 @@ function applyRoleUI() {
 function rebuildAmountMap() {
   const rows = (snapshot && Array.isArray(snapshot.amounts)) ? snapshot.amounts : [];
   amountMap = new Map(rows.map((row) => [String(row.orderId), row]));
+}
+
+let drawingMap = new Map();
+
+function rebuildDrawingMap() {
+  const rows = (snapshot && Array.isArray(snapshot.drawings)) ? snapshot.drawings : [];
+  drawingMap = new Map();
+  const put = (key, row) => { if (!drawingMap.has(key)) drawingMap.set(key, row); };
+  for (const row of rows) {
+    const material = String(row.material || '').trim();
+    const spec = String(row.spec || '').trim();
+    const category = String(row.category || 'formal');
+    put(`${material}\u0000${spec}\u0000${category}`, row);
+    put(`${material}\u0000\u0000${category}`, row);
+    put(`${material}\u0000${spec}\u0000formal`, row);
+    put(`${material}\u0000\u0000formal`, row);
+    put(`${material}\u0000${spec}`, row);
+    put(`${material}\u0000`, row);
+  }
+}
+
+function drawingFor(order) {
+  const material = String(order.material || '').trim();
+  const spec = String(order.spec || '').trim();
+  const category = ({ trial: 'trial', sample: 'sample', tooling: 'tooling' })[order.orderType] || 'formal';
+  return drawingMap.get(`${material}\u0000${spec}\u0000${category}`)
+    || drawingMap.get(`${material}\u0000\u0000${category}`)
+    || drawingMap.get(`${material}\u0000${spec}\u0000formal`)
+    || drawingMap.get(`${material}\u0000\u0000formal`)
+    || drawingMap.get(`${material}\u0000${spec}`)
+    || drawingMap.get(`${material}\u0000`)
+    || null;
+}
+
+async function openDrawing(id) {
+  const win = window.open('', '_blank');
+  try {
+    const result = await callRpc('board_get_drawing', { p_code: getAccessCode(), p_id: id });
+    if (!result.response.ok || !result.data?.contentBase64) throw new Error(result.data?.message || '图纸读取失败');
+    const binary = atob(String(result.data.contentBase64));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    if (win) win.location = url;
+    else window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (error) {
+    if (win) win.close();
+    showToast(error.message || '图纸打开失败');
+  }
 }
 
 function amountFor(orderId) {
@@ -1092,6 +1171,26 @@ async function revokeReplacement(id) {
 
 function deliveryFiles() {
   return (snapshot && Array.isArray(snapshot.deliveryFiles)) ? snapshot.deliveryFiles : [];
+}
+
+function drawingCategoryLabel(category) {
+  return ({ trial: '试制图纸', sample: '承样图纸', tooling: '工装图纸', formal: '正式图纸' })[category] || '正式图纸';
+}
+
+function renderDesktopDrawings() {
+  if (!els.drawingList) return;
+  const query = drawingQuery.trim().toLowerCase();
+  const rows = (snapshot?.drawings || []).filter((row) => {
+    if (drawingCategory !== 'all' && String(row.category || 'formal') !== drawingCategory) return false;
+    if (!query) return true;
+    return [row.material, row.name, row.spec, row.fileName].join(' ').toLowerCase().includes(query);
+  });
+  els.drawingList.innerHTML = rows.length ? rows.map((row) => `
+    <div class="over-row drawing-row">
+      <span class="mono">${escapeHtml(row.material)}</span>
+      <span>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}<br><em>${escapeHtml(drawingCategoryLabel(row.category))} · ${escapeHtml(row.fileName || '')}</em></span>
+      <button type="button" class="file-download" data-drawing-id="${escapeHtml(row.id)}">查看图纸</button>
+    </div>`).join('') : '<div class="empty-state"><strong>没有匹配的图纸</strong><span>试试输入料号、品名、图号或文件名。</span></div>';
 }
 
 // 云端送货单：独立页面（电脑端一个页面、手机端一个标签），Excel 和 PDF 各一份
@@ -1425,6 +1524,7 @@ function showDesktopView(name) {
     remaining: document.getElementById('desktopRemainingView'),
     shipments: document.getElementById('desktopShipmentsView'),
     files: document.getElementById('desktopFilesView'),
+    drawings: document.getElementById('desktopDrawingsView'),
   };
   if (!pages.overview || !pages.shipments) return;
   const target = pages[name] ? name : 'overview';
@@ -1437,6 +1537,7 @@ function showDesktopView(name) {
   if (target === 'remaining') renderDesktopRemaining();
   if (target === 'shipments') renderDesktopHistory();
   if (target === 'files') renderCloudFiles();
+  if (target === 'drawings') renderDesktopDrawings();
   window.scrollTo({ top: 0 });
 }
 
@@ -1451,6 +1552,7 @@ function renderAll() {
   refreshRemainingViews();
   renderMobileRecords();
   renderCloudFiles();
+  renderDesktopDrawings();
   renderCart();
   els.sourceTitle.textContent = snapshot.storage?.label || '现有计划表导入';
   const roleTag = boardRole === 'admin' ? '管理码（可看金额）' : '普通码';
@@ -1554,10 +1656,11 @@ function renderDesktopTable() {
   const rows = desktopRows();
   els.desktopTableBody.innerHTML = rows.map((order) => {
     const badge = dueBadge(order);
+    const typeLabel = ({ trial: '试制', sample: '承样', tooling: '工装' })[order.orderType] || '';
     return `
       <tr>
-        <td><span class="order-id">${escapeHtml(order.po)}</span><span class="company-tag" title="${escapeHtml(companyName(orderCompany(order)))}">${escapeHtml(orderCompany(order) || '—')}</span>${(() => { const am = amountFor(order.id); return boardRole === 'admin' && am && am.orderAmount != null ? `<span class="amount-line">单总 ${fmt(am.orderAmount)}</span>` : ''; })()}</td>
-        <td><span class="material-code mono">${escapeHtml(order.material)}</span>${(() => { const info = materialSummary(order); return info.count > 1 ? `<span class="material-total-tag" title="同一物料编号所有采购单合计未交">共${fmt(info.total)}/${info.count}单</span>` : ''; })()}</td>
+        <td><span class="order-id">${escapeHtml(order.po)}</span><span class="company-tag" title="${escapeHtml(companyName(orderCompany(order)))}">${escapeHtml(orderCompany(order) || '—')}</span>${typeLabel ? `<span class="order-type-tag">${typeLabel}</span>` : ''}${(() => { const am = amountFor(order.id); return boardRole === 'admin' && am && am.orderAmount != null ? `<span class="amount-line">单总 ${fmt(am.orderAmount)}</span>` : ''; })()}</td>
+        <td><span class="material-code mono">${escapeHtml(order.material)}</span>${(() => { const info = materialSummary(order); return info.count > 1 ? `<span class="material-total-tag" title="同一物料编号所有采购单合计未交">共${fmt(info.total)}/${info.count}单</span>` : ''; })()}${(() => { const d = drawingFor(order); return d ? `<button type="button" class="drawing-link" data-drawing-id="${escapeHtml(d.id)}">图纸</button>` : ''; })()}</td>
         <td><span class="item-name">${escapeHtml(order.name)}</span></td>
         <td><span class="spec-code mono">${escapeHtml(order.spec || '—')}</span></td>
         <td class="number">${escapeHtml(order.seq)}</td>
@@ -1759,8 +1862,8 @@ function orderCard(order) {
       ${selectedQuantity ? `<span class="selected-tag">已选 ${fmt(selectedQuantity)}</span>` : ''}
       <div class="card-top">
         <div class="order-title">
-          <strong>${escapeHtml(order.name)}</strong>
-          <span class="mono">${escapeHtml(order.material)} · ${escapeHtml(order.spec)}</span>
+          <strong>${escapeHtml(order.name)}</strong>${(() => { const t = ({ trial: '试制', sample: '承样', tooling: '工装' })[order.orderType]; return t ? `<span class="order-type-tag">${t}</span>` : ''; })()}
+          <span class="mono">${escapeHtml(order.material)} · ${escapeHtml(order.spec)}${(() => { const d = drawingFor(order); return d ? ` <button type="button" class="drawing-link" data-drawing-id="${escapeHtml(d.id)}">图纸</button>` : ''; })()}</span>
           <span>${escapeHtml(order.po)} · 项次 ${escapeHtml(order.seq)}</span>
         </div>
         <span class="due-badge ${badge.className}">${escapeHtml(badge.text)}</span>
@@ -3054,6 +3157,14 @@ document.querySelectorAll('[data-desktop-view]').forEach((link) => {
 });
 
 if (els.filesSearch) els.filesSearch.addEventListener('input', (event) => { filesQuery = event.target.value; renderCloudFiles(); });
+if (els.drawingSearch) els.drawingSearch.addEventListener('input', (event) => { drawingQuery = event.target.value; renderDesktopDrawings(); });
+if (els.drawingCategoryTabs) els.drawingCategoryTabs.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-drawing-category]');
+  if (!button) return;
+  drawingCategory = button.dataset.drawingCategory;
+  els.drawingCategoryTabs.querySelectorAll('[data-drawing-category]').forEach((x) => x.classList.toggle('active', x === button));
+  renderDesktopDrawings();
+});
 if (els.filesDate) els.filesDate.addEventListener('change', (event) => { filesDate = event.target.value; renderCloudFiles(); });
 if (els.filesClear) els.filesClear.addEventListener('click', () => { filesDate = ''; if (els.filesDate) els.filesDate.value = ''; renderCloudFiles(); });
 if (els.mobileFilesSearch) els.mobileFilesSearch.addEventListener('input', (event) => { mobileFilesQuery = event.target.value; renderCloudFiles(); });
@@ -3147,6 +3258,15 @@ function handleCloudFileClick(event) {
 }
 if (els.cloudFileList) els.cloudFileList.addEventListener('click', handleCloudFileClick);
 if (els.mobileCloudFileList) els.mobileCloudFileList.addEventListener('click', handleCloudFileClick);
+document.addEventListener('click', (event) => {
+  const drawingButton = event.target.closest('[data-drawing-id]');
+  if (drawingButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    openDrawing(drawingButton.dataset.drawingId);
+  }
+});
+
 els.mobileOrderList.addEventListener('click', (event) => {
   const button = event.target.closest('[data-action]');
   if (!button || button.dataset.action === 'input') return;

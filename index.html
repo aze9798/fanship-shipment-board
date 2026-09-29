@@ -13,7 +13,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=f4b2a7ce126e">
+  <link rel="stylesheet" href="./styles.css?v=b63ca48fcdfc">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -42,6 +42,10 @@
         <a class="side-link" href="#query" data-desktop-view="shipments">
           <span class="nav-dot"></span>
           查询
+        </a>
+        <a class="side-link" href="#drawings" data-desktop-view="drawings">
+          <span class="nav-dot"></span>
+          图纸
         </a>
         <a class="side-link" href="#delivery-files" data-desktop-view="files">
           <span class="nav-dot"></span>
@@ -275,6 +279,32 @@
           </div>
           <div id="overHistory" class="shipment-history" data-query-pane="overs" hidden></div>
           <div id="replacementHistory" class="shipment-history" data-query-pane="replacements" hidden></div>
+        </section>
+      </section>
+
+      <section id="desktopDrawingsView" class="desktop-view desktop-only" hidden>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">产品资料库</p>
+            <h1>图纸</h1>
+            <p class="subhead">按试制、承样、工装、正式图纸分类；可按料号、品名、图号或文件名搜索。</p>
+          </div>
+        </header>
+        <section class="panel">
+          <div class="drawing-toolbar">
+            <label class="search-box drawing-search">
+              <span class="tool-icon" aria-hidden="true">⌕</span>
+              <input id="drawingSearch" type="search" placeholder="搜索料号 / 品名 / 图号 / 文件名" autocomplete="off">
+            </label>
+            <div id="drawingCategoryTabs" class="file-format-tabs drawing-tabs">
+              <button class="chip active" data-drawing-category="all" type="button">全部图纸</button>
+              <button class="chip" data-drawing-category="trial" type="button">试制图纸</button>
+              <button class="chip" data-drawing-category="sample" type="button">承样图纸</button>
+              <button class="chip" data-drawing-category="tooling" type="button">工装图纸</button>
+              <button class="chip" data-drawing-category="formal" type="button">正式图纸</button>
+            </div>
+          </div>
+          <div id="drawingList" class="drawing-list"></div>
         </section>
       </section>
 
@@ -531,7 +561,7 @@
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
     <script>
     (() => {
-      const fallbackVersion = "f4b2a7ce126e";
+      const fallbackVersion = "b63ca48fcdfc";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);

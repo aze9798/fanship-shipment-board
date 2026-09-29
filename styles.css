@@ -1426,3 +1426,15 @@ body[data-view="mobile"] { background: #dfe7e9; }
 
 /* 左下角：版本 + 当前模式 */
 .mode-badge { display: block; margin-top: 6px; color: #7fb7ae; font-size: 10px; }
+
+/* 产品图纸入口 */
+.drawing-link { margin-left: 6px; padding: 1px 6px; border: 1px solid #9fd5cf; border-radius: 6px; color: #0f766e; background: #eefaf8; font: inherit; font-size: 10px; font-weight: 700; cursor: pointer; vertical-align: middle; }
+.drawing-link:hover { background: #dff4f0; }
+.order-type-tag { display: inline-block; margin-left: 5px; padding: 1px 5px; border: 1px solid #e0b96b; border-radius: 6px; color: #946314; background: #fff8e8; font-size: 9px; font-weight: 700; vertical-align: middle; }
+
+/* 图纸库 */
+.drawing-toolbar { display: grid; gap: 12px; margin-bottom: 12px; }
+.drawing-search { max-width: 520px; }
+.drawing-tabs { flex-wrap: wrap; }
+.drawing-row { grid-template-columns: 140px 1fr auto; }
+@media (max-width: 720px) { .drawing-row { grid-template-columns: 1fr auto; } .drawing-row > span:nth-child(2) { grid-column: 1 / -1; order: 2; } .drawing-row > button { order: 3; } }
