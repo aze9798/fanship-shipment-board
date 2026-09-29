@@ -4,13 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0d2a33">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>发货实时看板</title>
   <script>
     window.SHIPMENT_RPC_BASE = "https://dkbeigqtiilgxthwkixg.supabase.co/rest/v1/rpc";
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=324bc67b9a76">
+  <link rel="stylesheet" href="./styles.css?v=f4b2a7ce126e">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -528,7 +531,7 @@
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
     <script>
     (() => {
-      const fallbackVersion = "324bc67b9a76";
+      const fallbackVersion = "f4b2a7ce126e";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);

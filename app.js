@@ -1860,13 +1860,15 @@ function groupRemainingRows(rows) {
   for (const order of rows) {
     const material = String(order.material || '').trim();
     const name = String(order.name || '').trim();
-    const key = `${material}\u0000${name}`;
+    const spec = String(order.spec || '').trim();
+    // 打印/导出只按物料编号合并；名称和图号仅用于展示。
+    const key = material || `${name}\u0000${spec}`;
     let group = groups.get(key);
     if (!group) {
       group = {
         key,
         material,
-        name,
+        names: new Set(),
         specs: new Set(),
         dates: new Set(),
         companies: new Set(),
@@ -1876,9 +1878,9 @@ function groupRemainingRows(rows) {
       };
       groups.set(key, group);
     }
-    const spec = String(order.spec || '').trim();
     const dueDate = String(order.dueDate || '').trim();
     const company = String(order.customer || '').trim();
+    if (name) group.names.add(name);
     if (spec) group.specs.add(spec);
     if (dueDate) group.dates.add(dueDate);
     if (company) group.companies.add(company);
@@ -1888,6 +1890,8 @@ function groupRemainingRows(rows) {
   return [...groups.values()]
     .map((group) => ({
       ...group,
+      name: [...group.names].sort().join('、'),
+      names: [...group.names].sort(),
       specs: [...group.specs].sort(),
       dates: [...group.dates].sort(),
       companies: [...group.companies].sort(),
