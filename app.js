@@ -279,15 +279,46 @@ function replacementTotalQty() {
 function replacementProducts(queryText) {
   const query = String(queryText || '').trim().toLowerCase();
   const map = new Map();
+  const orderById = new Map();
+  const put = (row) => {
+    const material = String(row.material || '').trim();
+    if (!material) return;
+    const spec = String(row.spec || '').trim();
+    const key = material + '|' + spec;
+    const current = map.get(key) || {};
+    map.set(key, {
+      material: current.material || material,
+      name: current.name || String(row.name || '').trim(),
+      spec: current.spec || spec,
+      customer: current.customer || String(row.customer || '').trim(),
+    });
+  };
+
+  // 补发不只针对未交订单，系统里所有历史订单、发货、无订单发货和补发记录都纳入检索。
   for (const order of (snapshot?.orders || [])) {
-    const key = [String(order.material || '').trim(), String(order.spec || '').trim()].join('|');
-    if (!map.has(key)) {
-      map.set(key, { material: order.material, name: order.name, spec: order.spec, customer: order.customer });
+    orderById.set(String(order.id || ''), order);
+    put(order);
+  }
+  for (const shipment of (snapshot?.shipments || [])) {
+    for (const item of (shipment.items || [])) {
+      const order = orderById.get(String(item.orderId || ''));
+      put({
+        material: item.material,
+        name: item.name || order?.name,
+        spec: item.spec || order?.spec,
+        customer: shipment.customer || order?.customer,
+      });
     }
   }
-  const rows = [...map.values()];
-  if (!query) return rows.slice(0, 12);
-  return rows.filter((row) => [row.material, row.name, row.spec].join(' ').toLowerCase().includes(query)).slice(0, 20);
+  for (const row of (snapshot?.overDeliveries || [])) put(row);
+  for (const row of (snapshot?.overOffsets || [])) put(row);
+  for (const row of (snapshot?.replacements || [])) put(row);
+
+  const rows = [...map.values()].sort((a, b) =>
+    String(a.material || '').localeCompare(String(b.material || ''), 'zh-CN')
+    || String(a.spec || '').localeCompare(String(b.spec || ''), 'zh-CN'));
+  if (!query) return rows.slice(0, 20);
+  return rows.filter((row) => [row.material, row.name, row.spec].join(' ').toLowerCase().includes(query)).slice(0, 50);
 }
 
 function renderReplacementSuggest() {
@@ -496,6 +527,7 @@ const els = {
   drawingSearch: $('#drawingSearch'),
   drawingCategoryTabs: $('#drawingCategoryTabs'),
   drawingList: $('#drawingList'),
+  drawingCount: $('#drawingCount'),
 };
 
 const escapeHtml = (value) => String(value ?? '')
@@ -1186,20 +1218,52 @@ function drawingCategoryLabel(category) {
   return ({ trial: '试制图纸', sample: '承样图纸', tooling: '工装图纸', formal: '正式图纸' })[category] || '正式图纸';
 }
 
+function drawingCategoryIcon(category) {
+  const icon = ({
+    trial: '<path d="M9 3h6"></path><path d="M10 3v5.7L5.2 17a2 2 0 0 0 1.7 3h10.2a2 2 0 0 0 1.7-3L14 8.7V3"></path><path d="M8.2 14h7.6"></path>',
+    sample: '<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M4 7.5 12 12l8-4.5"></path><path d="M12 12v9"></path>',
+    tooling: '<path d="M14.7 6.3a4 4 0 0 0-5 5L4 17l3 3 5.7-5.7a4 4 0 0 0 5-5l-2.3 2.3-2.7-.7-.7-2.7z"></path>',
+    formal: '<path d="M7 3h6l4 4v14H7z"></path><path d="M13 3v5h5"></path><path d="m9.5 15 1.6 1.6 3.4-3.6"></path>',
+  })[category] || '<path d="M7 3h6l4 4v14H7z"></path><path d="M13 3v5h5"></path>';
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`;
+}
+
 function renderDesktopDrawings() {
   if (!els.drawingList) return;
   const query = drawingQuery.trim().toLowerCase();
+  const rank = { formal: 0, trial: 1, sample: 2, tooling: 3 };
   const rows = (snapshot?.drawings || []).filter((row) => {
     if (drawingCategory !== 'all' && String(row.category || 'formal') !== drawingCategory) return false;
     if (!query) return true;
     return [row.material, row.name, row.spec, row.fileName].join(' ').toLowerCase().includes(query);
+  }).sort((a, b) => {
+    const ac = String(a.category || 'formal');
+    const bc = String(b.category || 'formal');
+    return (rank[ac] ?? 9) - (rank[bc] ?? 9)
+      || String(a.material || '').localeCompare(String(b.material || ''), 'zh-CN')
+      || String(a.spec || '').localeCompare(String(b.spec || ''), 'zh-CN');
   });
-  els.drawingList.innerHTML = rows.length ? rows.map((row) => `
-    <div class="over-row drawing-row">
-      <span class="mono">${escapeHtml(row.material)}</span>
-      <span>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}<br><em>${escapeHtml(drawingCategoryLabel(row.category))} · ${escapeHtml(row.fileName || '')}</em></span>
-      <button type="button" class="file-download" data-drawing-id="${escapeHtml(row.id)}">查看图纸</button>
-    </div>`).join('') : '<div class="empty-state"><strong>没有匹配的图纸</strong><span>试试输入料号、品名、图号或文件名。</span></div>';
+  if (els.drawingCount) els.drawingCount.textContent = `${rows.length} 份图纸`;
+  els.drawingList.innerHTML = rows.length ? `
+    <div class="drawing-list-head" aria-hidden="true"><span>料号</span><span>图纸名称 / 规格</span><span>操作</span></div>
+    ${rows.map((row) => {
+      const category = String(row.category || 'formal');
+      const label = drawingCategoryLabel(category);
+      const fileName = String(row.fileName || '');
+      return `
+        <div class="drawing-row" data-category="${escapeHtml(category)}">
+          <span class="drawing-material mono">${escapeHtml(row.material)}</span>
+          <div class="drawing-main" title="${escapeHtml(`${label} · ${fileName}`)}">
+            <span class="drawing-type-icon" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${drawingCategoryIcon(category)}</span>
+            <span class="drawing-name">${escapeHtml(row.name || '未命名图纸')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</span>
+          </div>
+          <button type="button" class="file-download drawing-open" data-drawing-id="${escapeHtml(row.id)}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h8l4 4v16H6z"></path><path d="M14 2v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg>
+            <span>查看图纸</span>
+          </button>
+        </div>`;
+    }).join('')}
+  ` : '<div class="empty-state"><strong>没有匹配的图纸</strong><span>试试输入料号、品名、图号或文件名。</span></div>';
 }
 
 // 云端送货单：独立页面（电脑端一个页面、手机端一个标签），Excel 和 PDF 各一份

@@ -13,7 +13,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=30457b57a3aa">
+  <link rel="stylesheet" href="./styles.css?v=8455b37a9e4e">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -75,7 +75,6 @@
           <div>
             <p class="eyebrow">艾沃意特 · 实时未交</p>
             <h1>发货计划总览</h1>
-            <p class="subhead">手机录入发货数量，电脑端自动扣减未交。</p>
           </div>
           <div class="topbar-actions">
             <button id="pdfImportButton" class="button primary" type="button">导入采购订单 PDF</button>
@@ -235,7 +234,6 @@
         <header class="topbar">
           <div>
             <h1>查询</h1>
-            <p class="subhead">发货记录 / 冲抵记录 / 无订单发货记录，分类查看。</p>
           </div>
           <div class="topbar-actions">
             <button id="generateDeliveryNote" class="button primary" type="button">生成送货单</button>
@@ -283,25 +281,29 @@
       </section>
 
       <section id="desktopDrawingsView" class="desktop-view desktop-only" hidden>
-        <header class="topbar">
+        <header class="topbar drawings-topbar">
           <div>
             <p class="eyebrow">产品资料库</p>
             <h1>图纸</h1>
-            <p class="subhead">按试制、承样、工装、正式图纸分类；可按料号、品名、图号或文件名搜索。</p>
           </div>
         </header>
-        <section class="panel">
+        <section class="panel drawings-panel">
           <div class="drawing-toolbar">
             <label class="search-box drawing-search">
-              <span class="tool-icon" aria-hidden="true">⌕</span>
+              <span class="tool-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.3"></circle><path d="m15.6 15.6 4.1 4.1"></path></svg>
+              </span>
               <input id="drawingSearch" type="search" placeholder="搜索料号 / 品名 / 图号 / 文件名" autocomplete="off">
             </label>
-            <div id="drawingCategoryTabs" class="file-format-tabs drawing-tabs">
-              <button class="chip active" data-drawing-category="all" type="button">全部图纸</button>
-              <button class="chip" data-drawing-category="trial" type="button">试制图纸</button>
-              <button class="chip" data-drawing-category="sample" type="button">承样图纸</button>
-              <button class="chip" data-drawing-category="tooling" type="button">工装图纸</button>
-              <button class="chip" data-drawing-category="formal" type="button">正式图纸</button>
+            <div class="drawing-toolbar-right">
+              <span id="drawingCount" class="drawing-count">0 份图纸</span>
+              <div id="drawingCategoryTabs" class="file-format-tabs drawing-tabs">
+                <button class="chip active" data-drawing-category="all" type="button">全部图纸</button>
+                <button class="chip" data-drawing-category="formal" type="button">正式图纸</button>
+                <button class="chip" data-drawing-category="trial" type="button">试制图纸</button>
+                <button class="chip" data-drawing-category="sample" type="button">承样图纸</button>
+                <button class="chip" data-drawing-category="tooling" type="button">工装图纸</button>
+              </div>
             </div>
           </div>
           <div id="drawingList" class="drawing-list"></div>
@@ -309,7 +311,7 @@
       </section>
 
       <section id="desktopFilesView" class="desktop-view desktop-only" hidden>
-        <header class="topbar">
+        <header class="topbar files-topbar">
           <div>
             <p class="eyebrow">送货单存档</p>
             <h1>云端送货单</h1>
@@ -561,7 +563,7 @@
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
     <script>
     (() => {
-      const fallbackVersion = "30457b57a3aa";
+      const fallbackVersion = "8455b37a9e4e";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
