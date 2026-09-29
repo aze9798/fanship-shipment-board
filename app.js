@@ -16,6 +16,18 @@ const MODE_KEY_SUFFIX = BOARD_MODE ? ':' + BOARD_MODE : '';
 const ACCESS_CODE_STORAGE_KEY = ACCESS_CODE_KEY + MODE_KEY_SUFFIX;
 const ROLE_STORAGE_KEY = 'shipmentBoardRole' + MODE_KEY_SUFFIX;
 const PRINT_HELPER_BASE = 'http://127.0.0.1:8790';
+
+function syncMobileEntryLink() {
+  const link = document.getElementById('mobileEntryLink');
+  if (!link) return;
+  try {
+    const url = new URL(link.getAttribute('href'), location.href);
+    url.searchParams.set('view', 'mobile');
+    url.searchParams.set('mode', BOARD_MODE || 'user');
+    link.href = url.toString();
+  } catch { }
+}
+
 let deliveryPlan = null;
 let boardRole = 'user';            // user=普通，admin=管理（可看金额）
 let boardCanSeeAmount = false;
@@ -3304,6 +3316,7 @@ function setupRpcExportLink() {
   }
 }
 
+syncMobileEntryLink();
 applyDesktopColumnWidths();
 setupDesktopColumnResize();
 setupRpcExportLink();
