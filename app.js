@@ -732,28 +732,51 @@ async function parsePdfOrder(file) {
     if (vendorLine) doc.vendor = vendorLine[1];
   }
   m = flat.match(/含税金额总和[:：]\s*([\d,]+(?:\.\d+)?)/); doc.pdfTotal = m ? pdfNum(m[1]) : null;
+  const isLikelyContinuation = (line) => {
+    const text = tidyText(line);
+    if (!text) return false;
+    if (/采购单号|采购日期|供货厂商|公司地址|公司电话|单据时间|页码|合计|备注/.test(text)) return false;
+    if (/^[1-6]\.\s*/.test(text)) return false;
+    if (/\d+\s*Hrs/i.test(text)) return false;
+    return true;
+  };
   for (let i = 0; i < lines.length; i += 1) {
     const item = lines[i].match(PDF_ITEM_RE);
     if (!item) continue;
     const row = { seq: Number(item[1]), material: item[2], dueDate: pdfIso(item[3]), quantity: pdfNum(item[4]), netAmount: pdfNum(item[7]), name: '', spec: '', grossAmount: null, unitPrice: null, grossUnitPrice: null };
-    const named = (lines[i + 1] || '').match(PDF_NAME_RE);
+    let named = null;
+    let namedIndex = -1;
+    // 明细第二行可能被分页到下一页顶部，不能只看固定下一行。
+    for (let j = i + 1; j < lines.length && j <= i + 18; j += 1) {
+      const candidate = lines[j] || '';
+      if (PDF_ITEM_RE.test(candidate)) break;
+      const maybe = candidate.match(PDF_NAME_RE);
+      if (maybe) { named = maybe; namedIndex = j; break; }
+    }
     if (named) {
       row.name = tidyText(named[1]);
       row.grossAmount = pdfNum(named[3]);
       row.grossUnitPrice = pdfNum(named[2]);   // 含税单价
       row.unitPrice = row.grossUnitPrice;
-      const next = lines[i + 2] || '';
-      const nextText = tidyText(next);
-      // 只认“纯编号型”图号（避免把 PDF 底部的条款文字当成图号，比如 “1. 订单 : …6Hrs…”）
-      const looksLikeSpec = nextText.length > 0 && nextText.length <= 40
-        && !/[\u4e00-\u9fa5：。，、；]/.test(nextText)
-        && !/\d+\s*Hrs/i.test(nextText);
-      if (next && !PDF_ITEM_RE.test(next) && !next.includes('总和') && !next.includes('备注') && looksLikeSpec) row.spec = nextText;
+      let next = '';
+      for (let j = namedIndex + 1; j < lines.length && j <= namedIndex + 14; j += 1) {
+        const candidate = lines[j] || '';
+        if (PDF_ITEM_RE.test(candidate)) break;
+        if (!isLikelyContinuation(candidate)) continue;
+        const nextText = tidyText(candidate);
+        // 只认“纯编号型”图号，避免把条款或页头当图号。
+        const looksLikeSpec = nextText.length > 0 && nextText.length <= 40
+          && !/[\u4e00-\u9fa5：。，、；]/.test(nextText)
+          && !/\d+\s*Hrs/i.test(nextText);
+        if (looksLikeSpec) { next = candidate; row.spec = nextText; break; }
+      }
     }
     doc.items.push(row);
   }
   doc.qtyTotal = doc.items.reduce((sum, x) => sum + x.quantity, 0);
   doc.amountTotal = Math.round(doc.items.reduce((sum, x) => sum + (x.grossAmount != null ? x.grossAmount : x.netAmount * 1.13), 0) * 100) / 100;
+  const missingAmounts = doc.items.filter((x) => x.grossAmount == null).length;
+  if (missingAmounts) doc.warnings.push(`有 ${missingAmounts} 行没有读到含税金额，请核对`);
   if (!doc.items.length) doc.error = '没有识别到明细行';
   return doc;
 }
