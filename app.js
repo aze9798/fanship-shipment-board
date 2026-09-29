@@ -2693,7 +2693,7 @@ function renderDeliveryPlan(plan) {
           ${note.items.map((line) => `
             <div class="delivery-note-line">
               <span>${escapeHtml(line.po)} · 项次 ${escapeHtml(line.seq)}</span>
-              <span>${escapeHtml(line.material)} · ${escapeHtml(line.name)} · ${escapeHtml(line.spec || '—')}</span>
+              <span>${escapeHtml(line.material)} · ${escapeHtml(line.name)} · ${escapeHtml(line.spec || '—')}${line.remark ? ' · 备注：' + escapeHtml(line.remark) : ''}</span>
               <strong>${fmt(line.quantity)} 件</strong>
             </div>`).join('')}
         </div>
