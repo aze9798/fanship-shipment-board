@@ -227,6 +227,7 @@ let mobileFilter = 'active';
 let mobileTab = 'entry';
 let desktopFilter = 'active';
 let desktopCompany = 'all';
+let desktopOrderType = 'all';
 let remainingSearch = '';
 let desktopRemainingSearch = '';
 const remainingDates = new Set();
@@ -418,6 +419,7 @@ const els = {
   desktopFilter: $('#desktopFilter'),
   desktopSuggest: $('#desktopSuggest'),
   desktopCompanyFilter: $('#desktopCompanyFilter'),
+  desktopOrderTypeFilter: $('#desktopOrderTypeFilter'),
   desktopDueSelect: $('#desktopDueSelect'),
   desktopDueBox: $('#desktopDueBox'),
   desktopDueDate: $('#desktopDueDate'),
@@ -604,6 +606,7 @@ function matchDueFilter(order, filter, customDate) {
 function desktopDueRows() {
   let rows = filteredOrders('active');
   if (desktopCompany !== 'all') rows = rows.filter((order) => orderCompany(order) === desktopCompany);
+  if (desktopOrderType !== 'all') rows = rows.filter((order) => String(order.orderType || 'normal') === desktopOrderType);
   rows = rows.filter((order) => matchDueFilter(order, desktopDueFilter, desktopDueDate));
   return rows;
 }
@@ -2994,6 +2997,7 @@ if (els.desktopSuggest) {
   });
 }
 els.desktopCompanyFilter.addEventListener('change', (event) => { desktopCompany = event.target.value; renderDesktopTable(); });
+if (els.desktopOrderTypeFilter) els.desktopOrderTypeFilter.addEventListener('change', (event) => { desktopOrderType = event.target.value; renderDesktopTable(); });
 if (els.desktopDueSelect) els.desktopDueSelect.addEventListener('change', (event) => {
   desktopDueFilter = event.target.value;
   if (desktopDueFilter !== 'custom') desktopDueDate = '';
