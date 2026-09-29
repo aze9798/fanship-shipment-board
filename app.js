@@ -969,6 +969,21 @@ function isBilledExtra(id) {
 }
 
 async function loadBilledStatus() {
+  // 优先读云端。这样换电脑、手机打开同一网址也能看到“已开单”。
+  if (RPC_BASE) {
+    const accessCode = getAccessCode();
+    if (accessCode) {
+      try {
+        const result = await callRpc('board_get_billed_status', { p_code: accessCode });
+        if (result.response.ok && result.data) {
+          billedShipmentIds = new Set((result.data.shipments || []).map((value) => String(value)));
+          billedExtraIds = new Set((result.data.extras || []).map((value) => String(value)));
+          return;
+        }
+      } catch { }
+    }
+  }
+  // 云端接口尚未安装时，退回本机打印助手。
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 1800);
   try {
@@ -978,7 +993,7 @@ async function loadBilledStatus() {
     billedShipmentIds = new Set((data.shipments || []).map((value) => String(value)));
     billedExtraIds = new Set((data.extras || []).map((value) => String(value)));
   } catch {
-    // 打印助手未运行时不影响看板加载，撤回按钮仍按原逻辑显示。
+    // 云端和本机都不可用时，不影响看板其他功能。
   } finally {
     clearTimeout(timer);
   }
