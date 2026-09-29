@@ -13,7 +13,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=7a04e397ac91">
+  <link rel="stylesheet" href="./styles.css?v=7885fe96f779">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -113,8 +113,7 @@
               <div id="desktopSuggest" class="suggest-list desktop-suggest" hidden></div>
               <label class="select-box">
                 <select id="desktopOrderTypeFilter">
-                  <option value="all">全部订单</option>
-                  <option value="trial">试制订单</option>
+                  <option value="trial" selected>试制订单</option>
                   <option value="sample">承样订单</option>
                   <option value="tooling">工装订单</option>
                 </select>
@@ -188,12 +187,6 @@
           </div>
         </header>
         <section class="panel desktop-remaining-panel">
-          <div class="panel-head compact">
-            <div>
-              <h2>未交清单</h2>
-              <p id="desktopRemainingSummary">按交期多选后可生成打印清单</p>
-            </div>
-          </div>
           <div class="desktop-remaining-tools">
             <label class="search-box">
               <span class="tool-icon" aria-hidden="true">⌕</span>
@@ -571,7 +564,7 @@
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
     <script>
     (() => {
-      const fallbackVersion = "7a04e397ac91";
+      const fallbackVersion = "7885fe96f779";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);

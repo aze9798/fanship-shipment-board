@@ -227,7 +227,7 @@ let mobileFilter = 'active';
 let mobileTab = 'entry';
 let desktopFilter = 'active';
 let desktopCompany = 'all';
-let desktopOrderType = 'all';
+let desktopOrderType = 'trial';
 let remainingSearch = '';
 let desktopRemainingSearch = '';
 const remainingDates = new Set();
@@ -770,16 +770,30 @@ async function pdfToLines(file) {
   return lines;
 }
 
+function detectPdfOrderType(lines, fileName) {
+  const firstItem = lines.findIndex((line) => PDF_ITEM_RE.test(line));
+  const headerEnd = firstItem > 0 ? Math.min(lines.length, firstItem + 8) : Math.min(lines.length, 18);
+  const header = [String(fileName || ''), ...lines.slice(0, headerEnd)].join(' ');
+  if (/工装/.test(header)) return 'tooling';
+  if (/试制/.test(header)) return 'trial';
+  if (/承样|样品采购单|样品订单|带承样资料/.test(header)) return 'sample';
+
+  const legalStart = lines.findIndex((line, index) => index > firstItem && /^\s*1[.．、]\s*订单/.test(line));
+  const bodyEnd = legalStart > firstItem ? legalStart : lines.length;
+  const body = lines.slice(Math.max(0, firstItem), bodyEnd).join(' ');
+  if (/工装/.test(body)) return 'tooling';
+  if (/试制/.test(body)) return 'trial';
+  if (/承样|带承样资料/.test(body)) return 'sample';
+  return 'normal';
+}
+
 async function parsePdfOrder(file) {
   const lines = await pdfToLines(file);
   const text = lines.join('\n');
   // pdf.js 常把“采购单号 : PN01-…”抽成冒号前带空格，先统一成紧贴冒号再识别
   const flat = text.replace(/[ \t]*([:：])[ \t]*/g, '$1').replace(/[ \t]+/g, ' ');
   const doc = { file: file.name, po: null, purchaseDate: null, vendor: null, pdfTotal: null, items: [], error: '', warnings: [], poFromFile: false, orderType: 'normal' };
-  const orderTypeText = `${flat}\n${lines.join(' ')}`;
-  if (/工装/.test(orderTypeText)) doc.orderType = 'tooling';
-  else if (/试制/.test(orderTypeText)) doc.orderType = 'trial';
-  else if (/承样|样品|带承样资料/.test(orderTypeText)) doc.orderType = 'sample';
+  doc.orderType = detectPdfOrderType(lines, file.name);
   let m = flat.match(/采购单号[:：]\s*(\S+)/); doc.po = m ? m[1].trim() : null;
   if (!doc.po) {
     // 读不到表头单号时，用文件名兜底（采购订单 PDF 的文件名就是单号）
@@ -841,6 +855,7 @@ async function parsePdfOrder(file) {
 }
 
 let pendingPdfRows = [];
+let pendingPdfDocs = [];
 
 // 选择 PDF 后：逐个识别 -> 弹出核对窗口
 async function handlePdfFiles(fileList) {
@@ -874,13 +889,15 @@ function closePdfModal() {
   if (els.pdfModal) els.pdfModal.hidden = true;
   if (els.pdfFileInput) els.pdfFileInput.value = '';
   pendingPdfRows = [];
+  pendingPdfDocs = [];
 }
 
 function renderPdfPreview(docs) {
   const showAmounts = boardRole === 'admin' && boardCanSeeAmount;
   const existing = new Set(snapshot.orders.map((o) => String(o.po || '').trim()));
   const rows = [];
-  const blocks = docs.map((doc) => {
+  pendingPdfDocs = docs;
+  const blocks = docs.map((doc, docIndex) => {
     const problems = [];
     const warnings = [];
     if (doc.poFromFile) warnings.push('采购单号取自文件名，请核对一下');
@@ -907,7 +924,7 @@ function renderPdfPreview(docs) {
           const pct = Number(old.unitPrice) ? Math.round((diff / Number(old.unitPrice)) * 1000) / 10 : 0;
           priceNotes.push(`${item.material} 单价 ${old.unitPrice} → ${item.unitPrice}（${diff > 0 ? '+' : ''}${pct}%）`);
         }
-        rows.push({ id, customer: company, po: doc.po, purchaseDate: doc.purchaseDate, seq: item.seq, material: item.material, name: item.name, spec: item.spec, orderQty: item.quantity, openingRemaining: item.quantity, dueDate: item.dueDate, unitPrice: item.unitPrice, orderType: doc.orderType });
+        rows.push({ id, customer: company, po: doc.po, purchaseDate: doc.purchaseDate, seq: item.seq, material: item.material, name: item.name, spec: item.spec, orderQty: item.quantity, openingRemaining: item.quantity, dueDate: item.dueDate, unitPrice: item.unitPrice, orderType: doc.orderType, pdfDocIndex: docIndex });
       }
     }
     if (priceNotes.length) warnings.push('单价有变动：' + priceNotes.slice(0, 5).join('；') + (priceNotes.length > 5 ? ` 等 ${priceNotes.length} 处` : ''));
@@ -916,12 +933,21 @@ function renderPdfPreview(docs) {
   pendingPdfRows = rows;
   const totalQty = rows.reduce((sum, r) => sum + r.openingRemaining, 0);
   const bad = blocks.filter((b) => b.problems.length);
-  const html = blocks.map((b) => `
+  const html = blocks.map((b, docIndex) => `
     <div class="pdf-doc${b.problems.length ? ' bad' : b.duplicated ? ' dup' : ''}">
       <div class="pdf-doc-head">
         <strong>${escapeHtml(b.doc.po || b.doc.file)}</strong>
         <span>${b.company ? (b.company === '4137' ? '帆顺金属科技' : '帆顺金属(老)') : '公司未知'} · ${b.doc.items.length} 行 · 数量 ${fmt(b.doc.qtyTotal)}${showAmounts ? ` · 含税金额 ${fmt(b.doc.amountTotal)} · 单价 ${fmt(b.doc.items[0]?.unitPrice)}${b.doc.pdfTotal != null ? ` / PDF ${fmt(b.doc.pdfTotal)}` : ''}` : ''}</span>
       </div>
+      <label class="pdf-type-field">
+        <span>订单类别</span>
+        <select data-pdf-order-type="${docIndex}">
+          <option value="normal"${b.doc.orderType === 'normal' ? ' selected' : ''}>普通订单</option>
+          <option value="trial"${b.doc.orderType === 'trial' ? ' selected' : ''}>试制订单</option>
+          <option value="sample"${b.doc.orderType === 'sample' ? ' selected' : ''}>承样订单</option>
+          <option value="tooling"${b.doc.orderType === 'tooling' ? ' selected' : ''}>工装订单</option>
+        </select>
+      </label>
       ${b.duplicated ? '<div class="pdf-note">系统里已有这个采购单号，将跳过</div>' : ''}
       ${(b.warnings || []).map((w) => `<div class="pdf-note">${escapeHtml(w)}</div>`).join('')}
       ${b.problems.map((p) => `<div class="pdf-note bad">${escapeHtml(p)}</div>`).join('')}
@@ -3460,6 +3486,17 @@ if (els.pdfImportButton && els.pdfFileInput) {
   });
   els.pdfFileInput.addEventListener('change', (event) => handlePdfFiles(event.target.files));
 }
+if (els.pdfPreview) els.pdfPreview.addEventListener('change', (event) => {
+  const select = event.target.closest('[data-pdf-order-type]');
+  if (!select) return;
+  const index = Number(select.dataset.pdfOrderType);
+  const doc = pendingPdfDocs[index];
+  if (!doc) return;
+  doc.orderType = select.value;
+  for (const row of pendingPdfRows) {
+    if (Number(row.pdfDocIndex) === index) row.orderType = select.value;
+  }
+});
 if (els.confirmPdf) els.confirmPdf.addEventListener('click', confirmPdfImport);
 if (els.cancelPdf) els.cancelPdf.addEventListener('click', closePdfModal);
 if (els.closePdfModal) els.closePdfModal.addEventListener('click', closePdfModal);
