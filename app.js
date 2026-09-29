@@ -385,6 +385,7 @@ let autoOffsetRunning = false;
 const isBangfanName = (name) => /护栏|护脚栏/.test(String(name || ''));
 let eventSource = null;
 let refreshing = false;
+let stateLoadFailures = 0;
 let pendingImportOrders = null;
 
 const els = {
@@ -723,13 +724,16 @@ async function loadState({ quiet = false } = {}) {
     nextSnapshot.drawings = drawings;
     const changed = !snapshot || nextSnapshot.revision !== snapshot.revision;
     snapshot = nextSnapshot;
+    stateLoadFailures = 0;
+    setLiveStatus('online');
     rebuildAmountMap();
     rebuildDrawingMap();
     if (snapshot.today) TODAY = snapshot.today;
     reconcileSelection();
     if (!quiet || changed) renderAll();
   } catch (error) {
-    setLiveStatus('offline');
+    stateLoadFailures += 1;
+    setLiveStatus(stateLoadFailures >= 2 ? 'offline' : 'connecting');
     if (!quiet) showToast(error.message || '数据加载失败');
   } finally {
     refreshing = false;
