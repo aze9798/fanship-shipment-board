@@ -12,8 +12,8 @@
     window.SHIPMENT_RPC_BASE = "https://dkbeigqtiilgxthwkixg.supabase.co/rest/v1/rpc";
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=20d1941ac7fc">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -590,24 +590,7 @@
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-    <script>
-    (() => {
-      const fallbackVersion = "20d1941ac7fc";
-      const stylesheet = document.querySelector('link[href*="styles.css"]');
-      const start = (version) => {
-        const safeVersion = encodeURIComponent(version || fallbackVersion);
-        if (stylesheet) stylesheet.href = './styles.css?v=' + safeVersion;
-        const script = document.createElement('script');
-        script.type = 'module';
-        script.src = './app.js?v=' + safeVersion;
-        document.body.appendChild(script);
-      };
-      fetch('./version.json?t=' + Date.now(), { cache: 'no-store' })
-        .then((response) => response.ok ? response.json() : Promise.reject(new Error('version unavailable')))
-        .then((data) => start(data && data.version))
-        .catch(() => start(fallbackVersion));
-    })();
-  </script>
+  <script src="app.js" type="module"></script>
 </body>
 </html>
 
