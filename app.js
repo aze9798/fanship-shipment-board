@@ -227,7 +227,7 @@ let mobileFilter = 'active';
 let mobileTab = 'entry';
 let desktopFilter = 'active';
 let desktopCompany = 'all';
-let desktopOrderType = 'trial';
+let desktopOrderType = '';
 let remainingSearch = '';
 let desktopRemainingSearch = '';
 const remainingDates = new Set();
@@ -606,7 +606,7 @@ function matchDueFilter(order, filter, customDate) {
 function desktopDueRows() {
   let rows = filteredOrders('active');
   if (desktopCompany !== 'all') rows = rows.filter((order) => orderCompany(order) === desktopCompany);
-  if (desktopOrderType !== 'all') rows = rows.filter((order) => String(order.orderType || 'normal') === desktopOrderType);
+  if (desktopOrderType && desktopOrderType !== 'all') rows = rows.filter((order) => String(order.orderType || 'normal') === desktopOrderType);
   rows = rows.filter((order) => matchDueFilter(order, desktopDueFilter, desktopDueDate));
   return rows;
 }

@@ -13,7 +13,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=7fb6190ae095">
+  <link rel="stylesheet" href="./styles.css?v=4603851a2951">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -113,7 +113,8 @@
               <div id="desktopSuggest" class="suggest-list desktop-suggest" hidden></div>
               <label class="select-box">
                 <select id="desktopOrderTypeFilter">
-                  <option value="trial" selected>试制订单</option>
+                  <option value="" selected>订单类型</option>
+                  <option value="trial">试制订单</option>
                   <option value="sample">承样订单</option>
                   <option value="tooling">工装订单</option>
                 </select>
@@ -564,7 +565,7 @@
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
     <script>
     (() => {
-      const fallbackVersion = "7fb6190ae095";
+      const fallbackVersion = "4603851a2951";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
