@@ -13,7 +13,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=4603851a2951">
+  <link rel="stylesheet" href="./styles.css?v=c474bc575209">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -560,12 +560,39 @@
       </div>
     </section>
   </div>
+  <div id="orderEditModal" class="modal-backdrop" hidden>
+    <section class="modal-card order-edit-card" role="dialog" aria-modal="true" aria-labelledby="orderEditTitle">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow">管理码功能</p>
+          <h2 id="orderEditTitle">变更订单数量 / 交期</h2>
+        </div>
+        <button id="orderEditClose" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <div id="orderEditInfo" class="order-edit-info"></div>
+      <div class="form-grid order-edit-form">
+        <label>
+          <span>订单数量</span>
+          <input id="orderEditQty" type="number" min="0.01" step="0.01" inputmode="decimal">
+        </label>
+        <label>
+          <span>交货日期</span>
+          <input id="orderEditDue" type="date">
+        </label>
+      </div>
+      <div id="orderEditError" class="form-error" hidden></div>
+      <div class="modal-actions">
+        <button id="orderEditCancel" class="button ghost" type="button">取消</button>
+        <button id="orderEditSave" class="button primary" type="button">保存变更</button>
+      </div>
+    </section>
+  </div>
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
     <script>
     (() => {
-      const fallbackVersion = "4603851a2951";
+      const fallbackVersion = "c474bc575209";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);

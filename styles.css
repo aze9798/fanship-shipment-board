@@ -1666,3 +1666,33 @@ body[data-view="mobile"] { background: #dfe7e9; }
   font: inherit;
   font-size: 12px;
 }
+.order-edit-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border: 1px solid #b9dcd6;
+  border-radius: 7px;
+  background: #eefaf8;
+  color: #0f766e;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.order-edit-link:hover { border-color: #0f766e; background: #dff4f0; }
+.order-edit-link.mobile { margin: 6px 0 0; padding: 5px 10px; font-size: 11px; }
+.order-edit-card { max-width: 480px; }
+.order-edit-info {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #eef7f5;
+  color: #587178;
+  font-size: 12px;
+}
+.order-edit-info strong { color: #163a42; font-size: 14px; }
+.order-edit-form { margin-top: 14px; }

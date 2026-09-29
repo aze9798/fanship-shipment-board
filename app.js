@@ -261,6 +261,7 @@ const sessionOver = new Map();
 // 本次装车里的补发（不良补货）：不扣未交，直接进送货单
 const sessionReplacements = [];
 let replacementPick = null;
+let editingOrderId = '';
 
 // 手工撤回过的冲抵：这条多送记录不再自动冲抵（本地立刻生效，云端也会记一笔）
 const MANUAL_OFFSET_SKIP_KEY = 'shipmentManualOffsetSkip';
@@ -522,6 +523,14 @@ const els = {
   refreshDeliveryPreview: $('#refreshDeliveryPreview'),
   printDeliveryNotes: $('#printDeliveryNotes'),
   toast: $('#toast'),
+  orderEditModal: $('#orderEditModal'),
+  orderEditInfo: $('#orderEditInfo'),
+  orderEditQty: $('#orderEditQty'),
+  orderEditDue: $('#orderEditDue'),
+  orderEditError: $('#orderEditError'),
+  orderEditClose: $('#orderEditClose'),
+  orderEditCancel: $('#orderEditCancel'),
+  orderEditSave: $('#orderEditSave'),
   brandTitle: $('#brandTitle'),
   mobileBrandTitle: $('#mobileBrandTitle'),
   switchCodeButton: $('#switchCodeButton'),
@@ -1761,7 +1770,7 @@ function renderDesktopTable() {
     const typeLabel = ({ trial: '试制', sample: '承样', tooling: '工装' })[order.orderType] || '';
     return `
       <tr>
-        <td><span class="order-id">${escapeHtml(order.po)}</span><span class="company-tag" title="${escapeHtml(companyName(orderCompany(order)))}">${escapeHtml(orderCompany(order) || '—')}</span>${typeLabel ? `<span class="order-type-tag">${typeLabel}</span>` : ''}${(() => { const am = amountFor(order.id); return boardRole === 'admin' && am && am.orderAmount != null ? `<span class="amount-line">单总 ${fmt(am.orderAmount)}</span>` : ''; })()}</td>
+        <td><span class="order-id">${escapeHtml(order.po)}</span><span class="company-tag" title="${escapeHtml(companyName(orderCompany(order)))}">${escapeHtml(orderCompany(order) || '—')}</span>${typeLabel ? `<span class="order-type-tag">${typeLabel}</span>` : ''}${boardRole === 'admin' ? `<button type="button" class="order-edit-link" data-edit-order="${escapeHtml(order.id)}">变更</button>` : ''}${(() => { const am = amountFor(order.id); return boardRole === 'admin' && am && am.orderAmount != null ? `<span class="amount-line">单总 ${fmt(am.orderAmount)}</span>` : ''; })()}</td>
         <td><span class="material-code mono">${escapeHtml(order.material)}</span>${(() => { const info = materialSummary(order); return info.count > 1 ? `<span class="material-total-tag" title="同一物料编号所有采购单合计未交">共${fmt(info.total)}/${info.count}单</span>` : ''; })()}${(() => { const d = drawingFor(order); return d ? `<button type="button" class="drawing-link" data-drawing-id="${escapeHtml(d.id)}">图纸</button>` : ''; })()}</td>
         <td><span class="item-name">${escapeHtml(order.name)}</span></td>
         <td><span class="spec-code mono">${escapeHtml(order.spec || '—')}</span></td>
@@ -1772,6 +1781,64 @@ function renderDesktopTable() {
       </tr>`;
   }).join('');
   els.desktopEmpty.hidden = rows.length > 0;
+}
+
+function currentEditingOrder() {
+  return (snapshot?.orders || []).find((order) => String(order.id) === String(editingOrderId));
+}
+
+function closeOrderEdit() {
+  editingOrderId = '';
+  if (els.orderEditModal) els.orderEditModal.hidden = true;
+  if (els.orderEditError) els.orderEditError.hidden = true;
+}
+
+function openOrderEdit(orderId) {
+  if (boardRole !== 'admin') { showToast('只有管理员模式可以变更订单'); return; }
+  const order = (snapshot?.orders || []).find((row) => String(row.id) === String(orderId));
+  if (!order) { showToast('找不到这笔订单'); return; }
+  editingOrderId = String(order.id);
+  if (els.orderEditInfo) {
+    els.orderEditInfo.innerHTML = `<strong>${escapeHtml(order.material)} · ${escapeHtml(order.name || '')}</strong>`
+      + `<span>${escapeHtml(order.po)} · 项次 ${escapeHtml(order.seq)} · 已发货 ${fmt(order.shipped)} 件</span>`
+      + `${order.spec ? `<span>图号：${escapeHtml(order.spec)}</span>` : ''}`;
+  }
+  if (els.orderEditQty) els.orderEditQty.value = String(Number(order.orderQty || order.openingRemaining || 0));
+  if (els.orderEditDue) els.orderEditDue.value = order.dueDate || '';
+  if (els.orderEditError) els.orderEditError.hidden = true;
+  if (els.orderEditModal) els.orderEditModal.hidden = false;
+  els.orderEditQty?.focus();
+}
+
+async function saveOrderEdit() {
+  const order = currentEditingOrder();
+  if (!order) { showToast('找不到这笔订单'); closeOrderEdit(); return; }
+  const orderQty = Number(els.orderEditQty?.value || 0);
+  const dueDate = String(els.orderEditDue?.value || '');
+  const errorBox = els.orderEditError;
+  const fail = (message) => {
+    if (errorBox) { errorBox.textContent = message; errorBox.hidden = false; }
+    showToast(message);
+  };
+  if (!Number.isFinite(orderQty) || orderQty <= 0) { fail('订单数量必须大于 0'); return; }
+  if (orderQty < Number(order.shipped || 0)) { fail(`订单数量不能小于已发货数量 ${fmt(order.shipped)}`); return; }
+  if (!dueDate) { fail('请选择交货日期'); return; }
+  const button = els.orderEditSave;
+  if (button) button.disabled = true;
+  try {
+    const result = await callRpc('board_update_order', {
+      p_code: getAccessCode(), p_order_id: order.id, p_order_qty: orderQty, p_due_date: dueDate,
+    });
+    if (!result.response.ok) throw new Error(result.data?.message || '保存失败');
+    closeOrderEdit();
+    showToast(`已更新 ${order.po} 项次 ${order.seq}：数量 ${fmt(orderQty)}，交期 ${dueDate}`);
+    await loadState({ quiet: true });
+    renderAll();
+  } catch (error) {
+    fail(error.message || '保存失败');
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 function shipmentDate(shipment) {
@@ -1967,6 +2034,7 @@ function orderCard(order) {
           <strong>${escapeHtml(order.name)}</strong>${(() => { const t = ({ trial: '试制', sample: '承样', tooling: '工装' })[order.orderType]; return t ? `<span class="order-type-tag">${t}</span>` : ''; })()}
           <span class="mono">${escapeHtml(order.material)} · ${escapeHtml(order.spec)}${(() => { const d = drawingFor(order); return d ? ` <button type="button" class="drawing-link" data-drawing-id="${escapeHtml(d.id)}">图纸</button>` : ''; })()}</span>
           <span>${escapeHtml(order.po)} · 项次 ${escapeHtml(order.seq)}</span>
+          ${boardRole === 'admin' ? `<button type="button" class="order-edit-link mobile" data-edit-order="${escapeHtml(order.id)}">变更数量 / 交期</button>` : ''}
         </div>
         <span class="due-badge ${badge.className}">${escapeHtml(badge.text)}</span>
       </div>
@@ -3486,6 +3554,14 @@ if (els.pdfImportButton && els.pdfFileInput) {
   });
   els.pdfFileInput.addEventListener('change', (event) => handlePdfFiles(event.target.files));
 }
+document.addEventListener('click', (event) => {
+  const editButton = event.target.closest('[data-edit-order]');
+  if (editButton) { openOrderEdit(editButton.dataset.editOrder); return; }
+});
+if (els.orderEditClose) els.orderEditClose.addEventListener('click', closeOrderEdit);
+if (els.orderEditCancel) els.orderEditCancel.addEventListener('click', closeOrderEdit);
+if (els.orderEditSave) els.orderEditSave.addEventListener('click', saveOrderEdit);
+if (els.orderEditModal) els.orderEditModal.addEventListener('click', (event) => { if (event.target === els.orderEditModal) closeOrderEdit(); });
 if (els.pdfPreview) els.pdfPreview.addEventListener('change', (event) => {
   const select = event.target.closest('[data-pdf-order-type]');
   if (!select) return;
