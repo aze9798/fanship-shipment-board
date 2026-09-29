@@ -2255,7 +2255,7 @@ function renderDesktopRemaining() {
   const selectedText = selectedRemainingDates().length
     ? selectedRemainingDates().map((dueDate) => formatDate(dueDate)).join('、')
     : '全部交期';
-  els.desktopRemainingSummary.textContent = `共 ${fmt(groups.length)} 项物料 · ${fmt(rows.length)} 条订单明细 · 合计 ${qtyText(total)} 件 · ${selectedText}`;
+  if (els.desktopRemainingSummary) els.desktopRemainingSummary.textContent = `共 ${fmt(groups.length)} 项物料 · ${fmt(rows.length)} 条订单明细 · 合计 ${qtyText(total)} 件 · ${selectedText}`;
   els.desktopRemainingBody.innerHTML = groups.map((group) => `
     <tr>
       <td class="mono">${escapeHtml(group.material)}</td>
