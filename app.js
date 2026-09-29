@@ -19,6 +19,8 @@ const PRINT_HELPER_BASE = 'http://127.0.0.1:8790';
 let deliveryPlan = null;
 let boardRole = 'user';            // user=普通，admin=管理（可看金额）
 let boardCanSeeAmount = false;
+let billedShipmentIds = new Set();
+let billedExtraIds = new Set();
 
 function boardModeName(mode = BOARD_MODE) {
   return mode === 'admin' ? '管理员模式' : mode === 'user' ? '普通模式' : '通用模式';
@@ -650,6 +652,7 @@ async function loadState({ quiet = false } = {}) {
       loadOverOffsets(),
       loadDeliveryFiles(),
       loadReplacements(),
+      loadBilledStatus(),
     ]);
     nextSnapshot.amounts = amounts;
     nextSnapshot.overDeliveries = overDeliveries;
@@ -957,6 +960,30 @@ function amountFor(orderId) {
   return amountMap.get(String(orderId)) || null;
 }
 
+function isBilledShipment(id) {
+  return billedShipmentIds.has(String(id));
+}
+
+function isBilledExtra(id) {
+  return billedExtraIds.has(String(id));
+}
+
+async function loadBilledStatus() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 1800);
+  try {
+    const response = await fetch(`${PRINT_HELPER_BASE}/billed-status`, { cache: 'no-store', signal: controller.signal });
+    if (!response.ok) return;
+    const data = await response.json();
+    billedShipmentIds = new Set((data.shipments || []).map((value) => String(value)));
+    billedExtraIds = new Set((data.extras || []).map((value) => String(value)));
+  } catch {
+    // 打印助手未运行时不影响看板加载，撤回按钮仍按原逻辑显示。
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function loadOverDeliveries() {
   if (!RPC_BASE) return [];
   const accessCode = getAccessCode();
@@ -1016,8 +1043,8 @@ function renderReplacementList() {
           <span class="mono">${escapeHtml(row.material)}</span>
           <span>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}${row.remark ? ' · 备注：' + escapeHtml(row.remark) : ''}<br><em>${escapeHtml(row.deliveryDate || '')}</em></span>
           <strong>${fmt(row.quantity)} 件</strong>
-          ${isLockedRecord(row.createdAt)
-            ? '<span class="row-locked">已归档</span>'
+          ${isLockedRecord(row.createdAt) || isBilledExtra(row.id)
+            ? `<span class="row-locked" title="${isBilledExtra(row.id) ? '已开送货单并上传云端，不能撤回' : '登记满 7 天后不能再撤回'}">${isBilledExtra(row.id) ? '已开单' : '已归档'}</span>`
             : `<button type="button" class="row-revoke" data-revoke-replacement="${escapeHtml(row.id)}">撤回</button>`}
         </div>`).join('')}
       <p class="over-tip">补发是给前期交货的不良品补货，不扣未交，会进当天送货单（订单号/项次=无，备注按填写内容）。</p>
@@ -1025,6 +1052,9 @@ function renderReplacementList() {
 }
 
 async function revokeReplacement(id) {
+  const replacementRow = replacements().find((row) => String(row.id) === String(id));
+  if (replacementRow && isBilledExtra(id)) { showToast('这笔补发已经开送货单并上传云端，不能撤回'); return; }
+  if (replacementRow && isLockedRecord(replacementRow.createdAt)) { showToast('这笔补发已满 7 天，不能再撤回'); return; }
   if (!window.confirm('要把这笔补发撤回吗？撤回后不再出现在送货单里。')) return;
   const result = await callRpc('board_revoke_replacement', { p_code: getAccessCode(), p_id: id });
   if (!result.response.ok) { showToast(result.data?.message || '撤回失败'); return; }
@@ -1234,8 +1264,8 @@ function renderOverDeliveryList() {
           <span class="mono">${escapeHtml(row.material)}</span>
           <span>${escapeHtml(row.name)}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</span>
           <strong>${fmt(row.remaining)} 件</strong>
-          ${isLockedRecord(row.createdAt)
-            ? '<span class="row-locked" title="登记满 7 天后不能再撤回">已归档</span>'
+          ${isLockedRecord(row.createdAt) || isBilledExtra(row.id)
+            ? `<span class="row-locked" title="${isBilledExtra(row.id) ? '已开送货单并上传云端，不能撤回' : '登记满 7 天后不能再撤回'}">${isBilledExtra(row.id) ? '已开单' : '已归档'}</span>`
             : `<button type="button" class="row-revoke" data-revoke-over="${escapeHtml(row.id)}">撤回</button>`}
         </div>`).join('')}
       <p class="over-tip">这些货已经发出但没有对应采购单；点“撤回”可以撤销这笔登记，等出现同料号的新订单时导入新订单会提示你冲抵。</p>
@@ -1341,8 +1371,8 @@ function renderOverOffsetList() {
           <span class="mono">${escapeHtml(row.material)}</span>
           <span>${escapeHtml(row.name || '')}<br><em>冲抵到 ${escapeHtml(po)}${seq ? ' 项次' + escapeHtml(seq) : ''} · ${escapeHtml(stamp(row.appliedAt))}</em></span>
           <strong>${fmt(row.quantity)} 件</strong>
-          ${isLockedRecord(row.appliedAt)
-            ? '<span class="row-locked" title="冲抵满 7 天后不能再撤回">已归档</span>'
+          ${isLockedRecord(row.appliedAt) || isBilledExtra(row.id)
+            ? `<span class="row-locked" title="${isBilledExtra(row.id) ? '已开送货单并上传云端，不能撤回' : '冲抵满 7 天后不能再撤回'}">${isBilledExtra(row.id) ? '已开单' : '已归档'}</span>`
             : `<button type="button" class="row-revoke" data-revoke-offset="${escapeHtml(row.id)}">撤回</button>`}
         </div>`;
       }).join('')}
@@ -1593,7 +1623,9 @@ function renderHistoryCards(shipments) {
       ${items.length > 5 ? `<button class="history-expand" type="button" data-expand="${escapeHtml(shipment.id)}">${expanded ? '收起明细' : `展开全部 ${items.length} 项（还有 ${hidden} 项）`}</button>` : ''}
       <div class="history-foot">
         <span class="history-total">合计 ${fmt(shipment.totalQuantity)} 件 · ${items.length} 项</span>
-        <button class="row-revoke" type="button" data-undo="${escapeHtml(shipment.id)}" title="撤销这笔发货">撤回</button>
+        ${isBilledShipment(shipment.id)
+          ? '<span class="row-locked" title="已开送货单并上传云端，不能撤回">已开单</span>'
+          : `<button class="row-revoke" type="button" data-undo="${escapeHtml(shipment.id)}" title="撤销这笔发货">撤回</button>`}
       </div>
     </article>`;
   }).join('');
@@ -2034,6 +2066,7 @@ function renderMobileRecords() {
 
 async function revokeOffset(offsetId) {
   const offsetRow = overOffsets().find((row) => String(row.id) === String(offsetId));
+  if (offsetRow && isBilledExtra(offsetId)) { showToast('这笔冲抵已经开送货单并上传云端，不能撤回'); return; }
   if (offsetRow && isLockedRecord(offsetRow.appliedAt)) {
     showToast('这笔冲抵已满 7 天，不能再撤回');
     return;
@@ -2050,6 +2083,7 @@ async function revokeOffset(offsetId) {
 
 async function revokeOverDelivery(overId) {
   const overRow = overDeliveries().find((row) => String(row.id) === String(overId));
+  if (overRow && isBilledExtra(overId)) { showToast('这笔无订单发货已经开送货单并上传云端，不能撤回'); return; }
   if (overRow && isLockedRecord(overRow.createdAt)) {
     showToast('这笔无订单发货已满 7 天，不能再撤回');
     return;
@@ -2540,6 +2574,9 @@ applyRoleUI();
 }
 
 async function undoShipment(id) {
+  const shipmentRow = snapshot && snapshot.shipments.find((row) => String(row.id) === String(id));
+  if (isBilledShipment(id)) { showToast('这笔发货已经开送货单并上传云端，不能撤回'); return; }
+  if (shipmentRow && isLockedRecord(shipmentRow.createdAt)) { showToast('这笔发货已满 7 天，不能再撤回'); return; }
   if (!confirm(`确定撤销 ${id} 吗？剩余未交数量会恢复。`)) return;
   try {
     const response = await requestWithAccessCode(apiUrl(`/api/shipments/${encodeURIComponent(id)}`), { method: 'DELETE' });
