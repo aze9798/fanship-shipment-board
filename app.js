@@ -747,7 +747,7 @@ async function parsePdfOrder(file) {
     let named = null;
     let namedIndex = -1;
     // 明细第二行可能被分页到下一页顶部，不能只看固定下一行。
-    for (let j = i + 1; j < lines.length && j <= i + 18; j += 1) {
+    for (let j = i + 1; j < lines.length && j <= i + 40; j += 1) {
       const candidate = lines[j] || '';
       if (PDF_ITEM_RE.test(candidate)) break;
       const maybe = candidate.match(PDF_NAME_RE);
@@ -759,7 +759,7 @@ async function parsePdfOrder(file) {
       row.grossUnitPrice = pdfNum(named[2]);   // 含税单价
       row.unitPrice = row.grossUnitPrice;
       let next = '';
-      for (let j = namedIndex + 1; j < lines.length && j <= namedIndex + 14; j += 1) {
+      for (let j = namedIndex + 1; j < lines.length && j <= namedIndex + 25; j += 1) {
         const candidate = lines[j] || '';
         if (PDF_ITEM_RE.test(candidate)) break;
         if (!isLikelyContinuation(candidate)) continue;
@@ -3260,6 +3260,8 @@ await loadBoardRole();
 await loadMarkMaterials();
 await loadState();
 connectEvents();
+
+
 
 
 
