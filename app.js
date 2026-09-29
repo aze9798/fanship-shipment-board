@@ -3155,7 +3155,7 @@ els.deliveryDate.addEventListener('change', refreshDeliveryPreview);
 els.deliveryBatch.addEventListener('change', refreshDeliveryPreview);
 async function switchAccessCode() {
   const label = BOARD_MODE === 'admin' ? '管理员访问码' : BOARD_MODE === 'user' ? '普通访问码' : '访问码';
-  const entered = prompt('请输入' + label + '：\n管理码 = 管理员模式（可看金额）\n普通码 = 普通模式');
+  const entered = prompt('请输入' + label + '：\n管理码 = 管理员模式\n普通码 = 普通模式');
   if (!entered || !entered.trim()) return;
   const code = entered.trim();
 
@@ -3297,6 +3297,7 @@ await loadBoardRole();
 await loadMarkMaterials();
 await loadState();
 connectEvents();
+
 
 
 
