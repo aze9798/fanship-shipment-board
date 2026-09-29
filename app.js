@@ -941,14 +941,14 @@ function applyRoleUI() {
   const isAdmin = boardRole === 'admin';
   const suffix = isAdmin ? '（管理员）' : '';
   const el = document.getElementById('brandTitle');
-  if (el) el.textContent = '帆顺发货台' + suffix;
+  if (el) el.textContent = '帆顺科技' + suffix;
   const el2 = document.getElementById('mobileBrandTitle');
   if (el2) el2.textContent = '手机装车登记' + suffix;
   const stamp = document.getElementById('sourceStamp');
   if (stamp) stamp.dataset.role = boardRole;
-  document.title = '帆顺发货台' + suffix;
+  document.title = '帆顺科技' + suffix;
   const badge = document.getElementById('modeBadge');
-  if (badge) badge.textContent = `v${currentAssetVersion()} · ${isAdmin ? '管理员' : '普通'}模式`;
+  if (badge) badge.textContent = isAdmin ? '管理员模式' : '普通模式';
 }
 
 function rebuildAmountMap() {

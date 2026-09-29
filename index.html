@@ -10,7 +10,7 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./styles.css?v=f809beb5ef0c">
+  <link rel="stylesheet" href="./styles.css?v=4804d24860c6">
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -19,8 +19,7 @@
       <div class="brand">
         <div class="brand-mark">帆</div>
         <div>
-          <strong id="brandTitle">帆顺发货台</strong>
-          <span>订单未交实时协同</span>
+          <strong id="brandTitle">帆顺科技</strong>
         </div>
       </div>
 
@@ -52,15 +51,14 @@
           <span id="liveDot" class="live-dot"></span>
           <strong id="liveText">正在连接</strong>
         </div>
-        <p>手机保存后，电脑表格自动更新，无需手工改 Excel。</p>
       </div>
 
       <div class="sidebar-foot">
-        <span>数据来源</span>
-        <strong id="sourceTitle">现有计划表导入</strong>
-        <small id="sourceStamp">--</small>
+        <span hidden>数据来源</span>
+        <strong id="sourceTitle" hidden>现有计划表导入</strong>
+        <small id="sourceStamp" hidden>--</small>
         <button id="switchCodeButton" class="sidebar-switch" type="button">切换访问码</button>
-        <small id="modeBadge" class="mode-badge">v? · 普通模式</small>
+        <small id="modeBadge" class="mode-badge">普通模式</small>
       </div>
     </aside>
 
@@ -117,7 +115,7 @@
                   <option value="custom">指定日期…</option>
                 </select>
                 <div id="desktopDueRow" class="due-date-row" hidden>
-                  <input id="desktopDueDate" type="date">
+                  <input id="desktopDueDate" type="date" lang="zh-CN">
                 </div>
               </label>
               <label class="select-box">
@@ -252,7 +250,7 @@
           <div class="history-tools" data-query-pane="shipments">
             <div class="history-tools-row">
               <input id="historySearch" type="search" placeholder="搜索采购单号 / 物料编号 / 名称">
-              <input id="historyDate" type="date" title="按发货日期筛选">
+              <input id="historyDate" type="date" lang="zh-CN" title="按发货日期筛选">
               <button id="historyClear" class="button ghost" type="button">全部日期</button>
             </div>
           </div>
@@ -260,7 +258,7 @@
           <div class="history-tools" data-query-pane="offsets" hidden>
             <div class="history-tools-row">
               <input id="offsetSearch" type="search" placeholder="搜索物料编号 / 名称 / 采购单号">
-              <input id="offsetDate" type="date" title="按冲抵日期筛选">
+              <input id="offsetDate" type="date" lang="zh-CN" title="按冲抵日期筛选">
               <button id="offsetClear" class="button ghost" type="button">全部日期</button>
             </div>
           </div>
@@ -268,7 +266,7 @@
           <div class="history-tools" data-query-pane="overs" hidden>
             <div class="history-tools-row">
               <input id="overSearch" type="search" placeholder="搜索物料编号 / 名称">
-              <input id="overDate" type="date" title="按登记日期筛选">
+              <input id="overDate" type="date" lang="zh-CN" title="按登记日期筛选">
               <button id="overClear" class="button ghost" type="button">全部日期</button>
             </div>
           </div>
@@ -295,7 +293,7 @@
           <div class="history-tools">
             <div class="history-tools-row">
               <input id="filesSearch" type="search" placeholder="搜索发货日期 / 批次号 / 文件名">
-              <input id="filesDate" type="date" title="按发货日期筛选">
+              <input id="filesDate" type="date" lang="zh-CN" title="按发货日期筛选">
               <button id="filesClear" class="button ghost" type="button">全部日期</button>
             </div>
           </div>
@@ -403,7 +401,7 @@
           <div class="remaining-tools" data-query-pane="shipments">
             <input id="recordsSearch" type="search" placeholder="搜索采购单号 / 物料编号 / 名称" autocomplete="off">
             <div class="remaining-due-row">
-              <input id="recordsDate" type="date" title="按发货日期查看">
+              <input id="recordsDate" type="date" lang="zh-CN" title="按发货日期查看">
               <button id="recordsClear" class="button ghost" type="button">全部日期</button>
             </div>
           </div>
@@ -411,7 +409,7 @@
           <div class="remaining-tools" data-query-pane="offsets" hidden>
             <input id="recordsOffsetSearch" type="search" placeholder="搜索物料编号 / 名称 / 采购单号" autocomplete="off">
             <div class="remaining-due-row">
-              <input id="recordsOffsetDate" type="date" title="按冲抵日期查看">
+              <input id="recordsOffsetDate" type="date" lang="zh-CN" title="按冲抵日期查看">
               <button id="recordsOffsetClear" class="button ghost" type="button">全部日期</button>
             </div>
           </div>
@@ -419,7 +417,7 @@
           <div class="remaining-tools" data-query-pane="overs" hidden>
             <input id="recordsOverSearch" type="search" placeholder="搜索物料编号 / 名称" autocomplete="off">
             <div class="remaining-due-row">
-              <input id="recordsOverDate" type="date" title="按登记日期查看">
+              <input id="recordsOverDate" type="date" lang="zh-CN" title="按登记日期查看">
               <button id="recordsOverClear" class="button ghost" type="button">全部日期</button>
             </div>
           </div>
@@ -430,7 +428,7 @@
           <div class="remaining-tools">
             <input id="mobileFilesSearch" type="search" placeholder="搜索发货日期 / 批次号 / 文件名" autocomplete="off">
             <div class="remaining-due-row">
-              <input id="mobileFilesDate" type="date" title="按发货日期查看">
+              <input id="mobileFilesDate" type="date" lang="zh-CN" title="按发货日期查看">
               <button id="mobileFilesClear" class="button ghost" type="button">全部日期</button>
             </div>
           </div>
@@ -494,7 +492,7 @@
       <form id="deliveryForm" class="form-grid">
         <label>
           <span>送货日期</span>
-          <input id="deliveryDate" name="date" type="date">
+          <input id="deliveryDate" name="date" type="date" lang="zh-CN">
         </label>
         <label>
           <span>批次号（可修改）</span>
@@ -530,7 +528,7 @@
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
     <script>
     (() => {
-      const fallbackVersion = "f809beb5ef0c";
+      const fallbackVersion = "4804d24860c6";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
