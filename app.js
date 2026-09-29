@@ -656,9 +656,9 @@ async function loadState({ quiet = false } = {}) {
     nextSnapshot.overOffsets = overOffsets;
     nextSnapshot.deliveryFiles = deliveryFiles;
     nextSnapshot.replacements = replacements;
-    rebuildAmountMap();
     const changed = !snapshot || nextSnapshot.revision !== snapshot.revision;
     snapshot = nextSnapshot;
+    rebuildAmountMap();
     if (snapshot.today) TODAY = snapshot.today;
     reconcileSelection();
     if (!quiet || changed) renderAll();
@@ -3234,6 +3234,7 @@ await loadBoardRole();
 await loadMarkMaterials();
 await loadState();
 connectEvents();
+
 
 
 
