@@ -775,8 +775,6 @@ async function parsePdfOrder(file) {
   }
   doc.qtyTotal = doc.items.reduce((sum, x) => sum + x.quantity, 0);
   doc.amountTotal = Math.round(doc.items.reduce((sum, x) => sum + (x.grossAmount != null ? x.grossAmount : x.netAmount * 1.13), 0) * 100) / 100;
-  const missingAmounts = doc.items.filter((x) => x.grossAmount == null).length;
-  if (missingAmounts) doc.warnings.push(`有 ${missingAmounts} 行没有读到含税金额，请核对`);
   if (!doc.items.length) doc.error = '没有识别到明细行';
   return doc;
 }
@@ -827,9 +825,13 @@ function renderPdfPreview(docs) {
     if (doc.poFromFile) warnings.push('采购单号取自文件名，请核对一下');
     if (doc.error) problems.push(doc.error);
     if (!doc.po) problems.push('读不到采购单号');
-    if (showAmounts && doc.pdfTotal != null && Math.abs(doc.amountTotal - doc.pdfTotal) > 0.02) {
-      problems.push(`金额对不上：明细算出 ${doc.amountTotal}，PDF 合计 ${doc.pdfTotal}`);
+    if (doc.pdfTotal == null) {
+      problems.push('没有读到 PDF 含税金额总和，不能导入');
+    } else if (Math.abs(doc.amountTotal - doc.pdfTotal) > 0.02) {
+      problems.push(`总金额对不上：明细算出 ${doc.amountTotal}，PDF 合计 ${doc.pdfTotal}`);
     }
+    const missingAmountCount = doc.items.filter((x) => x.grossAmount == null).length;
+    if (missingAmountCount) problems.push(`有 ${missingAmountCount} 行没有读到含税金额，不能导入`);
     const company = /科技/.test(doc.vendor || '') ? '4137' : (/制品厂/.test(doc.vendor || '') ? '4074' : '');
     if (!company) problems.push('认不出公司（供应厂商）');
     const duplicated = Boolean(doc.po) && existing.has(doc.po);
@@ -870,6 +872,7 @@ function renderPdfPreview(docs) {
     ${html}`;
   els.confirmPdf.disabled = !rows.length || bad.length > 0;
   els.pdfModal.hidden = false;
+  if (bad.length) showToast(`总金额核对未通过：${bad.length} 个 PDF 有问题，已禁止导入`, 7000);
 }
 
 async function confirmPdfImport() {
@@ -3257,6 +3260,7 @@ await loadBoardRole();
 await loadMarkMaterials();
 await loadState();
 connectEvents();
+
 
 
 
