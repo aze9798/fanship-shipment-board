@@ -1842,3 +1842,9 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .drawing-viewer-pager button { min-height: 34px; padding: 0 13px; }
 .drawing-native-frame { width: 100%; height: calc(100vh - 170px); min-height: 520px; border: 0; background: #fff; display: block; }
 @media (max-width: 720px) { .drawing-native-frame { height: calc(100vh - 130px); min-height: 420px; } }
+@media (max-width: 900px) {
+  .order-type-tag { margin-left: 4px; padding: 0 2px; border-radius: 4px; font-size: 10px; line-height: 1.25; vertical-align: middle; }
+}
+@media (max-width: 900px) {
+  #mobileOrderList .order-type-tag { display: inline-flex !important; width: auto !important; max-width: max-content !important; padding: 0 3px !important; margin-left: 4px; vertical-align: middle; }
+}
