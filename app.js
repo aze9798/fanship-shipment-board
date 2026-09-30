@@ -1200,12 +1200,27 @@ async function openDrawingViewer(drawing, url, options = {}) {
   const status = document.getElementById('drawingViewerStatus');
   const external = document.getElementById('drawingViewerExternal');
   const pager = document.getElementById('drawingViewerPager');
+  const pages = document.getElementById('drawingViewerPages');
   if (!modal || !url) { showToast('图纸地址无效'); return; }
-  if (/Android/i.test(navigator.userAgent)) {
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const isIOS = /iPad|iPhone|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isAndroid) {
     const androidUrl = url.split('#')[0] + '#page=1&zoom=page-width';
     showToast('正在打开安卓图纸查看器...');
     const opened = window.open(androidUrl, '_blank', 'noopener');
     if (!opened) window.location.href = androidUrl;
+    return;
+  }
+if (!isAndroid && !isIOS) {
+    closeDrawingViewer();
+    drawingViewerBlobUrl = '';
+    if (title) title.textContent = [drawing?.material, drawing?.name, drawing?.spec].filter(Boolean).join(' · ') || '图纸查看';
+    if (external) external.href = url;
+    if (pager) pager.hidden = true;
+    if (status) { status.hidden = false; status.textContent = '已使用浏览器快速查看，可滚动查看全部页面。'; }
+    pages.innerHTML = `<iframe class="drawing-native-frame" title="图纸 PDF" src="${escapeHtml(url)}#page=1&zoom=page-width"></iframe>`;
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
     return;
   }
   closeDrawingViewer();
@@ -3045,7 +3060,8 @@ async function submitShipment() {
     closeSubmitModal();
     showSubmitError('');
     showToast(`${shipmentId} 已保存${reallocated ? '（已按最新未交重新分配）' : ''}${overSaved.length ? `，含无订单发货 ${overSaved.join('、')}` : ''}`);
-    if (!/Android/i.test(navigator.userAgent)) setTimeout(() => { loadPdfJs().catch(() => {}); }, 2000);
+    const isIOSDevice = /iPad|iPhone|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+if (isIOSDevice) setTimeout(() => { loadPdfJs().catch(() => {}); }, 2000);
 
 await loadBoardRole();
 applyRoleUI();

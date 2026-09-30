@@ -1840,3 +1840,5 @@ body[data-view="mobile"] { background: #dfe7e9; }
 }.drawing-viewer-pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 16px 0; }
 .drawing-viewer-pager span { min-width: 74px; text-align: center; color: #5f747a; font-size: 12px; font-weight: 700; }
 .drawing-viewer-pager button { min-height: 34px; padding: 0 13px; }
+.drawing-native-frame { width: 100%; height: calc(100vh - 170px); min-height: 520px; border: 0; background: #fff; display: block; }
+@media (max-width: 720px) { .drawing-native-frame { height: calc(100vh - 130px); min-height: 420px; } }
