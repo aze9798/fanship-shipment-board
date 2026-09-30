@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d2a33">
+  <title>帆顺科技工时计件</title>
+  <style>
+    :root{--bg:#eef3f3;--ink:#15363f;--muted:#70858a;--line:#d9e5e4;--card:#fff;--primary:#0f766e;--primary-soft:#e8f6f3;--danger:#b42318;--shadow:0 10px 30px rgba(19,67,67,.08)}
+    *{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#e9f2f0 0,#f7faf9 220px,#f2f5f6 100%);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+    button,input{font:inherit}button{cursor:pointer}.hidden{display:none!important}
+    .page{max-width:460px;margin:0 auto;padding:16px 14px 32px;min-height:100vh}
+    .brand{display:flex;align-items:center;gap:10px;margin:4px 2px 18px}.logo{width:38px;height:38px;border-radius:12px;background:var(--primary);color:#fff;display:grid;place-items:center;font-weight:900}
+    .brand strong{font-size:18px}.brand small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+    .card{background:var(--card);border:1px solid rgba(217,229,228,.9);border-radius:16px;box-shadow:var(--shadow);padding:16px;margin-bottom:12px}
+    .login-title{margin:0 0 6px;font-size:22px}.login-sub{margin:0 0 18px;color:var(--muted);font-size:12px}
+    label.field{display:grid;gap:7px;color:#526b71;font-size:12px}.field input{width:100%;height:46px;border:1px solid var(--line);border-radius:12px;padding:0 13px;background:#fbfdfd;color:var(--ink);outline:none}.field input:focus{border-color:#74c2b7;box-shadow:0 0 0 4px rgba(15,118,110,.08)}
+    .primary,.ghost{border-radius:12px;min-height:46px;border:1px solid transparent;font-weight:800}.primary{background:var(--primary);color:#fff}.ghost{background:#fff;color:var(--primary);border-color:#b9ddd7}.wide{width:100%;margin-top:12px}
+    .error{margin-top:10px;padding:10px 12px;border-radius:10px;background:#fff1f0;color:var(--danger);font-size:12px}
+    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.top h1{margin:0;font-size:22px}.top p{margin:3px 0 0;color:var(--muted);font-size:11px}.logout{border:0;background:transparent;color:var(--muted);font-size:12px}
+    .tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:5px;background:#e3eeec;border-radius:14px;margin-bottom:12px}.tabs button{border:0;border-radius:10px;background:transparent;color:#5e747a;min-height:42px;font-weight:800}.tabs button.active{background:#fff;color:var(--primary);box-shadow:0 4px 12px rgba(36,92,88,.1)}
+    .section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}.section-head h2{margin:0;font-size:17px}.section-head p{margin:4px 0 0;color:var(--muted);font-size:11px}
+    .clock-card{background:linear-gradient(145deg,#0c6f68,#0c8b7f);color:#fff;border:0}.clock-label{font-size:11px;opacity:.8}.clock-time{font-size:36px;font-weight:900;letter-spacing:.02em;margin:6px 0}.clock-note{font-size:11px;opacity:.8}
+    .clock-actions{display:grid;grid-template-columns:1fr;gap:9px;margin-top:16px}.clock-actions button{min-height:50px}.clock-stop{background:#fff;color:#a83e2e;border-color:rgba(255,255,255,.7)}
+    .stats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}.stat{padding:12px;border-radius:13px;background:var(--primary-soft)}.stat span{display:block;color:#61807b;font-size:10px}.stat strong{display:block;margin-top:4px;font-size:20px}
+    .rules{display:grid;gap:6px;font-size:11px;color:#60777d}.rules div{display:flex;justify-content:space-between;padding:7px 9px;border-radius:9px;background:#f6f9f9}.rules b{color:#294b52}
+    .list-title{display:flex;justify-content:space-between;align-items:center;margin:14px 1px 8px}.list-title strong{font-size:13px}.list-title span{font-size:11px;color:var(--muted)}
+    .record{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;border-top:1px solid #edf2f2}.record:first-child{border-top:0}.record small{display:block;color:var(--muted);font-size:10px;margin-top:3px}.record strong{font-size:13px}.empty{padding:24px 10px;text-align:center;color:var(--muted);font-size:12px}
+    .search-wrap{position:relative}.search-wrap input{width:100%;height:46px;border:1px solid var(--line);border-radius:12px;padding:0 13px 0 40px;background:#fbfdfd;outline:none}.search-wrap::before{content:"⌕";position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#6c908b;font-size:20px;font-weight:800}
+    .suggest{margin-top:7px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}.suggest button{display:block;width:100%;padding:11px 12px;border:0;border-top:1px solid #edf2f2;background:#fff;text-align:left}.suggest button:first-child{border-top:0}.suggest strong{font-size:12px}.suggest span{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+    .picked{padding:12px;border-radius:12px;background:#eef8f6;margin-top:10px}.picked strong{display:block;font-size:13px}.picked span{display:block;color:var(--muted);font-size:10px;margin-top:3px}
+    .process-grid{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.process{border:1px solid var(--line);border-radius:10px;background:#fff;padding:8px 11px;color:#536b72}.process.active{border-color:var(--primary);background:var(--primary);color:#fff}
+    .piece-form{display:grid;gap:11px;margin-top:12px}.piece-form .row{display:grid;grid-template-columns:1fr 1fr;gap:9px}.piece-form input{height:44px;border:1px solid var(--line);border-radius:11px;padding:0 11px;background:#fbfdfd;outline:none}
+    .piece-submit{min-height:48px}.piece-record{background:#f8fbfa;border:1px solid #edf2f2;border-radius:12px;padding:11px;margin-top:8px}.piece-record strong{font-size:13px}.piece-record span{display:block;color:var(--muted);font-size:10px;margin-top:3px}.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#173b42;color:#fff;padding:11px 15px;border-radius:12px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:99;max-width:88vw;text-align:center}
+  </style>
+</head><body>
+<div class="page">
+  <div class="brand"><div class="logo">帆</div><div><strong>帆顺科技</strong><small>工时 · 计件</small></div></div>
+  <section id="loginView" class="card">
+    <h1 class="login-title">员工登录</h1>
+    <p class="login-sub">输入个人访问码，登录一次后本机会自动记住。</p>
+    <label class="field"><span>个人访问码</span><input id="codeInput" type="password" autocomplete="current-password" placeholder="例如 FS-03-XXXXX"></label>
+    <button id="loginButton" class="primary wide">进入</button>
+    <div id="loginError" class="error hidden"></div>
+  </section>
+  <section id="mainView" class="hidden">
+    <div class="top"><div><h1 id="employeeName">员工</h1><p id="employeeMeta"></p></div><button id="logoutButton" class="logout">退出登录</button></div>
+    <div class="tabs"><button class="active" data-tab="time">计时</button><button data-tab="piece">计件</button></div>
+    <section id="timePanel">
+      <div class="card clock-card">
+        <div class="clock-label" id="clockLabel">当前状态</div>
+        <div class="clock-time" id="clockTime">00:00</div>
+        <div class="clock-note" id="clockNote">上班时间 7:30–17:00，加班最晚 20:30</div>
+        <div class="clock-actions"><button id="clockAction" class="primary">开始计时</button></div>
+      </div>
+      <div class="stats"><div class="stat"><span>今日有效工时</span><strong id="todayMinutes">0.0h</strong></div><div class="stat"><span>本月累计</span><strong id="monthMinutes">0.0h</strong></div></div>
+      <div class="card"><div class="section-head"><div><h2>计时规则</h2><p>系统自动扣除用餐时间，员工不需要手动选择。</p></div></div><div class="rules"><div><span>正常上班</span><b>7:30–17:00</b></div><div><span>午餐扣除</span><b>11:00–11:30</b></div><div><span>加班时段</span><b>17:00–20:30</b></div><div><span>晚餐扣除</span><b>加班超过17:30时扣17:00–17:30</b></div></div></div>
+      <div class="list-title"><strong>今日计时记录</strong><span id="todayCount">0 段</span></div><div id="todayEntries" class="card"></div>
+    </section>
+    <section id="piecePanel" class="hidden">
+      <div class="card"><div class="section-head"><div><h2>计件申报</h2><p>搜索产品，选择工序，填写数量后提交。</p></div></div>
+        <div class="search-wrap"><input id="productSearch" type="search" placeholder="搜索产品编号 / 产品名 / 图号" autocomplete="off"></div>
+        <div id="productSuggest" class="suggest hidden"></div>
+        <div id="pickedProduct" class="picked hidden"></div>
+        <div id="processGrid" class="process-grid"></div>
+        <div class="piece-form">
+          <div class="row"><input id="pieceQty" type="number" min="1" step="1" inputmode="numeric" placeholder="数量（整数）"><input id="pieceNote" type="text" placeholder="备注（选填）"></div>
+          <button id="pieceSubmit" class="primary piece-submit">提交计件</button>
+        </div>
+      </div>
+      <div class="list-title"><strong>最近计件记录</strong><span id="pieceCount">0 笔</span></div><div id="pieceEntries"></div>
+    </section>
+  </section>
+</div>
+<div id="toast" class="toast hidden"></div><script>
+window.WORK_RPC_BASE = 'https://dkbeigqtiilgxthwkixg.supabase.co/rest/v1/rpc';
+window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s';
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const STORAGE_KEY = 'fanshipWorkEmployeeCode';
+  let code = '';
+  let state = null;
+  let selectedProduct = null;
+  let selectedProcessId = '';
+  let searchTimer = null;
+
+  const show = (el, on) => el && el.classList.toggle('hidden', !on);
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  const fmtMinutes = (m) => `${(Number(m || 0) / 60).toFixed(1)}h`;
+  const fmtClock = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '--' : d.toLocaleString('zh-CN', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit', timeZone:'Asia/Shanghai' }); };
+  function toast(text) { const el = $('toast'); el.textContent = text; show(el, true); clearTimeout(toast.t); toast.t = setTimeout(() => show(el, false), 2600); }
+  async function rpc(name, body) {
+    const r = await fetch(`${window.WORK_RPC_BASE}/${name}`, { method:'POST', headers:{ apikey:window.WORK_ANON_KEY, Authorization:`Bearer ${window.WORK_ANON_KEY}`, 'Content-Type':'application/json' }, body:JSON.stringify(body) });
+    const data = await r.json().catch(() => null);
+    if (!r.ok) throw new Error(data?.message || '请求失败');
+    return data;
+  }
+  function currentElapsedText() {
+    if (!state?.activeEntry?.startedAt) return '00:00';
+    const s = Math.max(0, Math.floor((Date.now() - new Date(state.activeEntry.startedAt).getTime()) / 1000));
+    return `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}`;
+  }
+  function renderTime() {
+    const active = Boolean(state?.activeEntry);
+    $('clockLabel').textContent = active ? '正在计时' : '当前未计时';
+    $('clockTime').textContent = currentElapsedText();
+    $('clockNote').textContent = active ? `开始于 ${fmtClock(state.activeEntry.startedAt)}` : '上班时间 7:30–17:00，加班最晚 20:30';
+    const btn = $('clockAction'); btn.textContent = active ? '结束本次计时' : '开始计时'; btn.classList.toggle('clock-stop', active);
+    $('todayMinutes').textContent = fmtMinutes(state?.todayMinutes);
+    $('monthMinutes').textContent = fmtMinutes(state?.monthMinutes);
+    const rows = state?.todayEntries || []; $('todayCount').textContent = `${rows.length} 段`;
+    $('todayEntries').innerHTML = rows.length ? rows.map((x) => `<div class="record"><div><strong>${esc(fmtClock(x.startedAt))} → ${x.endedAt ? esc(fmtClock(x.endedAt)) : '进行中'}</strong><small>${x.status === 'closed' ? '已完成' : '未结束'}</small></div><strong>${x.endedAt ? `${Number(x.rawMinutes || 0)} 分钟` : '计时中'}</strong></div>`).join('') : '<div class="empty">今天还没有计时记录</div>';
+  }
+  function renderPiece() {
+    const rows = state?.pieceEntries || []; $('pieceCount').textContent = `${rows.length} 笔`;
+    $('pieceEntries').innerHTML = rows.length ? rows.map((x) => `<div class="piece-record"><strong>${esc(x.material)} · ${esc(x.name || '')}</strong><span>${esc(x.process)} · ${Number(x.quantity)} 件 · ${esc(x.workDate)}</span></div>`).join('') : '<div class="card empty">还没有计件申报记录</div>';
+    $('processGrid').innerHTML = (state?.processes || []).map((p) => `<button type="button" class="process ${selectedProcessId === p.id ? 'active' : ''}" data-process="${esc(p.id)}">${esc(p.name)}</button>`).join('');
+  }
+  function render() {
+    show($('loginView'), !state); show($('mainView'), Boolean(state)); if (!state) return;
+    $('employeeName').textContent = state.employee.name;
+    $('employeeMeta').textContent = `${state.employee.employeeNo} · ${state.employee.track === 'welding' ? '焊接' : '后道'}`;
+    renderTime(); renderPiece();
+  }
+  async function loadState() { state = await rpc('work_get_state', { p_code: code }); render(); }
+  async function login(nextCode) {
+    const value = String(nextCode || '').trim(); if (!value) return;
+    try {
+      await rpc('work_login', { p_code:value });
+      code = value; try { localStorage.setItem(STORAGE_KEY, code); } catch {}
+      history.replaceState(null, '', location.pathname); await loadState();
+    } catch (e) { show($('loginError'), true); $('loginError').textContent = e.message || '登录失败'; }
+  }  async function clockAction() {
+    const active = Boolean(state?.activeEntry); const btn = $('clockAction'); btn.disabled = true;
+    try { await rpc(active ? 'work_stop_timer' : 'work_start_timer', { p_code:code }); await loadState(); toast(active ? '本次计时已结束' : '计时已开始'); }
+    catch (e) { toast(e.message || '操作失败'); } finally { btn.disabled = false; }
+  }
+  async function searchProducts() {
+    const q = $('productSearch').value.trim(); const box = $('productSuggest');
+    if (!q) { show(box,false); return; }
+    try {
+      const rows = await rpc('work_search_products', { p_code:code, p_query:q });
+      box.innerHTML = rows.length ? rows.map((p) => `<button type="button" data-product="${esc(p.id)}" data-material="${esc(p.material)}" data-name="${esc(p.name)}" data-spec="${esc(p.spec)}"><strong>${esc(p.material)} · ${esc(p.name)}</strong><span>${esc(p.spec || '无图号')}</span></button>`).join('') : '<button type="button" disabled>没有找到产品</button>';
+      show(box,true);
+    } catch (e) { toast(e.message || '搜索失败'); }
+  }
+  async function submitPiece() {
+    if (!selectedProduct) return toast('请先搜索并选择产品');
+    if (!selectedProcessId) return toast('请选择工序');
+    const qty = Number($('pieceQty').value);
+    if (!Number.isInteger(qty) || qty <= 0) return toast('数量必须是大于 0 的整数');
+    const btn = $('pieceSubmit'); btn.disabled = true;
+    try {
+      await rpc('work_add_piece_entry', { p_code:code, p_product_id:selectedProduct.id, p_process_id:selectedProcessId, p_quantity:qty, p_note:$('pieceNote').value.trim() });
+      $('pieceQty').value = ''; $('pieceNote').value = ''; selectedProcessId = ''; selectedProduct = null;
+      renderPiece(); await loadState(); toast('计件已提交');
+    } catch (e) { toast(e.message || '提交失败'); } finally { btn.disabled = false; }
+  }
+
+  $('loginButton').addEventListener('click', () => login($('codeInput').value));
+  $('codeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') login($('codeInput').value); });
+  $('logoutButton').addEventListener('click', () => { state = null; code = ''; try { localStorage.removeItem(STORAGE_KEY); } catch {} render(); });
+  $('clockAction').addEventListener('click', clockAction);
+  document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x === b));
+    show($('timePanel'), b.dataset.tab === 'time'); show($('piecePanel'), b.dataset.tab === 'piece');
+  }));
+  $('productSearch').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(searchProducts, 220); });
+  $('productSuggest').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-product]'); if (!b) return;
+    selectedProduct = { id:b.dataset.product, material:b.dataset.material, name:b.dataset.name, spec:b.dataset.spec };
+    $('pickedProduct').innerHTML = `<strong>${esc(selectedProduct.material)} · ${esc(selectedProduct.name)}</strong><span>${esc(selectedProduct.spec || '无图号')}</span>`;
+    show($('pickedProduct'), true); show($('productSuggest'), false); $('productSearch').value = ''; renderPiece();
+  });
+  $('processGrid').addEventListener('click', (e) => { const b = e.target.closest('[data-process]'); if (!b) return; selectedProcessId = b.dataset.process; renderPiece(); });
+  $('pieceSubmit').addEventListener('click', submitPiece);
+  setInterval(() => { if (state?.activeEntry) $('clockTime').textContent = currentElapsedText(); }, 1000);
+  setInterval(() => { if (code && state) loadState().catch(() => {}); }, 30000);
+  const urlCode = new URLSearchParams(location.search).get('code');
+  const stored = (() => { try { return localStorage.getItem(STORAGE_KEY) || ''; } catch { return ''; } })();
+  if (urlCode || stored) login(urlCode || stored); else render();
+})();
+</script>
+</body>
+</html>
