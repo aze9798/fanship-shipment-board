@@ -1232,9 +1232,9 @@ if (!isAndroid && !isIOS) {
   modal.hidden = false;
   document.body.style.overflow = 'hidden';
   try {
-    const pdfjs = await loadPdfJs();
+    const pdfjs = (isIOS && window.pdfjsLib) ? window.pdfjsLib : await loadPdfJs();
     if (!modal.hidden) {
-      drawingViewerTask = pdfjs.getDocument({ url, isEvalSupported: false, rangeChunkSize: 65536 });
+      drawingViewerTask = pdfjs.getDocument({ url, isEvalSupported: false });
       const pdf = await drawingViewerTask.promise;
       drawingViewerPdf = pdf;
       drawingViewerTotalPages = Number(pdf.numPages || 0);
