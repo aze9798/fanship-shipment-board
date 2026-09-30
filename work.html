@@ -30,7 +30,7 @@
     .suggest{margin-top:7px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}.suggest button{display:block;width:100%;padding:11px 12px;border:0;border-top:1px solid #edf2f2;background:#fff;text-align:left}.suggest button:first-child{border-top:0}.suggest strong{font-size:12px}.suggest span{display:block;color:var(--muted);font-size:10px;margin-top:2px}
     .picked{padding:12px;border-radius:12px;background:#eef8f6;margin-top:10px}.picked strong{display:block;font-size:13px}.picked span{display:block;color:var(--muted);font-size:10px;margin-top:3px}
     .process-grid{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.process{border:1px solid var(--line);border-radius:10px;background:#fff;padding:8px 11px;color:#536b72}.process.active{border-color:var(--primary);background:var(--primary);color:#fff}
-    .piece-form{display:grid;gap:11px;margin-top:12px}.piece-form .row{display:grid;grid-template-columns:1fr 1fr;gap:9px}.piece-form input{height:44px;border:1px solid var(--line);border-radius:11px;padding:0 11px;background:#fbfdfd;outline:none}
+    .piece-form{display:grid;gap:11px;margin-top:12px}.piece-form .row{display:grid;grid-template-columns:1fr 1fr;gap:9px}.piece-form input{height:44px;border:1px solid var(--line);border-radius:11px;padding:0 11px;background:#fbfdfd;outline:none}.variant-box{margin-top:12px;padding:12px;border-radius:12px;background:#f7fbfa;border:1px solid #e2edeb}.variant-label{margin-bottom:8px;color:#587178;font-size:12px;font-weight:700}.variant-options{display:flex;flex-wrap:wrap;gap:7px}.variant-options button{min-height:36px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#536b72}.variant-options button.active{border-color:var(--primary);background:var(--primary);color:#fff}.variant-box input{width:100%;height:40px;border:1px solid var(--line);border-radius:10px;padding:0 11px;background:#fff;outline:none}
     .piece-submit{min-height:48px}.piece-record{background:#f8fbfa;border:1px solid #edf2f2;border-radius:12px;padding:11px;margin-top:8px}.piece-record strong{font-size:13px}.piece-record span{display:block;color:var(--muted);font-size:10px;margin-top:3px}.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#173b42;color:#fff;padding:11px 15px;border-radius:12px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:99;max-width:88vw;text-align:center}
   </style>
 </head><body>
@@ -62,6 +62,7 @@
         <div id="productSuggest" class="suggest hidden"></div>
         <div id="pickedProduct" class="picked hidden"></div>
         <div id="processGrid" class="process-grid"></div>
+        <div id="variantBox" class="variant-box hidden"></div>
         <div class="piece-form">
           <div class="row"><input id="pieceQty" type="number" min="1" step="1" inputmode="numeric" placeholder="数量（整数）"><input id="pieceNote" type="text" placeholder="备注（选填）"></div>
           <button id="pieceSubmit" class="primary piece-submit">提交计件</button>
@@ -82,6 +83,14 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
   let selectedProduct = null;
   let selectedProcessId = '';
   let searchTimer = null;
+  let selectedVariant = null;
+  const PROCESS_VARIANTS = {
+    '打孔': { key: 'holes', label: '孔数', type: 'number', placeholder: '请输入孔数' },
+    '攻丝': { key: 'holes', label: '攻丝孔数', type: 'number', placeholder: '请输入攻丝孔数' },
+    '折弯': { key: 'bends', label: '折弯刀数', type: 'number', placeholder: '请输入折弯刀数' },
+    '剪板': { key: 'thickness', label: '板厚', type: 'select', options: [3,4,6] },
+    '弯管': { key: 'bends', label: '弯管道数', type: 'number', placeholder: '请输入弯管道数' },
+  };
 
   const show = (el, on) => el && el.classList.toggle('hidden', !on);
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
@@ -110,18 +119,42 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
     const rows = state?.todayEntries || []; $('todayCount').textContent = `${rows.length} 段`;
     $('todayEntries').innerHTML = rows.length ? rows.map((x) => `<div class="record"><div><strong>${esc(fmtClock(x.startedAt))} → ${x.endedAt ? esc(fmtClock(x.endedAt)) : '进行中'}</strong><small>${x.status === 'closed' ? '已完成' : '未结束'}</small></div><strong>${x.endedAt ? `${Number(x.rawMinutes || 0)} 分钟` : '计时中'}</strong></div>`).join('') : '<div class="empty">今天还没有计时记录</div>';
   }
-  function renderPiece() {
-    const rows = state?.pieceEntries || []; $('pieceCount').textContent = `${rows.length} 笔`;
-    $('pieceEntries').innerHTML = rows.length ? rows.map((x) => `<div class="piece-record"><strong>${esc(x.material)} · ${esc(x.name || '')}</strong><span>${esc(x.process)} · ${Number(x.quantity)} 件 · ${esc(x.workDate)}</span></div>`).join('') : '<div class="card empty">还没有计件申报记录</div>';
-    $('processGrid').innerHTML = (state?.processes || []).map((p) => `<button type="button" class="process ${selectedProcessId === p.id ? 'active' : ''}" data-process="${esc(p.id)}">${esc(p.name)}</button>`).join('');
+  function currentProcess() {
+  return (state?.processes || []).find((p) => p.id === selectedProcessId) || null;
+}
+function renderVariant() {
+  const box = $('variantBox');
+  const process = currentProcess();
+  const config = process ? PROCESS_VARIANTS[process.name] : null;
+  if (!config) { selectedVariant = null; show(box, false); box.innerHTML = ''; return; }
+  if (config.type === 'select') {
+    box.innerHTML = `<div class="variant-label">${config.label}</div><div class="variant-options">${config.options.map((v) => `<button type="button" data-variant-value="${v}" data-variant-label="${v}mm" class="${Number(selectedVariant?.value) === v ? 'active' : ''}">${v}mm</button>`).join('')}</div>`;
+  } else {
+    box.innerHTML = `<div class="variant-label">${config.label}</div><input id="variantValue" type="number" min="1" step="1" inputmode="numeric" placeholder="${config.placeholder}" value="${selectedVariant?.value || ''}">`;
   }
+  show(box, true);
+}
+function renderPiece() {
+  const rows = state?.pieceEntries || []; $('pieceCount').textContent = `${rows.length} 笔`;
+  $('pieceEntries').innerHTML = rows.length ? rows.map((x) => `<div class="piece-record"><strong>${esc(x.material)} · ${esc(x.name || '')}</strong><span>${esc(x.process)}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''} · ${Number(x.quantity)} 件 · ${esc(x.workDate)}</span></div>`).join('') : '<div class="card empty">还没有计件申报记录</div>';
+  $('processGrid').innerHTML = (state?.processes || []).map((p) => `<button type="button" class="process ${selectedProcessId === p.id ? 'active' : ''}" data-process="${esc(p.id)}">${esc(p.name)}</button>`).join('');
+  renderVariant();
+}
   function render() {
     show($('loginView'), !state); show($('mainView'), Boolean(state)); if (!state) return;
     $('employeeName').textContent = state.employee.name;
     $('employeeMeta').textContent = `${state.employee.employeeNo} · ${state.employee.track === 'welding' ? '焊接' : '后道'}`;
     renderTime(); renderPiece();
   }
-  async function loadState() { state = await rpc('work_get_state', { p_code: code }); render(); }
+  async function loadState() {
+    const [nextState, pieces] = await Promise.all([
+      rpc('work_get_state', { p_code: code }),
+      rpc('work_get_piece_entries', { p_code: code }).catch(() => []),
+    ]);
+    state = nextState;
+    state.pieceEntries = pieces;
+    render();
+  }
   async function login(nextCode) {
     const value = String(nextCode || '').trim(); if (!value) return;
     try {
@@ -143,16 +176,48 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
       show(box,true);
     } catch (e) { toast(e.message || '搜索失败'); }
   }
+function variantDisplay(processName, value) {
+    const v = Number(value || 0);
+    if (processName === '折弯') return `${v}刀`;
+    if (processName === '弯管') return `${v}道`;
+    if (processName === '剪板') return `${v}mm`;
+    return `${v}孔`;
+  }
   async function submitPiece() {
     if (!selectedProduct) return toast('请先搜索并选择产品');
     if (!selectedProcessId) return toast('请选择工序');
+    const process = currentProcess();
+    const config = process ? PROCESS_VARIANTS[process.name] : null;
+    let variant = { key:'', value:0, label:'' };
+    if (config) {
+      if (config.type === 'select') {
+        const value = Number(selectedVariant?.value || 0);
+        if (!value) return toast(`请选择${config.label}`);
+        variant = { key:config.key, value, label:variantDisplay(process.name, value) };
+      } else {
+        const value = Number($('variantValue')?.value || 0);
+        if (!Number.isInteger(value) || value <= 0) return toast(`请填写${config.label}`);
+        variant = { key:config.key, value, label:variantDisplay(process.name, value) };
+      }
+    }
     const qty = Number($('pieceQty').value);
     if (!Number.isInteger(qty) || qty <= 0) return toast('数量必须是大于 0 的整数');
     const btn = $('pieceSubmit'); btn.disabled = true;
     try {
-      await rpc('work_add_piece_entry', { p_code:code, p_product_id:selectedProduct.id, p_process_id:selectedProcessId, p_quantity:qty, p_note:$('pieceNote').value.trim() });
-      $('pieceQty').value = ''; $('pieceNote').value = ''; selectedProcessId = ''; selectedProduct = null;
-      renderPiece(); await loadState(); toast('计件已提交');
+      await rpc('work_add_piece_entry', {
+        p_code:code,
+        p_product_id:selectedProduct.id,
+        p_process_id:selectedProcessId,
+        p_quantity:qty,
+        p_note:$('pieceNote').value.trim(),
+        p_variant_key:variant.key,
+        p_variant_value:variant.value,
+        p_variant_label:variant.label,
+      });
+      $('pieceQty').value = ''; $('pieceNote').value = '';
+      selectedProcessId = ''; selectedProduct = null; selectedVariant = null;
+      await loadState();
+      toast('计件已提交');
     } catch (e) { toast(e.message || '提交失败'); } finally { btn.disabled = false; }
   }
 
@@ -171,7 +236,8 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
     $('pickedProduct').innerHTML = `<strong>${esc(selectedProduct.material)} · ${esc(selectedProduct.name)}</strong><span>${esc(selectedProduct.spec || '无图号')}</span>`;
     show($('pickedProduct'), true); show($('productSuggest'), false); $('productSearch').value = ''; renderPiece();
   });
-  $('processGrid').addEventListener('click', (e) => { const b = e.target.closest('[data-process]'); if (!b) return; selectedProcessId = b.dataset.process; renderPiece(); });
+  $('processGrid').addEventListener('click', (e) => { const b = e.target.closest('[data-process]'); if (!b) return; selectedProcessId = b.dataset.process; selectedVariant = null; renderPiece(); });
+  $('variantBox').addEventListener('click', (e) => { const b = e.target.closest('[data-variant-value]'); if (!b) return; selectedVariant = { value:Number(b.dataset.variantValue), label:b.dataset.variantLabel || String(b.dataset.variantValue) }; renderVariant(); });
   $('pieceSubmit').addEventListener('click', submitPiece);
   setInterval(() => { if (state?.activeEntry) $('clockTime').textContent = currentElapsedText(); }, 1000);
   setInterval(() => { if (code && state) loadState().catch(() => {}); }, 30000);
