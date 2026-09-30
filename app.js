@@ -1109,7 +1109,32 @@ function drawingFor(order) {
     || null;
 }
 
+function drawingPublicUrl(drawing) {
+  const storagePath = String(drawing?.storagePath || '').trim();
+  if (!storagePath) return '';
+  const origin = String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
+  if (!origin) return '';
+  return `${origin}/storage/v1/object/public/product-drawings/${storagePath.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+function drawingLinkHtml(drawing, label = '图纸') {
+  const url = drawingPublicUrl(drawing);
+  if (!url) return `<button type="button" class="drawing-link" data-drawing-id="${escapeHtml(drawing.id)}">${label}</button>`;
+  return `<a class="drawing-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">${label}</a>`;
+}
+
 async function openDrawing(id) {
+  const cached = (snapshot?.drawings || []).find((row) => String(row.id) === String(id));
+  const directUrl = drawingPublicUrl(cached);
+  if (directUrl) {
+    // 安卓浏览器优先走真实 PDF 链接，避免异步接口后打开空白页。
+    const link = document.createElement('a');
+    link.href = directUrl;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.click();
+    return;
+  }
   const win = window.open('', '_blank');
   try {
     const result = await callRpc('board_get_drawing', { p_code: getAccessCode(), p_id: id });
@@ -1305,10 +1330,7 @@ function renderDesktopDrawings() {
             <span class="drawing-type-icon" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${drawingCategoryIcon(category)}</span>
             <span class="drawing-name">${escapeHtml(row.name || '未命名图纸')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</span>
           </div>
-          <button type="button" class="file-download drawing-open" data-drawing-id="${escapeHtml(row.id)}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h8l4 4v16H6z"></path><path d="M14 2v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg>
-            <span>查看图纸</span>
-          </button>
+          ${drawingPublicUrl(row) ? `<a class="file-download drawing-open" href="${escapeHtml(drawingPublicUrl(row))}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h8l4 4v16H6z"></path><path d="M14 2v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg><span>查看图纸</span></a>` : `<button type="button" class="file-download drawing-open" data-drawing-id="${escapeHtml(row.id)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h8l4 4v16H6z"></path><path d="M14 2v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg><span>查看图纸</span></button>`}
         </div>`;
     }).join('')}
   ` : '<div class="empty-state"><strong>没有匹配的图纸</strong><span>试试输入料号、品名、图号或文件名。</span></div>';
@@ -1784,7 +1806,7 @@ function renderDesktopTable() {
     return `
       <tr>
         <td><span class="order-id">${escapeHtml(order.po)}</span><span class="seq-inline">项次 ${escapeHtml(order.seq)}</span><span class="company-tag" title="${escapeHtml(companyName(orderCompany(order)))}">${escapeHtml(orderCompany(order) || '—')}</span>${typeLabel ? `<span class="order-type-tag">${typeLabel}</span>` : ''}${boardRole === 'admin' ? `<button type="button" class="order-edit-link" data-edit-order="${escapeHtml(order.id)}">变更</button>` : ''}${(() => { const am = amountFor(order.id); return boardRole === 'admin' && am && am.orderAmount != null ? `<span class="amount-line">单总 ${fmt(am.orderAmount)}</span>` : ''; })()}</td>
-        <td><span class="material-code mono">${escapeHtml(order.material)}</span>${(() => { const info = materialSummary(order); return info.count > 1 ? `<span class="material-total-tag" title="同一物料编号所有采购单合计未交">共${fmt(info.total)}/${info.count}单</span>` : ''; })()}${(() => { const d = drawingFor(order); return d ? `<button type="button" class="drawing-link" data-drawing-id="${escapeHtml(d.id)}">图纸</button>` : ''; })()}</td>
+        <td><span class="material-code mono">${escapeHtml(order.material)}</span>${(() => { const info = materialSummary(order); return info.count > 1 ? `<span class="material-total-tag" title="同一物料编号所有采购单合计未交">共${fmt(info.total)}/${info.count}单</span>` : ''; })()}${(() => { const d = drawingFor(order); return d ? drawingLinkHtml(d) : ''; })()}</td>
         <td><span class="item-name">${escapeHtml(order.name)}</span></td>
         <td><span class="spec-code mono">${escapeHtml(order.spec || '—')}</span></td>
         <td class="number">${escapeHtml(order.seq)}</td>
@@ -2101,7 +2123,7 @@ function orderCard(order) {
       <div class="card-top">
         <div class="order-title">
           <strong>${escapeHtml(order.name)}</strong>${(() => { const t = ({ trial: '试制', sample: '承样', tooling: '工装' })[order.orderType]; return t ? `<span class="order-type-tag">${t}</span>` : ''; })()}
-          <span class="mono">${escapeHtml(order.material)} · ${escapeHtml(order.spec)}${(() => { const d = drawingFor(order); return d ? ` <button type="button" class="drawing-link" data-drawing-id="${escapeHtml(d.id)}">图纸</button>` : ''; })()}</span>
+          <span class="mono">${escapeHtml(order.material)} · ${escapeHtml(order.spec)}${(() => { const d = drawingFor(order); return d ? ' ' + drawingLinkHtml(d) : ''; })()}</span>
           <span>${escapeHtml(order.po)} · 项次 ${escapeHtml(order.seq)}</span>
           ${boardRole === 'admin' ? `<button type="button" class="order-edit-link mobile" data-edit-order="${escapeHtml(order.id)}">变更数量 / 交期</button>` : ''}
         </div>
