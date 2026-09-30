@@ -85,11 +85,11 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
   let searchTimer = null;
   let selectedVariant = null;
   const PROCESS_VARIANTS = {
-    '打孔': { key: 'holes', label: '孔数', type: 'number', placeholder: '请输入孔数' },
-    '攻丝': { key: 'holes', label: '攻丝孔数', type: 'number', placeholder: '请输入攻丝孔数' },
-    '折弯': { key: 'bends', label: '折弯刀数', type: 'number', placeholder: '请输入折弯刀数' },
+    '打孔': { key: 'holes', label: '孔数', type: 'select', options: [1,2,3,4,5,6] },
+    '攻丝': { key: 'holes', label: '攻丝孔数', type: 'select', options: [1,2,3,4,5,6] },
+    '折弯': { key: 'bends', label: '折弯刀数', type: 'select', options: [1,2,3,4,5,6] },
     '剪板': { key: 'thickness', label: '板厚', type: 'select', options: [3,4,6] },
-    '弯管': { key: 'bends', label: '弯管道数', type: 'number', placeholder: '请输入弯管道数' },
+    '弯管': { key: 'bends', label: '弯管道数', type: 'select', options: [1,2,3,4,5,6] },
   };
 
   const show = (el, on) => el && el.classList.toggle('hidden', !on);
@@ -128,7 +128,7 @@ function renderVariant() {
   const config = process ? PROCESS_VARIANTS[process.name] : null;
   if (!config) { selectedVariant = null; show(box, false); box.innerHTML = ''; return; }
   if (config.type === 'select') {
-    box.innerHTML = `<div class="variant-label">${config.label}</div><div class="variant-options">${config.options.map((v) => `<button type="button" data-variant-value="${v}" data-variant-label="${v}mm" class="${Number(selectedVariant?.value) === v ? 'active' : ''}">${v}mm</button>`).join('')}</div>`;
+    box.innerHTML = `<div class="variant-label">${config.label}</div><div class="variant-options">${config.options.map((v) => `<button type="button" data-variant-value="${v}" data-variant-label="${variantDisplay(process.name, v)}" class="${Number(selectedVariant?.value) === v ? 'active' : ''}">${variantDisplay(process.name, v)}</button>`).join('')}</div>`;
   } else {
     box.innerHTML = `<div class="variant-label">${config.label}</div><input id="variantValue" type="number" min="1" step="1" inputmode="numeric" placeholder="${config.placeholder}" value="${selectedVariant?.value || ''}">`;
   }
