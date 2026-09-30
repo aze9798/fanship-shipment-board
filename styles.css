@@ -1696,3 +1696,4 @@ body[data-view="mobile"] { background: #dfe7e9; }
 }
 .order-edit-info strong { color: #163a42; font-size: 14px; }
 .order-edit-form { margin-top: 14px; }
+.field-hint { display: block; margin-top: 5px; color: #8a7a6a; font-size: 10px; line-height: 1.35; }

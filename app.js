@@ -1817,25 +1817,43 @@ function openOrderEdit(orderId) {
 async function saveOrderEdit() {
   const order = currentEditingOrder();
   if (!order) { showToast('找不到这笔订单'); closeOrderEdit(); return; }
-  const orderQty = Number(els.orderEditQty?.value || 0);
+  const rawQty = String(els.orderEditQty?.value || '').trim();
   const dueDate = String(els.orderEditDue?.value || '');
   const errorBox = els.orderEditError;
   const fail = (message) => {
     if (errorBox) { errorBox.textContent = message; errorBox.hidden = false; }
     showToast(message);
   };
-  if (!Number.isFinite(orderQty) || orderQty <= 0) { fail('订单数量必须大于 0'); return; }
-  if (orderQty < Number(order.shipped || 0)) { fail(`订单数量不能小于已发货数量 ${fmt(order.shipped)}`); return; }
-  if (!dueDate) { fail('请选择交货日期'); return; }
+  if (!/^\d+$/.test(rawQty)) { fail('订单数量只能填整数'); return; }
+  const orderQty = Number(rawQty);
+  if (!Number.isSafeInteger(orderQty) || orderQty < 0) { fail('订单数量只能填 0 或正整数'); return; }
+  const cancelling = orderQty === 0;
+  if (cancelling && Number(order.shipped || 0) > 0) {
+    fail('该订单已有发货记录，需先撤回发货后再取消订单');
+    return;
+  }
+  if (cancelling && !window.confirm(`确定取消订单 ${order.po} 项次 ${order.seq} 吗？\n取消后该订单会从未交清单移除。`)) return;
+  if (!cancelling && orderQty < Number(order.shipped || 0)) {
+    fail(`订单数量不能小于已发货数量 ${fmt(order.shipped)}`);
+    return;
+  }
+  if (!cancelling && !dueDate) { fail('请选择交货日期'); return; }
   const button = els.orderEditSave;
   if (button) button.disabled = true;
   try {
     const result = await callRpc('board_update_order', {
-      p_code: getAccessCode(), p_order_id: order.id, p_order_qty: orderQty, p_due_date: dueDate,
+      p_code: getAccessCode(),
+      p_order_id: order.id,
+      p_order_qty: orderQty,
+      p_due_date: cancelling ? null : dueDate,
     });
     if (!result.response.ok) throw new Error(result.data?.message || '保存失败');
     closeOrderEdit();
-    showToast(`已更新 ${order.po} 项次 ${order.seq}：数量 ${fmt(orderQty)}，交期 ${dueDate}`);
+    if (cancelling) {
+      showToast(`已取消 ${order.po} 项次 ${order.seq}`);
+    } else {
+      showToast(`已更新 ${order.po} 项次 ${order.seq}：数量 ${fmt(orderQty)}，交期 ${dueDate}`);
+    }
     await loadState({ quiet: true });
     renderAll();
   } catch (error) {
@@ -3566,6 +3584,9 @@ if (els.orderEditClose) els.orderEditClose.addEventListener('click', closeOrderE
 if (els.orderEditCancel) els.orderEditCancel.addEventListener('click', closeOrderEdit);
 if (els.orderEditSave) els.orderEditSave.addEventListener('click', saveOrderEdit);
 if (els.orderEditModal) els.orderEditModal.addEventListener('click', (event) => { if (event.target === els.orderEditModal) closeOrderEdit(); });
+if (els.orderEditQty) els.orderEditQty.addEventListener('input', () => {
+  if (els.orderEditDue) els.orderEditDue.disabled = String(els.orderEditQty.value || '').trim() === '0';
+});
 if (els.pdfPreview) els.pdfPreview.addEventListener('change', (event) => {
   const select = event.target.closest('[data-pdf-order-type]');
   if (!select) return;
