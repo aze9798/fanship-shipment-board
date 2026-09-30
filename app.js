@@ -1790,8 +1790,8 @@ function renderDesktopTable() {
         <td class="number">${escapeHtml(order.seq)}</td>
         <td><span class="due-date">${escapeHtml(formatDate(order.dueDate))}</span><span class="due-badge ${badge.className}">${escapeHtml(dueStatus(order).text)}</span></td>
         <td class="number"><span class="order-qty-number">${fmt(orderQty)}</span></td>
-        <td class="number"><span class="remaining-number">${fmt(order.remaining)}</span>${(() => { const am = amountFor(order.id); return boardRole === 'admin' && am && am.unitPrice != null ? `<span class="amount-line">单价 ${am.unitPrice} · 金额 ${fmt(am.amount)}</span>` : ''; })()}</td>
         <td class="number"><span class="shipped-number">${fmt(order.shipped)}</span></td>
+        <td class="number"><span class="remaining-number">${fmt(order.remaining)}</span>${(() => { const am = amountFor(order.id); return boardRole === 'admin' && am && am.unitPrice != null ? `<span class="amount-line">单价 ${am.unitPrice} · 金额 ${fmt(am.amount)}</span>` : ''; })()}</td>
       </tr>`;
   }).join('');
   els.desktopEmpty.hidden = rows.length > 0;
