@@ -1120,6 +1120,9 @@ function drawingPublicUrl(drawing) {
 let drawingViewerTask = null;
 let drawingViewerPdf = null;
 let drawingViewerBlobUrl = '';
+let drawingViewerPageNumber = 0;
+let drawingViewerTotalPages = 0;
+let drawingViewerRenderToken = 0;
 let pdfJsPromise = null;
 
 function drawingLinkHtml(drawing, label = '图纸') {
@@ -1157,20 +1160,33 @@ async function loadPdfJs() {
   return pdfJsPromise;
 }
 
-async function renderDrawingPdf(pdf) {
+async function renderDrawingPage(pdf, pageNumber) {
   const modal = document.getElementById('drawingViewer');
   const pages = document.getElementById('drawingViewerPages');
   const status = document.getElementById('drawingViewerStatus');
-  if (!pages || !status) return;
+  const pager = document.getElementById('drawingViewerPager');
+  const pageLabel = document.getElementById('drawingViewerPage');
+  const prev = document.getElementById('drawingViewerPrev');
+  const next = document.getElementById('drawingViewerNext');
+  if (!pdf || !pages || !status || !modal || modal.hidden) return;
+  const total = Number(pdf.numPages || 0);
+  const current = Math.max(1, Math.min(Number(pageNumber || 1), total || 1));
+  drawingViewerPageNumber = current;
+  drawingViewerTotalPages = total;
+  const token = ++drawingViewerRenderToken;
   pages.innerHTML = '';
-  const availableWidth = Math.max(280, Math.min((pages.clientWidth || window.innerWidth) - 24, 1100));
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-    if (!modal || modal.hidden) return;
-    status.hidden = false;
-    status.textContent = `正在加载第 ${pageNumber} / ${pdf.numPages} 页...`;
-    const page = await pdf.getPage(pageNumber);
+  if (pager) pager.hidden = total <= 1;
+  if (pageLabel) pageLabel.textContent = `${current} / ${total}`;
+  if (prev) prev.disabled = current <= 1;
+  if (next) next.disabled = current >= total;
+  status.hidden = false;
+  status.textContent = `正在加载第 ${current} / ${total} 页...`;
+  try {
+    const page = await pdf.getPage(current);
+    if (token !== drawingViewerRenderToken || modal.hidden) return;
     const baseViewport = page.getViewport({ scale: 1 });
-    const scale = Math.min(2.2, Math.max(0.55, availableWidth / baseViewport.width));
+    const availableWidth = Math.max(280, Math.min((pages.clientWidth || window.innerWidth) - 8, 1100));
+    const scale = Math.min(1.75, Math.max(0.55, availableWidth / baseViewport.width));
     const viewport = page.getViewport({ scale });
     const canvas = document.createElement('canvas');
     canvas.width = Math.floor(viewport.width);
@@ -1179,9 +1195,10 @@ async function renderDrawingPdf(pdf) {
     canvas.style.height = `${Math.floor(viewport.height)}px`;
     pages.appendChild(canvas);
     await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    if (token === drawingViewerRenderToken && !modal.hidden) status.textContent = `第 ${current} / ${total} 页`;
+  } catch (error) {
+    if (token === drawingViewerRenderToken) status.textContent = `图纸加载失败：${error?.message || '请点击“新窗口打开”'}`;
   }
-  status.hidden = false;
-  status.textContent = `共 ${pdf.numPages} 页`;
 }
 
 async function openDrawingViewer(drawing, url, options = {}) {
@@ -1189,17 +1206,19 @@ async function openDrawingViewer(drawing, url, options = {}) {
   const title = document.getElementById('drawingViewerTitle');
   const status = document.getElementById('drawingViewerStatus');
   const external = document.getElementById('drawingViewerExternal');
-  if (!modal || !url) {
-    showToast('图纸地址无效');
+  const pager = document.getElementById('drawingViewerPager');
+  if (!modal || !url) { showToast('图纸地址无效'); return; }
+  if (/Android/i.test(navigator.userAgent)) {
+    showToast('正在打开系统图纸查看器...');
+    const opened = window.open(url, '_blank', 'noopener');
+    if (!opened) window.location.href = url;
     return;
   }
   closeDrawingViewer();
   drawingViewerBlobUrl = options.revokeOnClose ? url : '';
   if (title) title.textContent = [drawing?.material, drawing?.name, drawing?.spec].filter(Boolean).join(' · ') || '图纸查看';
-  if (status) {
-    status.hidden = false;
-    status.textContent = '正在加载图纸...';
-  }
+  if (status) { status.hidden = false; status.textContent = '正在加载图纸...'; }
+  if (pager) pager.hidden = true;
   if (external) external.href = url;
   modal.hidden = false;
   document.body.style.overflow = 'hidden';
@@ -1209,13 +1228,11 @@ async function openDrawingViewer(drawing, url, options = {}) {
       drawingViewerTask = pdfjs.getDocument({ url, isEvalSupported: false });
       const pdf = await drawingViewerTask.promise;
       drawingViewerPdf = pdf;
-      if (!modal.hidden) await renderDrawingPdf(pdf);
+      drawingViewerTotalPages = Number(pdf.numPages || 0);
+      if (!modal.hidden) await renderDrawingPage(pdf, 1);
     }
   } catch (error) {
-    if (status) {
-      status.hidden = false;
-      status.textContent = `图纸加载失败：${error?.message || '请点击“新窗口打开”'}`;
-    }
+    if (status) { status.hidden = false; status.textContent = `图纸加载失败：${error?.message || '请点击“新窗口打开”'}`; }
   }
 }
 
@@ -3617,6 +3634,8 @@ document.addEventListener('click', (event) => {
   }
 });
 
+document.getElementById('drawingViewerPrev')?.addEventListener('click', () => { if (drawingViewerPdf) renderDrawingPage(drawingViewerPdf, drawingViewerPageNumber - 1); });
+document.getElementById('drawingViewerNext')?.addEventListener('click', () => { if (drawingViewerPdf) renderDrawingPage(drawingViewerPdf, drawingViewerPageNumber + 1); });
 document.getElementById('drawingViewerClose')?.addEventListener('click', closeDrawingViewer);
 document.getElementById('drawingViewer')?.addEventListener('click', (event) => {
   if (event.target === event.currentTarget) closeDrawingViewer();

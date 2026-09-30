@@ -1837,4 +1837,6 @@ body[data-view="mobile"] { background: #dfe7e9; }
   .drawing-viewer-actions { flex-direction: column; }
   .drawing-viewer-actions .button { padding: 7px 10px; font-size: 12px; }
   .drawing-viewer-pages { padding: 8px; }
-}
+}.drawing-viewer-pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 16px 0; }
+.drawing-viewer-pager span { min-width: 74px; text-align: center; color: #5f747a; font-size: 12px; font-weight: 700; }
+.drawing-viewer-pager button { min-height: 34px; padding: 0 13px; }
