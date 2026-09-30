@@ -1117,46 +1117,131 @@ function drawingPublicUrl(drawing) {
   return `${origin}/storage/v1/object/public/product-drawings/${storagePath.split('/').map(encodeURIComponent).join('/')}`;
 }
 
+let drawingViewerTask = null;
+let drawingViewerPdf = null;
+let drawingViewerBlobUrl = '';
+let pdfJsPromise = null;
+
 function drawingLinkHtml(drawing, label = '图纸') {
-  const url = drawingPublicUrl(drawing);
-  if (!url) return `<button type="button" class="drawing-link" data-drawing-id="${escapeHtml(drawing.id)}">${label}</button>`;
-  return `<a class="drawing-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">${label}</a>`;
+  return `<button type="button" class="drawing-link" data-drawing-id="${escapeHtml(drawing.id)}">${label}</button>`;
+}
+
+function closeDrawingViewer() {
+  const modal = document.getElementById('drawingViewer');
+  const pages = document.getElementById('drawingViewerPages');
+  try { if (drawingViewerTask?.destroy) drawingViewerTask.destroy(); } catch { }
+  try { if (drawingViewerPdf?.destroy) drawingViewerPdf.destroy(); } catch { }
+  drawingViewerTask = null;
+  drawingViewerPdf = null;
+  if (drawingViewerBlobUrl) {
+    try { URL.revokeObjectURL(drawingViewerBlobUrl); } catch { }
+    drawingViewerBlobUrl = '';
+  }
+  if (pages) pages.innerHTML = '';
+  if (modal) modal.hidden = true;
+  document.body.style.overflow = '';
+}
+
+async function loadPdfJs() {
+  if (!pdfJsPromise) {
+    pdfJsPromise = import('./vendor/pdf.min.mjs').then((pdfjs) => {
+      if (pdfjs.GlobalWorkerOptions) {
+        pdfjs.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdf.worker.min.mjs', import.meta.url).href;
+      }
+      return pdfjs;
+    }).catch(async (error) => {
+      if (window.pdfjsLib) return window.pdfjsLib;
+      throw error;
+    });
+  }
+  return pdfJsPromise;
+}
+
+async function renderDrawingPdf(pdf) {
+  const modal = document.getElementById('drawingViewer');
+  const pages = document.getElementById('drawingViewerPages');
+  const status = document.getElementById('drawingViewerStatus');
+  if (!pages || !status) return;
+  pages.innerHTML = '';
+  const availableWidth = Math.max(280, Math.min((pages.clientWidth || window.innerWidth) - 24, 1100));
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    if (!modal || modal.hidden) return;
+    status.hidden = false;
+    status.textContent = `正在加载第 ${pageNumber} / ${pdf.numPages} 页...`;
+    const page = await pdf.getPage(pageNumber);
+    const baseViewport = page.getViewport({ scale: 1 });
+    const scale = Math.min(2.2, Math.max(0.55, availableWidth / baseViewport.width));
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    canvas.style.width = `${Math.floor(viewport.width)}px`;
+    canvas.style.height = `${Math.floor(viewport.height)}px`;
+    pages.appendChild(canvas);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  }
+  status.hidden = false;
+  status.textContent = `共 ${pdf.numPages} 页`;
+}
+
+async function openDrawingViewer(drawing, url, options = {}) {
+  const modal = document.getElementById('drawingViewer');
+  const title = document.getElementById('drawingViewerTitle');
+  const status = document.getElementById('drawingViewerStatus');
+  const external = document.getElementById('drawingViewerExternal');
+  if (!modal || !url) {
+    showToast('图纸地址无效');
+    return;
+  }
+  closeDrawingViewer();
+  drawingViewerBlobUrl = options.revokeOnClose ? url : '';
+  if (title) title.textContent = [drawing?.material, drawing?.name, drawing?.spec].filter(Boolean).join(' · ') || '图纸查看';
+  if (status) {
+    status.hidden = false;
+    status.textContent = '正在加载图纸...';
+  }
+  if (external) external.href = url;
+  modal.hidden = false;
+  document.body.style.overflow = 'hidden';
+  try {
+    const pdfjs = await loadPdfJs();
+    if (!modal.hidden) {
+      drawingViewerTask = pdfjs.getDocument({ url, isEvalSupported: false });
+      const pdf = await drawingViewerTask.promise;
+      drawingViewerPdf = pdf;
+      if (!modal.hidden) await renderDrawingPdf(pdf);
+    }
+  } catch (error) {
+    if (status) {
+      status.hidden = false;
+      status.textContent = `图纸加载失败：${error?.message || '请点击“新窗口打开”'}`;
+    }
+  }
 }
 
 async function openDrawing(id) {
   const cached = (snapshot?.drawings || []).find((row) => String(row.id) === String(id));
   const directUrl = drawingPublicUrl(cached);
   if (directUrl) {
-    // 安卓浏览器优先走真实 PDF 链接，避免异步接口后打开空白页。
-    const link = document.createElement('a');
-    link.href = directUrl;
-    link.target = '_blank';
-    link.rel = 'noopener';
-    link.click();
+    await openDrawingViewer(cached, directUrl);
     return;
   }
-  const win = window.open('', '_blank');
   try {
     const result = await callRpc('board_get_drawing', { p_code: getAccessCode(), p_id: id });
     if (!result.response.ok) throw new Error(result.data?.message || '图纸读取失败');
-    if (result.data?.storagePath) {
-      const origin = (window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
-      const encodedPath = String(result.data.storagePath).split('/').map(encodeURIComponent).join('/');
-      const url = `${origin}/storage/v1/object/public/product-drawings/${encodedPath}`;
-      if (win) win.location = url;
-      else window.open(url, '_blank');
+    const row = result.data || {};
+    const storageUrl = drawingPublicUrl({ storagePath: row.storagePath });
+    if (storageUrl) {
+      await openDrawingViewer(row, storageUrl);
       return;
     }
-    if (!result.data?.contentBase64) throw new Error(result.data?.message || '图纸读取失败');
-    const binary = atob(String(result.data.contentBase64));
+    if (!row.contentBase64) throw new Error(row.message || '图纸读取失败');
+    const binary = atob(String(row.contentBase64));
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-    if (win) win.location = url;
-    else window.open(url, '_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    const objectUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    await openDrawingViewer(row, objectUrl, { revokeOnClose: true });
   } catch (error) {
-    if (win) win.close();
     showToast(error.message || '图纸打开失败');
   }
 }
@@ -1330,7 +1415,10 @@ function renderDesktopDrawings() {
             <span class="drawing-type-icon" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${drawingCategoryIcon(category)}</span>
             <span class="drawing-name">${escapeHtml(row.name || '未命名图纸')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</span>
           </div>
-          ${drawingPublicUrl(row) ? `<a class="file-download drawing-open" href="${escapeHtml(drawingPublicUrl(row))}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h8l4 4v16H6z"></path><path d="M14 2v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg><span>查看图纸</span></a>` : `<button type="button" class="file-download drawing-open" data-drawing-id="${escapeHtml(row.id)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h8l4 4v16H6z"></path><path d="M14 2v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg><span>查看图纸</span></button>`}
+          <button type="button" class="file-download drawing-open" data-drawing-id="${escapeHtml(row.id)}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h8l4 4v16H6z"></path><path d="M14 2v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg>
+            <span>查看图纸</span>
+          </button>
         </div>`;
     }).join('')}
   ` : '<div class="empty-state"><strong>没有匹配的图纸</strong><span>试试输入料号、品名、图号或文件名。</span></div>';
@@ -3527,6 +3615,15 @@ document.addEventListener('click', (event) => {
     event.stopPropagation();
     openDrawing(drawingButton.dataset.drawingId);
   }
+});
+
+document.getElementById('drawingViewerClose')?.addEventListener('click', closeDrawingViewer);
+document.getElementById('drawingViewer')?.addEventListener('click', (event) => {
+  if (event.target === event.currentTarget) closeDrawingViewer();
+});
+document.addEventListener('keydown', (event) => {
+  const modal = document.getElementById('drawingViewer');
+  if (event.key === 'Escape' && modal && !modal.hidden) closeDrawingViewer();
 });
 
 els.mobileOrderList.addEventListener('click', (event) => {
