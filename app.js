@@ -532,6 +532,12 @@ const els = {
   orderEditClose: $('#orderEditClose'),
   orderEditCancel: $('#orderEditCancel'),
   orderEditSave: $('#orderEditSave'),
+  accessCodeModal: $('#accessCodeModal'),
+  accessCodeInput: $('#accessCodeInput'),
+  accessCodeError: $('#accessCodeError'),
+  accessCodeClose: $('#accessCodeClose'),
+  accessCodeCancel: $('#accessCodeCancel'),
+  accessCodeSave: $('#accessCodeSave'),
   brandTitle: $('#brandTitle'),
   mobileBrandTitle: $('#mobileBrandTitle'),
   switchCodeButton: $('#switchCodeButton'),
@@ -3497,31 +3503,37 @@ els.refreshDeliveryPreview.addEventListener('click', refreshDeliveryPreview);
 els.printDeliveryNotes.addEventListener('click', printDeliveryNotes);
 els.deliveryDate.addEventListener('change', refreshDeliveryPreview);
 els.deliveryBatch.addEventListener('change', refreshDeliveryPreview);
-async function switchAccessCode() {
-  const label = BOARD_MODE === 'admin' ? '管理员访问码' : BOARD_MODE === 'user' ? '普通访问码' : '访问码';
-  const entered = prompt('请输入' + label + '：\n管理码 = 管理员模式\n普通码 = 普通模式');
-  if (!entered || !entered.trim()) return;
-  const code = entered.trim();
+function closeAccessCodeModal() {
+  if (els.accessCodeModal) els.accessCodeModal.hidden = true;
+  if (els.accessCodeError) els.accessCodeError.hidden = true;
+}
 
+function openAccessCodeModal() {
+  if (els.accessCodeInput) els.accessCodeInput.value = '';
+  if (els.accessCodeError) els.accessCodeError.hidden = true;
+  if (els.accessCodeModal) els.accessCodeModal.hidden = false;
+  els.accessCodeInput?.focus();
+}
+
+async function submitAccessCodeSwitch() {
+  const code = String(els.accessCodeInput?.value || '').trim();
+  const errorBox = els.accessCodeError;
+  const fail = (message) => { if (errorBox) { errorBox.textContent = message; errorBox.hidden = false; } showToast(message, 4000); };
+  if (!code) { fail('请输入访问码'); return; }
   let role = '';
   try {
     const r = await callRpc('board_whoami', { p_code: code });
     if (!r.response.ok) throw new Error(r.data?.message || '访问码验证失败');
     role = String((r.data && r.data.role) || '');
   } catch (error) {
-    showToast(error.message || '访问码验证失败，请检查网络后重试', 4000);
+    fail(error.message || '访问码验证失败，请检查网络后重试');
     return;
   }
-
-  if (role !== 'admin' && role !== 'user') {
-    showToast('这个访问码无效，请重新输入', 4000);
-    return;
-  }
+  if (role !== 'admin' && role !== 'user') { fail('这个访问码无效，请重新输入'); return; }
   if (!canUseRole(role)) {
-    showToast(BOARD_MODE === 'admin' ? '这个网址是管理员模式，请输入管理员码' : '这个网址是普通模式，请输入普通码', 4500);
+    fail(BOARD_MODE === 'admin' ? '这个网址是管理员模式，请输入管理员码' : '这个网址是普通模式，请输入普通码');
     return;
   }
-
   try {
     localStorage.setItem(ACCESS_CODE_STORAGE_KEY, code);
     localStorage.setItem(ROLE_STORAGE_KEY, role + '|' + code);
@@ -3529,8 +3541,8 @@ async function switchAccessCode() {
   boardRole = role;
   boardCanSeeAmount = role === 'admin';
   applyRoleUI();
+  closeAccessCodeModal();
   showToast(role === 'admin' ? '已切换到管理员模式，正在刷新…' : '已切换到普通模式，正在刷新…', 3500);
-
   setTimeout(() => {
     try {
       const url = new URL(location.href);
@@ -3543,6 +3555,13 @@ async function switchAccessCode() {
   }, 900);
 }
 
+function switchAccessCode() { openAccessCodeModal(); }
+
+if (els.accessCodeClose) els.accessCodeClose.addEventListener('click', closeAccessCodeModal);
+if (els.accessCodeCancel) els.accessCodeCancel.addEventListener('click', closeAccessCodeModal);
+if (els.accessCodeSave) els.accessCodeSave.addEventListener('click', submitAccessCodeSwitch);
+if (els.accessCodeModal) els.accessCodeModal.addEventListener('click', (event) => { if (event.target === els.accessCodeModal) closeAccessCodeModal(); });
+if (els.accessCodeInput) els.accessCodeInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') submitAccessCodeSwitch(); });
 if (els.switchCodeButton) els.switchCodeButton.addEventListener('click', switchAccessCode);
 if (els.mobileSwitchCode) els.mobileSwitchCode.addEventListener('click', switchAccessCode);
 
