@@ -556,7 +556,7 @@ const escapeHtml = (value) => String(value ?? '')
   .replaceAll("'", '&#039;');
 
 const fmt = (value) => numberFormat.format(Number(value || 0));
-const searchable = (order) => [order.po, order.material, order.name, order.spec, order.batch, order.seq, order.customer].join(' ').toLowerCase();
+const searchable = (order) => [order.po, order.material, order.name, order.spec, order.batch, order.seq, order.customer, order.orderQty, order.shipped, order.remaining].join(' ').toLowerCase();
 
 function dayDiff(dateText) {
   const a = new Date(`${TODAY}T00:00:00+08:00`).getTime();
@@ -1486,7 +1486,7 @@ function overFilteredRows() {
   return overDeliveries().filter((row) => {
     if (overDate && recordDay(row.createdAt) !== overDate) return false;
     if (!q) return true;
-    return [row.material, row.name, row.spec, row.customer].join(' ').toLowerCase().includes(q);
+    return [row.material, row.name, row.spec, row.customer, row.quantity, row.remaining].join(' ').toLowerCase().includes(q);
   });
 }
 
@@ -1495,7 +1495,8 @@ function offsetFilteredRows() {
   return overOffsets().filter((row) => {
     if (offsetDate && recordDay(row.appliedAt) !== offsetDate) return false;
     if (!q) return true;
-    return [row.material, row.name, row.spec, row.orderId, row.customer].join(' ').toLowerCase().includes(q);
+    const meta = orderMetaSearchText(row.orderId, row);
+    return [row.material, row.name, row.spec, row.orderId, row.customer, meta].join(' ').toLowerCase().includes(q);
   });
 }
 
@@ -1509,7 +1510,7 @@ function renderOverDeliveryList() {
       ${rows.map((row) => `
         <div class="over-row">
           <span class="mono">${escapeHtml(row.material)}</span>
-          <span>${escapeHtml(row.name)}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</span>
+          <span>${escapeHtml(row.name)}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}<br><em class="over-meta">采购单号：无 · 项次：无 · 订单量：无订单 · 已发：${fmt(row.quantity)} 件 · 剩余可冲抵：${fmt(row.remaining)} 件</em></span>
           <strong>${fmt(row.remaining)} 件</strong>
           ${isLockedRecord(row.createdAt) || isBilledExtra(row.id)
             ? `<span class="row-locked" title="${isBilledExtra(row.id) ? '已开送货单并上传云端，不能撤回' : '登记满 7 天后不能再撤回'}">${isBilledExtra(row.id) ? '已开单' : '已归档'}</span>`
@@ -1612,11 +1613,12 @@ function renderOverOffsetList() {
     <section class="over-box offset-history">
       <div class="over-head"><strong>冲抵记录</strong><span>最近 ${rows.length} 笔</span></div>
       ${rows.map((row) => {
-        const orderId = String(row.orderId || '');
-        const [po, seq] = orderId.split('#');
+        const meta = orderMetaFor(row.orderId, row);
+        const po = meta.po || '无';
+        const seq = meta.seq || '无';
         return `<div class="over-row">
           <span class="mono">${escapeHtml(row.material)}</span>
-          <span>${escapeHtml(row.name || '')}<br><em>冲抵到 ${escapeHtml(po)}${seq ? ' 项次' + escapeHtml(seq) : ''} · ${escapeHtml(stamp(row.appliedAt))}</em></span>
+          <span>${escapeHtml(row.name || '')}<br><em class="over-meta">采购单号：${escapeHtml(po)} · 项次：${escapeHtml(seq)} · 订单量：${fmt(meta.orderQty)} · 已发：${fmt(meta.shipped)} · 未交：${fmt(meta.remaining)} · 冲抵：${fmt(row.quantity)} 件 · ${escapeHtml(stamp(row.appliedAt))}</em></span>
           <strong>${fmt(row.quantity)} 件</strong>
           ${isLockedRecord(row.appliedAt) || isBilledExtra(row.id)
             ? `<span class="row-locked" title="${isBilledExtra(row.id) ? '已开送货单并上传云端，不能撤回' : '冲抵满 7 天后不能再撤回'}">${isBilledExtra(row.id) ? '已开单' : '已归档'}</span>`
@@ -1698,7 +1700,7 @@ function renderDesktopMetrics() {
 }
 
 const DESKTOP_COLUMN_WIDTH_KEY = 'shipmentDesktopColumnWidths';
-const DESKTOP_COLUMN_DEFAULT_WIDTHS = [118, 92, 220, 170, 64, 118, 68, 76];
+const DESKTOP_COLUMN_DEFAULT_WIDTHS = [118, 92, 220, 170, 64, 118, 72, 68, 76];
 
 function readDesktopColumnWidths() {
   try {
@@ -1778,6 +1780,7 @@ function renderDesktopTable() {
   els.desktopTableBody.innerHTML = rows.map((order) => {
     const badge = dueBadge(order);
     const typeLabel = ({ trial: '试制', sample: '承样', tooling: '工装' })[order.orderType] || '';
+    const orderQty = Number(order.orderQty ?? order.openingRemaining ?? 0);
     return `
       <tr>
         <td><span class="order-id">${escapeHtml(order.po)}</span><span class="company-tag" title="${escapeHtml(companyName(orderCompany(order)))}">${escapeHtml(orderCompany(order) || '—')}</span>${typeLabel ? `<span class="order-type-tag">${typeLabel}</span>` : ''}${boardRole === 'admin' ? `<button type="button" class="order-edit-link" data-edit-order="${escapeHtml(order.id)}">变更</button>` : ''}${(() => { const am = amountFor(order.id); return boardRole === 'admin' && am && am.orderAmount != null ? `<span class="amount-line">单总 ${fmt(am.orderAmount)}</span>` : ''; })()}</td>
@@ -1786,6 +1789,7 @@ function renderDesktopTable() {
         <td><span class="spec-code mono">${escapeHtml(order.spec || '—')}</span></td>
         <td class="number">${escapeHtml(order.seq)}</td>
         <td><span class="due-date">${escapeHtml(formatDate(order.dueDate))}</span><span class="due-badge ${badge.className}">${escapeHtml(dueStatus(order).text)}</span></td>
+        <td class="number"><span class="order-qty-number">${fmt(orderQty)}</span></td>
         <td class="number"><span class="remaining-number">${fmt(order.remaining)}</span>${(() => { const am = amountFor(order.id); return boardRole === 'admin' && am && am.unitPrice != null ? `<span class="amount-line">单价 ${am.unitPrice} · 金额 ${fmt(am.amount)}</span>` : ''; })()}</td>
         <td class="number"><span class="shipped-number">${fmt(order.shipped)}</span></td>
       </tr>`;
@@ -1881,20 +1885,50 @@ function shipShanghaiDate(value) {
   return shanghai.toISOString().slice(0, 10);
 }
 
-function shipmentMatches(shipment, query) {
+function orderLookupMap() {
+  return new Map((snapshot?.orders || []).map((order) => [String(order.id || ''), order]));
+}
+
+function orderMetaFor(orderId, fallback = {}, lookup = null) {
+  const source = lookup || orderLookupMap();
+  const id = String(orderId || '');
+  const order = source.get(id) || null;
+  const [poPart, seqPart] = id.split('#');
+  const orderQty = Number(order?.orderQty ?? order?.openingRemaining ?? 0);
+  return {
+    order,
+    po: String(order?.po || poPart || fallback.po || '').trim(),
+    seq: String(order?.seq ?? seqPart ?? fallback.seq ?? '').trim(),
+    orderQty: Number.isFinite(orderQty) ? orderQty : 0,
+    shipped: Number(order?.shipped ?? fallback.shipped ?? 0),
+    remaining: Number(order?.remaining ?? fallback.remaining ?? 0),
+    material: String(order?.material || fallback.material || '').trim(),
+    name: String(order?.name || fallback.name || '').trim(),
+    spec: String(order?.spec || fallback.spec || '').trim(),
+  };
+}
+
+function orderMetaSearchText(orderId, fallback = {}, lookup = null) {
+  const meta = orderMetaFor(orderId, fallback, lookup);
+  return [meta.po, meta.seq, meta.material, meta.name, meta.spec, meta.orderQty, meta.shipped, meta.remaining].join(' ').toLowerCase();
+}
+
+function shipmentMatches(shipment, query, lookup = null) {
   if (!query) return true;
+  const map = lookup || orderLookupMap();
   const text = [
     shipment.id, shipment.vehicle, shipment.operator, shipment.note,
-    ...shipment.items.flatMap((line) => [line.material, line.name, line.spec, line.orderId]),
+    ...shipment.items.flatMap((line) => [line.material, line.name, line.spec, line.orderId, orderMetaSearchText(line.orderId, line, map)]),
   ].join(' ').toLowerCase();
   return text.includes(query);
 }
 
 function filterShipments(date, queryText) {
   const query = String(queryText || '').trim().toLowerCase();
+  const lookup = orderLookupMap();
   return snapshot.shipments.filter((shipment) => {
     if (date && shipShanghaiDate(shipment.createdAt) !== date) return false;
-    return shipmentMatches(shipment, query);
+    return shipmentMatches(shipment, query, lookup);
   });
 }
 
@@ -1921,6 +1955,7 @@ function mergedShipmentsByDate(shipments) {
 
 function renderHistoryCards(shipments) {
   if (!shipments.length) return '<div class="empty-state"><strong>没有符合条件的发货记录</strong><span>换个日期或清空搜索词再试。</span></div>';
+  const orderLookup = orderLookupMap();
   return shipments.map((shipment) => {
     const items = shipment.items || [];
     const expanded = expandedShipments.has(shipment.id);
@@ -1945,7 +1980,13 @@ function renderHistoryCards(shipments) {
         <span>${escapeHtml(stamp)}</span>
       </div>
       <div class="history-lines">
-        ${shown.map((line) => `<div class="history-line"><span>${escapeHtml(line.material)} ${escapeHtml(line.name)}</span><strong>${fmt(line.quantity)} 件</strong></div>`).join('')}
+        ${shown.map((line) => {
+          const meta = orderMetaFor(line.orderId, line, orderLookup);
+          return `<div class="history-line history-line-rich">
+            <div class="history-line-main"><span><b>${escapeHtml(line.material)}</b> ${escapeHtml(line.name || '')}${line.spec ? ' · ' + escapeHtml(line.spec) : ''}</span><strong>本次 ${fmt(line.quantity)} 件</strong></div>
+            <div class="history-line-meta"><span>采购单号：${escapeHtml(meta.po || '无')}</span><span>项次：${escapeHtml(meta.seq || '无')}</span><span>订单量：${fmt(meta.orderQty)}</span><span>已发：${fmt(meta.shipped)}</span><span>未交：${fmt(meta.remaining)}</span></div>
+          </div>`;
+        }).join('')}
       </div>
       ${items.length > 5 ? `<button class="history-expand" type="button" data-expand="${escapeHtml(shipment.id)}">${expanded ? '收起明细' : `展开全部 ${items.length} 项（还有 ${hidden} 项）`}</button>` : ''}
       <div class="history-foot">
@@ -3683,6 +3724,7 @@ await loadBoardRole();
 await loadMarkMaterials();
 await loadState();
 connectEvents();
+
 
 
 

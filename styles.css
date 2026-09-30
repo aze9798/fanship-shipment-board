@@ -1712,3 +1712,39 @@ body[data-view="mobile"] { background: #dfe7e9; }
 }
 .field-stack input:focus { outline: none; border-color: #83c7bf; box-shadow: 0 0 0 3px rgba(15,118,110,.09); }
 .access-code-help { margin: 9px 0 0; color: #7b8d92; font-size: 11px; line-height: 1.5; }
+
+/* 查询页：发货/冲抵明细的采购单、订单量、已发、未交信息 */
+.history-line-rich {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  padding: 6px 0;
+}
+.history-line-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.history-line-main b { color: #294a45; }
+.history-line-main strong { white-space: nowrap; color: #0f766e; }
+.history-line-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: #7e9095;
+  font-size: 10px;
+}
+.history-line-meta span { white-space: nowrap; }
+.over-meta {
+  display: block;
+  margin-top: 3px;
+  color: #9a8264;
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.45;
+}
+@media (max-width: 900px) {
+  .history-line-main { gap: 6px; }
+  .history-line-meta { gap: 3px 7px; }
+}
