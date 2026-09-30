@@ -1748,3 +1748,15 @@ body[data-view="mobile"] { background: #dfe7e9; }
   .history-line-main { gap: 6px; }
   .history-line-meta { gap: 3px 7px; }
 }
+
+.seq-inline {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #eef4f4;
+  color: #527078;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
