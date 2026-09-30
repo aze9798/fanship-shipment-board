@@ -32,6 +32,7 @@
     .process-grid{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.process{border:1px solid var(--line);border-radius:10px;background:#fff;padding:8px 11px;color:#536b72}.process.active{border-color:var(--primary);background:var(--primary);color:#fff}
     .piece-form{display:grid;gap:11px;margin-top:12px}.piece-form .row{display:grid;grid-template-columns:1fr 1fr;gap:9px}.piece-form input{height:44px;border:1px solid var(--line);border-radius:11px;padding:0 11px;background:#fbfdfd;outline:none}.variant-box{margin-top:12px;padding:12px;border-radius:12px;background:#f7fbfa;border:1px solid #e2edeb}.variant-label{margin-bottom:8px;color:#587178;font-size:12px;font-weight:700}.variant-options{display:flex;flex-wrap:wrap;gap:7px}.variant-options button{min-height:36px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#536b72}.variant-options button.active{border-color:var(--primary);background:var(--primary);color:#fff}.variant-box input{width:100%;height:40px;border:1px solid var(--line);border-radius:10px;padding:0 11px;background:#fff;outline:none}
     .piece-submit{min-height:48px}.piece-record{background:#f8fbfa;border:1px solid #edf2f2;border-radius:12px;padding:11px;margin-top:8px}.piece-record strong{font-size:13px}.piece-record span{display:block;color:var(--muted);font-size:10px;margin-top:3px}.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#173b42;color:#fff;padding:11px 15px;border-radius:12px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:99;max-width:88vw;text-align:center}
+.modal-backdrop{position:fixed;inset:0;background:rgba(8,31,36,.42);display:grid;place-items:center;padding:20px;z-index:120}.modal-card{width:100%;max-width:360px;background:#fff;border-radius:16px;padding:17px;box-shadow:0 18px 45px rgba(0,0,0,.22)}.modal-card h3{margin:0 0 8px;font-size:17px}.modal-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.modal-actions button{min-height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:#fff}.modal-actions .danger{background:#b42318;border-color:#b42318;color:#fff}.record-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}.record-status{font-size:10px;color:#71868b}.record-status.approved{color:#0f766e}.record-status.revoked,.record-status.rejected{color:#b42318}.revoke-piece{border:1px solid #e2b9b4;border-radius:8px;background:#fff7f6;color:#b42318;padding:4px 9px;font-size:11px}
   </style>
 </head><body>
 <div class="page">
@@ -72,6 +73,7 @@
     </section>
   </section>
 </div>
+<div id="revokeModal" class="modal-backdrop hidden"><div class="modal-card"><h3>确定撤回这条计件吗？</h3><p>撤回后不会参与工资统计，记录会保留为“已撤回”。</p><div class="modal-actions"><button id="revokeCancel" type="button">取消</button><button id="revokeConfirm" class="danger" type="button">确认撤回</button></div></div></div>
 <div id="toast" class="toast hidden"></div><script>
 window.WORK_RPC_BASE = 'https://dkbeigqtiilgxthwkixg.supabase.co/rest/v1/rpc';
 window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s';
@@ -84,6 +86,7 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
   let selectedProcessId = '';
   let searchTimer = null;
   let selectedVariant = null;
+  let pendingRevokeId = '';
   const PROCESS_VARIANTS = {
     '打孔': { key: 'holes', label: '孔数', type: 'select', options: [1,2,3,4,5,6] },
     '攻丝': { key: 'holes', label: '攻丝孔数', type: 'select', options: [1,2,3,4,5,6] },
@@ -135,8 +138,14 @@ function renderVariant() {
   show(box, true);
 }
 function renderPiece() {
-  const rows = state?.pieceEntries || []; $('pieceCount').textContent = `${rows.length} 笔`;
-  $('pieceEntries').innerHTML = rows.length ? rows.map((x) => `<div class="piece-record"><strong>${esc(x.material)} · ${esc(x.name || '')}</strong><span>${esc(x.process)}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''} · ${Number(x.quantity)} 件 · ${esc(x.workDate)}</span></div>`).join('') : '<div class="card empty">还没有计件申报记录</div>';
+  const rows = state?.pieceEntries || [];
+  const activeCount = rows.filter((x) => x.status !== 'revoked').length;
+  $('pieceCount').textContent = `${activeCount} 笔`;
+  $('pieceEntries').innerHTML = rows.length ? rows.map((x) => {
+    const statusText = x.status === 'revoked' ? '已撤回' : x.status === 'approved' ? '已审核' : x.status === 'rejected' ? '已退回' : '已提交';
+    const canRevoke = x.status === 'submitted' && (Date.now() - new Date(x.createdAt).getTime()) < 7 * 86400000;
+    return `<div class="piece-record"><strong>${esc(x.material)} · ${esc(x.name || '')}</strong><span>${esc(x.process)}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''} · ${Number(x.quantity)} 件 · ${esc(x.workDate)}</span><div class="record-foot"><span class="record-status ${x.status}">${statusText}</span>${canRevoke ? `<button type="button" class="revoke-piece" data-revoke-piece="${esc(x.id)}">撤回</button>` : ''}</div></div>`;
+  }).join('') : '<div class="card empty">还没有计件申报记录</div>';
   $('processGrid').innerHTML = (state?.processes || []).map((p) => `<button type="button" class="process ${selectedProcessId === p.id ? 'active' : ''}" data-process="${esc(p.id)}">${esc(p.name)}</button>`).join('');
   renderVariant();
 }
@@ -221,6 +230,16 @@ function variantDisplay(processName, value) {
     } catch (e) { toast(e.message || '提交失败'); } finally { btn.disabled = false; }
   }
 
+  function showRevoke(id) { pendingRevokeId = id; show($('revokeModal'), true); }
+  function closeRevoke() { pendingRevokeId = ''; show($('revokeModal'), false); }
+  async function revokePiece() {
+    if (!pendingRevokeId) return;
+    const id = pendingRevokeId; const btn = $('revokeConfirm'); btn.disabled = true;
+    try {
+      await rpc('work_revoke_piece_entry', { p_code:code, p_id:id, p_reason:'' });
+      closeRevoke(); await loadState(); toast('计件记录已撤回');
+    } catch (e) { toast(e.message || '撤回失败'); } finally { btn.disabled = false; }
+  }
   $('loginButton').addEventListener('click', () => login($('codeInput').value));
   $('codeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') login($('codeInput').value); });
   $('logoutButton').addEventListener('click', () => { state = null; code = ''; try { localStorage.removeItem(STORAGE_KEY); } catch {} render(); });
@@ -238,6 +257,10 @@ function variantDisplay(processName, value) {
   });
   $('processGrid').addEventListener('click', (e) => { const b = e.target.closest('[data-process]'); if (!b) return; selectedProcessId = b.dataset.process; selectedVariant = null; renderPiece(); });
   $('variantBox').addEventListener('click', (e) => { const b = e.target.closest('[data-variant-value]'); if (!b) return; selectedVariant = { value:Number(b.dataset.variantValue), label:b.dataset.variantLabel || String(b.dataset.variantValue) }; renderVariant(); });
+  $('pieceEntries').addEventListener('click', (e) => { const b = e.target.closest('[data-revoke-piece]'); if (!b) return; showRevoke(b.dataset.revokePiece); });
+  $('revokeCancel').addEventListener('click', closeRevoke);
+  $('revokeConfirm').addEventListener('click', revokePiece);
+  $('revokeModal').addEventListener('click', (e) => { if (e.target === $('revokeModal')) closeRevoke(); });
   $('pieceSubmit').addEventListener('click', submitPiece);
   setInterval(() => { if (state?.activeEntry) $('clockTime').textContent = currentElapsedText(); }, 1000);
   setInterval(() => { if (code && state) loadState().catch(() => {}); }, 30000);
