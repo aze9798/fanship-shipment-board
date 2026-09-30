@@ -1160,35 +1160,26 @@ async function loadPdfJs() {
   return pdfJsPromise;
 }
 
-async function renderDrawingPage(pdf, pageNumber) {
+async function renderDrawingPdf(pdf) {
   const modal = document.getElementById('drawingViewer');
   const pages = document.getElementById('drawingViewerPages');
   const status = document.getElementById('drawingViewerStatus');
   const pager = document.getElementById('drawingViewerPager');
-  const pageLabel = document.getElementById('drawingViewerPage');
-  const prev = document.getElementById('drawingViewerPrev');
-  const next = document.getElementById('drawingViewerNext');
-  if (!pdf || !pages || !status || !modal || modal.hidden) return;
+  if (!pdf || !pages || !status || !modal) return;
   const total = Number(pdf.numPages || 0);
-  const current = Math.max(1, Math.min(Number(pageNumber || 1), total || 1));
-  drawingViewerPageNumber = current;
-  drawingViewerTotalPages = total;
-  const token = ++drawingViewerRenderToken;
   pages.innerHTML = '';
-  if (pager) pager.hidden = total <= 1;
-  if (pageLabel) pageLabel.textContent = `${current} / ${total}`;
-  if (prev) prev.disabled = current <= 1;
-  if (next) next.disabled = current >= total;
+  if (pager) pager.hidden = true;
   status.hidden = false;
-  status.textContent = `正在加载第 ${current} / ${total} 页...`;
-  try {
-    const page = await pdf.getPage(current);
-    if (token !== drawingViewerRenderToken || modal.hidden) return;
+  if (total <= 0) { status.textContent = '这份图纸没有可显示的页面'; return; }
+  const availableWidth = Math.max(280, Math.min((pages.clientWidth || window.innerWidth) - 8, 1100));
+  for (let pageNumber = 1; pageNumber <= total; pageNumber += 1) {
+    if (!modal || modal.hidden) return;
+    status.textContent = `正在加载第 ${pageNumber} / ${total} 页...`;
+    const page = await pdf.getPage(pageNumber);
     const baseViewport = page.getViewport({ scale: 1 });
-    const availableWidth = Math.max(280, Math.min((pages.clientWidth || window.innerWidth) - 8, 1100));
-    const scale = Math.min(2.15, Math.max(0.6, availableWidth / baseViewport.width));
+    const scale = Math.min(1.8, Math.max(0.6, availableWidth / baseViewport.width));
     const viewport = page.getViewport({ scale });
-    const pixelRatio = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+    const pixelRatio = Math.min(1.5, Math.max(1, window.devicePixelRatio || 1));
     const canvas = document.createElement('canvas');
     canvas.width = Math.floor(viewport.width * pixelRatio);
     canvas.height = Math.floor(viewport.height * pixelRatio);
@@ -1198,10 +1189,9 @@ async function renderDrawingPage(pdf, pageNumber) {
     const renderContext = { canvasContext: canvas.getContext('2d'), viewport };
     if (pixelRatio !== 1) renderContext.transform = [pixelRatio, 0, 0, pixelRatio, 0, 0];
     await page.render(renderContext).promise;
-    if (token === drawingViewerRenderToken && !modal.hidden) status.textContent = `第 ${current} / ${total} 页`;
-  } catch (error) {
-    if (token === drawingViewerRenderToken) status.textContent = `图纸加载失败：${error?.message || '请点击“新窗口打开”'}`;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
   }
+  status.textContent = `共 ${total} 页`;
 }
 
 async function openDrawingViewer(drawing, url, options = {}) {
@@ -1233,7 +1223,7 @@ async function openDrawingViewer(drawing, url, options = {}) {
       const pdf = await drawingViewerTask.promise;
       drawingViewerPdf = pdf;
       drawingViewerTotalPages = Number(pdf.numPages || 0);
-      if (!modal.hidden) await renderDrawingPage(pdf, 1);
+      if (!modal.hidden) await renderDrawingPdf(pdf);
     }
   } catch (error) {
     if (status) { status.hidden = false; status.textContent = `图纸加载失败：${error?.message || '请点击“新窗口打开”'}`; }
@@ -3640,8 +3630,6 @@ document.addEventListener('click', (event) => {
   }
 });
 
-document.getElementById('drawingViewerPrev')?.addEventListener('click', () => { if (drawingViewerPdf) renderDrawingPage(drawingViewerPdf, drawingViewerPageNumber - 1); });
-document.getElementById('drawingViewerNext')?.addEventListener('click', () => { if (drawingViewerPdf) renderDrawingPage(drawingViewerPdf, drawingViewerPageNumber + 1); });
 document.getElementById('drawingViewerClose')?.addEventListener('click', closeDrawingViewer);
 document.getElementById('drawingViewer')?.addEventListener('click', (event) => {
   if (event.target === event.currentTarget) closeDrawingViewer();
