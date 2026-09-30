@@ -1186,15 +1186,18 @@ async function renderDrawingPage(pdf, pageNumber) {
     if (token !== drawingViewerRenderToken || modal.hidden) return;
     const baseViewport = page.getViewport({ scale: 1 });
     const availableWidth = Math.max(280, Math.min((pages.clientWidth || window.innerWidth) - 8, 1100));
-    const scale = Math.min(1.75, Math.max(0.55, availableWidth / baseViewport.width));
+    const scale = Math.min(2.15, Math.max(0.6, availableWidth / baseViewport.width));
     const viewport = page.getViewport({ scale });
+    const pixelRatio = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
     const canvas = document.createElement('canvas');
-    canvas.width = Math.floor(viewport.width);
-    canvas.height = Math.floor(viewport.height);
+    canvas.width = Math.floor(viewport.width * pixelRatio);
+    canvas.height = Math.floor(viewport.height * pixelRatio);
     canvas.style.width = `${Math.floor(viewport.width)}px`;
     canvas.style.height = `${Math.floor(viewport.height)}px`;
     pages.appendChild(canvas);
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    const renderContext = { canvasContext: canvas.getContext('2d'), viewport };
+    if (pixelRatio !== 1) renderContext.transform = [pixelRatio, 0, 0, pixelRatio, 0, 0];
+    await page.render(renderContext).promise;
     if (token === drawingViewerRenderToken && !modal.hidden) status.textContent = `第 ${current} / ${total} 页`;
   } catch (error) {
     if (token === drawingViewerRenderToken) status.textContent = `图纸加载失败：${error?.message || '请点击“新窗口打开”'}`;
@@ -1209,9 +1212,10 @@ async function openDrawingViewer(drawing, url, options = {}) {
   const pager = document.getElementById('drawingViewerPager');
   if (!modal || !url) { showToast('图纸地址无效'); return; }
   if (/Android/i.test(navigator.userAgent)) {
-    showToast('正在打开系统图纸查看器...');
-    const opened = window.open(url, '_blank', 'noopener');
-    if (!opened) window.location.href = url;
+    const androidUrl = url.split('#')[0] + '#page=1&zoom=page-width';
+    showToast('正在打开安卓图纸查看器...');
+    const opened = window.open(androidUrl, '_blank', 'noopener');
+    if (!opened) window.location.href = androidUrl;
     return;
   }
   closeDrawingViewer();
@@ -1225,7 +1229,7 @@ async function openDrawingViewer(drawing, url, options = {}) {
   try {
     const pdfjs = await loadPdfJs();
     if (!modal.hidden) {
-      drawingViewerTask = pdfjs.getDocument({ url, isEvalSupported: false });
+      drawingViewerTask = pdfjs.getDocument({ url, isEvalSupported: false, rangeChunkSize: 65536 });
       const pdf = await drawingViewerTask.promise;
       drawingViewerPdf = pdf;
       drawingViewerTotalPages = Number(pdf.numPages || 0);
@@ -3051,7 +3055,9 @@ async function submitShipment() {
     closeSubmitModal();
     showSubmitError('');
     showToast(`${shipmentId} 已保存${reallocated ? '（已按最新未交重新分配）' : ''}${overSaved.length ? `，含无订单发货 ${overSaved.join('、')}` : ''}`);
-    await loadBoardRole();
+    if (!/Android/i.test(navigator.userAgent)) setTimeout(() => { loadPdfJs().catch(() => {}); }, 2000);
+
+await loadBoardRole();
 applyRoleUI();
 await loadState();
 applyRoleUI();
