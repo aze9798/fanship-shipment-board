@@ -53,6 +53,9 @@
     .selected-price-card.warn{background:#fff8eb;border-color:#f0d9ad;color:#8a5707}.selected-price-card.warn strong{color:#a45b05}
     .selected-price-card button{margin-top:10px}
     @media(max-width:600px){input,select,textarea{font-size:16px!important}}
+    .session-beta{background:linear-gradient(145deg,#173b42,#0f766e);color:#fff;border:0}
+    .session-beta h2{margin:0;font-size:17px}.session-beta p{margin:4px 0 0;font-size:11px;color:rgba(255,255,255,.78)}
+    .session-elapsed{font-size:32px;font-weight:900;margin:12px 0}.session-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}.session-actions button{min-height:48px}.session-actions .wide{grid-column:1/-1}.session-history{display:grid;gap:7px;margin-top:14px}.session-history-row{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:9px;background:rgba(255,255,255,.12);font-size:11px}
   </style>
 </head><body>
 <div class="page">
@@ -68,7 +71,14 @@
     <div class="top"><div><h1 id="employeeName">员工</h1><p id="employeeMeta"></p></div><button id="logoutButton" class="logout">退出登录</button></div>
     <div class="tabs"><button class="active" data-tab="time">计时</button><button data-tab="piece">计件</button></div>
     <section id="timePanel">
-      <div class="card clock-card">
+      <div id="sessionBetaCard" class="card session-beta hidden">
+        <h2 id="sessionBetaTitle">选择工作类型</h2>
+        <p id="sessionBetaHint">计时和计件同一时间只开启一种工作时段</p>
+        <div id="sessionBetaElapsed" class="session-elapsed">00:00:00</div>
+        <div id="sessionBetaActions" class="session-actions"></div>
+        <div id="sessionBetaHistory" class="session-history"></div>
+      </div>
+      <div id="normalClockCard" class="card clock-card">
         <div class="clock-label" id="clockLabel">当前状态</div>
         <div class="clock-time" id="clockTime">00:00</div>
         <div class="clock-note" id="clockNote">上班时间 7:30–17:00，加班最晚 20:30</div>
@@ -78,6 +88,7 @@
       <div class="list-title"><strong>今日计时记录</strong><span id="todayCount">0 段</span></div><div id="todayEntries" class="card"></div>
     </section>
     <section id="piecePanel" class="hidden">
+      <div id="pieceSessionNotice" class="selected-price-card warn hidden">请先到“计时”页开始计件工作，再回来申报数量。</div>
       <div class="card"><div class="section-head"><div><h2>计件申报</h2><p>搜索产品，选择工序，填写数量后提交。</p></div></div>
         <div class="search-wrap"><input id="productSearch" type="search" placeholder="搜索产品编号 / 产品名 / 图号" autocomplete="off"></div>
         <div id="productSuggest" class="suggest hidden"></div>
@@ -142,6 +153,7 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
   const $ = (id) => document.getElementById(id);
   const STORAGE_KEY = 'fanshipWorkEmployeeCode';
   const COOKIE_KEY = 'fanshipWorkEmployeeCode';
+  const SESSION_BETA = new URLSearchParams(location.search).get('session') === '1';
   let code = '';
   let state = null;
   let selectedProduct = null;
@@ -154,6 +166,9 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
   let requestAutoPrice = null;
   let requestMaterialTimer = null;
   let requestMaterialToken = 0;
+  let betaSession = null;
+  let betaHistory = [];
+  let betaStateLoaded = false;
   let selectedPriceToken = 0;
   let productProcessToken = 0;
   const productProcessMap = new Map();
@@ -193,6 +208,60 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
     const data = await r.json().catch(() => null);
     if (!r.ok) throw new Error(data?.message || '请求失败');
     return data;
+  }
+  function betaStorageKey(kind) { return `fanshipWorkBeta:${kind}:${code || 'none'}`; }
+  function loadBetaSession() {
+    try { betaSession = JSON.parse(localStorage.getItem(betaStorageKey('session')) || 'null'); } catch { betaSession = null; }
+    try { betaHistory = JSON.parse(localStorage.getItem(betaStorageKey('history')) || '[]'); } catch { betaHistory = []; }
+    betaStateLoaded = true;
+  }
+  function saveBetaState() {
+    try { localStorage.setItem(betaStorageKey('session'), JSON.stringify(betaSession)); } catch {}
+    try { localStorage.setItem(betaStorageKey('history'), JSON.stringify(betaHistory.slice(-30))); } catch {}
+  }
+  function betaElapsedText() {
+    if (!betaSession?.startedAt) return '00:00:00';
+    const seconds = Math.max(0, Math.floor((Date.now() - new Date(betaSession.startedAt).getTime()) / 1000));
+    return `${String(Math.floor(seconds/3600)).padStart(2,'0')}:${String(Math.floor((seconds%3600)/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
+  }
+  function addBetaHistory() {
+    if (!betaSession?.startedAt) return;
+    betaHistory.push({ mode:betaSession.mode, startedAt:betaSession.startedAt, endedAt:new Date().toISOString() });
+    betaHistory = betaHistory.slice(-30);
+  }
+  function renderBetaSession() {
+    if (!SESSION_BETA) return;
+    show($('sessionBetaCard'), true);
+    show($('normalClockCard'), false);
+    if (!betaStateLoaded) loadBetaSession();
+    const actions = $('sessionBetaActions'); const title = $('sessionBetaTitle'); const hint = $('sessionBetaHint'); const elapsed = $('sessionBetaElapsed');
+    if (!betaSession) {
+      title.textContent = '选择工作类型'; hint.textContent = '计时和计件同一时间只开启一种工作时段'; elapsed.textContent = '00:00:00';
+      actions.innerHTML = `<button class="ghost" type="button" data-beta-action="start-piece">开始计件工作</button><button class="primary" type="button" data-beta-action="start-time">开始计时工作</button>`;
+    } else if (betaSession.mode === 'piece') {
+      title.textContent = '正在计件工作'; hint.textContent = '本时段只记录计件，不影响计时工资'; elapsed.textContent = betaElapsedText();
+      actions.innerHTML = `<button class="ghost" type="button" data-beta-action="switch-time">结束计件并开始计时</button><button class="primary" type="button" data-beta-action="end">结束全部工作</button>`;
+    } else {
+      title.textContent = '正在计时工作'; hint.textContent = '本时段按有效工时计算，不计件'; elapsed.textContent = betaElapsedText();
+      actions.innerHTML = `<button class="ghost" type="button" data-beta-action="switch-piece">结束计时并开始计件</button><button class="primary" type="button" data-beta-action="end">结束全部工作</button>`;
+    }
+    $('sessionBetaHistory').innerHTML = betaHistory.length ? betaHistory.slice(-6).reverse().map((row) => `<div class="session-history-row"><strong>${row.mode === 'piece' ? '计件' : '计时'}</strong><span>${fmtClock(row.startedAt)} → ${fmtClock(row.endedAt)}</span></div>`).join('') : '';
+    const canPiece = betaSession?.mode === 'piece'; show($('pieceSessionNotice'), !canPiece); $('pieceSubmit').disabled = !canPiece;
+  }
+  async function startBetaSession(mode) {
+    const startedAt = new Date().toISOString();
+    if (mode === 'time') { const result = await rpc('work_start_timer', { p_code:code }); betaSession = { mode:'time', startedAt:result?.startedAt || startedAt }; saveBetaState(); await loadState(); }
+    else { betaSession = { mode:'piece', startedAt }; saveBetaState(); renderBetaSession(); toast('已开始计件工作'); }
+  }
+  async function switchBetaSession(mode) {
+    if (betaSession?.mode === mode) return;
+    if (betaSession?.mode === 'time') await rpc('work_stop_timer', { p_code:code });
+    addBetaHistory(); betaSession = null; saveBetaState(); await startBetaSession(mode);
+  }
+  async function endBetaSession() {
+    if (!betaSession) return;
+    if (betaSession.mode === 'time') await rpc('work_stop_timer', { p_code:code });
+    addBetaHistory(); betaSession = null; saveBetaState(); await loadState(); renderBetaSession(); toast('本次工作时段已结束');
   }
   function currentElapsedText() {
     if (!state?.activeEntry?.startedAt) return '00:00';
@@ -425,7 +494,7 @@ function renderPiece() {
     show($('loginView'), !state); show($('mainView'), Boolean(state)); if (!state) return;
     $('employeeName').textContent = state.employee.name;
     $('employeeMeta').textContent = `${state.employee.employeeNo} · ${state.employee.track === 'welding' ? '焊接' : '后道'}`;
-    renderTime(); renderPiece();
+    renderTime(); renderBetaSession(); renderPiece();
   }
   async function loadState() {
     const [nextState, submissions] = await Promise.all([
@@ -460,7 +529,7 @@ function renderPiece() {
     const value = String(nextCode || '').trim(); if (!value) return;
     try {
       await rpc('work_login', { p_code:value });
-      code = value; persistCode(code)
+      code = value; persistCode(code); betaStateLoaded = false; loadBetaSession()
       await loadState();
     } catch (e) { show($('loginError'), true); $('loginError').textContent = e.message || '登录失败'; }
   }  async function clockAction() {
@@ -485,6 +554,7 @@ function variantDisplay(processName, value) {
     return `${v}孔`;
   }
   async function submitPiece() {
+    if (SESSION_BETA && betaSession?.mode !== 'piece') return toast('请先开始计件工作');
     if (!selectedProduct) return toast('请先搜索并选择产品');
     if (!selectedProcessId) return toast('请选择工序');
     const process = currentProcess();
@@ -717,6 +787,7 @@ function variantDisplay(processName, value) {
     return value > 0 ? value : null;
   }
   async function submitRequest() {
+    if (SESSION_BETA && betaSession?.mode !== 'piece') return setRequestError('请先开始计件工作，再提交自主申报');
     setRequestError('');
     const process = currentRequestProcess();
     if (!process) return setRequestError('请选择工序');
@@ -839,6 +910,10 @@ function variantDisplay(processName, value) {
       $('requestProcess').dispatchEvent(new Event('change'));
     }
   });
+  $('sessionBetaActions').addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-beta-action]'); if (!button) return; const action = button.dataset.betaAction;
+    try { if (action === 'start-piece') await startBetaSession('piece'); else if (action === 'start-time') await startBetaSession('time'); else if (action === 'switch-piece') await switchBetaSession('piece'); else if (action === 'switch-time') await switchBetaSession('time'); else if (action === 'end') await endBetaSession(); } catch (e) { toast(e.message || '工作时段操作失败'); }
+  });
   $('newPieceButton').addEventListener('click', openCustomRequest);
   $('priceChangeButton').addEventListener('click', openPriceChangeRequest);
   $('requestProcess').addEventListener('change', () => {
@@ -893,7 +968,7 @@ function variantDisplay(processName, value) {
   $('requestSubmit').addEventListener('click', submitRequest);
   $('requestModal').addEventListener('click', (e) => { if (e.target === $('requestModal')) closeRequestModal(); });
   $('pieceSubmit').addEventListener('click', submitPiece);
-  setInterval(() => { if (state?.activeEntry) $('clockTime').textContent = currentElapsedText(); }, 1000);
+  setInterval(() => { if (SESSION_BETA) renderBetaSession(); else if (state?.activeEntry) $('clockTime').textContent = currentElapsedText(); }, 1000);
   setInterval(() => { if (code && state) loadState().catch(() => {}); }, 30000);
   const urlCode = new URLSearchParams(location.search).get('code');
   const stored = storedEmployeeCode();
