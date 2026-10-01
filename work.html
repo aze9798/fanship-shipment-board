@@ -46,7 +46,7 @@
     .request-product{margin:10px 0 0;padding:10px 12px;border-radius:11px;background:#f5faf9;color:#3f6065;font-size:12px;line-height:1.55}
     .request-error{margin-top:10px;padding:9px 11px;border-radius:9px;background:#fff1f0;color:var(--danger);font-size:12px}
     .request-tip{margin-top:8px;color:var(--muted);font-size:10px;line-height:1.5}
-    .modal-actions .primary{border-color:var(--primary)}.variant-modal-card{max-width:390px}.variant-modal-card .modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.variant-modal-card .modal-head h3{margin:0;font-size:18px}.variant-modal-card .variant-options{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:14px}.variant-modal-card .variant-options button{min-height:48px;font-size:15px;font-weight:800;border-radius:11px;background:#fff}.variant-modal-card .variant-options button.active{border-color:var(--primary);background:var(--primary);color:#fff}
+    .modal-actions .primary{border-color:var(--primary)}.variant-modal-card{max-width:390px}.variant-modal-card .modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.variant-modal-card .modal-head h3{margin:0;font-size:18px}.variant-modal-card .variant-options{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:14px}.variant-modal-card .variant-options button{min-height:48px;font-size:15px;font-weight:800;border-radius:11px;background:#fff}.variant-modal-card .variant-options button.active{border-color:var(--primary);background:var(--primary);color:#fff}.variant-custom{display:grid;grid-template-columns:1fr auto;gap:9px;margin-top:12px}.variant-custom input{height:46px;border:1px solid var(--line);border-radius:11px;padding:0 11px;background:#fff;font-size:16px}.variant-custom button{min-width:80px;border-radius:11px}
     .selected-price-card{margin-top:11px;padding:13px;border-radius:13px;background:#eef8f6;border:1px solid #cfe8e3;color:#28565b}
     .selected-price-card strong{display:block;font-size:20px;color:#0f766e}
     .selected-price-card span{display:block;margin-top:4px;color:#60777d;font-size:11px}
@@ -103,6 +103,14 @@
     <div class="modal-head"><div><p class="eyebrow">请选择规格</p><h3 id="variantModalTitle">选择规格</h3></div><button id="variantModalClose" class="icon-button" type="button" aria-label="关闭">×</button></div>
     <p id="variantModalHint" class="request-tip">请选择后继续填写数量。</p>
     <div id="variantModalOptions" class="variant-options"></div>
+    <div id="variantModalCustomWrap" class="variant-custom hidden"><input id="variantModalCustomValue" type="number" min="1" step="1" inputmode="numeric" placeholder="请输入正整数"><button id="variantModalCustomConfirm" class="primary" type="button">确定</button></div>
+    <div id="variantGenericInfoWrap" class="request-fields hidden">
+      <label class="field"><span>实际品名</span><input id="variantGenericName" type="text" placeholder="请填写实际产品品名"></label>
+      <label class="field"><span>料件编号</span><input id="variantGenericMaterial" type="text" placeholder="请填写完整料件编号或后四位"><small class="request-tip">请填写完整料件编号或后四位 不清楚请询问现场管理人员。</small></label>
+      <label class="field"><span>本次数量</span><input id="variantGenericQty" type="number" min="1" step="1" inputmode="numeric" placeholder="请输入整数数量"></label>
+      <div id="variantGenericPrice" class="request-product">自填数量后自动计算单价</div>
+      <button id="variantGenericSubmit" class="primary" type="button">提交管理员审核</button>
+    </div>
   </div>
 </div>
 <div id="requestModal" class="modal-backdrop hidden">
@@ -152,10 +160,10 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
   const matchedVariantMap = new Map();
   const PROCESS_VARIANTS = {
     '打孔': { key: 'holes', label: '孔数', type: 'select', options: [1,2,3,4,5,6,8,10] },
-    '攻丝': { key: 'holes', label: '攻丝孔数', type: 'select', options: [1,2,3,4,5,6,8,10] },
-    '折弯': { key: 'bends', label: '折弯刀数', type: 'select', options: [1,2,3,4,5,6,8,10] },
+    '攻丝': { key: 'holes', label: '攻丝孔数', type: 'select', options: [1,2,3,4], allowCustom:true },
+    '折弯': { key: 'bends', label: '折弯刀数', type: 'select', options: [1,2,3,4], allowCustom:true },
     '剪板': { key: 'thickness', label: '板厚', type: 'select', options: [3,4,6] },
-    '弯管': { key: 'bends', label: '弯管道数', type: 'select', options: [1,2,3,4,5,6,8,10] },
+    '弯管': { key: 'bends', label: '弯管道数', type: 'select', options: [1,2,3,4], allowCustom:true },
   };
 
   const show = (el, on) => el && el.classList.toggle('hidden', !on);
@@ -218,15 +226,91 @@ function currentVariantOptions() {
   const process = currentProcess();
   const config = process ? PROCESS_VARIANTS[process.name] : null;
   if (!process || !config) return { process:null, config:null, options:[] };
+  if (config.allowCustom) return { process, config, options:config.options };
   const matched = (matchedVariantMap.get(selectedProcessId) || []).filter((item) => item.variantKey && Number(item.variantValue) > 0).map((item) => Number(item.variantValue));
   return { process, config, options: matched.length ? [...new Set(matched)] : config.options };
+}
+function isGenericProduct(product = selectedProduct) {
+  return Boolean(product && (/^NC-/i.test(String(product.material || '')) || !String(product.material || '').trim()));
+}
+function preferredVariantForProcess(processId) {
+  const direct = productProcessMap.get(processId)?.lastUsedVariant;
+  if (direct && Number(direct.variantValue) > 0) return direct;
+  const rows = (matchedVariantMap.get(processId) || [])
+    .filter((item) => item.variantKey && Number(item.variantValue) > 0)
+    .sort((a, b) => new Date(b.lastUsedAt || 0) - new Date(a.lastUsedAt || 0));
+  return rows.find((item) => item.lastUsedAt) || (rows.length === 1 ? rows[0] : null);
+}
+function setGenericVariantPrice() {
+  const process = currentProcess();
+  const value = Number($('variantModalCustomValue')?.value || 0);
+  if (!process || !Number.isInteger(value) || value <= 0) { $('variantGenericPrice').textContent = '请输入正整数后自动计算单价'; return 0; }
+  const unitPrice = Number((0.2 * value).toFixed(2));
+  const qty = Number($('variantGenericQty')?.value || 0);
+  const amount = Number.isInteger(qty) && qty > 0 ? Number((unitPrice * qty).toFixed(2)) : null;
+  $('variantGenericPrice').textContent = `单价 ${unitPrice.toFixed(2)} 元${amount != null ? ` · 金额 ${amount.toFixed(2)} 元` : ''}`;
+  return unitPrice;
+}
+async function submitGenericVariant() {
+  const process = currentProcess();
+  if (!process) return toast('工序信息已失效，请重新选择');
+  const value = Number($('variantModalCustomValue').value || 0);
+  if (!Number.isInteger(value) || value <= 0) return toast('请填写大于 0 的整数');
+  const name = $('variantGenericName').value.trim();
+  const material = $('variantGenericMaterial').value.trim();
+  const qty = Number($('variantGenericQty').value);
+  if (!name) return toast('请填写实际品名');
+  if (!material || material.length < 4) return toast('请填写完整料件编号或后四位');
+  if (!Number.isInteger(qty) || qty <= 0) return toast('数量必须是大于 0 的整数');
+  const config = PROCESS_VARIANTS[process.name];
+  const unitPrice = Number((0.2 * value).toFixed(2));
+  const button = $('variantGenericSubmit'); button.disabled = true;
+  try {
+    await rpc('work_submit_custom_piece', {
+      p_code:code,
+      p_name:name,
+      p_material:material,
+      p_spec:'',
+      p_process_id:process.id,
+      p_process_name:process.name,
+      p_quantity:qty,
+      p_variant_key:config?.key || '',
+      p_variant_value:value,
+      p_variant_label:variantDisplay(process.name, value),
+      p_unit_price:unitPrice,
+      p_note:'自填规格并补充料件信息',
+    });
+    closeVariantModal();
+    selectedProduct = null; selectedProcessId = ''; selectedVariant = null;
+    $('pieceQty').value = ''; $('pieceNote').value = '';
+    await loadState();
+    toast('已提交，等待管理员审核');
+  } catch (e) { toast(e.message || '提交失败'); } finally { button.disabled = false; }
+}
+function applyCustomVariant(rawValue, source = '') {
+  const value = Number(rawValue);
+  if (!Number.isInteger(value) || value <= 0) return toast('请填写大于 0 的整数');
+  const process = currentProcess();
+  const label = process?.name === '弯管' ? `${value}道` : process?.name === '折弯' ? `${value}刀` : `${value}孔`;
+  selectedVariant = { value, label, custom:true };
+  if (source === 'modal') closeVariantModal();
+  renderVariant();
+  refreshSelectedPrice();
 }
 function openVariantModal() {
   const { process, config, options } = currentVariantOptions();
   if (!process || !config) return;
+  if (!selectedVariant) {
+    const preferred = preferredVariantForProcess(selectedProcessId);
+    if (preferred) selectedVariant = { value:Number(preferred.variantValue), label:preferred.variantLabel || String(preferred.variantValue), custom:Number(preferred.variantValue) > 4 };
+  }
   $('variantModalTitle').textContent = `请选择${config.label}`;
   $('variantModalHint').textContent = `点一下下面的${config.label}，然后填写数量。`;
-  $('variantModalOptions').innerHTML = options.map((v) => `<button type="button" data-modal-variant-value="${v}" data-modal-variant-label="${variantDisplay(process.name, v)}" class="${Number(selectedVariant?.value) === v ? 'active' : ''}">${variantDisplay(process.name, v)}</button>`).join('');
+  $('variantModalOptions').innerHTML = options.map((v) => `<button type="button" data-modal-variant-value="${v}" data-modal-variant-label="${variantDisplay(process.name, v)}" class="${Number(selectedVariant?.value) === v && !selectedVariant?.custom ? 'active' : ''}">${variantDisplay(process.name, v)}</button>`).join('') + (config.allowCustom ? '<button type="button" data-modal-variant-custom="1">自填</button>' : '');
+  const customSelected = Boolean(selectedVariant?.custom && Number(selectedVariant?.value) > 0);
+  $('variantModalCustomValue').value = customSelected ? String(selectedVariant.value) : '';
+  show($('variantModalCustomWrap'), customSelected);
+  show($('variantGenericInfoWrap'), false);
   show($('variantModal'), true);
 }
 function closeVariantModal() { show($('variantModal'), false); }
@@ -237,7 +321,7 @@ function renderVariant() {
   if (!config) { selectedVariant = null; show(box, false); box.innerHTML = ''; return; }
   if (config.type === 'select') {
     const options = currentVariantOptions().options;
-    box.innerHTML = `<div class="variant-label">${config.label}</div><div class="variant-options">${options.map((v) => `<button type="button" data-variant-value="${v}" data-variant-label="${variantDisplay(process.name, v)}" class="${Number(selectedVariant?.value) === v ? 'active' : ''}">${variantDisplay(process.name, v)}</button>`).join('')}</div>`;
+    box.innerHTML = `<div class="variant-label">${config.label}</div><div class="variant-options">${options.map((v) => `<button type="button" data-variant-value="${v}" data-variant-label="${variantDisplay(process.name, v)}" class="${Number(selectedVariant?.value) === v && !selectedVariant?.custom ? 'active' : ''}">${variantDisplay(process.name, v)}</button>`).join('')}${config.allowCustom ? '<button type="button" data-variant-custom="1" class="' + (selectedVariant?.custom ? 'active' : '') + '">自填</button>' : ''}</div>${config.allowCustom ? '<div id="variantCustomWrap" class="variant-custom hidden"><input id="variantCustomValue" type="number" min="1" step="1" inputmode="numeric" placeholder="请输入正整数"><button id="variantCustomConfirm" class="primary" type="button">确定</button></div>' : ''}`;
   } else {
     box.innerHTML = `<div class="variant-label">${config.label}</div><input id="variantValue" type="number" min="1" step="1" inputmode="numeric" placeholder="${config.placeholder}" value="${selectedVariant?.value || ''}">`;
   }
@@ -302,8 +386,8 @@ async function loadProductProcesses(productId) {
   selectedVariant = null;
   if (allowed.length === 1) {
     selectedProcessId = allowed[0].id;
-    const variants = (matchedVariantMap.get(selectedProcessId) || []).filter((item) => item.variantKey && Number(item.variantValue) > 0);
-    if (variants.length === 1) selectedVariant = { value:Number(variants[0].variantValue), label:variants[0].variantLabel || String(variants[0].variantValue) };
+    const preferred = preferredVariantForProcess(selectedProcessId);
+    if (preferred) selectedVariant = { value:Number(preferred.variantValue), label:preferred.variantLabel || String(preferred.variantValue), custom:Number(preferred.variantValue) > 4 };
   }
   renderPiece();
   if (selectedProcessId && PROCESS_VARIANTS[allowed[0]?.name]) openVariantModal();
@@ -735,7 +819,13 @@ function variantDisplay(processName, value) {
     const config = PROCESS_VARIANTS[process?.name];
     if (config) openVariantModal();
   });
-  $('variantBox').addEventListener('click', (e) => { const b = e.target.closest('[data-variant-value]'); if (!b) return; selectedVariant = { value:Number(b.dataset.variantValue), label:b.dataset.variantLabel || String(b.dataset.variantValue) }; renderVariant(); refreshSelectedPrice(); });
+  $('variantBox').addEventListener('click', (e) => {
+    if (e.target.closest('[data-variant-custom]')) { show($('variantCustomWrap'), true); $('variantCustomValue')?.focus(); return; }
+    if (e.target.closest('#variantCustomConfirm')) { applyCustomVariant($('variantCustomValue')?.value || ''); return; }
+    const b = e.target.closest('[data-variant-value]'); if (!b) return;
+    selectedVariant = { value:Number(b.dataset.variantValue), label:b.dataset.variantLabel || String(b.dataset.variantValue) };
+    renderVariant(); refreshSelectedPrice();
+  });
   $('pieceEntries').addEventListener('click', (e) => { const b = e.target.closest('[data-revoke-piece]'); if (!b) return; showRevoke(b.dataset.revokePiece); });
   $('revokeCancel').addEventListener('click', closeRevoke);
   $('revokeConfirm').addEventListener('click', revokePiece);
@@ -772,8 +862,26 @@ function variantDisplay(processName, value) {
     renderVariant();
     refreshSelectedPrice();
   });
+  $('variantModalCustomValue').addEventListener('input', setGenericVariantPrice);
+  $('variantGenericQty').addEventListener('input', setGenericVariantPrice);
+  $('variantGenericSubmit').addEventListener('click', submitGenericVariant);
   $('variantModalClose').addEventListener('click', closeVariantModal);
-  $('variantModal').addEventListener('click', (event) => { if (event.target === $('variantModal')) closeVariantModal(); });
+  $('variantModal').addEventListener('click', (event) => {
+    if (event.target === $('variantModal')) { closeVariantModal(); return; }
+    if (event.target.closest('[data-modal-variant-custom]')) {
+      const generic = isGenericProduct();
+      show($('variantModalCustomWrap'), true);
+      show($('variantGenericInfoWrap'), generic);
+      $('variantModalCustomConfirm').hidden = generic;
+      if (generic) {
+        $('variantGenericQty').value = $('pieceQty').value || '';
+        setGenericVariantPrice();
+      }
+      $('variantModalCustomValue')?.focus();
+      return;
+    }
+    if (event.target.closest('#variantModalCustomConfirm')) { applyCustomVariant($('variantModalCustomValue')?.value || '', 'modal'); }
+  });
   $('requestVariantValue').addEventListener('change', () => {
     updateRequestSuggestedPrice(false);
     loadCatalogPriceForRequest();
