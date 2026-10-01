@@ -37,6 +37,14 @@ let workReviewRows = [];
 let workReviewStatus = 'submitted';
 let workReviewEditing = null;
 let mobileModule = 'entry';
+let desktopModule = 'shipment';
+let mobileWorkTab = 'report';
+let workReportRows = [];
+let workReportDate = '';
+let workReportEmployeeId = '';
+let workReportStatus = 'all';
+let workReportQuery = '';
+let workEmployeesCache = null;
 
 function boardModeName(mode = BOARD_MODE) {
   return mode === 'admin' ? '管理员模式' : mode === 'user' ? '普通模式' : '通用模式';
@@ -464,6 +472,32 @@ const els = {
   mobileFilesSearch: $('#mobileFilesSearch'),
   mobileFilesDate: $('#mobileFilesDate'),
   mobileFilesClear: $('#mobileFilesClear'),
+  moduleSwitchButton: $('#moduleSwitchButton'),
+  desktopWorkReportLink: $('#desktopWorkReportLink'),
+  desktopWorkReportView: $('#desktopWorkReportView'),
+  desktopWorkReportRefresh: $('#desktopWorkReportRefresh'),
+  desktopWorkReportDate: $('#desktopWorkReportDate'),
+  desktopWorkReportEmployee: $('#desktopWorkReportEmployee'),
+  desktopWorkReportStatus: $('#desktopWorkReportStatus'),
+  desktopWorkReportSearch: $('#desktopWorkReportSearch'),
+  desktopWorkReportEntries: $('#desktopWorkReportEntries'),
+  desktopWorkReportQuantity: $('#desktopWorkReportQuantity'),
+  desktopWorkReportAmount: $('#desktopWorkReportAmount'),
+  desktopWorkReportPending: $('#desktopWorkReportPending'),
+  desktopWorkReportBody: $('#desktopWorkReportBody'),
+  desktopWorkReportEmpty: $('#desktopWorkReportEmpty'),
+  mobileWorkModule: $('#mobileWorkModule'),
+  mobileWorkReportPanel: $('#mobileWorkReportPanel'),
+  mobileWorkReportDate: $('#mobileWorkReportDate'),
+  mobileWorkReportEmployee: $('#mobileWorkReportEmployee'),
+  mobileWorkReportStatus: $('#mobileWorkReportStatus'),
+  mobileWorkReportSearch: $('#mobileWorkReportSearch'),
+  mobileWorkReportRefresh: $('#mobileWorkReportRefresh'),
+  mobileWorkReportEntries: $('#mobileWorkReportEntries'),
+  mobileWorkReportQuantity: $('#mobileWorkReportQuantity'),
+  mobileWorkReportAmount: $('#mobileWorkReportAmount'),
+  mobileWorkReportPending: $('#mobileWorkReportPending'),
+  mobileWorkReportList: $('#mobileWorkReportList'),
   desktopWorkReviewLink: $('#desktopWorkReviewLink'),
   desktopWorkReviewView: $('#desktopWorkReviewView'),
   desktopWorkReviewStatus: $('#desktopWorkReviewStatus'),
@@ -1111,8 +1145,8 @@ function applyRoleUI() {
   const suffix = isAdmin ? '（管理员）' : '';
   const el = document.getElementById('brandTitle');
   if (el) el.textContent = '帆顺科技' + suffix;
-  const reviewLink = document.getElementById('desktopWorkReviewLink');
-  if (reviewLink) reviewLink.hidden = !isAdmin;
+  if (!isAdmin) desktopModule = 'shipment';
+  setDesktopModule(desktopModule);
   if (!isAdmin && mobileModule === 'workReview') mobileModule = 'entry';
   renderMobileModule();
   const el2 = document.getElementById('mobileBrandTitle');
@@ -1946,6 +1980,104 @@ function renderDesktopLoading() {
   renderDesktopLoadingCart();
   renderDesktopLoadingRecords();
 }
+// 报工情况查询：默认当天，电脑端和手机端共用
+function todayShanghai() {
+  return new Date().toLocaleDateString('en-CA', { timeZone:'Asia/Shanghai' });
+}
+function ensureReportDate(input) {
+  if (!workReportDate) workReportDate = todayShanghai();
+  if (input && !input.value) input.value = workReportDate;
+}
+function fillEmployeeOptions(rows) {
+  const options = '<option value="">全部员工</option>' + (rows || []).map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.employeeNo || '')} · ${escapeHtml(row.name || '')}</option>`).join('');
+  [els.desktopWorkReportEmployee, els.mobileWorkReportEmployee].forEach((select) => { if (select) select.innerHTML = options; });
+}
+async function loadWorkEmployees() {
+  if (workEmployeesCache) { fillEmployeeOptions(workEmployeesCache); return workEmployeesCache; }
+  const result = await callRpc('work_admin_list_employees', { p_code:getAccessCode() });
+  if (!result.response.ok) throw new Error(result.data?.error || '员工列表加载失败');
+  workEmployeesCache = Array.isArray(result.data) ? result.data : [];
+  fillEmployeeOptions(workEmployeesCache);
+  return workEmployeesCache;
+}
+function renderWorkReport() {
+  const summary = workReportRows.summary || {};
+  const list = Array.isArray(workReportRows) ? workReportRows : (workReportRows.rows || []);
+  if (els.desktopWorkReportEntries) els.desktopWorkReportEntries.textContent = fmt(summary.entries || 0);
+  if (els.desktopWorkReportQuantity) els.desktopWorkReportQuantity.textContent = fmt(summary.quantity || 0);
+  if (els.desktopWorkReportAmount) els.desktopWorkReportAmount.textContent = workReviewMoney(summary.amount || 0, 2);
+  if (els.desktopWorkReportPending) els.desktopWorkReportPending.textContent = fmt(summary.pending || 0);
+  if (els.mobileWorkReportEntries) els.mobileWorkReportEntries.textContent = fmt(summary.entries || 0);
+  if (els.mobileWorkReportQuantity) els.mobileWorkReportQuantity.textContent = fmt(summary.quantity || 0);
+  if (els.mobileWorkReportAmount) els.mobileWorkReportAmount.textContent = workReviewMoney(summary.amount || 0, 2);
+  if (els.mobileWorkReportPending) els.mobileWorkReportPending.textContent = fmt(summary.pending || 0);
+  const statusInfo = (row) => ({
+    status: workReviewStatusText(row.status),
+    price: row.unitPrice != null ? workReviewMoney(row.unitPrice) : row.submittedUnitPrice != null ? `申报 ${workReviewMoney(row.submittedUnitPrice, 2)}` : '--',
+    amount: row.amount != null ? workReviewMoney(row.amount, 2) : '--'
+  });
+  if (els.desktopWorkReportBody) {
+    els.desktopWorkReportBody.innerHTML = list.map((row) => {
+      const info = statusInfo(row);
+      return `<tr><td>${escapeHtml(String(row.createdAt || '').slice(11, 16))}<small>${escapeHtml(row.workDate || '')}</small></td><td><strong>${escapeHtml(row.employeeName || '')}</strong><small>${escapeHtml(row.employeeNo || '')}</small></td><td>${escapeHtml(row.name || '')}<small>${escapeHtml(row.material || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</small></td><td>${escapeHtml(row.process || '')}<small>${escapeHtml(row.variantLabel || '')}</small></td><td class="number">${fmt(row.quantity)}</td><td><span class="review-status ${escapeHtml(row.status || '')}">${escapeHtml(info.status)}</span></td><td class="number">${escapeHtml(info.price)}</td><td class="number">${escapeHtml(info.amount)}</td><td>${row.status === 'submitted' ? `<button class="work-report-action" type="button" data-report-review="${escapeHtml(row.id)}">去审核</button>` : '--'}</td></tr>`;
+    }).join('');
+  }
+  if (els.mobileWorkReportList) {
+    els.mobileWorkReportList.innerHTML = list.length ? list.map((row) => {
+      const info = statusInfo(row);
+      return `<article class="mobile-review-card"><div><span class="review-status ${escapeHtml(row.status || '')}">${escapeHtml(info.status)}</span><span>${escapeHtml(String(row.createdAt || '').slice(11, 16))}</span></div><h3>${escapeHtml(row.employeeName || '')} · ${escapeHtml(row.name || '')}</h3><p>${escapeHtml(row.material || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</p><p>${escapeHtml(row.process || '')}${row.variantLabel ? ' · ' + escapeHtml(row.variantLabel) : ''} · ${fmt(row.quantity)} 件</p><p class="review-money">单价 ${escapeHtml(info.price)} 元 · 金额 ${escapeHtml(info.amount)} 元</p>${row.status === 'submitted' ? `<button type="button" data-report-review="${escapeHtml(row.id)}">去审核</button>` : ''}</article>`;
+    }).join('') : '<div class="empty-state"><strong>当天没有符合条件的报工</strong><span>可以更换日期或筛选条件。</span></div>';
+  }
+  if (els.desktopWorkReportEmpty) els.desktopWorkReportEmpty.hidden = list.length > 0;
+}
+async function loadWorkReport() {
+  if (boardRole !== 'admin') return;
+  ensureReportDate(els.desktopWorkReportDate);
+  ensureReportDate(els.mobileWorkReportDate);
+  if (els.desktopWorkReportDate) els.desktopWorkReportDate.value = workReportDate;
+  if (els.mobileWorkReportDate) els.mobileWorkReportDate.value = workReportDate;
+  if (els.desktopWorkReportStatus) els.desktopWorkReportStatus.value = workReportStatus;
+  if (els.mobileWorkReportStatus) els.mobileWorkReportStatus.value = workReportStatus;
+  if (els.desktopWorkReportSearch && els.desktopWorkReportSearch.value !== workReportQuery) els.desktopWorkReportSearch.value = workReportQuery;
+  if (els.mobileWorkReportSearch && els.mobileWorkReportSearch.value !== workReportQuery) els.mobileWorkReportSearch.value = workReportQuery;
+  try {
+    await loadWorkEmployees();
+    const result = await callRpc('work_admin_report_list', { p_code:getAccessCode(), p_date:workReportDate, p_employee_id:workReportEmployeeId || null, p_status:workReportStatus, p_query:workReportQuery, p_limit:1000 });
+    if (!result.response.ok) throw new Error(result.data?.error || '报工情况加载失败');
+    workReportRows = result.data || { rows:[], summary:{} };
+    renderWorkReport();
+    if (els.desktopWorkReportEmployee) els.desktopWorkReportEmployee.value = workReportEmployeeId;
+    if (els.mobileWorkReportEmployee) els.mobileWorkReportEmployee.value = workReportEmployeeId;
+  } catch (error) { showToast(error.message || '报工情况加载失败'); }
+}
+function openReportReview(id) {
+  const list = Array.isArray(workReportRows) ? workReportRows : (workReportRows.rows || []);
+  const row = list.find((item) => item.id === id);
+  if (!row) return;
+  workReviewRows = [{ ...row, submittedName:row.submittedName || row.name || '', submittedMaterial:row.submittedMaterial || row.material || '', submittedSpec:row.submittedSpec || row.spec || '', submittedProcessName:row.submittedProcessName || row.process || '' }];
+  openWorkReviewEditor(id);
+}
+function switchMobileWorkTab(tab) {
+  mobileWorkTab = tab === 'review' ? 'review' : 'report';
+  document.querySelectorAll('[data-mobile-work-tab]').forEach((button) => button.classList.toggle('active', button.dataset.mobileWorkTab === mobileWorkTab));
+  if (els.mobileWorkReportPanel) els.mobileWorkReportPanel.hidden = mobileWorkTab !== 'report';
+  if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = mobileWorkTab !== 'review';
+  if (mobileWorkTab === 'report') loadWorkReport().catch(() => {});
+  else loadWorkReviews().catch(() => {});
+}
+function setDesktopModule(module, view = '') {
+  desktopModule = boardRole === 'admin' && module === 'work' ? 'work' : 'shipment';
+  document.querySelectorAll('[data-module]').forEach((link) => {
+    const allowed = desktopModule === 'shipment' ? link.dataset.module === 'shipment' : link.dataset.module === 'work';
+    link.hidden = !allowed;
+  });
+  if (els.moduleSwitchButton) {
+    els.moduleSwitchButton.hidden = boardRole !== 'admin';
+    els.moduleSwitchButton.textContent = `当前模块：${desktopModule === 'work' ? '报工审核' : '装车登记'}`;
+  }
+  if (desktopModule === 'work') showDesktopView(view || 'workReport');
+  else showDesktopView(view || 'overview');
+}
 // 报工审核：电脑端和手机端共用同一套数据和接口
 function workReviewStatusText(status) {
   return ({ submitted:'待审核', approved:'已通过', rejected:'已退回', revoked:'已撤回' })[status] || status || '--';
@@ -2065,6 +2197,7 @@ async function submitWorkReview(action) {
     if (!result.response.ok) throw new Error(result.data?.error || '审核提交失败');
     closeWorkReviewEditor();
     await loadWorkReviews(workReviewStatus);
+    if (desktopModule === 'work' || mobileModule === 'workReview') await loadWorkReport();
     showToast(action === 'approve' ? '审核通过，已更新产品和当前单价' : action === 'reject' ? '已退回员工报工' : '修改已保存');
   } catch (error) {
     setWorkReviewError(error.message || '审核提交失败');
@@ -2074,17 +2207,25 @@ async function submitWorkReview(action) {
 }
 function renderMobileModule() {
   const isAdmin = boardRole === 'admin';
+  const workMode = isAdmin && mobileModule === 'workReview';
   if (els.mobileModuleSwitch) {
     els.mobileModuleSwitch.classList.toggle('disabled', !isAdmin);
     els.mobileModuleSwitch.setAttribute('aria-disabled', String(!isAdmin));
   }
   const title = document.getElementById('mobileBrandTitle');
-  if (title) title.textContent = `帆顺科技${isAdmin ? '（管理员）' : ''} · ${mobileModule === 'workReview' ? '报工审核' : '装车登记'}`;
-  if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = !(isAdmin && mobileModule === 'workReview');
-  if (isAdmin && mobileModule === 'workReview') {
-    document.querySelectorAll('.mobile-tab').forEach((button) => button.classList.remove('active'));
+  if (title) title.textContent = `帆顺科技${isAdmin ? '（管理员）' : ''} · ${workMode ? '报工审核' : '装车登记'}`;
+  const summary = document.querySelector('.mobile-summary');
+  const tabs = document.querySelector('.mobile-tabs');
+  if (summary) summary.hidden = workMode;
+  if (tabs) tabs.hidden = workMode;
+  if (els.mobileWorkModule) els.mobileWorkModule.hidden = !workMode;
+  if (els.mobileCartBar) els.mobileCartBar.hidden = workMode || ![...selected.values()].some((value) => Number(value) > 0);
+  if (workMode) {
     [els.mobileEntryPanel, els.mobileRemainingPanel, els.mobileRecordsPanel, els.mobileFilesPanel].forEach((panel) => { if (panel) panel.hidden = true; });
-    loadWorkReviews().catch(() => {});
+    switchMobileWorkTab(mobileWorkTab);
+  } else {
+    if (els.mobileWorkReportPanel) els.mobileWorkReportPanel.hidden = true;
+    if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = true;
   }
 }
 function switchMobileModule(module) {
@@ -2112,6 +2253,7 @@ function showDesktopView(name) {
     files: document.getElementById('desktopFilesView'),
     drawings: document.getElementById('desktopDrawingsView'),
     loading: document.getElementById('desktopLoadingView'),
+    workReport: document.getElementById('desktopWorkReportView'),
     workReview: document.getElementById('desktopWorkReviewView'),
   };
   if (!pages.overview || !pages.shipments) return;
@@ -2127,6 +2269,7 @@ function showDesktopView(name) {
   if (target === 'files') renderCloudFiles();
   if (target === 'drawings') renderDesktopDrawings();
   if (target === 'loading') renderDesktopLoading();
+  if (target === 'workReport') loadWorkReport().catch(() => {});
   if (target === 'workReview') loadWorkReviews().catch(() => {});
   window.scrollTo({ top: 0 });
 }
@@ -3604,12 +3747,16 @@ async function confirmImportOrders() {
 function switchMobileTab(tab) {
   mobileTab = tab;
   mobileModule = 'entry';
+  const summary = document.querySelector('.mobile-summary');
+  const tabs = document.querySelector('.mobile-tabs');
+  if (summary) summary.hidden = false;
+  if (tabs) tabs.hidden = false;
+  if (els.mobileWorkModule) els.mobileWorkModule.hidden = true;
   for (const button of document.querySelectorAll('.mobile-tab')) button.classList.toggle('active', button.dataset.tab === tab);
   els.mobileEntryPanel.hidden = tab !== 'entry';
   els.mobileRemainingPanel.hidden = tab !== 'remaining';
   els.mobileRecordsPanel.hidden = tab !== 'records';
   if (els.mobileFilesPanel) els.mobileFilesPanel.hidden = tab !== 'files';
-  if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = true;
   if (tab === 'files') renderCloudFiles();
   renderCart();
   renderMobileModule();
@@ -3690,6 +3837,25 @@ if (els.desktopLoadingTableBody) {
   });
 }
 if (els.desktopLoadingOpenSubmit) els.desktopLoadingOpenSubmit.addEventListener('click', openSubmitModal);
+if (els.moduleSwitchButton) els.moduleSwitchButton.addEventListener('click', () => setDesktopModule(desktopModule === 'work' ? 'shipment' : 'work'));
+if (els.desktopWorkReportDate) els.desktopWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReport(); });
+if (els.mobileWorkReportDate) els.mobileWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReport(); });
+if (els.desktopWorkReportEmployee) els.desktopWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; loadWorkReport(); });
+if (els.mobileWorkReportEmployee) els.mobileWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; loadWorkReport(); });
+if (els.desktopWorkReportStatus) els.desktopWorkReportStatus.addEventListener('change', (event) => { workReportStatus = event.target.value; loadWorkReport(); });
+if (els.mobileWorkReportStatus) els.mobileWorkReportStatus.addEventListener('change', (event) => { workReportStatus = event.target.value; loadWorkReport(); });
+if (els.desktopWorkReportSearch) els.desktopWorkReportSearch.addEventListener('input', (event) => { workReportQuery = event.target.value; loadWorkReport(); });
+if (els.mobileWorkReportSearch) els.mobileWorkReportSearch.addEventListener('input', (event) => { workReportQuery = event.target.value; loadWorkReport(); });
+if (els.desktopWorkReportRefresh) els.desktopWorkReportRefresh.addEventListener('click', loadWorkReport);
+if (els.mobileWorkReportRefresh) els.mobileWorkReportRefresh.addEventListener('click', loadWorkReport);
+[els.desktopWorkReportBody, els.mobileWorkReportList].forEach((list) => {
+  if (!list) return;
+  list.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-report-review]');
+    if (button) openReportReview(button.dataset.reportReview);
+  });
+});
+document.querySelectorAll('[data-mobile-work-tab]').forEach((button) => button.addEventListener('click', () => switchMobileWorkTab(button.dataset.mobileWorkTab)));
 if (els.desktopWorkReviewStatus) els.desktopWorkReviewStatus.addEventListener('change', (event) => loadWorkReviews(event.target.value));
 if (els.mobileWorkReviewStatus) els.mobileWorkReviewStatus.addEventListener('change', (event) => loadWorkReviews(event.target.value));
 if (els.desktopWorkReviewRefresh) els.desktopWorkReviewRefresh.addEventListener('click', () => loadWorkReviews(workReviewStatus));
@@ -3929,7 +4095,8 @@ if (els.mobileRecordsPanel) {
 document.querySelectorAll('[data-desktop-view]').forEach((link) => {
   link.addEventListener('click', (event) => {
     event.preventDefault();
-    showDesktopView(link.dataset.desktopView);
+    if (link.dataset.module) setDesktopModule(link.dataset.module, link.dataset.desktopView);
+    else showDesktopView(link.dataset.desktopView);
   });
 });
 

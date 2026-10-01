@@ -26,34 +26,39 @@
         </div>
       </div>
 
+      <button id="moduleSwitchButton" class="module-switch" type="button" hidden>当前模块：装车登记</button>
       <nav class="side-nav" aria-label="主导航">
-        <a class="side-link active" href="./" data-desktop-view="overview">
+        <a class="side-link active" href="./" data-desktop-view="overview" data-module="shipment">
           <span class="nav-dot"></span>
           实时总览
         </a>
-        <a class="side-link" href="#remaining" data-desktop-view="remaining">
+        <a class="side-link" href="#remaining" data-desktop-view="remaining" data-module="shipment">
           <span class="nav-dot"></span>
           未交清单
         </a>
-        <a class="side-link" href="#loading" data-desktop-view="loading">
+        <a class="side-link" href="#loading" data-desktop-view="loading" data-module="shipment">
           <span class="nav-dot"></span>
           装车登记
         </a>
-        <a id="desktopWorkReviewLink" class="side-link" href="#work-review" data-desktop-view="workReview" hidden>
-          <span class="nav-dot"></span>
-          报工审核
-        </a>
-        <a class="side-link" href="#query" data-desktop-view="shipments">
+        <a class="side-link" href="#query" data-desktop-view="shipments" data-module="shipment">
           <span class="nav-dot"></span>
           查询
         </a>
-        <a class="side-link" href="#drawings" data-desktop-view="drawings">
+        <a class="side-link" href="#drawings" data-desktop-view="drawings" data-module="shipment">
           <span class="nav-dot"></span>
           图纸
         </a>
-        <a class="side-link" href="#delivery-files" data-desktop-view="files">
+        <a class="side-link" href="#delivery-files" data-desktop-view="files" data-module="shipment">
           <span class="nav-dot"></span>
           云端送货单
+        </a>
+        <a id="desktopWorkReportLink" class="side-link" href="#work-report" data-desktop-view="workReport" data-module="work" hidden>
+          <span class="nav-dot"></span>
+          报工情况
+        </a>
+        <a id="desktopWorkReviewLink" class="side-link" href="#work-review" data-desktop-view="workReview" data-module="work" hidden>
+          <span class="nav-dot"></span>
+          报工审核
         </a>
       </nav>
 
@@ -395,6 +400,44 @@
         </section>
       </section>
 
+      <section id="desktopWorkReportView" class="desktop-view desktop-only" hidden>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">员工报工查询</p>
+            <h1>报工情况</h1>
+            <p class="subhead">默认查看当天全部员工报工，可按员工、日期、状态和关键词筛选。</p>
+          </div>
+          <div class="topbar-actions"><button id="desktopWorkReportRefresh" class="button primary" type="button">刷新报工</button></div>
+        </header>
+        <section class="work-report-filters panel">
+          <label><span>日期</span><input id="desktopWorkReportDate" type="date"></label>
+          <label><span>员工</span><select id="desktopWorkReportEmployee"><option value="">全部员工</option></select></label>
+          <label><span>状态</span><select id="desktopWorkReportStatus">
+            <option value="all">全部状态</option>
+            <option value="submitted">待审核</option>
+            <option value="approved">已通过</option>
+            <option value="rejected">已退回</option>
+            <option value="revoked">已撤回</option>
+          </select></label>
+          <label class="report-search-field"><span>品名 / 编号 / 工序</span><input id="desktopWorkReportSearch" type="search" placeholder="输入关键词"></label>
+        </section>
+        <section class="work-review-stats">
+          <article><span>报工笔数</span><strong id="desktopWorkReportEntries">0</strong></article>
+          <article><span>报工数量</span><strong id="desktopWorkReportQuantity">0</strong></article>
+          <article><span>已通过金额</span><strong id="desktopWorkReportAmount">0.00</strong></article>
+          <article><span>待审核</span><strong id="desktopWorkReportPending">0</strong></article>
+        </section>
+        <section class="panel">
+          <div class="table-wrap">
+            <table class="orders-table work-report-table">
+              <thead><tr><th>时间</th><th>员工</th><th>品名 / 编号</th><th>工序 / 规格</th><th class="number">数量</th><th>状态</th><th class="number">单价</th><th class="number">金额</th><th>操作</th></tr></thead>
+              <tbody id="desktopWorkReportBody"></tbody>
+            </table>
+            <div id="desktopWorkReportEmpty" class="empty-state" hidden><strong>当天没有符合条件的报工</strong><span>可以更换日期或筛选条件。</span></div>
+          </div>
+        </section>
+      </section>
+
       <section id="desktopWorkReviewView" class="desktop-view desktop-only" hidden>
         <header class="topbar">
           <div>
@@ -572,18 +615,40 @@
           <button id="openSubmit" class="button primary" type="button">确认装车</button>
         </div>
 
-        <section id="mobileWorkReviewPanel" class="mobile-panel" hidden>
-          <div class="mobile-work-review-tools">
-            <select id="mobileWorkReviewStatus">
-              <option value="submitted" selected>待审核</option>
-              <option value="approved">已通过</option>
-              <option value="rejected">已退回</option>
-              <option value="revoked">已撤回</option>
-              <option value="all">全部</option>
-            </select>
-            <button id="mobileWorkReviewRefresh" class="button primary" type="button">刷新</button>
-          </div>
-          <div id="mobileWorkReviewList" class="mobile-work-review-list"></div>
+        <section id="mobileWorkModule" class="mobile-work-module" hidden>
+          <nav class="mobile-work-tabs">
+            <button class="active" data-mobile-work-tab="report" type="button">报工情况</button>
+            <button data-mobile-work-tab="review" type="button">报工审核</button>
+          </nav>
+          <section id="mobileWorkReportPanel" class="mobile-panel">
+            <div class="mobile-work-review-tools mobile-report-tools">
+              <label><span>日期</span><input id="mobileWorkReportDate" type="date"></label>
+              <label><span>员工</span><select id="mobileWorkReportEmployee"><option value="">全部员工</option></select></label>
+              <label><span>状态</span><select id="mobileWorkReportStatus"><option value="all">全部状态</option><option value="submitted">待审核</option><option value="approved">已通过</option><option value="rejected">已退回</option><option value="revoked">已撤回</option></select></label>
+              <label><span>关键词</span><input id="mobileWorkReportSearch" type="search" placeholder="品名 / 编号 / 工序"></label>
+              <button id="mobileWorkReportRefresh" class="button primary" type="button">刷新报工</button>
+            </div>
+            <div class="mobile-report-summary">
+              <div><span>笔数</span><strong id="mobileWorkReportEntries">0</strong></div>
+              <div><span>数量</span><strong id="mobileWorkReportQuantity">0</strong></div>
+              <div><span>已通过金额</span><strong id="mobileWorkReportAmount">0.00</strong></div>
+              <div><span>待审核</span><strong id="mobileWorkReportPending">0</strong></div>
+            </div>
+            <div id="mobileWorkReportList" class="mobile-work-review-list"></div>
+          </section>
+          <section id="mobileWorkReviewPanel" class="mobile-panel" hidden>
+            <div class="mobile-work-review-tools">
+              <select id="mobileWorkReviewStatus">
+                <option value="submitted" selected>待审核</option>
+                <option value="approved">已通过</option>
+                <option value="rejected">已退回</option>
+                <option value="revoked">已撤回</option>
+                <option value="all">全部</option>
+              </select>
+              <button id="mobileWorkReviewRefresh" class="button primary" type="button">刷新</button>
+            </div>
+            <div id="mobileWorkReviewList" class="mobile-work-review-list"></div>
+          </section>
         </section>
       </section>
     </main>

@@ -1,0 +1,10 @@
+{
+  "name": "帆顺科技工作台",
+  "short_name": "帆顺工作台",
+  "start_url": "./work.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eef3f3",
+  "theme_color": "#0d2a33",
+  "lang": "zh-CN"
+}
