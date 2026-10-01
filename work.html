@@ -31,7 +31,7 @@
     .picked{padding:12px;border-radius:12px;background:#eef8f6;margin-top:10px}.picked strong{display:block;font-size:13px}.picked span{display:block;color:var(--muted);font-size:10px;margin-top:3px}
     .process-grid{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.process{border:1px solid var(--line);border-radius:10px;background:#fff;padding:8px 11px;color:#536b72}.process.active{border-color:var(--primary);background:var(--primary);color:#fff}
     .piece-form{display:grid;gap:11px;margin-top:12px}.piece-form .row{display:grid;grid-template-columns:1fr 1fr;gap:9px}.piece-form input{height:44px;border:1px solid var(--line);border-radius:11px;padding:0 11px;background:#fbfdfd;outline:none}.variant-box{margin-top:12px;padding:12px;border-radius:12px;background:#f7fbfa;border:1px solid #e2edeb}.variant-label{margin-bottom:8px;color:#587178;font-size:12px;font-weight:700}.variant-options{display:flex;flex-wrap:wrap;gap:7px}.variant-options button{min-height:36px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#536b72}.variant-options button.active{border-color:var(--primary);background:var(--primary);color:#fff}.variant-box input{width:100%;height:40px;border:1px solid var(--line);border-radius:10px;padding:0 11px;background:#fff;outline:none}
-    .piece-submit{min-height:48px}.piece-record{background:#f8fbfa;border:1px solid #edf2f2;border-radius:12px;padding:11px;margin-top:8px}.piece-record strong{font-size:13px}.piece-record span{display:block;color:var(--muted);font-size:10px;margin-top:3px}.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#173b42;color:#fff;padding:11px 15px;border-radius:12px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:99;max-width:88vw;text-align:center}
+    .piece-submit{min-height:48px}.piece-record{background:#f8fbfa;border:1px solid #edf2f2;border-radius:12px;padding:11px;margin-top:8px}.piece-record strong{font-size:13px}.piece-record span{display:block;color:var(--muted);font-size:10px;margin-top:3px}.piece-money{color:var(--primary)!important;font-weight:700;font-size:11px!important}.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#173b42;color:#fff;padding:11px 15px;border-radius:12px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:99;max-width:88vw;text-align:center}
 .modal-backdrop{position:fixed;inset:0;background:rgba(8,31,36,.42);display:grid;place-items:center;padding:20px;z-index:120}.modal-card{width:100%;max-width:360px;background:#fff;border-radius:16px;padding:17px;box-shadow:0 18px 45px rgba(0,0,0,.22)}.modal-card h3{margin:0 0 8px;font-size:17px}.modal-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.modal-actions button{min-height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:#fff}.modal-actions .danger{background:#b42318;border-color:#b42318;color:#fff}.record-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}.record-status{font-size:10px;color:#71868b}.record-status.approved{color:#0f766e}.record-status.revoked,.record-status.rejected{color:#b42318}.revoke-piece{border:1px solid #e2b9b4;border-radius:8px;background:#fff7f6;color:#b42318;padding:4px 9px;font-size:11px}
   </style>
 </head><body>
@@ -88,11 +88,11 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
   let selectedVariant = null;
   let pendingRevokeId = '';
   const PROCESS_VARIANTS = {
-    '打孔': { key: 'holes', label: '孔数', type: 'select', options: [1,2,3,4,5,6] },
-    '攻丝': { key: 'holes', label: '攻丝孔数', type: 'select', options: [1,2,3,4,5,6] },
-    '折弯': { key: 'bends', label: '折弯刀数', type: 'select', options: [1,2,3,4,5,6] },
-    '剪板': { key: 'thickness', label: '板厚', type: 'select', options: [3,4,6] },
-    '弯管': { key: 'bends', label: '弯管道数', type: 'select', options: [1,2,3,4,5,6] },
+    '打孔': { key: 'holes', label: '孔数', type: 'select', options: [1,2,3,4,5,6,8,10] },
+    '攻丝': { key: 'holes', label: '攻丝孔数', type: 'select', options: [1,2,3,4,5,6,8,10] },
+    '折弯': { key: 'bends', label: '折弯刀数', type: 'select', options: [1,2,3,4,5,6,8,10] },
+    '剪板': { key: 'thickness', label: '板厚', type: 'select', options: [1,2,3,4,5,6,8,10,12,14,16,20] },
+    '弯管': { key: 'bends', label: '弯管道数', type: 'select', options: [1,2,3,4,5,6,8,10] },
   };
 
   const show = (el, on) => el && el.classList.toggle('hidden', !on);
@@ -144,7 +144,8 @@ function renderPiece() {
   $('pieceEntries').innerHTML = rows.length ? rows.map((x) => {
     const statusText = x.status === 'revoked' ? '已撤回' : x.status === 'approved' ? '已审核' : x.status === 'rejected' ? '已退回' : '已提交';
     const canRevoke = x.status === 'submitted' && (Date.now() - new Date(x.createdAt).getTime()) < 7 * 86400000;
-    return `<div class="piece-record"><strong>${esc(x.material)} · ${esc(x.name || '')}</strong><span>${esc(x.process)}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''} · ${Number(x.quantity)} 件 · ${esc(x.workDate)}</span><div class="record-foot"><span class="record-status ${x.status}">${statusText}</span>${canRevoke ? `<button type="button" class="revoke-piece" data-revoke-piece="${esc(x.id)}">撤回</button>` : ''}</div></div>`;
+    const rateText = x.unitPrice == null ? '单价未配置，请联系管理员' : `单价 ${Number(x.unitPrice).toLocaleString('zh-CN',{maximumFractionDigits:4})} 元 · 金额 ${Number(x.amount || 0).toFixed(2)} 元`;
+    return `<div class="piece-record"><strong>${esc(x.material)} · ${esc(x.name || '')}</strong><span>${esc(x.process)}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''} · ${Number(x.quantity)} 件 · ${esc(x.workDate)}</span><span class="piece-money">${esc(rateText)}</span><div class="record-foot"><span class="record-status ${x.status}">${statusText}</span>${canRevoke ? `<button type="button" class="revoke-piece" data-revoke-piece="${esc(x.id)}">撤回</button>` : ''}</div></div>`;
   }).join('') : '<div class="card empty">还没有计件申报记录</div>';
   $('processGrid').innerHTML = (state?.processes || []).map((p) => `<button type="button" class="process ${selectedProcessId === p.id ? 'active' : ''}" data-process="${esc(p.id)}">${esc(p.name)}</button>`).join('');
   renderVariant();
