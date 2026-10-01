@@ -46,7 +46,7 @@
     .request-product{margin:10px 0 0;padding:10px 12px;border-radius:11px;background:#f5faf9;color:#3f6065;font-size:12px;line-height:1.55}
     .request-error{margin-top:10px;padding:9px 11px;border-radius:9px;background:#fff1f0;color:var(--danger);font-size:12px}
     .request-tip{margin-top:8px;color:var(--muted);font-size:10px;line-height:1.5}
-    .modal-actions .primary{border-color:var(--primary)}
+    .modal-actions .primary{border-color:var(--primary)}.variant-modal-card{max-width:390px}.variant-modal-card .modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.variant-modal-card .modal-head h3{margin:0;font-size:18px}.variant-modal-card .variant-options{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:14px}.variant-modal-card .variant-options button{min-height:48px;font-size:15px;font-weight:800;border-radius:11px;background:#fff}.variant-modal-card .variant-options button.active{border-color:var(--primary);background:var(--primary);color:#fff}
     .selected-price-card{margin-top:11px;padding:13px;border-radius:13px;background:#eef8f6;border:1px solid #cfe8e3;color:#28565b}
     .selected-price-card strong{display:block;font-size:20px;color:#0f766e}
     .selected-price-card span{display:block;margin-top:4px;color:#60777d;font-size:11px}
@@ -98,6 +98,13 @@
   </section>
 </div>
 <div id="revokeModal" class="modal-backdrop hidden"><div class="modal-card"><h3>确定撤回这条计件吗？</h3><p>撤回后不会参与工资统计，记录会保留为“已撤回”。</p><div class="modal-actions"><button id="revokeCancel" type="button">取消</button><button id="revokeConfirm" class="danger" type="button">确认撤回</button></div></div></div>
+<div id="variantModal" class="modal-backdrop hidden">
+  <div class="modal-card variant-modal-card">
+    <div class="modal-head"><div><p class="eyebrow">请选择规格</p><h3 id="variantModalTitle">选择规格</h3></div><button id="variantModalClose" class="icon-button" type="button" aria-label="关闭">×</button></div>
+    <p id="variantModalHint" class="request-tip">请选择后继续填写数量。</p>
+    <div id="variantModalOptions" class="variant-options"></div>
+  </div>
+</div>
 <div id="requestModal" class="modal-backdrop hidden">
   <div class="modal-card request-card">
     <h3 id="requestTitle">自主申报新产品</h3>
@@ -207,14 +214,29 @@ function revealVariantBox() {
     setTimeout(() => box.classList.remove('variant-attention'), 800);
   });
 }
+function currentVariantOptions() {
+  const process = currentProcess();
+  const config = process ? PROCESS_VARIANTS[process.name] : null;
+  if (!process || !config) return { process:null, config:null, options:[] };
+  const matched = (matchedVariantMap.get(selectedProcessId) || []).filter((item) => item.variantKey && Number(item.variantValue) > 0).map((item) => Number(item.variantValue));
+  return { process, config, options: matched.length ? [...new Set(matched)] : config.options };
+}
+function openVariantModal() {
+  const { process, config, options } = currentVariantOptions();
+  if (!process || !config) return;
+  $('variantModalTitle').textContent = `请选择${config.label}`;
+  $('variantModalHint').textContent = `点一下下面的${config.label}，然后填写数量。`;
+  $('variantModalOptions').innerHTML = options.map((v) => `<button type="button" data-modal-variant-value="${v}" data-modal-variant-label="${variantDisplay(process.name, v)}" class="${Number(selectedVariant?.value) === v ? 'active' : ''}">${variantDisplay(process.name, v)}</button>`).join('');
+  show($('variantModal'), true);
+}
+function closeVariantModal() { show($('variantModal'), false); }
 function renderVariant() {
   const box = $('variantBox');
   const process = currentProcess();
   const config = process ? PROCESS_VARIANTS[process.name] : null;
   if (!config) { selectedVariant = null; show(box, false); box.innerHTML = ''; return; }
   if (config.type === 'select') {
-    const matched = (matchedVariantMap.get(selectedProcessId) || []).filter((item) => item.variantKey && Number(item.variantValue) > 0).map((item) => Number(item.variantValue));
-    const options = matched.length ? [...new Set(matched)] : config.options;
+    const options = currentVariantOptions().options;
     box.innerHTML = `<div class="variant-label">${config.label}</div><div class="variant-options">${options.map((v) => `<button type="button" data-variant-value="${v}" data-variant-label="${variantDisplay(process.name, v)}" class="${Number(selectedVariant?.value) === v ? 'active' : ''}">${variantDisplay(process.name, v)}</button>`).join('')}</div>`;
   } else {
     box.innerHTML = `<div class="variant-label">${config.label}</div><input id="variantValue" type="number" min="1" step="1" inputmode="numeric" placeholder="${config.placeholder}" value="${selectedVariant?.value || ''}">`;
@@ -284,7 +306,7 @@ async function loadProductProcesses(productId) {
     if (variants.length === 1) selectedVariant = { value:Number(variants[0].variantValue), label:variants[0].variantLabel || String(variants[0].variantValue) };
   }
   renderPiece();
-  if (selectedProcessId && PROCESS_VARIANTS[allowed[0]?.name]) revealVariantBox();
+  if (selectedProcessId && PROCESS_VARIANTS[allowed[0]?.name]) openVariantModal();
 }
 function renderPiece() {
   const rows = state?.pieceEntries || [];
@@ -711,10 +733,7 @@ function variantDisplay(processName, value) {
     selectedVariant = null;
     renderPiece();
     const config = PROCESS_VARIANTS[process?.name];
-    if (config) {
-      toast(`请选择${config.label}`);
-      revealVariantBox();
-    }
+    if (config) openVariantModal();
   });
   $('variantBox').addEventListener('click', (e) => { const b = e.target.closest('[data-variant-value]'); if (!b) return; selectedVariant = { value:Number(b.dataset.variantValue), label:b.dataset.variantLabel || String(b.dataset.variantValue) }; renderVariant(); refreshSelectedPrice(); });
   $('pieceEntries').addEventListener('click', (e) => { const b = e.target.closest('[data-revoke-piece]'); if (!b) return; showRevoke(b.dataset.revokePiece); });
@@ -745,6 +764,16 @@ function variantDisplay(processName, value) {
     if (!button) return;
     fillRequestProduct({ id:button.dataset.requestProduct, material:button.dataset.material, name:button.dataset.name, spec:button.dataset.spec }, 'user');
   });
+  $('variantModalOptions').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-modal-variant-value]');
+    if (!button) return;
+    selectedVariant = { value:Number(button.dataset.modalVariantValue), label:button.dataset.modalVariantLabel || String(button.dataset.modalVariantValue) };
+    closeVariantModal();
+    renderVariant();
+    refreshSelectedPrice();
+  });
+  $('variantModalClose').addEventListener('click', closeVariantModal);
+  $('variantModal').addEventListener('click', (event) => { if (event.target === $('variantModal')) closeVariantModal(); });
   $('requestVariantValue').addEventListener('change', () => {
     updateRequestSuggestedPrice(false);
     loadCatalogPriceForRequest();
