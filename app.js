@@ -1203,34 +1203,51 @@ function drawingPreviewUrl(drawing) {
   return `${origin}/storage/v1/object/public/product-drawings/${previewPath.split('/').map(encodeURIComponent).join('/')}`;
 }
 
+let drawingPreviewManifestPromise = null;
+
+function drawingPreviewPageUrl(drawing, page) {
+  const storagePath = String(drawing?.storagePath || '').trim();
+  if (!storagePath) return '';
+  const origin = String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
+  if (!origin) return '';
+  const previewPath = storagePath.replace(/\.pdf$/i, '') + `-p${page}.jpg`;
+  return `${origin}/storage/v1/object/public/product-drawings/${previewPath.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+async function loadDrawingPreviewManifest() {
+  if (!drawingPreviewManifestPromise) {
+    const origin = String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
+    const url = `${origin}/storage/v1/object/public/product-drawings/_previews.json`;
+    drawingPreviewManifestPromise = fetch(url, { cache: 'no-store' })
+      .then((response) => response.ok ? response.json() : {})
+      .catch(() => ({}));
+  }
+  return drawingPreviewManifestPromise;
+}
+
 async function renderDrawingImagePreview(drawing) {
   const modal = document.getElementById('drawingViewer');
   const pages = document.getElementById('drawingViewerPages');
   const status = document.getElementById('drawingViewerStatus');
-  const previewUrl = drawingPreviewUrl(drawing);
-  if (!modal || !pages || !status || !previewUrl) return false;
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = (ok) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(ok);
-    };
-    const timer = setTimeout(() => finish(false), 15000);
+  const storagePath = String(drawing?.storagePath || '').trim();
+  if (!modal || !pages || !status || !storagePath) return false;
+  const manifest = await loadDrawingPreviewManifest();
+  const pageCount = Math.max(1, Math.min(200, Number(manifest?.[storagePath] || 1)));
+  const firstUrl = drawingPreviewPageUrl(drawing, 1);
+  if (!firstUrl) return false;
+  const images = document.createDocumentFragment();
+  for (let page = 1; page <= pageCount; page += 1) {
     const image = new Image();
-    image.alt = [drawing?.material, drawing?.name, drawing?.spec].filter(Boolean).join(' · ') || '图纸预览';
+    image.alt = `${[drawing?.material, drawing?.name, drawing?.spec].filter(Boolean).join(' · ') || '图纸'} 第 ${page} 页`;
     image.decoding = 'async';
-    image.onload = () => {
-      if (!modal || modal.hidden) { finish(false); return; }
-      pages.replaceChildren(image);
-      status.hidden = false;
-      status.textContent = '图纸预览';
-      finish(true);
-    };
-    image.onerror = () => finish(false);
-    image.src = previewUrl;
-  });
+    image.loading = page === 1 ? 'eager' : 'lazy';
+    image.src = drawingPreviewPageUrl(drawing, page);
+    images.appendChild(image);
+  }
+  pages.replaceChildren(images);
+  status.hidden = false;
+  status.textContent = `图纸预览 · 共 ${pageCount} 页`;
+  return true;
 }
 
 async function openDrawingViewer(drawing, url, options = {}) {
