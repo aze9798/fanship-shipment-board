@@ -1822,7 +1822,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
   background: #dfe8e8;
   -webkit-overflow-scrolling: touch;
 }
-.drawing-viewer-pages canvas {
+.drawing-viewer-pages canvas, .drawing-viewer-pages img {
   display: block;
   max-width: 100%;
   height: auto;

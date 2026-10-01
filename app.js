@@ -1194,45 +1194,66 @@ async function renderDrawingPdf(pdf) {
   status.textContent = `共 ${total} 页`;
 }
 
+function drawingPreviewUrl(drawing) {
+  const storagePath = String(drawing?.storagePath || '').trim();
+  if (!storagePath) return '';
+  const origin = String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
+  if (!origin) return '';
+  const previewPath = storagePath.replace(/\.pdf$/i, '') + '-p1.jpg';
+  return `${origin}/storage/v1/object/public/product-drawings/${previewPath.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+async function renderDrawingImagePreview(drawing) {
+  const modal = document.getElementById('drawingViewer');
+  const pages = document.getElementById('drawingViewerPages');
+  const status = document.getElementById('drawingViewerStatus');
+  const previewUrl = drawingPreviewUrl(drawing);
+  if (!modal || !pages || !status || !previewUrl) return false;
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(ok);
+    };
+    const timer = setTimeout(() => finish(false), 15000);
+    const image = new Image();
+    image.alt = [drawing?.material, drawing?.name, drawing?.spec].filter(Boolean).join(' · ') || '图纸预览';
+    image.decoding = 'async';
+    image.onload = () => {
+      if (!modal || modal.hidden) { finish(false); return; }
+      pages.replaceChildren(image);
+      status.hidden = false;
+      status.textContent = '图纸预览';
+      finish(true);
+    };
+    image.onerror = () => finish(false);
+    image.src = previewUrl;
+  });
+}
+
 async function openDrawingViewer(drawing, url, options = {}) {
   const modal = document.getElementById('drawingViewer');
   const title = document.getElementById('drawingViewerTitle');
   const status = document.getElementById('drawingViewerStatus');
   const external = document.getElementById('drawingViewerExternal');
   const pager = document.getElementById('drawingViewerPager');
-  const pages = document.getElementById('drawingViewerPages');
   if (!modal || !url) { showToast('图纸地址无效'); return; }
-  const isAndroid = /Android/i.test(navigator.userAgent);
-  const isIOS = /iPad|iPhone|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  if (isAndroid) {
-    const androidUrl = url.split('#')[0] + '#page=1&zoom=page-width';
-    showToast('正在打开安卓图纸查看器...');
-    const opened = window.open(androidUrl, '_blank', 'noopener');
-    if (!opened) window.location.href = androidUrl;
-    return;
-  }
-if (!isAndroid && !isIOS) {
-    closeDrawingViewer();
-    drawingViewerBlobUrl = '';
-    if (title) title.textContent = [drawing?.material, drawing?.name, drawing?.spec].filter(Boolean).join(' · ') || '图纸查看';
-    if (external) external.href = url;
-    if (pager) pager.hidden = true;
-    if (status) { status.hidden = false; status.textContent = '已使用浏览器快速查看，可滚动查看全部页面。'; }
-    pages.innerHTML = `<iframe class="drawing-native-frame" title="图纸 PDF" src="${escapeHtml(url)}#page=1&zoom=page-width"></iframe>`;
-    modal.hidden = false;
-    document.body.style.overflow = 'hidden';
-    return;
-  }
   closeDrawingViewer();
   drawingViewerBlobUrl = options.revokeOnClose ? url : '';
   if (title) title.textContent = [drawing?.material, drawing?.name, drawing?.spec].filter(Boolean).join(' · ') || '图纸查看';
-  if (status) { status.hidden = false; status.textContent = '正在加载图纸...'; }
-  if (pager) pager.hidden = true;
   if (external) external.href = url;
+  if (pager) pager.hidden = true;
   modal.hidden = false;
   document.body.style.overflow = 'hidden';
   try {
-    const pdfjs = (isIOS && window.pdfjsLib) ? window.pdfjsLib : await loadPdfJs();
+    if (await renderDrawingImagePreview(drawing)) return;
+    if (status) {
+      status.hidden = false;
+      status.textContent = '正在加载 PDF 图纸...';
+    }
+    const pdfjs = await loadPdfJs();
     if (!modal.hidden) {
       drawingViewerTask = pdfjs.getDocument({ url, isEvalSupported: false });
       const pdf = await drawingViewerTask.promise;
@@ -1241,7 +1262,10 @@ if (!isAndroid && !isIOS) {
       if (!modal.hidden) await renderDrawingPdf(pdf);
     }
   } catch (error) {
-    if (status) { status.hidden = false; status.textContent = `图纸加载失败：${error?.message || '请点击“新窗口打开”'}`; }
+    if (status) {
+      status.hidden = false;
+      status.textContent = `图纸加载失败：${error?.message || '请点击“新窗口打开”'}`;
+    }
   }
 }
 
