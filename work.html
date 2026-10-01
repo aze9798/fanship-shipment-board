@@ -51,6 +51,8 @@
     .selected-price-card strong{display:block;font-size:20px;color:#0f766e}
     .selected-price-card span{display:block;margin-top:4px;color:#60777d;font-size:11px}
     .selected-price-card.warn{background:#fff8eb;border-color:#f0d9ad;color:#8a5707}.selected-price-card.warn strong{color:#a45b05}
+    .selected-price-card button{margin-top:10px}
+    @media(max-width:600px){input,select,textarea{font-size:16px!important}}
   </style>
 </head><body>
 <div class="page">
@@ -82,6 +84,7 @@
         <div class="action-stack"><button id="newPieceButton" class="ghost" type="button">找不到产品？自主申报新产品</button></div>
         <div id="pickedProduct" class="picked hidden"></div>
         <div id="processGrid" class="process-grid"></div>
+        <div id="noPricedProcess" class="selected-price-card warn hidden"><strong>该产品暂时没有可申报的工序单价</strong><span>请点击下面“自主申报”，由管理员审核后加入正式单价。</span><button id="noPricedProcessApply" class="ghost wide" type="button">去申报该产品</button></div>
         <div id="variantBox" class="variant-box hidden"></div>
         <div id="selectedPriceCard" class="selected-price-card hidden"></div>
         <div class="action-stack"><button id="priceChangeButton" class="ghost hidden" type="button">单价不对？申请修改</button></div>
@@ -137,6 +140,9 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
   let requestMaterialTimer = null;
   let requestMaterialToken = 0;
   let selectedPriceToken = 0;
+  let productProcessToken = 0;
+  const productProcessMap = new Map();
+  const matchedVariantMap = new Map();
   const PROCESS_VARIANTS = {
     '打孔': { key: 'holes', label: '孔数', type: 'select', options: [1,2,3,4,5,6,8,10] },
     '攻丝': { key: 'holes', label: '攻丝孔数', type: 'select', options: [1,2,3,4,5,6,8,10] },
@@ -198,7 +204,9 @@ function renderVariant() {
   const config = process ? PROCESS_VARIANTS[process.name] : null;
   if (!config) { selectedVariant = null; show(box, false); box.innerHTML = ''; return; }
   if (config.type === 'select') {
-    box.innerHTML = `<div class="variant-label">${config.label}</div><div class="variant-options">${config.options.map((v) => `<button type="button" data-variant-value="${v}" data-variant-label="${variantDisplay(process.name, v)}" class="${Number(selectedVariant?.value) === v ? 'active' : ''}">${variantDisplay(process.name, v)}</button>`).join('')}</div>`;
+    const matched = (matchedVariantMap.get(selectedProcessId) || []).filter((item) => item.variantKey && Number(item.variantValue) > 0).map((item) => Number(item.variantValue));
+    const options = matched.length ? [...new Set(matched)] : config.options;
+    box.innerHTML = `<div class="variant-label">${config.label}</div><div class="variant-options">${options.map((v) => `<button type="button" data-variant-value="${v}" data-variant-label="${variantDisplay(process.name, v)}" class="${Number(selectedVariant?.value) === v ? 'active' : ''}">${variantDisplay(process.name, v)}</button>`).join('')}</div>`;
   } else {
     box.innerHTML = `<div class="variant-label">${config.label}</div><input id="variantValue" type="number" min="1" step="1" inputmode="numeric" placeholder="${config.placeholder}" value="${selectedVariant?.value || ''}">`;
   }
@@ -243,6 +251,31 @@ async function refreshSelectedPrice() {
     card.innerHTML = '<strong>暂时无法查询单价</strong><span>可稍后刷新重试</span>';
   }
 }
+async function loadProductProcesses(productId) {
+  const token = ++productProcessToken;
+  productProcessMap.clear();
+  matchedVariantMap.clear();
+  try {
+    const rows = await rpc('work_get_product_processes', { p_code:code, p_product_id:productId });
+    if (token !== productProcessToken) return;
+    for (const row of rows || []) {
+      productProcessMap.set(row.id, row);
+      matchedVariantMap.set(row.id, row.variants || []);
+    }
+  } catch (e) {
+    if (token !== productProcessToken) return;
+    toast(e.message || '工序匹配失败');
+  }
+  const allowed = (state?.processes || []).filter((process) => productProcessMap.has(process.id));
+  selectedProcessId = '';
+  selectedVariant = null;
+  if (allowed.length === 1) {
+    selectedProcessId = allowed[0].id;
+    const variants = (matchedVariantMap.get(selectedProcessId) || []).filter((item) => item.variantKey && Number(item.variantValue) > 0);
+    if (variants.length === 1) selectedVariant = { value:Number(variants[0].variantValue), label:variants[0].variantLabel || String(variants[0].variantValue) };
+  }
+  renderPiece();
+}
 function renderPiece() {
   const rows = state?.pieceEntries || [];
   const activeCount = rows.filter((x) => x.status === 'submitted' || x.status === 'approved').length;
@@ -261,7 +294,13 @@ function renderPiece() {
     const reviewText = x.reviewNote ? `<span>${x.status === 'rejected' ? '退回原因：' : '审核备注：'}${esc(x.reviewNote)}</span>` : '';
     return `<div class="piece-record"><strong>${esc(material)} · ${esc(name)}</strong><span>${esc(process)}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''} · ${Number(x.quantity)} 件 · ${esc(x.workDate)}</span><span class="piece-money">${esc(priceText)}</span>${reviewText}<div class="record-foot"><span class="record-status ${x.status}">${statusText}</span>${canRevoke ? `<button type="button" class="revoke-piece" data-revoke-piece="${esc(x.id)}">撤回</button>` : ''}</div></div>`;
   }).join('') : '<div class="card empty">还没有计件申报记录</div>';
-  $('processGrid').innerHTML = (state?.processes || []).map((p) => `<button type="button" class="process ${selectedProcessId === p.id ? 'active' : ''}" data-process="${esc(p.id)}">${esc(p.name)}</button>`).join('');
+  const matchedProcesses = selectedProduct
+    ? (state?.processes || []).filter((p) => productProcessMap.has(p.id))
+    : [];
+  if (selectedProcessId && !matchedProcesses.some((p) => p.id === selectedProcessId)) selectedProcessId = '';
+  $('processGrid').innerHTML = matchedProcesses.map((p) => `<button type="button" class="process ${selectedProcessId === p.id ? 'active' : ''}" data-process="${esc(p.id)}">${esc(p.name)}</button>`).join('');
+  show($('processGrid'), matchedProcesses.length > 0);
+  show($('noPricedProcess'), Boolean(selectedProduct) && matchedProcesses.length === 0);
   show($('priceChangeButton'), Boolean(selectedProduct && selectedProcessId));
   renderVariant();
   refreshSelectedPrice();
@@ -644,8 +683,9 @@ function variantDisplay(processName, value) {
     if (e.target.closest('[data-open-custom]')) { show($('productSuggest'), false); show($('newPieceButton'), true); openCustomRequest(); return; }
     const b = e.target.closest('[data-product]'); if (!b) return;
     selectedProduct = { id:b.dataset.product, material:b.dataset.material, name:b.dataset.name, spec:b.dataset.spec };
+    selectedProcessId = ''; selectedVariant = null;
     $('pickedProduct').innerHTML = `<strong>${esc(selectedProduct.material)} · ${esc(selectedProduct.name)}</strong><span>${esc(selectedProduct.spec || '无图号')}</span>`;
-    show($('pickedProduct'), true); show($('productSuggest'), false); $('productSearch').value = ''; renderPiece();
+    show($('pickedProduct'), true); show($('productSuggest'), false); $('productSearch').value = ''; loadProductProcesses(selectedProduct.id);
   });
   $('processGrid').addEventListener('click', (e) => {
     const b = e.target.closest('[data-process]'); if (!b) return;
@@ -667,6 +707,14 @@ function variantDisplay(processName, value) {
   $('revokeConfirm').addEventListener('click', revokePiece);
   $('revokeModal').addEventListener('click', (e) => { if (e.target === $('revokeModal')) closeRevoke(); });
 
+  $('noPricedProcessApply').addEventListener('click', () => {
+    openCustomRequest(true);
+    const other = (state?.processes || []).find((p) => p.name === '其他');
+    if (other) {
+      $('requestProcess').value = other.id;
+      $('requestProcess').dispatchEvent(new Event('change'));
+    }
+  });
   $('newPieceButton').addEventListener('click', openCustomRequest);
   $('priceChangeButton').addEventListener('click', openPriceChangeRequest);
   $('requestProcess').addEventListener('change', () => {
