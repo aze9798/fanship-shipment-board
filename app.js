@@ -33,6 +33,10 @@ let boardRole = 'user';            // user=普通，admin=管理（可看金额�
 let boardCanSeeAmount = false;
 let billedShipmentIds = new Set();
 let billedExtraIds = new Set();
+let workReviewRows = [];
+let workReviewStatus = 'submitted';
+let workReviewEditing = null;
+let mobileModule = 'entry';
 
 function boardModeName(mode = BOARD_MODE) {
   return mode === 'admin' ? '管理员模式' : mode === 'user' ? '普通模式' : '通用模式';
@@ -230,6 +234,9 @@ let desktopCompany = 'all';
 let desktopOrderType = '';
 let remainingSearch = '';
 let desktopRemainingSearch = '';
+let desktopLoadingSearch = '';
+let desktopLoadingDue = 'all';
+let desktopLoadingCompany = 'all';
 const remainingDates = new Set();
 let desktopDueFilter = 'all';
 let desktopDueDate = '';
@@ -457,6 +464,47 @@ const els = {
   mobileFilesSearch: $('#mobileFilesSearch'),
   mobileFilesDate: $('#mobileFilesDate'),
   mobileFilesClear: $('#mobileFilesClear'),
+  desktopWorkReviewLink: $('#desktopWorkReviewLink'),
+  desktopWorkReviewView: $('#desktopWorkReviewView'),
+  desktopWorkReviewStatus: $('#desktopWorkReviewStatus'),
+  desktopWorkReviewRefresh: $('#desktopWorkReviewRefresh'),
+  desktopWorkReviewPending: $('#desktopWorkReviewPending'),
+  desktopWorkReviewCount: $('#desktopWorkReviewCount'),
+  desktopWorkReviewList: $('#desktopWorkReviewList'),
+  desktopWorkReviewEmpty: $('#desktopWorkReviewEmpty'),
+  desktopLoadingView: $('#desktopLoadingView'),
+  desktopLoadingSearch: $('#desktopLoadingSearch'),
+  desktopLoadingDue: $('#desktopLoadingDue'),
+  desktopLoadingCompany: $('#desktopLoadingCompany'),
+  desktopLoadingRefresh: $('#desktopLoadingRefresh'),
+  desktopLoadingSummary: $('#desktopLoadingSummary'),
+  desktopLoadingTableBody: $('#desktopLoadingTableBody'),
+  desktopLoadingEmpty: $('#desktopLoadingEmpty'),
+  desktopLoadingCart: $('#desktopLoadingCart'),
+  desktopLoadingCartHint: $('#desktopLoadingCartHint'),
+  desktopLoadingOpenSubmit: $('#desktopLoadingOpenSubmit'),
+  desktopLoadingRecords: $('#desktopLoadingRecords'),
+  mobileModuleSwitch: $('#mobileModuleSwitch'),
+  mobileModuleMenu: $('#mobileModuleMenu'),
+  mobileWorkReviewPanel: $('#mobileWorkReviewPanel'),
+  mobileWorkReviewStatus: $('#mobileWorkReviewStatus'),
+  mobileWorkReviewRefresh: $('#mobileWorkReviewRefresh'),
+  mobileWorkReviewList: $('#mobileWorkReviewList'),
+  workReviewModal: $('#workReviewModal'),
+  workReviewClose: $('#workReviewClose'),
+  workReviewId: $('#workReviewId'),
+  workReviewInfo: $('#workReviewInfo'),
+  workReviewName: $('#workReviewName'),
+  workReviewMaterial: $('#workReviewMaterial'),
+  workReviewSpec: $('#workReviewSpec'),
+  workReviewProcess: $('#workReviewProcess'),
+  workReviewQty: $('#workReviewQty'),
+  workReviewPrice: $('#workReviewPrice'),
+  workReviewNote: $('#workReviewNote'),
+  workReviewError: $('#workReviewError'),
+  workReviewSave: $('#workReviewSave'),
+  workReviewReject: $('#workReviewReject'),
+  workReviewApprove: $('#workReviewApprove'),
   historySummary: $('#historySummary'),
   historySearch: $('#historySearch'),
   historyDate: $('#historyDate'),
@@ -1063,8 +1111,12 @@ function applyRoleUI() {
   const suffix = isAdmin ? '（管理员）' : '';
   const el = document.getElementById('brandTitle');
   if (el) el.textContent = '帆顺科技' + suffix;
+  const reviewLink = document.getElementById('desktopWorkReviewLink');
+  if (reviewLink) reviewLink.hidden = !isAdmin;
+  if (!isAdmin && mobileModule === 'workReview') mobileModule = 'entry';
+  renderMobileModule();
   const el2 = document.getElementById('mobileBrandTitle');
-  if (el2) el2.textContent = '手机装车登记' + suffix;
+  if (el2) el2.textContent = '帆顺科技' + suffix + ' · ' + (mobileModule === 'workReview' ? '报工审核' : '装车登记');
   const stamp = document.getElementById('sourceStamp');
   if (stamp) stamp.dataset.role = boardRole;
   document.title = '帆顺科技' + suffix;
@@ -1817,14 +1869,250 @@ function reconcileSelection() {
   }
 }
 
+// 电脑端装车登记
+function desktopLoadingDuePass(order) {
+  if (desktopLoadingDue === 'all') return true;
+  const today = String(snapshot?.today || TODAY || '').slice(0, 10);
+  const due = String(order.dueDate || '').slice(0, 10);
+  if (!due || !today) return true;
+  const day = 86400000;
+  const diff = Math.round((new Date(due + 'T00:00:00') - new Date(today + 'T00:00:00')) / day);
+  if (desktopLoadingDue === 'overdue') return diff < 0;
+  if (desktopLoadingDue === 'today') return diff === 0;
+  if (desktopLoadingDue === 'tomorrow') return diff === 1;
+  if (desktopLoadingDue === 'week') return diff >= 0 && diff <= 7;
+  return true;
+}
+function desktopLoadingOrders() {
+  const query = desktopLoadingSearch.trim().toLowerCase();
+  return (snapshot?.orders || [])
+    .filter((order) => Number(order.remaining || 0) > 0)
+    .filter((order) => desktopLoadingCompany === 'all' || String(orderCompany(order) || '') === desktopLoadingCompany)
+    .filter(desktopLoadingDuePass)
+    .filter((order) => !query || [order.po, order.seq, order.material, order.name, order.spec]
+      .some((value) => String(value ?? '').toLowerCase().includes(query)))
+    .sort((a, b) => String(a.dueDate || '9999-12-31').localeCompare(String(b.dueDate || '9999-12-31')) || Number(a.seq || 0) - Number(b.seq || 0));
+}
+function renderDesktopLoadingRecords() {
+  if (!els.desktopLoadingRecords) return;
+  const rows = (snapshot?.shipments || []).slice(0, 8);
+  els.desktopLoadingRecords.innerHTML = rows.length ? rows.map((shipment) => `
+    <div class="loading-record"><strong>${escapeHtml(String(shipment.createdAt || '').slice(0, 16).replace('T', ' '))}</strong>
+    <span>${escapeHtml(shipment.vehicle || shipment.operator || '装车记录')} · ${fmt((shipment.items || []).length)} 项</span>
+    <b>${fmt(shipment.totalQuantity || 0)} 件</b></div>`).join('') : '<div class="empty-state"><strong>今天还没有装车记录</strong><span>提交后会显示在这里。</span></div>';
+}
+function renderDesktopLoadingCart() {
+  if (!els.desktopLoadingCart) return;
+  const rows = [...selected.entries()].filter(([, quantity]) => Number(quantity) > 0).map(([id, quantity]) => {
+    const order = snapshot?.orders?.find((item) => item.id === id);
+    return order ? { order, quantity:Number(quantity) } : null;
+  }).filter(Boolean);
+  const overRows = [...sessionOver.values()].filter((item) => Number(item.quantity) > 0);
+  const total = rows.reduce((sum, row) => sum + row.quantity, 0) + overRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0) + replacementTotalQty();
+  els.desktopLoadingCartHint.textContent = `${rows.length + overRows.length + sessionReplacements.length} 项 · ${fmt(total)} 件`;
+  els.desktopLoadingCart.innerHTML = rows.length || overRows.length || sessionReplacements.length
+    ? rows.map(({ order, quantity }) => `<div class="loading-cart-line"><div><strong>${escapeHtml(order.material)} · ${escapeHtml(order.name || '')}</strong><span>${escapeHtml(order.po || '')}#${escapeHtml(order.seq || '')} · 未交 ${fmt(order.remaining)}</span></div><b>${fmt(quantity)}</b></div>`).join('')
+      + overRows.map((item) => `<div class="loading-cart-line"><div><strong>${escapeHtml(item.name || item.material || '无订单发货')}</strong><span>无订单发货</span></div><b>${fmt(item.quantity)}</b></div>`).join('')
+      + sessionReplacements.map((item) => `<div class="loading-cart-line"><div><strong>${escapeHtml(item.material)} · ${escapeHtml(item.name || '')}</strong><span>补发</span></div><b>${fmt(item.quantity)}</b></div>`).join('')
+    : '<div class="loading-cart-empty">还没有录入本次装车数量</div>';
+  if (els.desktopLoadingOpenSubmit) els.desktopLoadingOpenSubmit.disabled = !(rows.length || overRows.length || sessionReplacements.length);
+}
+function syncDesktopLoadingInputs() {
+  if (!els.desktopLoadingTableBody) return;
+  for (const input of els.desktopLoadingTableBody.querySelectorAll('[data-loading-qty]')) {
+    const value = Number(selected.get(input.dataset.loadingQty) || 0);
+    if (document.activeElement !== input) input.value = value > 0 ? value : '';
+    input.closest('tr')?.classList.toggle('selected-row', value > 0);
+  }
+}
+function renderDesktopLoading() {
+  if (!els.desktopLoadingTableBody) return;
+  const rows = desktopLoadingOrders();
+  els.desktopLoadingSummary.textContent = `${rows.length} 行可装车`;
+  els.desktopLoadingEmpty.hidden = rows.length > 0;
+  els.desktopLoadingTableBody.innerHTML = rows.map((order) => {
+    const quantity = Number(selected.get(order.id) || 0);
+    return `<tr class="${quantity > 0 ? 'selected-row' : ''}">
+      <td><strong>${escapeHtml(order.po || '')}</strong><small>#${escapeHtml(order.seq || '')}</small></td>
+      <td>${escapeHtml(order.material || '')}</td>
+      <td>${escapeHtml(order.name || '')}<small>${escapeHtml(order.spec || '')}</small></td>
+      <td>${escapeHtml(order.spec || '--')}</td>
+      <td>${escapeHtml(order.dueDate || '--')}</td>
+      <td class="number"><strong>${fmt(order.remaining || 0)}</strong></td>
+      <td class="number"><input type="number" min="0" step="1" inputmode="numeric" data-loading-qty="${escapeHtml(order.id)}" value="${quantity > 0 ? quantity : ''}" aria-label="本次装车数量"></td>
+    </tr>`;
+  }).join('');
+  syncDesktopLoadingInputs();
+  renderDesktopLoadingCart();
+  renderDesktopLoadingRecords();
+}
+// 报工审核：电脑端和手机端共用同一套数据和接口
+function workReviewStatusText(status) {
+  return ({ submitted:'待审核', approved:'已通过', rejected:'已退回', revoked:'已撤回' })[status] || status || '--';
+}
+function workReviewSourceText(source) {
+  return ({ custom_product:'新产品', price_change:'申请改价', catalog:'目录报工' })[source] || source || '--';
+}
+function workReviewMoney(value, digits = 4) {
+  if (value == null || value === '') return '--';
+  return Number(value).toLocaleString('zh-CN', { maximumFractionDigits: digits });
+}
+function workReviewCard(row, mobile = false) {
+  const status = workReviewStatusText(row.status);
+  const source = workReviewSourceText(row.sourceType);
+  const price = row.unitPrice != null
+    ? `正式 ${workReviewMoney(row.unitPrice)} 元 · 金额 ${workReviewMoney(row.amount, 2)} 元`
+    : row.submittedUnitPrice != null
+      ? `申报 ${workReviewMoney(row.submittedUnitPrice, 2)} 元${row.originalUnitPrice != null ? ` · 原价 ${workReviewMoney(row.originalUnitPrice)} 元` : ''}`
+      : '未定价';
+  const variant = row.variantLabel ? ` · ${escapeHtml(row.variantLabel)}` : '';
+  const fields = `<h3>${escapeHtml(row.employeeName || '--')} · ${escapeHtml(row.submittedName || '--')}</h3>
+    <p>编号：<strong>${escapeHtml(row.submittedMaterial || '--')}</strong>${row.submittedSpec ? ` · 规格 ${escapeHtml(row.submittedSpec)}` : ''}</p>
+    <p>${escapeHtml(source)} · ${escapeHtml(row.submittedProcessName || '--')}${variant} · ${fmt(row.quantity)} 件</p>
+    <p class="review-money">${escapeHtml(price)}</p>`;
+  if (mobile) {
+    return `<article class="mobile-review-card" data-review-id="${escapeHtml(row.id)}">
+      <div><span class="work-review-badge ${escapeHtml(row.sourceType || '')}">${escapeHtml(source)}</span><span class="review-status ${escapeHtml(row.status || '')}">${escapeHtml(status)}</span></div>
+      ${fields}
+      <button type="button" data-open-work-review="${escapeHtml(row.id)}">${row.status === 'submitted' ? '审核' : '查看'}</button>
+    </article>`;
+  }
+  return `<article class="work-review-card" data-review-id="${escapeHtml(row.id)}">
+    <div><span class="work-review-badge ${escapeHtml(row.sourceType || '')}">${escapeHtml(source)}</span><span class="review-status ${escapeHtml(row.status || '')}">${escapeHtml(status)}</span>${fields}</div>
+    <div><p>员工：<strong>${escapeHtml(row.employeeNo || '--')} · ${escapeHtml(row.employeeName || '--')}</strong></p><p>日期：${escapeHtml(row.workDate || '--')} · 提交：${escapeHtml(String(row.createdAt || '').slice(0, 16).replace('T', ' '))}</p><p>${escapeHtml(price)}</p></div>
+    <div><p>当前目录：<strong>${escapeHtml(row.currentMaterial || row.submittedMaterial || '--')}</strong></p><p>${escapeHtml(row.currentName || row.submittedName || '--')}${row.currentSpec ? ` · ${escapeHtml(row.currentSpec)}` : ''}</p><p>${escapeHtml(row.currentProcessName || row.submittedProcessName || '--')}</p></div>
+    <button type="button" data-open-work-review="${escapeHtml(row.id)}">${row.status === 'submitted' ? '审核' : '查看'}</button>
+  </article>`;
+}
+function renderWorkReviews() {
+  if (els.desktopWorkReviewList) els.desktopWorkReviewList.innerHTML = workReviewRows.map((row) => workReviewCard(row, false)).join('');
+  if (els.mobileWorkReviewList) els.mobileWorkReviewList.innerHTML = workReviewRows.map((row) => workReviewCard(row, true)).join('');
+  if (els.desktopWorkReviewCount) els.desktopWorkReviewCount.textContent = String(workReviewRows.length);
+  if (els.desktopWorkReviewEmpty) els.desktopWorkReviewEmpty.hidden = workReviewRows.length > 0;
+}
+async function loadWorkReviews(status = workReviewStatus) {
+  if (boardRole !== 'admin') return;
+  workReviewStatus = status || 'submitted';
+  if (els.desktopWorkReviewStatus) els.desktopWorkReviewStatus.value = workReviewStatus;
+  if (els.mobileWorkReviewStatus) els.mobileWorkReviewStatus.value = workReviewStatus;
+  const result = await callRpc('work_admin_list_reviews', { p_code:getAccessCode(), p_status:workReviewStatus, p_limit:300 });
+  if (!result.response.ok) { showToast(result.data?.error || '报工审核加载失败'); return; }
+  workReviewRows = Array.isArray(result.data) ? result.data : [];
+  renderWorkReviews();
+  const pendingResult = await callRpc('work_admin_list_reviews', { p_code:getAccessCode(), p_status:'submitted', p_limit:300 });
+  if (els.desktopWorkReviewPending) els.desktopWorkReviewPending.textContent = pendingResult.response.ok && Array.isArray(pendingResult.data) ? String(pendingResult.data.length) : '--';
+}
+function setWorkReviewError(message) {
+  if (!els.workReviewError) return;
+  els.workReviewError.textContent = message || '';
+  els.workReviewError.hidden = !message;
+}
+function closeWorkReviewEditor() {
+  if (!els.workReviewModal) return;
+  els.workReviewModal.hidden = true;
+  workReviewEditing = null;
+  setWorkReviewError('');
+}
+function openWorkReviewEditor(id) {
+  const row = workReviewRows.find((item) => item.id === id);
+  if (!row) return;
+  workReviewEditing = row;
+  els.workReviewId.value = row.id;
+  els.workReviewInfo.innerHTML = `<strong>${escapeHtml(row.employeeName || '')}</strong> · ${escapeHtml(workReviewSourceText(row.sourceType))} · ${escapeHtml(workReviewStatusText(row.status))}<br>员工填报：${escapeHtml(row.submittedName || '')} · ${escapeHtml(row.submittedMaterial || '')} · ${escapeHtml(row.submittedProcessName || '')}${row.variantLabel ? ' · ' + escapeHtml(row.variantLabel) : ''}<br>当前目录：${escapeHtml(row.currentMaterial || '未入库')}${row.currentName ? ' · ' + escapeHtml(row.currentName) : ''}`;
+  els.workReviewName.value = row.submittedName || '';
+  els.workReviewMaterial.value = row.submittedMaterial || '';
+  els.workReviewSpec.value = row.submittedSpec || '';
+  els.workReviewProcess.value = row.submittedProcessName || '';
+  els.workReviewQty.value = row.quantity ?? '';
+  els.workReviewPrice.value = row.submittedUnitPrice ?? row.unitPrice ?? '';
+  els.workReviewNote.value = row.reviewNote || '';
+  const editable = row.status === 'submitted';
+  [els.workReviewName, els.workReviewMaterial, els.workReviewSpec, els.workReviewProcess, els.workReviewQty, els.workReviewPrice, els.workReviewNote].forEach((input) => { if (input) input.disabled = !editable; });
+  if (els.workReviewSave) els.workReviewSave.hidden = !editable;
+  if (els.workReviewReject) els.workReviewReject.hidden = !editable;
+  if (els.workReviewApprove) els.workReviewApprove.hidden = !editable;
+  els.workReviewModal.hidden = false;
+}
+function workReviewPayload() {
+  return {
+    name:els.workReviewName.value.trim(),
+    material:els.workReviewMaterial.value.trim(),
+    spec:els.workReviewSpec.value.trim(),
+    processName:els.workReviewProcess.value.trim(),
+    quantity:Number(els.workReviewQty.value),
+    unitPrice:Number(els.workReviewPrice.value),
+    reviewNote:els.workReviewNote.value.trim(),
+  };
+}
+async function submitWorkReview(action) {
+  const row = workReviewEditing;
+  if (!row) return;
+  const payload = workReviewPayload();
+  if (!payload.name) return setWorkReviewError('品名不能为空');
+  if (!payload.material || payload.material.length < 4) return setWorkReviewError('料件编号至少要填写后四位');
+  if (!Number.isInteger(payload.quantity) || payload.quantity <= 0) return setWorkReviewError('数量必须是大于 0 的整数');
+  if (!(payload.unitPrice > 0) || !/^\d+(\.\d{1,2})?$/.test(String(els.workReviewPrice.value || '').trim())) return setWorkReviewError('单价必须大于 0，最多两位小数');
+  const buttons = [els.workReviewSave, els.workReviewReject, els.workReviewApprove].filter(Boolean);
+  buttons.forEach((button) => { button.disabled = true; });
+  try {
+    let result;
+    if (action === 'save') {
+      result = await callRpc('work_admin_save_review', { p_code:getAccessCode(), p_id:row.id, p_payload:payload });
+    } else {
+      if (action === 'reject' && !payload.reviewNote) throw new Error('退回时必须填写原因');
+      result = await callRpc('work_admin_review_request', { p_code:getAccessCode(), p_id:row.id, p_action:action, p_payload:payload, p_reason:payload.reviewNote });
+    }
+    if (!result.response.ok) throw new Error(result.data?.error || '审核提交失败');
+    closeWorkReviewEditor();
+    await loadWorkReviews(workReviewStatus);
+    showToast(action === 'approve' ? '审核通过，已更新产品和当前单价' : action === 'reject' ? '已退回员工报工' : '修改已保存');
+  } catch (error) {
+    setWorkReviewError(error.message || '审核提交失败');
+  } finally {
+    buttons.forEach((button) => { button.disabled = false; });
+  }
+}
+function renderMobileModule() {
+  const isAdmin = boardRole === 'admin';
+  if (els.mobileModuleSwitch) {
+    els.mobileModuleSwitch.classList.toggle('disabled', !isAdmin);
+    els.mobileModuleSwitch.setAttribute('aria-disabled', String(!isAdmin));
+  }
+  const title = document.getElementById('mobileBrandTitle');
+  if (title) title.textContent = `帆顺科技${isAdmin ? '（管理员）' : ''} · ${mobileModule === 'workReview' ? '报工审核' : '装车登记'}`;
+  if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = !(isAdmin && mobileModule === 'workReview');
+  if (isAdmin && mobileModule === 'workReview') {
+    document.querySelectorAll('.mobile-tab').forEach((button) => button.classList.remove('active'));
+    [els.mobileEntryPanel, els.mobileRemainingPanel, els.mobileRecordsPanel, els.mobileFilesPanel].forEach((panel) => { if (panel) panel.hidden = true; });
+    loadWorkReviews().catch(() => {});
+  }
+}
+function switchMobileModule(module) {
+  if (module === 'workReview' && boardRole !== 'admin') { showToast('报工审核只对管理员开放'); return; }
+  mobileModule = module === 'workReview' ? 'workReview' : 'entry';
+  if (els.mobileModuleMenu) els.mobileModuleMenu.hidden = true;
+  if (mobileModule === 'workReview') {
+    renderMobileModule();
+  } else {
+    if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = true;
+    switchMobileTab('entry');
+  }
+  renderMobileModule();
+}
 // 电脑端两个页面：实时总览 / 发货记录
 function showDesktopView(name) {
+  if (name === 'workReview' && boardRole !== 'admin') {
+    showToast('报工审核只对管理员开放');
+    name = 'overview';
+  }
   const pages = {
     overview: document.getElementById('desktopView'),
     remaining: document.getElementById('desktopRemainingView'),
     shipments: document.getElementById('desktopShipmentsView'),
     files: document.getElementById('desktopFilesView'),
     drawings: document.getElementById('desktopDrawingsView'),
+    loading: document.getElementById('desktopLoadingView'),
+    workReview: document.getElementById('desktopWorkReviewView'),
   };
   if (!pages.overview || !pages.shipments) return;
   const target = pages[name] ? name : 'overview';
@@ -1838,6 +2126,8 @@ function showDesktopView(name) {
   if (target === 'shipments') renderDesktopHistory();
   if (target === 'files') renderCloudFiles();
   if (target === 'drawings') renderDesktopDrawings();
+  if (target === 'loading') renderDesktopLoading();
+  if (target === 'workReview') loadWorkReviews().catch(() => {});
   window.scrollTo({ top: 0 });
 }
 
@@ -1854,6 +2144,10 @@ function renderAll() {
   renderCloudFiles();
   renderDesktopDrawings();
   renderCart();
+  if (els.desktopLoadingView && !els.desktopLoadingView.hidden) {
+    if (!els.desktopLoadingTableBody || !els.desktopLoadingTableBody.contains(document.activeElement)) renderDesktopLoading();
+    else { syncDesktopLoadingInputs(); renderDesktopLoadingCart(); renderDesktopLoadingRecords(); }
+  }
   els.sourceTitle.textContent = snapshot.storage?.label || '现有计划表导入';
   const roleTag = boardRole === 'admin' ? '管理码（可看金额）' : '普通码';
   applyRoleUI();
@@ -2706,6 +3000,7 @@ function renderCart() {
   const overCount = overRows.length + sessionReplacements.length;
   els.mobileCartBar.hidden = mobileTab !== 'entry' || (!entries.length && !overCount);
   renderCartDetail();
+  renderDesktopLoadingCart();
 }
 
 // 同一物料编号在多个采购单上都还有未交时的汇总（物料编号 -> 总未交/单数）
@@ -3308,13 +3603,16 @@ async function confirmImportOrders() {
 
 function switchMobileTab(tab) {
   mobileTab = tab;
+  mobileModule = 'entry';
   for (const button of document.querySelectorAll('.mobile-tab')) button.classList.toggle('active', button.dataset.tab === tab);
   els.mobileEntryPanel.hidden = tab !== 'entry';
   els.mobileRemainingPanel.hidden = tab !== 'remaining';
   els.mobileRecordsPanel.hidden = tab !== 'records';
   if (els.mobileFilesPanel) els.mobileFilesPanel.hidden = tab !== 'files';
+  if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = true;
   if (tab === 'files') renderCloudFiles();
   renderCart();
+  renderMobileModule();
 }
 
 // 点搜索框任意位置都能直接输入
@@ -3372,6 +3670,65 @@ document.addEventListener('click', (event) => {
   }
 });
 document.querySelectorAll('.mobile-tab').forEach((button) => button.addEventListener('click', () => switchMobileTab(button.dataset.tab)));
+
+if (els.desktopLoadingSearch) els.desktopLoadingSearch.addEventListener('input', (event) => { desktopLoadingSearch = event.target.value; renderDesktopLoading(); });
+if (els.desktopLoadingDue) els.desktopLoadingDue.addEventListener('change', (event) => { desktopLoadingDue = event.target.value; renderDesktopLoading(); });
+if (els.desktopLoadingCompany) els.desktopLoadingCompany.addEventListener('change', (event) => { desktopLoadingCompany = event.target.value; renderDesktopLoading(); });
+if (els.desktopLoadingRefresh) els.desktopLoadingRefresh.addEventListener('click', async () => { await loadState({ quiet:false }); renderAll(); renderDesktopLoading(); showToast('未交订单已刷新'); });
+if (els.desktopLoadingTableBody) {
+  els.desktopLoadingTableBody.addEventListener('input', (event) => {
+    const input = event.target.closest('[data-loading-qty]');
+    if (!input) return;
+    setQuantity(input.dataset.loadingQty, input.value);
+    syncDesktopLoadingInputs();
+  });
+  els.desktopLoadingTableBody.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    const inputs = [...els.desktopLoadingTableBody.querySelectorAll('[data-loading-qty]')];
+    const index = inputs.indexOf(event.target);
+    if (index >= 0 && inputs[index + 1]) { event.preventDefault(); inputs[index + 1].focus(); inputs[index + 1].select(); }
+  });
+}
+if (els.desktopLoadingOpenSubmit) els.desktopLoadingOpenSubmit.addEventListener('click', openSubmitModal);
+if (els.desktopWorkReviewStatus) els.desktopWorkReviewStatus.addEventListener('change', (event) => loadWorkReviews(event.target.value));
+if (els.mobileWorkReviewStatus) els.mobileWorkReviewStatus.addEventListener('change', (event) => loadWorkReviews(event.target.value));
+if (els.desktopWorkReviewRefresh) els.desktopWorkReviewRefresh.addEventListener('click', () => loadWorkReviews(workReviewStatus));
+if (els.mobileWorkReviewRefresh) els.mobileWorkReviewRefresh.addEventListener('click', () => loadWorkReviews(workReviewStatus));
+[els.desktopWorkReviewList, els.mobileWorkReviewList].forEach((list) => {
+  if (!list) return;
+  list.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-open-work-review]');
+    if (!button) return;
+    openWorkReviewEditor(button.dataset.openWorkReview);
+  });
+});
+if (els.mobileModuleSwitch) {
+  const toggleModuleMenu = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (boardRole !== 'admin') { showToast('管理员模式才能切换报工审核'); return; }
+    if (els.mobileModuleMenu) els.mobileModuleMenu.hidden = !els.mobileModuleMenu.hidden;
+  };
+  els.mobileModuleSwitch.addEventListener('click', toggleModuleMenu);
+  els.mobileModuleSwitch.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') toggleModuleMenu(event); });
+}
+if (els.mobileModuleMenu) {
+  els.mobileModuleMenu.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-mobile-module]');
+    if (!button) return;
+    switchMobileModule(button.dataset.mobileModule);
+  });
+}
+document.addEventListener('click', (event) => {
+  if (!els.mobileModuleMenu || els.mobileModuleMenu.hidden) return;
+  if (els.mobileModuleSwitch?.contains(event.target) || els.mobileModuleMenu.contains(event.target)) return;
+  els.mobileModuleMenu.hidden = true;
+});
+if (els.workReviewClose) els.workReviewClose.addEventListener('click', closeWorkReviewEditor);
+if (els.workReviewSave) els.workReviewSave.addEventListener('click', () => submitWorkReview('save'));
+if (els.workReviewReject) els.workReviewReject.addEventListener('click', () => submitWorkReview('reject'));
+if (els.workReviewApprove) els.workReviewApprove.addEventListener('click', () => submitWorkReview('approve'));
+if (els.workReviewModal) els.workReviewModal.addEventListener('click', (event) => { if (event.target === els.workReviewModal) closeWorkReviewEditor(); });
 els.mobileFilters.addEventListener('click', (event) => {
   const button = event.target.closest('[data-filter]');
   if (!button) return;

@@ -33,6 +33,16 @@
     .piece-form{display:grid;gap:11px;margin-top:12px}.piece-form .row{display:grid;grid-template-columns:1fr 1fr;gap:9px}.piece-form input{height:44px;border:1px solid var(--line);border-radius:11px;padding:0 11px;background:#fbfdfd;outline:none}.variant-box{margin-top:12px;padding:12px;border-radius:12px;background:#f7fbfa;border:1px solid #e2edeb}.variant-label{margin-bottom:8px;color:#587178;font-size:12px;font-weight:700}.variant-options{display:flex;flex-wrap:wrap;gap:7px}.variant-options button{min-height:36px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#536b72}.variant-options button.active{border-color:var(--primary);background:var(--primary);color:#fff}.variant-box input{width:100%;height:40px;border:1px solid var(--line);border-radius:10px;padding:0 11px;background:#fff;outline:none}
     .piece-submit{min-height:48px}.piece-record{background:#f8fbfa;border:1px solid #edf2f2;border-radius:12px;padding:11px;margin-top:8px}.piece-record strong{font-size:13px}.piece-record span{display:block;color:var(--muted);font-size:10px;margin-top:3px}.piece-money{color:var(--primary)!important;font-weight:700;font-size:11px!important}.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#173b42;color:#fff;padding:11px 15px;border-radius:12px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:99;max-width:88vw;text-align:center}
 .modal-backdrop{position:fixed;inset:0;background:rgba(8,31,36,.42);display:grid;place-items:center;padding:20px;z-index:120}.modal-card{width:100%;max-width:360px;background:#fff;border-radius:16px;padding:17px;box-shadow:0 18px 45px rgba(0,0,0,.22)}.modal-card h3{margin:0 0 8px;font-size:17px}.modal-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.modal-actions button{min-height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:#fff}.modal-actions .danger{background:#b42318;border-color:#b42318;color:#fff}.record-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}.record-status{font-size:10px;color:#71868b}.record-status.approved{color:#0f766e}.record-status.revoked,.record-status.rejected{color:#b42318}.revoke-piece{border:1px solid #e2b9b4;border-radius:8px;background:#fff7f6;color:#b42318;padding:4px 9px;font-size:11px}
+    .action-stack{display:grid;gap:9px;margin-top:10px}
+    .action-stack button{min-height:42px}
+    .field select{width:100%;height:46px;border:1px solid var(--line);border-radius:12px;padding:0 13px;background:#fbfdfd;color:var(--ink);outline:none}
+    .field select:focus{border-color:#74c2b7;box-shadow:0 0 0 4px rgba(15,118,110,.08)}
+    .request-card{max-height:88vh;overflow:auto}
+    .request-fields{display:grid;gap:11px;margin-top:12px}
+    .request-product{margin:10px 0 0;padding:10px 12px;border-radius:11px;background:#f5faf9;color:#3f6065;font-size:12px;line-height:1.55}
+    .request-error{margin-top:10px;padding:9px 11px;border-radius:9px;background:#fff1f0;color:var(--danger);font-size:12px}
+    .request-tip{margin-top:8px;color:var(--muted);font-size:10px;line-height:1.5}
+    .modal-actions .primary{border-color:var(--primary)}
   </style>
 </head><body>
 <div class="page">
@@ -61,9 +71,11 @@
       <div class="card"><div class="section-head"><div><h2>计件申报</h2><p>搜索产品，选择工序，填写数量后提交。</p></div></div>
         <div class="search-wrap"><input id="productSearch" type="search" placeholder="搜索产品编号 / 产品名 / 图号" autocomplete="off"></div>
         <div id="productSuggest" class="suggest hidden"></div>
+        <div class="action-stack"><button id="newPieceButton" class="ghost" type="button">找不到产品？自主申报新产品</button></div>
         <div id="pickedProduct" class="picked hidden"></div>
         <div id="processGrid" class="process-grid"></div>
         <div id="variantBox" class="variant-box hidden"></div>
+        <div class="action-stack"><button id="priceChangeButton" class="ghost hidden" type="button">这个单价不对，申请修改</button></div>
         <div class="piece-form">
           <div class="row"><input id="pieceQty" type="number" min="1" step="1" inputmode="numeric" placeholder="数量（整数）"><input id="pieceNote" type="text" placeholder="备注（选填）"></div>
           <button id="pieceSubmit" class="primary piece-submit">提交计件</button>
@@ -74,6 +86,28 @@
   </section>
 </div>
 <div id="revokeModal" class="modal-backdrop hidden"><div class="modal-card"><h3>确定撤回这条计件吗？</h3><p>撤回后不会参与工资统计，记录会保留为“已撤回”。</p><div class="modal-actions"><button id="revokeCancel" type="button">取消</button><button id="revokeConfirm" class="danger" type="button">确认撤回</button></div></div></div>
+<div id="requestModal" class="modal-backdrop hidden">
+  <div class="modal-card request-card">
+    <h3 id="requestTitle">自主申报新产品</h3>
+    <p id="requestSubtitle">请填写完整信息，提交后等待管理员审核。</p>
+    <div id="requestProductSummary" class="request-product hidden"></div>
+    <div class="request-fields">
+      <label id="requestNameWrap" class="field"><span>品名</span><input id="requestName" type="text" placeholder="请填写产品品名"></label>
+      <label id="requestMaterialWrap" class="field"><span>料件编号</span><input id="requestMaterial" type="text" autocomplete="off" placeholder="请填写完整料件编号或后四位 不清楚请询问现场管理人员。"><small id="requestMaterialHint" class="request-tip">请填写完整料件编号或后四位 不清楚请询问现场管理人员。</small></label>
+      <div id="requestMaterialMatches" class="suggest hidden"></div>
+      <label id="requestSpecWrap" class="field"><span>规格 / 图号（选填）</span><input id="requestSpec" type="text" placeholder="如有多孔、刀数或图号可填写"></label>
+      <label id="requestProcessWrap" class="field"><span>工序</span><select id="requestProcess"></select></label>
+      <label id="requestOtherProcessWrap" class="field hidden"><span>手工工序名称</span><input id="requestOtherProcess" type="text" placeholder="例如：激光切割"></label>
+      <label id="requestVariantWrap" class="field hidden"><span id="requestVariantLabel">规格</span><input id="requestVariantValue" type="number" min="1" step="1" inputmode="numeric"></label>
+      <label class="field"><span>数量（整数）</span><input id="requestQty" type="number" min="1" step="1" inputmode="numeric" placeholder="必须为大于 0 的整数"></label>
+      <label class="field"><span>单价（元，最多两位小数）</span><input id="requestPrice" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="折弯 0.2/刀，攻丝 0.2/孔"></label>
+      <label class="field"><span>备注（选填）</span><input id="requestNote" type="text" placeholder="可填写原因或补充说明"></label>
+    </div>
+    <div id="requestError" class="request-error hidden"></div>
+    <div class="request-tip">提交后显示“待审核”，管理员确认前不计入工资。</div>
+    <div class="modal-actions"><button id="requestCancel" type="button">取消</button><button id="requestSubmit" class="primary" type="button">提交审核</button></div>
+  </div>
+</div>
 <div id="toast" class="toast hidden"></div><script>
 window.WORK_RPC_BASE = 'https://dkbeigqtiilgxthwkixg.supabase.co/rest/v1/rpc';
 window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s';
@@ -87,6 +121,11 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
   let searchTimer = null;
   let selectedVariant = null;
   let pendingRevokeId = '';
+  let requestMode = 'custom';
+  let requestProduct = null;
+  let requestAutoPrice = null;
+  let requestMaterialTimer = null;
+  let requestMaterialToken = 0;
   const PROCESS_VARIANTS = {
     '打孔': { key: 'holes', label: '孔数', type: 'select', options: [1,2,3,4,5,6,8,10] },
     '攻丝': { key: 'holes', label: '攻丝孔数', type: 'select', options: [1,2,3,4,5,6,8,10] },
@@ -139,15 +178,24 @@ function renderVariant() {
 }
 function renderPiece() {
   const rows = state?.pieceEntries || [];
-  const activeCount = rows.filter((x) => x.status !== 'revoked').length;
+  const activeCount = rows.filter((x) => x.status === 'submitted' || x.status === 'approved').length;
   $('pieceCount').textContent = `${activeCount} 笔`;
   $('pieceEntries').innerHTML = rows.length ? rows.map((x) => {
-    const statusText = x.status === 'revoked' ? '已撤回' : x.status === 'approved' ? '已审核' : x.status === 'rejected' ? '已退回' : '已提交';
-    const canRevoke = x.status === 'submitted' && (Date.now() - new Date(x.createdAt).getTime()) < 7 * 86400000;
-    const rateText = x.unitPrice == null ? '单价未配置，请联系管理员' : `单价 ${Number(x.unitPrice).toLocaleString('zh-CN',{maximumFractionDigits:4})} 元 · 金额 ${Number(x.amount || 0).toFixed(2)} 元`;
-    return `<div class="piece-record"><strong>${esc(x.material)} · ${esc(x.name || '')}</strong><span>${esc(x.process)}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''} · ${Number(x.quantity)} 件 · ${esc(x.workDate)}</span><span class="piece-money">${esc(rateText)}</span><div class="record-foot"><span class="record-status ${x.status}">${statusText}</span>${canRevoke ? `<button type="button" class="revoke-piece" data-revoke-piece="${esc(x.id)}">撤回</button>` : ''}</div></div>`;
+    const material = x.material || x.submittedMaterial || '';
+    const name = x.name || x.submittedName || '';
+    const process = x.process || x.submittedProcessName || '待审核';
+    const statusText = x.status === 'revoked' ? '已撤回' : x.status === 'approved' ? '已通过' : x.status === 'rejected' ? '已退回' : (x.sourceType === 'catalog' ? '已提交' : '待审核');
+    const canRevoke = x.status === 'submitted';
+    const priceText = x.status === 'approved' && x.unitPrice != null
+      ? `单价 ${Number(x.unitPrice).toLocaleString('zh-CN',{maximumFractionDigits:4})} 元 · 金额 ${Number(x.amount || 0).toFixed(2)} 元`
+      : x.submittedUnitPrice != null
+        ? `申报单价 ${Number(x.submittedUnitPrice).toLocaleString('zh-CN',{maximumFractionDigits:2})} 元 · 待审核`
+        : '单价待审核';
+    const reviewText = x.reviewNote ? `<span>${x.status === 'rejected' ? '退回原因：' : '审核备注：'}${esc(x.reviewNote)}</span>` : '';
+    return `<div class="piece-record"><strong>${esc(material)} · ${esc(name)}</strong><span>${esc(process)}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''} · ${Number(x.quantity)} 件 · ${esc(x.workDate)}</span><span class="piece-money">${esc(priceText)}</span>${reviewText}<div class="record-foot"><span class="record-status ${x.status}">${statusText}</span>${canRevoke ? `<button type="button" class="revoke-piece" data-revoke-piece="${esc(x.id)}">撤回</button>` : ''}</div></div>`;
   }).join('') : '<div class="card empty">还没有计件申报记录</div>';
   $('processGrid').innerHTML = (state?.processes || []).map((p) => `<button type="button" class="process ${selectedProcessId === p.id ? 'active' : ''}" data-process="${esc(p.id)}">${esc(p.name)}</button>`).join('');
+  show($('priceChangeButton'), Boolean(selectedProduct && selectedProcessId));
   renderVariant();
 }
   function render() {
@@ -157,12 +205,32 @@ function renderPiece() {
     renderTime(); renderPiece();
   }
   async function loadState() {
-    const [nextState, pieces] = await Promise.all([
+    const [nextState, submissions] = await Promise.all([
       rpc('work_get_state', { p_code: code }),
-      rpc('work_get_piece_entries', { p_code: code }).catch(() => []),
+      rpc('work_get_my_submissions', { p_code: code, p_limit: 80 }).catch(() => []),
     ]);
     state = nextState;
-    state.pieceEntries = pieces;
+    state.pieceEntries = (submissions || []).map((x) => ({
+      id: x.id,
+      workDate: x.workDate,
+      status: x.status,
+      sourceType: x.sourceType,
+      material: x.submittedMaterial,
+      name: x.submittedName,
+      spec: x.submittedSpec,
+      process: x.submittedProcessName,
+      quantity: x.quantity,
+      unitPrice: x.unitPrice,
+      submittedUnitPrice: x.submittedUnitPrice,
+      originalUnitPrice: x.originalUnitPrice,
+      amount: x.amount,
+      variantKey: x.variantKey,
+      variantValue: x.variantValue,
+      variantLabel: x.variantLabel,
+      reviewNote: x.reviewNote,
+      reviewedAt: x.reviewedAt,
+      createdAt: x.createdAt,
+    }));
     render();
   }
   async function login(nextCode) {
@@ -182,7 +250,7 @@ function renderPiece() {
     if (!q) { show(box,false); return; }
     try {
       const rows = await rpc('work_search_products', { p_code:code, p_query:q });
-      box.innerHTML = rows.length ? rows.map((p) => `<button type="button" data-product="${esc(p.id)}" data-material="${esc(p.material)}" data-name="${esc(p.name)}" data-spec="${esc(p.spec)}"><strong>${esc(p.material)} · ${esc(p.name)}</strong><span>${esc(p.spec || '无图号')}</span></button>`).join('') : '<button type="button" disabled>没有找到产品</button>';
+      box.innerHTML = rows.length ? rows.map((p) => `<button type="button" data-product="${esc(p.id)}" data-material="${esc(p.material)}" data-name="${esc(p.name)}" data-spec="${esc(p.spec)}"><strong>${esc(p.material)} · ${esc(p.name)}</strong><span>${esc(p.spec || '无图号')}</span></button>`).join('') : '<button type="button" data-open-custom="1"><strong>没有找到产品</strong><span>点这里自主申报新产品</span></button>';
       show(box,true);
     } catch (e) { toast(e.message || '搜索失败'); }
   }
@@ -231,13 +299,267 @@ function variantDisplay(processName, value) {
     } catch (e) { toast(e.message || '提交失败'); } finally { btn.disabled = false; }
   }
 
+  function setRequestError(message) {
+    const box = $('requestError');
+    box.textContent = message || '';
+    show(box, Boolean(message));
+  }
+  function currentRequestProcess() {
+    const id = $('requestProcess').value;
+    return (state?.processes || []).find((p) => p.id === id) || null;
+  }
+  function requestVariantConfig(process) {
+    return process ? PROCESS_VARIANTS[process.name] : null;
+  }
+  function populateRequestProcesses(selectedId = '') {
+    const rows = state?.processes || [];
+    $('requestProcess').innerHTML = rows.map((p) => `<option value="${esc(p.id)}" ${p.id === selectedId ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+  }
+  function requestVariant() {
+    const process = currentRequestProcess();
+    const config = requestVariantConfig(process);
+    if (!config) return { key:'', value:0, label:'' };
+    const value = Number($('requestVariantValue').value || 0);
+    return { key:config.key, value, label:value > 0 ? variantDisplay(process.name, value) : '' };
+  }
+  function renderRequestVariant(keepValue = false) {
+    const process = currentRequestProcess();
+    const config = requestVariantConfig(process);
+    const wrap = $('requestVariantWrap');
+    const input = $('requestVariantValue');
+    if (!config) {
+      input.value = '';
+      show(wrap, false);
+      return;
+    }
+    $('requestVariantLabel').textContent = config.label;
+    input.placeholder = config.label;
+    show(wrap, true);
+    input.value = keepValue && selectedVariant?.value ? selectedVariant.value : '';
+  }
+  function updateRequestSuggestedPrice(force = false) {
+    const process = currentRequestProcess();
+    const config = requestVariantConfig(process);
+    const input = $('requestPrice');
+    let suggestion = null;
+    if (process && config && (process.name === '折弯' || process.name === '攻丝')) {
+      const value = Number($('requestVariantValue').value || 0);
+      if (value > 0) suggestion = Number((value * 0.2).toFixed(2));
+    }
+    const canReplace = !input.value || (requestAutoPrice != null && Number(input.value) === Number(requestAutoPrice));
+    if (force) input.value = suggestion == null ? '' : suggestion.toFixed(2);
+    else if (suggestion != null && canReplace) input.value = suggestion.toFixed(2);
+    requestAutoPrice = suggestion;
+  }
+  async function loadCatalogPriceForRequest() {
+    if (requestMode !== 'price_change' || !requestProduct) return;
+    const process = currentRequestProcess();
+    if (!process) return;
+    const variant = requestVariant();
+    if (variant.value < 0) return;
+    try {
+      const result = await rpc('work_get_catalog_price', {
+        p_code:code,
+        p_product_id:requestProduct.id,
+        p_process_id:process.id,
+        p_variant_key:variant.key,
+        p_variant_value:variant.value,
+      });
+      if (result?.unitPrice != null) {
+        const value = Number(result.unitPrice);
+        $('requestPrice').value = value.toFixed(2);
+        requestAutoPrice = value;
+      }
+    } catch {}
+  }
+  function setRequestMaterialHint(text) {
+    const hint = $('requestMaterialHint');
+    if (hint) hint.textContent = text || '请填写完整料件编号或后四位 不清楚请询问现场管理人员。';
+  }
+  function fillRequestProduct(product, source = 'system') {
+    if (!product) return;
+    $('requestMaterial').value = product.material || '';
+    if (!$('requestName').value.trim()) $('requestName').value = product.name || '';
+    if (!$('requestSpec').value.trim()) $('requestSpec').value = product.spec || '';
+    setRequestMaterialHint(`已匹配系统产品：${product.material || ''} · ${product.name || ''}${source === 'user' ? '' : '（已自动带出完整料号和品名）'}`);
+    show($('requestMaterialMatches'), false);
+  }
+  function renderRequestMaterialMatches(rows) {
+    const box = $('requestMaterialMatches');
+    box.innerHTML = rows.map((p) => `<button type="button" data-request-product="${esc(p.id)}" data-material="${esc(p.material)}" data-name="${esc(p.name)}" data-spec="${esc(p.spec)}"><strong>${esc(p.material)} · ${esc(p.name || '（无品名）')}</strong><span>${esc(p.spec || '无图号')}</span></button>`).join('');
+    show(box, rows.length > 0);
+  }
+  async function lookupRequestMaterial() {
+    const input = $('requestMaterial');
+    const query = input.value.trim();
+    const box = $('requestMaterialMatches');
+    const token = ++requestMaterialToken;
+    if (query.length < 4) {
+      show(box, false);
+      setRequestMaterialHint('');
+      return;
+    }
+    try {
+      const rows = await rpc('work_search_products', { p_code:code, p_query:query });
+      if (token !== requestMaterialToken) return;
+      const digits = query.replace(/\D/g, '');
+      const exact = rows.filter((p) => String(p.material || '') === query);
+      const suffix = digits.length >= 4 ? rows.filter((p) => String(p.material || '').replace(/\D/g, '').endsWith(digits)) : [];
+      const matches = exact.length ? exact : suffix;
+      if (matches.length === 1) {
+        fillRequestProduct(matches[0]);
+        return;
+      }
+      if (matches.length > 1) {
+        setRequestMaterialHint('系统找到多个可能产品，请点选正确项或填写更完整的料件编号。');
+        renderRequestMaterialMatches(matches);
+        return;
+      }
+      show(box, false);
+      setRequestMaterialHint('系统未找到对应产品，将按新料件提交，管理员后续补全。');
+    } catch (e) {
+      if (token !== requestMaterialToken) return;
+      show(box, false);
+      setRequestMaterialHint('暂时无法查询产品库，可继续填写并按新料件提交。');
+    }
+  }
+  function scheduleRequestMaterialLookup() {
+    clearTimeout(requestMaterialTimer);
+    requestMaterialToken += 1;
+    requestMaterialTimer = setTimeout(lookupRequestMaterial, 280);
+  }
+
+  function openCustomRequest() {
+    requestMode = 'custom';
+    requestProduct = null;
+    requestAutoPrice = null;
+    $('requestTitle').textContent = '自主申报新产品';
+    $('requestSubtitle').textContent = '产品或单价不在目录中，请填写后提交管理员审核。';
+    show($('requestNameWrap'), true);
+    show($('requestMaterialWrap'), true);
+    show($('requestSpecWrap'), true);
+    show($('requestProcessWrap'), true);
+    show($('requestProductSummary'), false);
+    $('requestProcess').disabled = false;
+    $('requestName').value = '';
+    $('requestMaterial').value = '';
+    $('requestSpec').value = '';
+    $('requestOtherProcess').value = '';
+    requestMaterialToken += 1;
+    clearTimeout(requestMaterialTimer);
+    show($('requestMaterialMatches'), false);
+    setRequestMaterialHint('');
+    $('requestQty').value = '';
+    $('requestPrice').value = '';
+    $('requestNote').value = '';
+    populateRequestProcesses(selectedProcessId || '');
+    $('requestProcess').dispatchEvent(new Event('change'));
+    setRequestError('');
+    show($('requestModal'), true);
+  }
+  async function openPriceChangeRequest() {
+    if (!selectedProduct) return toast('请先搜索并选择产品');
+    if (!selectedProcessId) return toast('请先选择工序');
+    requestMode = 'price_change';
+    requestProduct = selectedProduct;
+    requestAutoPrice = null;
+    $('requestTitle').textContent = '申请修改单价';
+    $('requestSubtitle').textContent = '原单价继续有效，审核通过后才会使用新单价。';
+    show($('requestNameWrap'), false);
+    show($('requestMaterialWrap'), false);
+    show($('requestSpecWrap'), false);
+    show($('requestProcessWrap'), true);
+    show($('requestProductSummary'), true);
+    $('requestProductSummary').innerHTML = `<strong>${esc(selectedProduct.material)} · ${esc(selectedProduct.name)}</strong><br>${esc(selectedProduct.spec || '无图号')}`;
+    populateRequestProcesses(selectedProcessId);
+    $('requestProcess').disabled = true;
+    $('requestOtherProcess').value = '';
+    $('requestQty').value = '';
+    $('requestPrice').value = '';
+    $('requestNote').value = '';
+    renderRequestVariant(true);
+    setRequestError('');
+    show($('requestModal'), true);
+    await loadCatalogPriceForRequest();
+  }
+  function closeRequestModal() {
+    show($('requestModal'), false);
+    setRequestError('');
+    $('requestProcess').disabled = false;
+  }
+  function parsePriceInput() {
+    const raw = String($('requestPrice').value || '').trim();
+    if (!/^\d+(\.\d{1,2})?$/.test(raw)) return null;
+    const value = Number(raw);
+    return value > 0 ? value : null;
+  }
+  async function submitRequest() {
+    setRequestError('');
+    const process = currentRequestProcess();
+    if (!process) return setRequestError('请选择工序');
+    const manualProcess = process.name === '其他' ? $('requestOtherProcess').value.trim() : '';
+    if (process.name === '其他' && !manualProcess) return setRequestError('选择“其他”后请手工填写工序名称');
+    const variant = requestVariant();
+    const config = requestVariantConfig(process);
+    if (config && variant.value <= 0) return setRequestError(`请填写${config.label}`);
+    const qty = Number($('requestQty').value);
+    if (!Number.isInteger(qty) || qty <= 0) return setRequestError('数量必须是大于 0 的整数');
+    const price = parsePriceInput();
+    if (price == null) return setRequestError('单价必须大于 0，最多两位小数');
+    const button = $('requestSubmit');
+    button.disabled = true;
+    try {
+      if (requestMode === 'custom') {
+        const name = $('requestName').value.trim();
+        const material = $('requestMaterial').value.trim();
+        if (!name) throw new Error('请填写品名');
+        if (!material) throw new Error('请填写完整料件编号或后四位 不清楚请询问现场管理人员。');
+        if (material.length < 4) throw new Error('料件编号至少填写后四位');
+        await rpc('work_submit_custom_piece', {
+          p_code:code,
+          p_name:name,
+          p_material:material,
+          p_spec:$('requestSpec').value.trim(),
+          p_process_id:process.name === '其他' ? null : process.id,
+          p_process_name:manualProcess || process.name,
+          p_quantity:qty,
+          p_variant_key:variant.key,
+          p_variant_value:variant.value,
+          p_variant_label:variant.label,
+          p_unit_price:price,
+          p_note:$('requestNote').value.trim(),
+        });
+      } else {
+        if (!requestProduct) throw new Error('产品信息已失效，请重新选择产品');
+        await rpc('work_submit_price_change', {
+          p_code:code,
+          p_product_id:requestProduct.id,
+          p_process_id:process.id,
+          p_quantity:qty,
+          p_variant_key:variant.key,
+          p_variant_value:variant.value,
+          p_variant_label:variant.label,
+          p_unit_price:price,
+          p_note:$('requestNote').value.trim(),
+        });
+      }
+      closeRequestModal();
+      await loadState();
+      toast('已提交，等待管理员审核');
+    } catch (e) {
+      setRequestError(e.message || '提交失败');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function showRevoke(id) { pendingRevokeId = id; show($('revokeModal'), true); }
   function closeRevoke() { pendingRevokeId = ''; show($('revokeModal'), false); }
   async function revokePiece() {
     if (!pendingRevokeId) return;
     const id = pendingRevokeId; const btn = $('revokeConfirm'); btn.disabled = true;
     try {
-      await rpc('work_revoke_piece_entry', { p_code:code, p_id:id, p_reason:'' });
+      await rpc('work_withdraw_submission', { p_code:code, p_id:id, p_reason:'' });
       closeRevoke(); await loadState(); toast('计件记录已撤回');
     } catch (e) { toast(e.message || '撤回失败'); } finally { btn.disabled = false; }
   }
@@ -251,6 +573,7 @@ function variantDisplay(processName, value) {
   }));
   $('productSearch').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(searchProducts, 220); });
   $('productSuggest').addEventListener('click', (e) => {
+    if (e.target.closest('[data-open-custom]')) { show($('productSuggest'), false); show($('newPieceButton'), true); openCustomRequest(); return; }
     const b = e.target.closest('[data-product]'); if (!b) return;
     selectedProduct = { id:b.dataset.product, material:b.dataset.material, name:b.dataset.name, spec:b.dataset.spec };
     $('pickedProduct').innerHTML = `<strong>${esc(selectedProduct.material)} · ${esc(selectedProduct.name)}</strong><span>${esc(selectedProduct.spec || '无图号')}</span>`;
@@ -262,6 +585,32 @@ function variantDisplay(processName, value) {
   $('revokeCancel').addEventListener('click', closeRevoke);
   $('revokeConfirm').addEventListener('click', revokePiece);
   $('revokeModal').addEventListener('click', (e) => { if (e.target === $('revokeModal')) closeRevoke(); });
+
+  $('newPieceButton').addEventListener('click', openCustomRequest);
+  $('priceChangeButton').addEventListener('click', openPriceChangeRequest);
+  $('requestProcess').addEventListener('change', () => {
+    const process = currentRequestProcess();
+    show($('requestOtherProcessWrap'), process?.name === '其他');
+    renderRequestVariant(false);
+    if (requestMode === 'price_change') loadCatalogPriceForRequest();
+    else updateRequestSuggestedPrice(false);
+  });
+  $('requestMaterial').addEventListener('input', scheduleRequestMaterialLookup);
+  $('requestMaterialMatches').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-request-product]');
+    if (!button) return;
+    fillRequestProduct({ id:button.dataset.requestProduct, material:button.dataset.material, name:button.dataset.name, spec:button.dataset.spec }, 'user');
+  });
+  $('requestVariantValue').addEventListener('input', () => {
+    updateRequestSuggestedPrice(false);
+    loadCatalogPriceForRequest();
+  });
+  $('requestPrice').addEventListener('input', () => {
+    if (requestAutoPrice != null && Number($('requestPrice').value) !== Number(requestAutoPrice)) requestAutoPrice = null;
+  });
+  $('requestCancel').addEventListener('click', closeRequestModal);
+  $('requestSubmit').addEventListener('click', submitRequest);
+  $('requestModal').addEventListener('click', (e) => { if (e.target === $('requestModal')) closeRequestModal(); });
   $('pieceSubmit').addEventListener('click', submitPiece);
   setInterval(() => { if (state?.activeEntry) $('clockTime').textContent = currentElapsedText(); }, 1000);
   setInterval(() => { if (code && state) loadState().catch(() => {}); }, 30000);

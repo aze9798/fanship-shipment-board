@@ -35,9 +35,13 @@
           <span class="nav-dot"></span>
           未交清单
         </a>
-        <a id="mobileEntryLink" class="side-link" href="./?view=mobile">
+        <a class="side-link" href="#loading" data-desktop-view="loading">
           <span class="nav-dot"></span>
-          手机装车
+          装车登记
+        </a>
+        <a id="desktopWorkReviewLink" class="side-link" href="#work-review" data-desktop-view="workReview" hidden>
+          <span class="nav-dot"></span>
+          报工审核
         </a>
         <a class="side-link" href="#query" data-desktop-view="shipments">
           <span class="nav-dot"></span>
@@ -340,20 +344,104 @@
         </section>
       </section>
 
+      <section id="desktopLoadingView" class="desktop-view desktop-only" hidden>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">现场装车 · 电脑端</p>
+            <h1>装车登记</h1>
+            <p class="subhead">左侧筛选订单，中间录入本次装车数量，右侧确认本次装车并提交。</p>
+          </div>
+          <div class="topbar-actions">
+            <button id="desktopLoadingRefresh" class="button ghost" type="button">刷新未交</button>
+          </div>
+        </header>
+        <section class="desktop-loading-layout">
+          <aside class="panel loading-filter-panel">
+            <h2>筛选订单</h2>
+            <label class="field-stack"><span>物料 / 品名 / 采购单号</span><input id="desktopLoadingSearch" type="search" placeholder="输入编号、品名或采购单号"></label>
+            <label class="field-stack"><span>交期</span><select id="desktopLoadingDue">
+              <option value="all">全部交期</option>
+              <option value="overdue">已逾期</option>
+              <option value="today">今天到期</option>
+              <option value="tomorrow">明天到期</option>
+              <option value="week">7天内到期</option>
+            </select></label>
+            <label class="field-stack"><span>公司</span><select id="desktopLoadingCompany">
+              <option value="all">全部公司</option>
+              <option value="4074">帆顺金属 4074</option>
+              <option value="4137">帆顺金属科技 4137</option>
+            </select></label>
+            <div class="loading-filter-tip">数量不能超过该行剩余未交；超过时会按交期自动分配到同一物料的其他订单。</div>
+          </aside>
+          <section class="panel loading-orders-panel">
+            <div class="panel-head compact"><div><h2>未交订单</h2><p id="desktopLoadingSummary">0 行可装车</p></div></div>
+            <div class="table-wrap loading-table-wrap">
+              <table class="orders-table loading-table">
+                <thead><tr><th>采购单号</th><th>编号</th><th>品名</th><th>图号</th><th>交期</th><th class="number">未交</th><th class="number">本次装车</th></tr></thead>
+                <tbody id="desktopLoadingTableBody"></tbody>
+              </table>
+              <div id="desktopLoadingEmpty" class="empty-state" hidden><strong>没有符合条件的未交订单</strong><span>可以调整筛选条件。</span></div>
+            </div>
+          </section>
+          <aside class="panel loading-cart-panel">
+            <div class="panel-head compact"><div><h2>本次装车</h2><p id="desktopLoadingCartHint">0 项 · 0 件</p></div></div>
+            <div id="desktopLoadingCart" class="desktop-loading-cart"></div>
+            <button id="desktopLoadingOpenSubmit" class="button primary wide" type="button" disabled>确认装车</button>
+          </aside>
+        </section>
+        <section class="panel loading-records-panel">
+          <div class="panel-head compact"><div><h2>当天装车记录</h2><p>提交后的记录会显示在这里，可到查询页查看完整历史。</p></div></div>
+          <div id="desktopLoadingRecords" class="loading-records"></div>
+        </section>
+      </section>
+
+      <section id="desktopWorkReviewView" class="desktop-view desktop-only" hidden>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">计件与自主申报</p>
+            <h1>报工审核</h1>
+            <p class="subhead">审核新产品、改价申请和员工待审核报工；通过后自动进入产品与当前单价库。</p>
+          </div>
+          <div class="topbar-actions">
+            <select id="desktopWorkReviewStatus" class="button ghost">
+              <option value="submitted" selected>待审核</option>
+              <option value="approved">已通过</option>
+              <option value="rejected">已退回</option>
+              <option value="revoked">已撤回</option>
+              <option value="all">全部</option>
+            </select>
+            <button id="desktopWorkReviewRefresh" class="button primary" type="button">刷新</button>
+          </div>
+        </header>
+        <section class="work-review-stats">
+          <article><span>待审核</span><strong id="desktopWorkReviewPending">0</strong></article>
+          <article><span>当前列表</span><strong id="desktopWorkReviewCount">0</strong></article>
+        </section>
+        <section class="panel work-review-panel">
+          <div id="desktopWorkReviewList" class="work-review-list"></div>
+          <div id="desktopWorkReviewEmpty" class="empty-state" hidden><strong>没有符合条件的报工</strong><span>可以切换状态筛选。</span></div>
+        </section>
+      </section>
+
       <section id="mobileView" class="mobile-view mobile-only">
         <header class="mobile-head">
-          <div class="mobile-brand">
+          <div id="mobileModuleSwitch" class="mobile-brand mobile-module-switch" role="button" tabindex="0" title="切换装车登记 / 报工审核">
             <div class="brand-mark small">帆</div>
             <div>
               <strong id="mobileBrandTitle">手机装车登记</strong>
               <span id="mobileLiveLabel">正在连接</span>
             </div>
+            <b class="mobile-module-caret">⌄</b>
           </div>
           <div class="mobile-head-actions">
             <button id="mobileRefresh" class="icon-button" type="button" aria-label="刷新数据">↻</button>
             <button id="mobileSwitchCode" class="icon-button" type="button" aria-label="切换访问码" title="切换访问码">🔑</button>
           </div>
         </header>
+        <div id="mobileModuleMenu" class="mobile-module-menu" hidden>
+          <button type="button" data-mobile-module="entry">装车登记</button>
+          <button type="button" data-mobile-module="workReview">报工审核</button>
+        </div>
 
         <section class="mobile-summary">
           <div>
@@ -483,6 +571,20 @@
           </div>
           <button id="openSubmit" class="button primary" type="button">确认装车</button>
         </div>
+
+        <section id="mobileWorkReviewPanel" class="mobile-panel" hidden>
+          <div class="mobile-work-review-tools">
+            <select id="mobileWorkReviewStatus">
+              <option value="submitted" selected>待审核</option>
+              <option value="approved">已通过</option>
+              <option value="rejected">已退回</option>
+              <option value="revoked">已撤回</option>
+              <option value="all">全部</option>
+            </select>
+            <button id="mobileWorkReviewRefresh" class="button primary" type="button">刷新</button>
+          </div>
+          <div id="mobileWorkReviewList" class="mobile-work-review-list"></div>
+        </section>
       </section>
     </main>
   </div>
@@ -559,6 +661,34 @@
       <div class="modal-actions">
         <button id="cancelPdf" class="button ghost" type="button">取消</button>
         <button id="confirmPdf" class="button primary" type="button" disabled>确认导入</button>
+      </div>
+    </section>
+  </div>
+  <div id="workReviewModal" class="modal-backdrop" hidden>
+    <section class="modal-card work-review-modal" role="dialog" aria-modal="true" aria-labelledby="workReviewModalTitle">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow">管理员审核</p>
+          <h2 id="workReviewModalTitle">审核报工</h2>
+        </div>
+        <button id="workReviewClose" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <div id="workReviewInfo" class="work-review-info"></div>
+      <input id="workReviewId" type="hidden">
+      <div class="form-grid work-review-form">
+        <label><span>品名</span><input id="workReviewName" type="text"></label>
+        <label><span>完整料件编号</span><input id="workReviewMaterial" type="text" placeholder="请填写完整料件编号或后四位"></label>
+        <label><span>规格 / 图号</span><input id="workReviewSpec" type="text"></label>
+        <label><span>工序</span><input id="workReviewProcess" type="text"></label>
+        <label><span>数量（整数）</span><input id="workReviewQty" type="number" min="1" step="1"></label>
+        <label><span>单价（最多两位小数）</span><input id="workReviewPrice" type="number" min="0.01" step="0.01"></label>
+        <label class="full"><span>审核备注 / 退回原因</span><textarea id="workReviewNote" rows="2"></textarea></label>
+      </div>
+      <div id="workReviewError" class="form-error" hidden></div>
+      <div class="modal-actions work-review-actions">
+        <button id="workReviewSave" class="button ghost" type="button">保存修改</button>
+        <button id="workReviewReject" class="button ghost danger-text" type="button">退回</button>
+        <button id="workReviewApprove" class="button primary" type="button">通过并入库</button>
       </div>
     </section>
   </div>
