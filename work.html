@@ -306,7 +306,7 @@ function renderPiece() {
     try {
       await rpc('work_login', { p_code:value });
       code = value; persistCode(code)
-      history.replaceState(null, '', location.pathname); await loadState();
+      await loadState();
     } catch (e) { show($('loginError'), true); $('loginError').textContent = e.message || '登录失败'; }
   }  async function clockAction() {
     const active = Boolean(state?.activeEntry); const btn = $('clockAction'); btn.disabled = true;
