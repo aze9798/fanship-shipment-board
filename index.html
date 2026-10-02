@@ -436,6 +436,13 @@
             <div id="desktopWorkReportEmpty" class="empty-state" hidden><strong>当天没有符合条件的报工</strong><span>可以更换日期或筛选条件。</span></div>
           </div>
         </section>
+        <section id="desktopWorkTimelinePanel" class="panel work-timeline-panel" hidden>
+          <div class="section-head">
+            <div><h2>计时 / 计件时段</h2><p id="desktopWorkTimelineHint">选择具体员工后，查看当天计时、计件时段和产量关联。</p></div>
+            <div id="desktopWorkTimelineActions" class="work-timeline-actions"></div>
+          </div>
+          <div id="desktopWorkTimeline"></div>
+        </section>
       </section>
 
       <section id="desktopWorkReviewView" class="desktop-view desktop-only" hidden>
@@ -635,6 +642,10 @@
               <div><span>待审核</span><strong id="mobileWorkReportPending">0</strong></div>
             </div>
             <div id="mobileWorkReportList" class="mobile-work-review-list"></div>
+            <section id="mobileWorkTimelinePanel" class="mobile-panel work-timeline-panel" hidden>
+              <div class="mobile-work-review-tools"><strong>计时 / 计件时段</strong></div>
+              <div id="mobileWorkTimeline"></div>
+            </section>
           </section>
           <section id="mobileWorkReviewPanel" class="mobile-panel" hidden>
             <div class="mobile-work-review-tools">

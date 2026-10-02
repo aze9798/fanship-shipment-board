@@ -22,7 +22,7 @@
     .primary,.ghost{border-radius:12px;min-height:46px;border:1px solid transparent;font-weight:800}.primary{background:var(--primary);color:#fff}.ghost{background:#fff;color:var(--primary);border-color:#b9ddd7}.wide{width:100%;margin-top:12px}
     .error{margin-top:10px;padding:10px 12px;border-radius:10px;background:#fff1f0;color:var(--danger);font-size:12px}
     .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.top h1{margin:0;font-size:22px}.top p{margin:3px 0 0;color:var(--muted);font-size:11px}.logout{border:0;background:transparent;color:var(--muted);font-size:12px}
-    .tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:5px;background:#e3eeec;border-radius:14px;margin-bottom:12px}.tabs button{border:0;border-radius:10px;background:transparent;color:#5e747a;min-height:42px;font-weight:800}.tabs button.active{background:#fff;color:var(--primary);box-shadow:0 4px 12px rgba(36,92,88,.1)}
+    .tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:5px;background:#e3eeec;border-radius:14px;margin-bottom:12px}.tabs button{border:0;border-radius:10px;background:transparent;color:#5e747a;min-height:42px;font-weight:800}.tabs button.active{background:#fff;color:var(--primary);box-shadow:0 4px 12px rgba(36,92,88,.1)}
     .section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}.section-head h2{margin:0;font-size:17px}.section-head p{margin:4px 0 0;color:var(--muted);font-size:11px}
     .clock-card{background:linear-gradient(145deg,#0c6f68,#0c8b7f);color:#fff;border:0}.clock-label{font-size:11px;opacity:.8}.clock-time{font-size:36px;font-weight:900;letter-spacing:.02em;margin:6px 0}.clock-note{font-size:11px;opacity:.8}
     .clock-actions{display:grid;grid-template-columns:1fr;gap:9px;margin-top:16px}.clock-actions button{min-height:50px}.clock-stop{background:#fff;color:#a83e2e;border-color:rgba(255,255,255,.7)}
@@ -54,6 +54,7 @@
     .selected-price-card button{margin-top:10px}
     @media(max-width:600px){input,select,textarea{font-size:16px!important}}
     .session-beta{background:linear-gradient(145deg,#173b42,#0f766e);color:#fff;border:0}
+    .salary-hero{background:linear-gradient(145deg,#0d5f5a,#11897d);color:#fff;border:0}.salary-hero span{display:block;font-size:11px;opacity:.82}.salary-hero strong{display:block;font-size:34px;margin:6px 0}.salary-hero small{display:block;font-size:11px;opacity:.82}.salary-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.salary-line{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-top:1px solid #edf2f2}.salary-line:first-child{border-top:0}.salary-line span{color:#687f84;font-size:12px}.salary-line strong{font-size:14px}.salary-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.salary-actions button{min-height:36px;padding:0 12px;border:1px solid #b9ddd7;border-radius:9px;background:#fff;color:var(--primary);font-weight:800}.salary-actions button.danger{color:var(--danger);border-color:#efc8c4}
     .session-beta h2{margin:0;font-size:17px}.session-beta p{margin:4px 0 0;font-size:11px;color:rgba(255,255,255,.78)}
     .session-elapsed{font-size:32px;font-weight:900;margin:12px 0}.session-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}.session-actions button{min-height:48px}.session-actions .wide{grid-column:1/-1}.session-history{display:grid;gap:7px;margin-top:14px}.session-history-row{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:9px;background:rgba(255,255,255,.12);font-size:11px}
   </style>
@@ -69,7 +70,7 @@
   </section>
   <section id="mainView" class="hidden">
     <div class="top"><div><h1 id="employeeName">员工</h1><p id="employeeMeta"></p></div><button id="logoutButton" class="logout">退出登录</button></div>
-    <div class="tabs"><button class="active" data-tab="time">计时</button><button data-tab="piece">计件</button></div>
+    <div class="tabs"><button class="active" data-tab="time">计时</button><button data-tab="piece">计件</button><button data-tab="salary">工资</button></div>
     <section id="timePanel">
       <div id="sessionBetaCard" class="card session-beta hidden">
         <h2 id="sessionBetaTitle">选择工作类型</h2>
@@ -105,6 +106,18 @@
         </div>
       </div>
       <div class="list-title"><strong>最近计件记录</strong><span id="pieceCount">0 笔</span></div><div id="pieceEntries"></div>
+    </section>
+    <section id="salaryPanel" class="hidden">
+      <div class="card">
+        <div class="section-head"><div><h2>工资查看</h2><p>默认显示今天；已通过计件才计入工资。</p></div></div>
+        <label class="field"><span>查看日期</span><input id="salaryDate" type="date"></label>
+        <button id="salaryRefresh" class="ghost wide" type="button">刷新工资</button>
+      </div>
+      <div id="salarySummary" class="card salary-hero"><span>当天工资合计</span><strong>0.00 元</strong><small>计时工资 + 已通过计件工资</small></div>
+      <div class="list-title"><strong>工资构成</strong><span id="salaryStatusHint"></span></div>
+      <div id="salaryBreakdown" class="card"></div>
+      <div class="list-title"><strong>计件记录</strong><span id="salaryEntriesCount">0 笔</span></div>
+      <div id="salaryEntries"></div>
     </section>
   </section>
 </div>
@@ -166,6 +179,9 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
   let requestAutoPrice = null;
   let requestMaterialTimer = null;
   let requestMaterialToken = 0;
+  let editEntry = null;
+  let salaryDate = '';
+  let salaryData = null;
   let betaSession = null;
   let betaHistory = [];
   let betaStateLoaded = false;
@@ -470,14 +486,16 @@ function renderPiece() {
     const name = x.name || x.submittedName || '';
     const process = x.process || x.submittedProcessName || '待审核';
     const statusText = x.status === 'revoked' ? '已撤回' : x.status === 'approved' ? '已通过' : x.status === 'rejected' ? '已退回' : (x.sourceType === 'catalog' ? '已提交' : '待审核');
-    const canRevoke = x.status === 'submitted';
+    const canEdit = x.status === 'submitted' || x.status === 'rejected' || x.status === 'revoked';
+    const canRevoke = x.status === 'submitted' || x.status === 'rejected' || x.status === 'approved';
     const priceText = x.status === 'approved' && x.unitPrice != null
       ? `单价 ${Number(x.unitPrice).toLocaleString('zh-CN',{maximumFractionDigits:4})} 元 · 金额 ${Number(x.amount || 0).toFixed(2)} 元`
       : x.submittedUnitPrice != null
         ? `申报单价 ${Number(x.submittedUnitPrice).toLocaleString('zh-CN',{maximumFractionDigits:2})} 元 · 待审核`
         : '单价待审核';
     const reviewText = x.reviewNote ? `<span>${x.status === 'rejected' ? '退回原因：' : '审核备注：'}${esc(x.reviewNote)}</span>` : '';
-    return `<div class="piece-record"><strong>${esc(material)} · ${esc(name)}</strong><span>${esc(process)}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''} · ${Number(x.quantity)} 件 · ${esc(x.workDate)}</span><span class="piece-money">${esc(priceText)}</span>${reviewText}<div class="record-foot"><span class="record-status ${x.status}">${statusText}</span>${canRevoke ? `<button type="button" class="revoke-piece" data-revoke-piece="${esc(x.id)}">撤回</button>` : ''}</div></div>`;
+    const editText = x.status === 'revoked' ? '重新申报' : x.status === 'rejected' ? '修改后重提' : '编辑';
+    return `<div class="piece-record"><strong>${esc(material)} · ${esc(name)}</strong><span>${esc(process)}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''} · ${Number(x.quantity)} 件 · ${esc(x.workDate)}</span><span class="piece-money">${esc(priceText)}</span>${reviewText}<div class="record-foot"><span class="record-status ${x.status}">${statusText}</span><div class="salary-actions">${canEdit ? `<button type="button" data-edit-piece="${esc(x.id)}">${editText}</button>` : ''}${canRevoke ? `<button type="button" class="danger" data-revoke-piece="${esc(x.id)}">撤回</button>` : ''}</div></div></div>`;
   }).join('') : '<div class="card empty">还没有计件申报记录</div>';
   const matchedProcesses = selectedProduct
     ? (state?.processes || []).filter((p) => productProcessMap.has(p.id))
@@ -490,11 +508,68 @@ function renderPiece() {
   renderVariant();
   refreshSelectedPrice();
 }
-  function render() {
+  function fmtMoney(value, digits = 2) {
+    return Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  }
+  function salaryStatusText(status) {
+    return ({ submitted:'待审核', approved:'已通过', rejected:'已退回', revoked:'已撤回' })[status] || status || '--';
+  }
+  function salaryStatusNotice(data) {
+    const bits = [];
+    if (Number(data.pendingCount || 0) > 0) bits.push(`${data.pendingCount} 笔待审核`);
+    if (Number(data.rejectedCount || 0) > 0) bits.push(`${data.rejectedCount} 笔已退回`);
+    if (Number(data.revokedCount || 0) > 0) bits.push(`${data.revokedCount} 笔已撤回`);
+    return bits.length ? bits.join(' · ') : '没有待处理记录';
+  }
+  function salaryEntryCard(x) {
+    const status = salaryStatusText(x.status);
+    const price = x.status === 'approved' && x.unitPrice != null
+      ? `单价 ${Number(x.unitPrice).toLocaleString('zh-CN',{maximumFractionDigits:4})} 元 · 金额 ${fmtMoney(x.amount)} 元`
+      : x.submittedUnitPrice != null
+        ? `申报单价 ${Number(x.submittedUnitPrice).toLocaleString('zh-CN',{maximumFractionDigits:2})} 元 · 不计工资`
+        : '单价待审核';
+    const canEdit = x.status === 'submitted' || x.status === 'rejected' || x.status === 'revoked';
+    const canRevoke = x.status === 'submitted' || x.status === 'rejected' || x.status === 'approved';
+    const editText = x.status === 'revoked' ? '重新申报' : x.status === 'rejected' ? '修改后重提' : '编辑';
+    return `<div class="piece-record"><strong>${esc(x.material || '')} · ${esc(x.name || '')}</strong><span>${esc(x.process || '')}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''} · ${Number(x.quantity)} 件</span><span class="piece-money">${esc(price)}</span><div class="record-foot"><span class="record-status ${esc(x.status)}">${esc(status)}</span><div class="salary-actions">${canEdit ? `<button type="button" data-edit-piece="${esc(x.id)}">${editText}</button>` : ''}${canRevoke ? `<button type="button" class="danger" data-revoke-piece="${esc(x.id)}">撤回</button>` : ''}</div></div></div>`;
+  }
+  async function loadSalary() {
+    if (!code) return;
+    if (!$('salaryDate').value) $('salaryDate').value = new Date().toLocaleDateString('en-CA', { timeZone:'Asia/Shanghai' });
+    salaryDate = $('salaryDate').value;
+    const button = $('salaryRefresh');
+    if (button) button.disabled = true;
+    try {
+      salaryData = await rpc('work_get_my_salary_day', { p_code:code, p_date:salaryDate });
+      renderSalary();
+    } catch (e) {
+      toast(e.message || '工资加载失败');
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+  function renderSalary() {
+    if (!salaryData) return;
+    const data = salaryData;
+    $('salarySummary').innerHTML = `<span>${esc(data.date || '')} 工资合计</span><strong>${fmtMoney(data.totalPay)} 元</strong><small>计时工资 ${fmtMoney(data.timerPay)} 元 + 已通过计件工资 ${fmtMoney(data.piecePay)} 元</small>`;
+    $('salaryStatusHint').textContent = salaryStatusNotice(data);
+    $('salaryBreakdown').innerHTML = `
+      <div class="salary-line"><span>计时工时</span><strong>${Number(data.timerHours || 0).toFixed(2)} 小时</strong></div>
+      <div class="salary-line"><span>计时时薪</span><strong>${fmtMoney(data.employee?.hourlyRate)} 元/小时</strong></div>
+      <div class="salary-line"><span>计时工资</span><strong>${fmtMoney(data.timerPay)} 元</strong></div>
+      <div class="salary-line"><span>计件工时（只核对，不计工资）</span><strong>${Number(data.pieceHours || 0).toFixed(2)} 小时</strong></div>
+      <div class="salary-line"><span>已通过计件</span><strong>${Number(data.approvedCount || 0)} 笔 · ${Number(data.approvedQuantity || 0)} 件</strong></div>
+      <div class="salary-line"><span>计件工资</span><strong>${fmtMoney(data.piecePay)} 元</strong></div>
+      <div class="salary-line"><span>工资合计</span><strong>${fmtMoney(data.totalPay)} 元</strong></div>
+    `;
+    const entries = data.entries || [];
+    $('salaryEntriesCount').textContent = `${entries.length} 笔`;
+    $('salaryEntries').innerHTML = entries.length ? entries.map(salaryEntryCard).join('') : '<div class="card empty">当天没有计件记录</div>';
+  }  function render() {
     show($('loginView'), !state); show($('mainView'), Boolean(state)); if (!state) return;
     $('employeeName').textContent = state.employee.name;
     $('employeeMeta').textContent = `${state.employee.employeeNo} · ${state.employee.track === 'welding' ? '焊接' : '后道'}`;
-    renderTime(); renderBetaSession(); renderPiece();
+    renderTime(); renderBetaSession(); renderPiece(); if (salaryData) renderSalary();
   }
   async function loadState() {
     const [nextState, submissions] = await Promise.all([
@@ -507,6 +582,8 @@ function renderPiece() {
       workDate: x.workDate,
       status: x.status,
       sourceType: x.sourceType,
+      productId: x.productId,
+      processId: x.processId,
       material: x.submittedMaterial,
       name: x.submittedName,
       spec: x.submittedSpec,
@@ -522,6 +599,9 @@ function renderPiece() {
       reviewNote: x.reviewNote,
       reviewedAt: x.reviewedAt,
       createdAt: x.createdAt,
+      submittedAt: x.submittedAt,
+      note: x.note,
+      piecePeriodId: x.piecePeriodId,
     }));
     render();
   }
@@ -599,14 +679,19 @@ function variantDisplay(processName, value) {
   }
   function currentRequestProcess() {
     const id = $('requestProcess').value;
+    if (id.startsWith('custom:')) return { id:null, name:id.slice(7) };
     return (state?.processes || []).find((p) => p.id === id) || null;
   }
   function requestVariantConfig(process) {
     return process ? PROCESS_VARIANTS[process.name] : null;
   }
-  function populateRequestProcesses(selectedId = '') {
+  function populateRequestProcesses(selectedId = '', fallbackName = '') {
     const rows = state?.processes || [];
-    $('requestProcess').innerHTML = rows.map((p) => `<option value="${esc(p.id)}" ${p.id === selectedId ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+    let html = rows.map((p) => `<option value="${esc(p.id)}" ${p.id === selectedId ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+    if (fallbackName && !rows.some((p) => p.name === fallbackName)) {
+      html = `<option value="custom:${esc(fallbackName)}" selected>${esc(fallbackName)}</option>` + html;
+    }
+    $('requestProcess').innerHTML = html;
   }
   function requestVariant() {
     const process = currentRequestProcess();
@@ -626,9 +711,12 @@ function variantDisplay(processName, value) {
       return;
     }
     $('requestVariantLabel').textContent = config.label;
-    input.innerHTML = '<option value="">请选择</option>' + config.options.map((value) => `<option value="${value}">${variantDisplay(process.name, value)}</option>`).join('');
+    const currentValue = Number(keepValue ? (selectedVariant?.value || editEntry?.variantValue || 0) : 0);
+    const values = [...config.options];
+    if (currentValue > 0 && !values.includes(currentValue)) values.push(currentValue);
+    input.innerHTML = '<option value="">请选择</option>' + values.map((value) => `<option value="${value}">${variantDisplay(process.name, value)}</option>`).join('');
     show(wrap, true);
-    input.value = keepValue && selectedVariant?.value ? String(selectedVariant.value) : '';
+    input.value = currentValue > 0 ? String(currentValue) : '';
   }
   function updateRequestSuggestedPrice(force = false) {
     const process = currentRequestProcess();
@@ -725,6 +813,7 @@ function variantDisplay(processName, value) {
   function openCustomRequest(prefillProduct = false) {
     requestMode = 'custom';
     requestProduct = null;
+    editEntry = null;
     requestAutoPrice = null;
     $('requestTitle').textContent = '自主申报新产品';
     $('requestSubtitle').textContent = '产品或单价不在目录中，请填写后提交管理员审核。';
@@ -755,6 +844,7 @@ function variantDisplay(processName, value) {
     if (!selectedProcessId) return toast('请先选择工序');
     requestMode = 'price_change';
     requestProduct = selectedProduct;
+    editEntry = null;
     requestAutoPrice = null;
     $('requestTitle').textContent = '申请修改单价';
     $('requestSubtitle').textContent = '原单价继续有效，审核通过后才会使用新单价。';
@@ -774,6 +864,35 @@ function variantDisplay(processName, value) {
     setRequestError('');
     show($('requestModal'), true);
     await loadCatalogPriceForRequest();
+  }
+  function openEditPiece(id) {
+    const entry = (state?.pieceEntries || []).find((x) => x.id === id);
+    if (!entry) return toast('找不到这条计件记录');
+    editEntry = entry;
+    requestMode = 'edit';
+    requestProduct = entry.productId ? { id:entry.productId, material:entry.material || '', name:entry.name || '', spec:entry.spec || '' } : null;
+    requestAutoPrice = entry.submittedUnitPrice ?? entry.unitPrice ?? null;
+    $('requestTitle').textContent = entry.status === 'revoked' ? '重新申报计件' : '修改计件申报';
+    $('requestSubtitle').textContent = entry.status === 'approved' ? '修改后会撤回原记录，并生成一条新的待审核记录。' : '修改后重新提交管理员审核。';
+    show($('requestNameWrap'), true);
+    show($('requestMaterialWrap'), true);
+    show($('requestSpecWrap'), true);
+    show($('requestProcessWrap'), true);
+    show($('requestProductSummary'), false);
+    $('requestProcess').disabled = false;
+    $('requestName').value = entry.name || '';
+    $('requestMaterial').value = entry.material || '';
+    $('requestSpec').value = entry.spec || '';
+    $('requestOtherProcess').value = '';
+    $('requestQty').value = entry.quantity ?? '';
+    $('requestPrice').value = Number(entry.submittedUnitPrice ?? entry.unitPrice ?? '').toFixed(2);
+    $('requestNote').value = entry.note || '';
+    selectedVariant = entry.variantValue > 0 ? { value:Number(entry.variantValue), label:entry.variantLabel || String(entry.variantValue) } : null;
+    populateRequestProcesses(entry.processId || '', entry.process || '');
+    $('requestProcess').dispatchEvent(new Event('change'));
+    if (entry.variantKey) $('requestVariantValue').value = String(entry.variantValue || '');
+    setRequestError('');
+    show($('requestModal'), true);
   }
   function closeRequestModal() {
     show($('requestModal'), false);
@@ -803,7 +922,26 @@ function variantDisplay(processName, value) {
     const button = $('requestSubmit');
     button.disabled = true;
     try {
-      if (requestMode === 'custom') {
+      if (requestMode === 'edit') {
+        if (!editEntry) throw new Error('找不到要修改的记录');
+        await rpc('work_update_my_piece', {
+          p_code:code,
+          p_id:editEntry.id,
+          p_payload:{
+            name:$('requestName').value.trim(),
+            material:$('requestMaterial').value.trim(),
+            spec:$('requestSpec').value.trim(),
+            processName:manualProcess || process.name,
+            quantity:qty,
+            unitPrice:price,
+            variantKey:variant.key,
+            variantValue:variant.value,
+            variantLabel:variant.label,
+            note:$('requestNote').value.trim(),
+            reason:'员工修改后提交',
+          },
+        });
+      } else if (requestMode === 'custom') {
         const name = $('requestName').value.trim();
         const material = $('requestMaterial').value.trim();
         if (!name) throw new Error('请填写品名');
@@ -839,6 +977,7 @@ function variantDisplay(processName, value) {
       }
       closeRequestModal();
       await loadState();
+      if (!$('salaryPanel').classList.contains('hidden')) await loadSalary();
       toast('已提交，等待管理员审核');
     } catch (e) {
       setRequestError(e.message || '提交失败');
@@ -854,16 +993,18 @@ function variantDisplay(processName, value) {
     const id = pendingRevokeId; const btn = $('revokeConfirm'); btn.disabled = true;
     try {
       await rpc('work_withdraw_submission', { p_code:code, p_id:id, p_reason:'' });
-      closeRevoke(); await loadState(); toast('计件记录已撤回');
+      closeRevoke(); await loadState(); if (!$('salaryPanel').classList.contains('hidden')) await loadSalary(); toast('计件记录已撤回');
     } catch (e) { toast(e.message || '撤回失败'); } finally { btn.disabled = false; }
   }
   $('loginButton').addEventListener('click', () => login($('codeInput').value));
   $('codeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') login($('codeInput').value); });
-  $('logoutButton').addEventListener('click', () => { state = null; code = ''; clearStoredCode(); render(); });
+  $('logoutButton').addEventListener('click', () => { state = null; salaryData = null; editEntry = null; code = ''; clearStoredCode(); render(); });
   $('clockAction').addEventListener('click', clockAction);
   document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
     document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x === b));
-    show($('timePanel'), b.dataset.tab === 'time'); show($('piecePanel'), b.dataset.tab === 'piece');
+    const tab = b.dataset.tab;
+    show($('timePanel'), tab === 'time'); show($('piecePanel'), tab === 'piece'); show($('salaryPanel'), tab === 'salary');
+    if (tab === 'salary') loadSalary().catch(() => {});
   }));
   $('productSearch').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(searchProducts, 220); });
   $('productSuggest').addEventListener('click', (e) => {
@@ -897,7 +1038,20 @@ function variantDisplay(processName, value) {
     selectedVariant = { value:Number(b.dataset.variantValue), label:b.dataset.variantLabel || String(b.dataset.variantValue) };
     renderVariant(); refreshSelectedPrice();
   });
-  $('pieceEntries').addEventListener('click', (e) => { const b = e.target.closest('[data-revoke-piece]'); if (!b) return; showRevoke(b.dataset.revokePiece); });
+  $('pieceEntries').addEventListener('click', (e) => {
+    const edit = e.target.closest('[data-edit-piece]');
+    if (edit) { openEditPiece(edit.dataset.editPiece); return; }
+    const revoke = e.target.closest('[data-revoke-piece]');
+    if (revoke) showRevoke(revoke.dataset.revokePiece);
+  });
+  $('salaryEntries').addEventListener('click', (e) => {
+    const edit = e.target.closest('[data-edit-piece]');
+    if (edit) { openEditPiece(edit.dataset.editPiece); return; }
+    const revoke = e.target.closest('[data-revoke-piece]');
+    if (revoke) showRevoke(revoke.dataset.revokePiece);
+  });
+  $('salaryRefresh').addEventListener('click', () => loadSalary().catch(() => {}));
+  $('salaryDate').addEventListener('change', () => loadSalary().catch(() => {}));
   $('revokeCancel').addEventListener('click', closeRevoke);
   $('revokeConfirm').addEventListener('click', revokePiece);
   $('revokeModal').addEventListener('click', (e) => { if (e.target === $('revokeModal')) closeRevoke(); });
@@ -921,7 +1075,7 @@ function variantDisplay(processName, value) {
     show($('requestOtherProcessWrap'), process?.name === '其他');
     renderRequestVariant(false);
     if (requestMode === 'price_change') loadCatalogPriceForRequest();
-    else updateRequestSuggestedPrice(false);
+    else if (requestMode === 'custom') updateRequestSuggestedPrice(false);
   });
   $('requestMaterial').addEventListener('input', scheduleRequestMaterialLookup);
   $('requestMaterialMatches').addEventListener('click', (event) => {
