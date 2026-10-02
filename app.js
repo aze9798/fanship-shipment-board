@@ -2642,14 +2642,32 @@ function orderMetaSearchText(orderId, fallback = {}, lookup = null) {
   return [meta.po, meta.seq, meta.material, meta.name, meta.spec, meta.orderQty, meta.shipped, meta.remaining].join(' ').toLowerCase();
 }
 
+function normalizeSearchText(value) {
+  return String(value ?? '').toLowerCase().replace(/\s+/g, '');
+}
+function searchTokenList(query) {
+  const text = String(query || '').trim().toLowerCase();
+  if (!text) return [];
+  const spaced = text.split(/\s+/).filter(Boolean);
+  if (spaced.length > 1) return spaced;
+  const mixed = text.match(/[a-z]*\d{3,}[a-z]*|[\u4e00-\u9fa5]+/gi);
+  return mixed && mixed.length ? mixed : [text];
+}
+function matchesSearchQuery(text, query) {
+  const target = normalizeSearchText(query);
+  if (!target) return true;
+  const haystack = normalizeSearchText(text);
+  if (haystack.includes(target)) return true;
+  return searchTokenList(query).every((token) => haystack.includes(normalizeSearchText(token)));
+}
 function shipmentMatches(shipment, query, lookup = null) {
   if (!query) return true;
   const map = lookup || orderLookupMap();
   const text = [
     shipment.id, shipment.deliveryBatch, shipment.billedAt, shipment.vehicle, shipment.operator, shipment.note,
     ...shipment.items.flatMap((line) => [line.material, line.name, line.spec, line.orderId, orderMetaSearchText(line.orderId, line, map)]),
-  ].join(' ').toLowerCase();
-  return text.includes(query);
+  ].join(' ');
+  return matchesSearchQuery(text, query);
 }
 
 function filterShipments(date, queryText) {
@@ -2786,7 +2804,24 @@ function deliveryLineLabel(value, fallback = '无') {
   const text = String(value ?? '').trim();
   return text && text !== '-' && text !== '未填写' ? text : fallback;
 }
+function deliveryStamp(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('zh-CN', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit', timeZone:'Asia/Shanghai' });
+}
+function deliveryItemMatches(line, meta, query) {
+  return matchesSearchQuery([
+    line.orderId, meta.po, meta.seq, line.material, line.name, line.spec,
+  ].join(' '), query);
+}
+function deliveryRemainingText(value, hasOrder) {
+  if (!hasOrder) return '无未交';
+  const number = Number(value || 0);
+  return number > 0 ? `${fmt(number)} 件` : '无未交';
+}
 function buildDeliveryGroups(shipments, queryText = '') {
+  const query = String(queryText || '').trim();
+  const batchQuery = /^\d+$/.test(query) ? query : '';
   const orderLookup = orderLookupMap();
   const selectedBatch = new Set((shipments || []).map((shipment) => deliveryBatchText(shipment.deliveryBatch)).filter(Boolean));
   const selectedShipmentIds = new Set((shipments || []).map((shipment) => String(shipment.id)));
@@ -2794,13 +2829,65 @@ function buildDeliveryGroups(shipments, queryText = '') {
     const batch = deliveryBatchText(shipment.deliveryBatch);
     return selectedShipmentIds.has(String(shipment.id)) || (batch && selectedBatch.has(batch));
   });
+
+  // 输入料件编号 / 品名时：只显示匹配的发货明细，按发货时间倒序，不合并整张送货单。
+  if (query && !(batchQuery && selectedBatch.has(batchQuery))) {
+    const searchGroups = [];
+    for (const shipment of allShipments) {
+      const items = [];
+      for (const line of (shipment.items || [])) {
+        const meta = orderMetaFor(line.orderId, line, orderLookup);
+        if (!deliveryItemMatches(line, meta, query)) continue;
+        items.push({
+          key: ['search', meta.po, meta.seq, line.material, line.name, line.spec].map((v) => String(v || '')).join('|'),
+          source: 'shipment',
+          typeLabel: '',
+          po: deliveryLineLabel(meta.po, '无'),
+          seq: deliveryLineLabel(meta.seq, '无'),
+          material: deliveryLineLabel(line.material),
+          name: deliveryLineLabel(line.name),
+          spec: deliveryLineLabel(line.spec, ''),
+          quantity: Number(line.quantity || 0),
+          remaining: Number(meta.remaining || 0),
+          hasOrder: Boolean(meta.po || meta.orderQty || meta.seq),
+          remark: '',
+        });
+      }
+      if (!items.length) continue;
+      searchGroups.push({
+        key: `search:${shipment.id}`,
+        batch: deliveryBatchText(shipment.deliveryBatch),
+        title: `发货记录 · ${deliveryStamp(shipment.createdAt)}`,
+        billed: Boolean(shipment.deliveryBatch),
+        createdAt: shipment.createdAt,
+        shipmentIds: [String(shipment.id)],
+        items,
+        searchMode: true,
+      });
+    }
+    return searchGroups
+      .map((group) => {
+        const merged = new Map();
+        for (const item of group.items) {
+          const key = [item.po, item.seq, item.material, item.name, item.spec].join('|');
+          const current = merged.get(key);
+          if (current) current.quantity += item.quantity;
+          else merged.set(key, { ...item });
+        }
+        group.items = [...merged.values()];
+        group.total = group.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+        return group;
+      })
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  }
+
   const map = new Map();
   const ensureGroup = (key, options = {}) => {
     if (!map.has(key)) {
       map.set(key, {
         key,
         batch: deliveryBatchText(options.batch),
-        title: deliveryBatchText(options.batch) ? `送货单 ${deliveryBatchText(options.batch)}` : '未开单发货',
+        title: deliveryBatchText(options.batch) ? (/^\d+$/.test(deliveryBatchText(options.batch)) ? `送货单 ${deliveryBatchText(options.batch)}` : deliveryBatchText(options.batch)) : '未开单发货',
         billed: Boolean(options.batch),
         createdAt: options.createdAt || '',
         shipmentIds: [],
@@ -2827,11 +2914,12 @@ function buildDeliveryGroups(shipments, queryText = '') {
         name: deliveryLineLabel(line.name),
         spec: deliveryLineLabel(line.spec, ''),
         quantity: Number(line.quantity || 0),
+        remaining: Number(meta.remaining || 0),
+        hasOrder: Boolean(meta.po || meta.orderQty || meta.seq),
         remark: '',
       });
     }
   }
-
   const extras = [
     ...(snapshot?.replacements || []).map((row) => ({ ...row, source:'replacement' })),
     ...(snapshot?.overDeliveries || []).map((row) => ({ ...row, source:'over' })),
@@ -2852,11 +2940,12 @@ function buildDeliveryGroups(shipments, queryText = '') {
       name: deliveryLineLabel(row.name),
       spec: deliveryLineLabel(row.spec, ''),
       quantity: Number(row.quantity || 0),
+      remaining: 0,
+      hasOrder: false,
       remark: row.remark || row.note || '',
     });
   }
-
-  const groups = [...map.values()].map((group) => {
+  return [...map.values()].map((group) => {
     const merged = new Map();
     for (const item of group.items) {
       const key = [item.key, item.po, item.seq, item.material, item.name, item.spec].join('|');
@@ -2866,19 +2955,12 @@ function buildDeliveryGroups(shipments, queryText = '') {
     }
     group.items = [...merged.values()];
     group.total = group.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-    group.createdAt = group.createdAt || group.items[0]?.createdAt || '';
     return group;
+  }).sort((a, b) => {
+    if (a.billed !== b.billed) return a.billed ? -1 : 1;
+    return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
   });
-  const query = String(queryText || '').trim().toLowerCase();
-  return groups
-    .filter((group) => !query || [group.batch, group.title, ...group.items.flatMap((item) => [item.po, item.seq, item.material, item.name, item.spec, item.remark])]
-      .join(' ').toLowerCase().includes(query))
-    .sort((a, b) => {
-      if (a.billed !== b.billed) return a.billed ? -1 : 1;
-      return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
-    });
-}
-function renderDeliveryGroups(groups) {
+}function renderDeliveryGroups(groups) {
   if (!groups.length) return '<div class="empty-state"><strong>没有符合条件的发货记录</strong><span>可以搜索送货单号、采购单号、料件编号或品名。</span></div>';
   return groups.map((group) => {
     const expanded = expandedShipments.has(group.key);
@@ -2887,16 +2969,17 @@ function renderDeliveryGroups(groups) {
     return `<article class="history-card delivery-batch-card ${group.billed ? 'billed-card' : ''}">
       <div class="history-head">
         <strong>${escapeHtml(group.title)}</strong>
-        <span>${group.billed ? '已开送货单' : '未开单'} · ${group.items.length} 项 · ${fmt(group.total)} 件</span>
+        <span>${group.billed ? (/^\d+$/.test(group.batch) ? `已开送货单 ${escapeHtml(group.batch)}` : (group.batch ? escapeHtml(group.batch) : '已开单')) : '未开单'} · ${group.items.length} 项 · ${fmt(group.total)} 件</span>
       </div>
       <div class="delivery-lines">
-        <div class="delivery-lines-head"><span>采购单号</span><span>料件编号</span><span>品名</span><span class="number">数量</span><span class="number">项次</span></div>
+        <div class="delivery-lines-head"><span>采购单号</span><span>料件编号</span><span>品名</span><span class="number">发货数量</span><span class="number">项次</span><span class="number">未交</span></div>
         ${shown.map((item) => `<div class="delivery-line">
           <span data-label="采购单号">${escapeHtml(item.po)}${item.typeLabel ? ` <em>${escapeHtml(item.typeLabel)}</em>` : ''}</span>
           <span data-label="料件编号" class="mono">${escapeHtml(item.material)}</span>
           <span data-label="品名">${escapeHtml(item.name)}${item.spec ? ` · ${escapeHtml(item.spec)}` : ''}${item.remark ? `<small>备注：${escapeHtml(item.remark)}</small>` : ''}</span>
-          <strong data-label="数量" class="number">${fmt(item.quantity)} 件</strong>
+          <strong data-label="发货数量" class="number">${fmt(item.quantity)} 件</strong>
           <span data-label="项次" class="number">${escapeHtml(item.seq)}</span>
+          <span data-label="未交" class="number">${escapeHtml(deliveryRemainingText(item.remaining, item.hasOrder))}</span>
         </div>`).join('')}
       </div>
       ${group.items.length > 6 ? `<button class="history-expand" type="button" data-expand="${escapeHtml(group.key)}">${expanded ? '收起明细' : `展开全部 ${group.items.length} 项（还有 ${hidden} 项）`}</button>` : ''}
