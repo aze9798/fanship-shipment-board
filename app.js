@@ -2646,13 +2646,14 @@ function shipmentMatches(shipment, query, lookup = null) {
   if (!query) return true;
   const map = lookup || orderLookupMap();
   const text = [
-    shipment.id, shipment.vehicle, shipment.operator, shipment.note,
+    shipment.id, shipment.deliveryBatch, shipment.billedAt, shipment.vehicle, shipment.operator, shipment.note,
     ...shipment.items.flatMap((line) => [line.material, line.name, line.spec, line.orderId, orderMetaSearchText(line.orderId, line, map)]),
   ].join(' ').toLowerCase();
   return text.includes(query);
 }
 
 function filterShipments(date, queryText) {
+  if (!snapshot) return [];
   const query = String(queryText || '').trim().toLowerCase();
   const lookup = orderLookupMap();
   return snapshot.shipments.filter((shipment) => {
@@ -2777,37 +2778,140 @@ function renderQueryPanes(containerShipments, containerOffsets, containerOvers, 
   applyQueryTab();
 }
 
-// 满 7 天的发货记录：同一天合并成一张卡（不能再撤回）
-function renderMergedDayCards(rows) {
-  if (!rows.length) return '';
-  return rows.map((row) => `
-    <article class="history-card archived-card">
+// 查询页：按送货单批次合并全部货物明细
+function deliveryBatchText(value) {
+  return String(value ?? '').trim();
+}
+function deliveryLineLabel(value, fallback = '无') {
+  const text = String(value ?? '').trim();
+  return text && text !== '-' && text !== '未填写' ? text : fallback;
+}
+function buildDeliveryGroups(shipments, queryText = '') {
+  const orderLookup = orderLookupMap();
+  const selectedBatch = new Set((shipments || []).map((shipment) => deliveryBatchText(shipment.deliveryBatch)).filter(Boolean));
+  const selectedShipmentIds = new Set((shipments || []).map((shipment) => String(shipment.id)));
+  const allShipments = (snapshot?.shipments || []).filter((shipment) => {
+    const batch = deliveryBatchText(shipment.deliveryBatch);
+    return selectedShipmentIds.has(String(shipment.id)) || (batch && selectedBatch.has(batch));
+  });
+  const map = new Map();
+  const ensureGroup = (key, options = {}) => {
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        batch: deliveryBatchText(options.batch),
+        title: deliveryBatchText(options.batch) ? `送货单 ${deliveryBatchText(options.batch)}` : '未开单发货',
+        billed: Boolean(options.batch),
+        createdAt: options.createdAt || '',
+        shipmentIds: [],
+        items: [],
+      });
+    }
+    return map.get(key);
+  };
+  for (const shipment of allShipments) {
+    const batch = deliveryBatchText(shipment.deliveryBatch);
+    const key = batch ? `batch:${batch}` : `shipment:${shipment.id}`;
+    const group = ensureGroup(key, { batch, createdAt: shipment.billedAt || shipment.createdAt });
+    group.billed = group.billed || Boolean(batch);
+    group.shipmentIds.push(String(shipment.id));
+    for (const line of (shipment.items || [])) {
+      const meta = orderMetaFor(line.orderId, line, orderLookup);
+      group.items.push({
+        key: ['shipment', meta.po, meta.seq, line.material, line.name, line.spec].map((v) => String(v || '')).join('|'),
+        source: 'shipment',
+        typeLabel: '',
+        po: deliveryLineLabel(meta.po, '无'),
+        seq: deliveryLineLabel(meta.seq, '无'),
+        material: deliveryLineLabel(line.material),
+        name: deliveryLineLabel(line.name),
+        spec: deliveryLineLabel(line.spec, ''),
+        quantity: Number(line.quantity || 0),
+        remark: '',
+      });
+    }
+  }
+
+  const extras = [
+    ...(snapshot?.replacements || []).map((row) => ({ ...row, source:'replacement' })),
+    ...(snapshot?.overDeliveries || []).map((row) => ({ ...row, source:'over' })),
+  ];
+  for (const row of extras) {
+    const batch = deliveryBatchText(row.deliveryBatch);
+    if (!batch || !selectedBatch.has(batch)) continue;
+    const group = ensureGroup(`batch:${batch}`, { batch, createdAt: row.billedAt || row.createdAt || row.deliveryDate });
+    group.billed = true;
+    const isReplacement = row.source === 'replacement';
+    group.items.push({
+      key: [row.source, isReplacement ? '补发' : '无订单', '无', row.material, row.name, row.spec].map((v) => String(v || '')).join('|'),
+      source: row.source,
+      typeLabel: isReplacement ? '补发' : '无订单',
+      po: isReplacement ? '补发' : '无订单',
+      seq: '无',
+      material: deliveryLineLabel(row.material),
+      name: deliveryLineLabel(row.name),
+      spec: deliveryLineLabel(row.spec, ''),
+      quantity: Number(row.quantity || 0),
+      remark: row.remark || row.note || '',
+    });
+  }
+
+  const groups = [...map.values()].map((group) => {
+    const merged = new Map();
+    for (const item of group.items) {
+      const key = [item.key, item.po, item.seq, item.material, item.name, item.spec].join('|');
+      const current = merged.get(key);
+      if (current) current.quantity += item.quantity;
+      else merged.set(key, { ...item });
+    }
+    group.items = [...merged.values()];
+    group.total = group.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    group.createdAt = group.createdAt || group.items[0]?.createdAt || '';
+    return group;
+  });
+  const query = String(queryText || '').trim().toLowerCase();
+  return groups
+    .filter((group) => !query || [group.batch, group.title, ...group.items.flatMap((item) => [item.po, item.seq, item.material, item.name, item.spec, item.remark])]
+      .join(' ').toLowerCase().includes(query))
+    .sort((a, b) => {
+      if (a.billed !== b.billed) return a.billed ? -1 : 1;
+      return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+    });
+}
+function renderDeliveryGroups(groups) {
+  if (!groups.length) return '<div class="empty-state"><strong>没有符合条件的发货记录</strong><span>可以搜索送货单号、采购单号、料件编号或品名。</span></div>';
+  return groups.map((group) => {
+    const expanded = expandedShipments.has(group.key);
+    const shown = expanded ? group.items : group.items.slice(0, 6);
+    const hidden = group.items.length - shown.length;
+    return `<article class="history-card delivery-batch-card ${group.billed ? 'billed-card' : ''}">
       <div class="history-head">
-        <strong>${escapeHtml(row.day)}</strong>
-        <span>${row.count} 笔 · 合计 ${fmt(row.total)} 件</span>
+        <strong>${escapeHtml(group.title)}</strong>
+        <span>${group.billed ? '已开送货单' : '未开单'} · ${group.items.length} 项 · ${fmt(group.total)} 件</span>
       </div>
-      <div class="history-lines">
-        ${[...row.items.entries()].map(([key, quantity]) => {
-          const [material, name, spec] = key.split('|');
-          return `<div class="history-line"><span>${escapeHtml(material)} ${escapeHtml(name)}${spec ? ' · ' + escapeHtml(spec) : ''}</span><strong>${fmt(quantity)} 件</strong></div>`;
-        }).join('')}
+      <div class="delivery-lines">
+        <div class="delivery-lines-head"><span>采购单号</span><span>料件编号</span><span>品名</span><span class="number">数量</span><span class="number">项次</span></div>
+        ${shown.map((item) => `<div class="delivery-line">
+          <span data-label="采购单号">${escapeHtml(item.po)}${item.typeLabel ? ` <em>${escapeHtml(item.typeLabel)}</em>` : ''}</span>
+          <span data-label="料件编号" class="mono">${escapeHtml(item.material)}</span>
+          <span data-label="品名">${escapeHtml(item.name)}${item.spec ? ` · ${escapeHtml(item.spec)}` : ''}${item.remark ? `<small>备注：${escapeHtml(item.remark)}</small>` : ''}</span>
+          <strong data-label="数量" class="number">${fmt(item.quantity)} 件</strong>
+          <span data-label="项次" class="number">${escapeHtml(item.seq)}</span>
+        </div>`).join('')}
       </div>
+      ${group.items.length > 6 ? `<button class="history-expand" type="button" data-expand="${escapeHtml(group.key)}">${expanded ? '收起明细' : `展开全部 ${group.items.length} 项（还有 ${hidden} 项）`}</button>` : ''}
       <div class="history-foot">
-        <span class="history-total">已合并归档（超过 7 天，不能再撤回）</span>
+        <span class="history-total">合计 ${fmt(group.total)} 件 · ${group.items.length} 项</span>
+        ${group.billed
+          ? '<span class="row-locked">已开单</span>'
+          : group.shipmentIds.length ? `<button class="row-revoke" type="button" data-undo="${escapeHtml(group.shipmentIds[0])}" title="撤销这笔发货">撤回</button>` : ''}
       </div>
-    </article>`).join('');
+    </article>`;
+  }).join('');
 }
-
-function renderShipmentSection(shipments) {
-  const locked = shipments.filter((item) => isLockedRecord(item.createdAt));
-  const recent = shipments.filter((item) => !isLockedRecord(item.createdAt));
-  const archivedHtml = renderMergedDayCards(mergedShipmentsByDate(locked));
-  const recentHtml = recent.length ? renderHistoryCards(recent) : '';
-  if (!archivedHtml && !recentHtml) return renderHistoryCards([]);
-  return recentHtml + archivedHtml;
-}
-
-function renderDesktopHistory() {
+function renderShipmentSection(shipments, queryText = '') {
+  return renderDeliveryGroups(buildDeliveryGroups(shipments, queryText));
+}function renderDesktopHistory() {
   if (!snapshot) return;
   const rows = filteredShipments();
   const quantity = rows.reduce((sum, item) => sum + Number(item.totalQuantity || 0), 0);
@@ -2816,7 +2920,7 @@ function renderDesktopHistory() {
       ? `共 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`
       : `筛选出 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`;
   }
-  renderQueryPanes(els.shipmentHistory, els.offsetHistory, els.overHistory, renderShipmentSection(rows), els.replacementHistory);
+  renderQueryPanes(els.shipmentHistory, els.offsetHistory, els.overHistory, renderShipmentSection(rows, historyQuery), els.replacementHistory);
   void renderCloudFiles();
 }
 
@@ -3141,22 +3245,9 @@ function refreshRemainingViews() {
 }
 
 function renderMobileRecords() {
-  if (!els.recordsList) return;
-  const filtering = Boolean(recordsDate) || Boolean(recordsSearch.trim());
+  if (!els.recordsList || !snapshot) return;
   const rows = filterShipments(recordsDate, recordsSearch);
-  const merged = filtering ? mergedShipmentsByDate(rows) : [];
-  const mergedTotal = merged.reduce((sum, row) => sum + row.total, 0);
-  const mergedHtml = filtering ? `
-    <div class="records-head"><strong>按日期合并查看</strong><span>${merged.length} 天 · 合计 ${fmt(mergedTotal)} 件 · ${rows.length} 笔发货</span></div>
-    ${merged.length ? merged.map((row) => `
-      <article class="over-box merged-day">
-        <div class="over-head"><strong>${escapeHtml(row.day)}</strong><span>${row.count} 笔 · ${fmt(row.total)} 件</span></div>
-        ${[...row.items.entries()].map(([key, quantity]) => {
-          const [material, name, spec] = key.split('|');
-          return `<div class="over-row"><span class="mono">${escapeHtml(material)}</span><span>${escapeHtml(name)}${spec ? ' · ' + escapeHtml(spec) : ''}</span><strong>${fmt(quantity)} 件</strong></div>`;
-        }).join('')}
-      </article>`).join('') : '<div class="empty-state"><strong>这几天没有发货记录</strong><span>换个日期或清空搜索词再试。</span></div>'}` : '';
-  renderQueryPanes(els.recordsList, els.recordsOffsetList, els.recordsOverList, mergedHtml + renderShipmentSection(rows), els.recordsReplacementList);
+  renderQueryPanes(els.recordsList, els.recordsOffsetList, els.recordsOverList, renderShipmentSection(rows, recordsSearch), els.recordsReplacementList);
   void renderCloudFiles();
   els.recordsList.querySelectorAll('[data-expand]').forEach((button) => button.addEventListener('click', () => {
     const id = button.dataset.expand;
