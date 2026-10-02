@@ -507,6 +507,12 @@ function renderPiece() {
   show($('priceChangeButton'), Boolean(selectedProduct && selectedProcessId));
   renderVariant();
   refreshSelectedPrice();
+  const timerActive = Boolean(state?.activeEntry);
+  if (!SESSION_BETA) {
+    show($('pieceSessionNotice'), timerActive);
+    if (timerActive) $('pieceSessionNotice').textContent = '正在计时，结束后才能申报计件。';
+    $('pieceSubmit').disabled = timerActive;
+  }
 }
   function fmtMoney(value, digits = 2) {
     return Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: digits, maximumFractionDigits: digits });
@@ -635,6 +641,7 @@ function variantDisplay(processName, value) {
   }
   async function submitPiece() {
     if (SESSION_BETA && betaSession?.mode !== 'piece') return toast('请先开始计件工作');
+    if (state?.activeEntry) return toast('正在计时，结束后才能申报计件');
     if (!selectedProduct) return toast('请先搜索并选择产品');
     if (!selectedProcessId) return toast('请选择工序');
     const process = currentProcess();
@@ -907,6 +914,7 @@ function variantDisplay(processName, value) {
   }
   async function submitRequest() {
     if (SESSION_BETA && betaSession?.mode !== 'piece') return setRequestError('请先开始计件工作，再提交自主申报');
+    if (state?.activeEntry) return setRequestError('正在计时，结束后才能申报计件');
     setRequestError('');
     const process = currentRequestProcess();
     if (!process) return setRequestError('请选择工序');
