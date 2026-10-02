@@ -38,6 +38,7 @@ let workReviewStatus = 'submitted';
 let workReviewEditing = null;
 let mobileModule = 'entry';
 let desktopModule = 'shipment';
+let desktopView = 'overview';
 let mobileWorkTab = 'report';
 let workReportRows = [];
 let workReportDate = '';
@@ -513,7 +514,10 @@ const els = {
   desktopLoadingCompany: $('#desktopLoadingCompany'),
   desktopLoadingRefresh: $('#desktopLoadingRefresh'),
   desktopLoadingSummary: $('#desktopLoadingSummary'),
-  desktopLoadingTableBody: $('#desktopLoadingTableBody'),
+  desktopLoadingSelectedQty: $('#desktopLoadingSelectedQty'),
+  desktopLoadingSelectedItems: $('#desktopLoadingSelectedItems'),
+  desktopLoadingRemainingQty: $('#desktopLoadingRemainingQty'),
+  desktopLoadingCardList: $('#desktopLoadingCardList'),
   desktopLoadingEmpty: $('#desktopLoadingEmpty'),
   desktopLoadingCart: $('#desktopLoadingCart'),
   desktopLoadingCartHint: $('#desktopLoadingCartHint'),
@@ -1147,7 +1151,7 @@ function applyRoleUI() {
   const el = document.getElementById('brandTitle');
   if (el) el.textContent = '帆顺科技' + suffix;
   if (!isAdmin) desktopModule = 'shipment';
-  setDesktopModule(desktopModule);
+  setDesktopModule(desktopModule, desktopView);
   if (!isAdmin && mobileModule === 'workReview') mobileModule = 'entry';
   renderMobileModule();
   const el2 = document.getElementById('mobileBrandTitle');
@@ -1946,38 +1950,33 @@ function renderDesktopLoadingCart() {
   const total = rows.reduce((sum, row) => sum + row.quantity, 0) + overRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0) + replacementTotalQty();
   els.desktopLoadingCartHint.textContent = `${rows.length + overRows.length + sessionReplacements.length} 项 · ${fmt(total)} 件`;
   els.desktopLoadingCart.innerHTML = rows.length || overRows.length || sessionReplacements.length
-    ? rows.map(({ order, quantity }) => `<div class="loading-cart-line"><div><strong>${escapeHtml(order.material)} · ${escapeHtml(order.name || '')}</strong><span>${escapeHtml(order.po || '')}#${escapeHtml(order.seq || '')} · 未交 ${fmt(order.remaining)}</span></div><b>${fmt(quantity)}</b></div>`).join('')
+    ? rows.map(({ order, quantity }) => `<div class="loading-cart-line"><div><strong>${escapeHtml(order.material)} · ${escapeHtml(order.name || '')}</strong><span>${escapeHtml(order.po || '')} · 项次 ${escapeHtml(order.seq || '')} · 未交 ${fmt(order.remaining)}</span></div><b>${fmt(quantity)}</b></div>`).join('')
       + overRows.map((item) => `<div class="loading-cart-line"><div><strong>${escapeHtml(item.name || item.material || '无订单发货')}</strong><span>无订单发货</span></div><b>${fmt(item.quantity)}</b></div>`).join('')
       + sessionReplacements.map((item) => `<div class="loading-cart-line"><div><strong>${escapeHtml(item.material)} · ${escapeHtml(item.name || '')}</strong><span>补发</span></div><b>${fmt(item.quantity)}</b></div>`).join('')
     : '<div class="loading-cart-empty">还没有录入本次装车数量</div>';
   if (els.desktopLoadingOpenSubmit) els.desktopLoadingOpenSubmit.disabled = !(rows.length || overRows.length || sessionReplacements.length);
 }
-function syncDesktopLoadingInputs() {
-  if (!els.desktopLoadingTableBody) return;
-  for (const input of els.desktopLoadingTableBody.querySelectorAll('[data-loading-qty]')) {
-    const value = Number(selected.get(input.dataset.loadingQty) || 0);
-    if (document.activeElement !== input) input.value = value > 0 ? value : '';
-    input.closest('tr')?.classList.toggle('selected-row', value > 0);
-  }
+function renderDesktopLoadingSummary() {
+  const selectedItems = [...selected.values()].filter((value) => Number(value) > 0).length;
+  const selectedQty = [...selected.values()].reduce((sum, value) => sum + Number(value || 0), 0);
+  const overRows = [...sessionOver.values()].filter((item) => Number(item.quantity) > 0);
+  const overQty = overRows.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const totalItems = selectedItems + overRows.length + sessionReplacements.length;
+  const totalQty = selectedQty + overQty + replacementTotalQty();
+  if (els.desktopLoadingSelectedQty) els.desktopLoadingSelectedQty.textContent = fmt(totalQty);
+  if (els.desktopLoadingSelectedItems) els.desktopLoadingSelectedItems.textContent = `${totalItems} 项物料`;
+  if (els.desktopLoadingRemainingQty) els.desktopLoadingRemainingQty.textContent = fmt(snapshot?.summary?.remainingQuantity || 0);
 }
 function renderDesktopLoading() {
-  if (!els.desktopLoadingTableBody) return;
+  if (!els.desktopLoadingCardList) return;
   const rows = desktopLoadingOrders();
-  els.desktopLoadingSummary.textContent = `${rows.length} 行可装车`;
+  const limit = 120;
+  const shown = rows.slice(0, limit);
+  els.desktopLoadingSummary.textContent = fmt(rows.length);
   els.desktopLoadingEmpty.hidden = rows.length > 0;
-  els.desktopLoadingTableBody.innerHTML = rows.map((order) => {
-    const quantity = Number(selected.get(order.id) || 0);
-    return `<tr class="${quantity > 0 ? 'selected-row' : ''}">
-      <td><strong>${escapeHtml(order.po || '')}</strong><small>#${escapeHtml(order.seq || '')}</small></td>
-      <td>${escapeHtml(order.material || '')}</td>
-      <td>${escapeHtml(order.name || '')}<small>${escapeHtml(order.spec || '')}</small></td>
-      <td>${escapeHtml(order.spec || '--')}</td>
-      <td>${escapeHtml(order.dueDate || '--')}</td>
-      <td class="number"><strong>${fmt(order.remaining || 0)}</strong></td>
-      <td class="number"><input type="number" min="0" step="1" inputmode="numeric" data-loading-qty="${escapeHtml(order.id)}" value="${quantity > 0 ? quantity : ''}" aria-label="本次装车数量"></td>
-    </tr>`;
-  }).join('');
-  syncDesktopLoadingInputs();
+  els.desktopLoadingCardList.innerHTML = shown.map(orderCard).join('')
+    + (rows.length > limit ? `<div class="empty-state desktop-loading-more"><strong>还有 ${fmt(rows.length - limit)} 项未显示</strong><span>请用搜索快速定位物料。</span></div>` : '');
+  renderDesktopLoadingSummary();
   renderDesktopLoadingCart();
   renderDesktopLoadingRecords();
 }
@@ -2191,7 +2190,7 @@ function setDesktopModule(module, view = '') {
     els.moduleSwitchButton.textContent = `当前模块：${desktopModule === 'work' ? '报工审核' : '装车登记'}`;
   }
   if (desktopModule === 'work') showDesktopView(view || 'workReport');
-  else showDesktopView(view || 'overview');
+  else showDesktopView(view || (desktopView && !String(desktopView).startsWith('work') ? desktopView : 'overview'));
 }
 // 报工审核：电脑端和手机端共用同一套数据和接口
 function workReviewStatusText(status) {
@@ -2373,6 +2372,7 @@ function showDesktopView(name) {
   };
   if (!pages.overview || !pages.shipments) return;
   const target = pages[name] ? name : 'overview';
+  desktopView = target;
   for (const [key, section] of Object.entries(pages)) {
     if (section) section.hidden = key !== target;
   }
@@ -2403,8 +2403,8 @@ function renderAll() {
   renderDesktopDrawings();
   renderCart();
   if (els.desktopLoadingView && !els.desktopLoadingView.hidden) {
-    if (!els.desktopLoadingTableBody || !els.desktopLoadingTableBody.contains(document.activeElement)) renderDesktopLoading();
-    else { syncDesktopLoadingInputs(); renderDesktopLoadingCart(); renderDesktopLoadingRecords(); }
+    if (!els.desktopLoadingCardList || !els.desktopLoadingCardList.contains(document.activeElement)) renderDesktopLoading();
+    else { renderDesktopLoadingSummary(); renderDesktopLoadingCart(); renderDesktopLoadingRecords(); }
   }
   els.sourceTitle.textContent = snapshot.storage?.label || '现有计划表导入';
   const roleTag = boardRole === 'admin' ? '管理码（可看金额）' : '普通码';
@@ -2877,6 +2877,7 @@ function renderMobileSummary() {
   els.mobileSelectedQty.textContent = fmt(selectedQty + pendingOverQty + replacementQty);
   els.mobileSelectedItems.textContent = `${selectedItems + pendingOverRows.length + sessionReplacements.length} 项物料`;
   els.mobileRemainingQty.textContent = fmt(snapshot.summary.remainingQuantity);
+  renderDesktopLoadingSummary();
 }
 
 function qtyText(value) {
@@ -3348,22 +3349,24 @@ function clearPendingOver(material) {
 }
 
 function updateOrderCardSelection(orderId) {
-  const card = [...document.querySelectorAll('[data-order-card]')].find((item) => item.dataset.orderCard === orderId);
-  if (!card) return;
+  const cards = [...document.querySelectorAll('[data-order-card]')].filter((item) => item.dataset.orderCard === orderId);
+  if (!cards.length) return;
   const quantity = Number(selected.get(orderId) || 0);
-  const input = card.querySelector('[data-action="input"]');
-  if (input) input.value = quantity > 0 ? quantity : '';
-  card.classList.toggle('selected', quantity > 0);
-  let tag = card.querySelector('.selected-tag');
-  if (quantity > 0) {
-    if (!tag) {
-      tag = document.createElement('span');
-      tag.className = 'selected-tag';
-      card.prepend(tag);
+  for (const card of cards) {
+    const input = card.querySelector('[data-action="input"]');
+    if (input && document.activeElement !== input) input.value = quantity > 0 ? quantity : '';
+    card.classList.toggle('selected', quantity > 0);
+    let tag = card.querySelector('.selected-tag');
+    if (quantity > 0) {
+      if (!tag) {
+        tag = document.createElement('span');
+        tag.className = 'selected-tag';
+        card.prepend(tag);
+      }
+      tag.textContent = `已选 ${fmt(quantity)}`;
+    } else if (tag) {
+      tag.remove();
     }
-    tag.textContent = `已选 ${fmt(quantity)}`;
-  } else if (tag) {
-    tag.remove();
   }
 }
 
@@ -3937,18 +3940,32 @@ if (els.desktopLoadingSearch) els.desktopLoadingSearch.addEventListener('input',
 if (els.desktopLoadingDue) els.desktopLoadingDue.addEventListener('change', (event) => { desktopLoadingDue = event.target.value; renderDesktopLoading(); });
 if (els.desktopLoadingCompany) els.desktopLoadingCompany.addEventListener('change', (event) => { desktopLoadingCompany = event.target.value; renderDesktopLoading(); });
 if (els.desktopLoadingRefresh) els.desktopLoadingRefresh.addEventListener('click', async () => { await loadState({ quiet:false }); renderAll(); renderDesktopLoading(); showToast('未交订单已刷新'); });
-if (els.desktopLoadingTableBody) {
-  els.desktopLoadingTableBody.addEventListener('input', (event) => {
-    const input = event.target.closest('[data-loading-qty]');
-    if (!input) return;
-    setQuantity(input.dataset.loadingQty, input.value);
-    syncDesktopLoadingInputs();
+if (els.desktopLoadingCardList) {
+  els.desktopLoadingCardList.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-action]');
+    if (!button || button.dataset.action === 'input') return;
+    const { action, id } = button.dataset;
+    const order = snapshot.orders.find((item) => item.id === id);
+    if (!order) return;
+    if (action === 'plus') addQuantity(id, 1);
+    if (action === 'minus') addQuantity(id, -1);
+    if (action === 'fill') {
+      selected.set(id, order.remaining);
+      clearPendingOver(order.material);
+      updateOrderCardSelection(id);
+      renderMobileSummary();
+      renderCart();
+    }
   });
-  els.desktopLoadingTableBody.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter') return;
-    const inputs = [...els.desktopLoadingTableBody.querySelectorAll('[data-loading-qty]')];
-    const index = inputs.indexOf(event.target);
-    if (index >= 0 && inputs[index + 1]) { event.preventDefault(); inputs[index + 1].focus(); inputs[index + 1].select(); }
+  els.desktopLoadingCardList.addEventListener('input', (event) => {
+    const input = event.target.closest('[data-action="input"]');
+    if (!input) return;
+    setQuantity(input.dataset.id, input.value);
+  });
+  els.desktopLoadingCardList.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-action="input"]');
+    if (!input) return;
+    updateOrderCardSelection(input.dataset.id);
   });
 }
 if (els.desktopLoadingOpenSubmit) els.desktopLoadingOpenSubmit.addEventListener('click', openSubmitModal);
