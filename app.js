@@ -3801,6 +3801,53 @@ let labelRowSeq = 0;
 let labelPrintMode = 'big';           // big=大标签，small=小标签
 let labelPrintedKeys = new Set();     // 已经打印过的产品（本机当天记录）
 const LABEL_PRINTED_KEY = 'shipmentLabelPrinted';
+const LABEL_STATS_KEY = 'shipmentLabelStats';
+
+// 固定一框数量的产品：编号里包含这些数字就按整框折算
+const LABEL_BOX_RULES = [
+  { key: '1443', perBox: 320 },
+  { key: '8745', perBox: 216 },
+  { key: '3502', perBox: 300, nameIncludes: '滑台加强槽板' },
+];
+
+function labelBoxRule(material, name) {
+  const code = String(material || '');
+  const text = String(name || '');
+  return LABEL_BOX_RULES.find((rule) => code.includes(rule.key) && (!rule.nameIncludes || text.includes(rule.nameIncludes))) || null;
+}
+
+function labelBoxQuantityText(value, perBox) {
+  const number = Number(value) || 0;
+  if (!perBox || number <= 0) return '';
+  const boxes = Math.ceil(number / perBox);
+  return boxes * perBox + '（' + perBox + '×' + boxes + '框）';
+}
+
+function readLabelStats() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LABEL_STATS_KEY) || '{}');
+    return saved && typeof saved === 'object' ? saved : {};
+  } catch { return {}; }
+}
+
+function writeLabelStats(stats) {
+  try { localStorage.setItem(LABEL_STATS_KEY, JSON.stringify(stats)); } catch { }
+}
+
+function bumpLabelStats(materials, mode) {
+  const stats = readLabelStats();
+  [...new Set((materials || []).map((m) => String(m || '').trim()).filter(Boolean))].forEach((material) => {
+    const row = stats[material] || { big: 0, small: 0 };
+    row[mode] = Number(row[mode] || 0) + 1;
+    stats[material] = row;
+  });
+  writeLabelStats(stats);
+}
+
+function labelMaterialCount(material, mode) {
+  const row = readLabelStats()[String(material || '').trim()];
+  return row ? Number(row[mode] || 0) : 0;
+}
 
 function nextLabelRowId() {
   labelRowSeq += 1;
@@ -3835,9 +3882,13 @@ function labelModeText(mode = labelPrintMode) {
 
 function labelPool() {
   const showPrinted = Boolean(els.labelPrintShowPrinted && els.labelPrintShowPrinted.checked);
+  const mode = labelPrintMode;
   return remainingGroups(desktopRemainingSearch)
     .map((group) => ({ group, key: labelSourceKey(group), printed: labelPrintedKeys.has(labelSourceKey(group)) }))
-    .filter((item) => showPrinted || !item.printed);
+    .filter((item) => showPrinted || !item.printed)
+    // 打印习惯记忆：经常用这种标签的排前面
+    .sort((a, b) => labelMaterialCount(b.group.material, mode) - labelMaterialCount(a.group.material, mode)
+      || String(a.group.material || '').localeCompare(String(b.group.material || '')));
 }
 
 function buildLabelRows() {
@@ -3849,8 +3900,15 @@ function buildLabelRows() {
     material: String(item.group.material || ''),
     name: String(item.group.name || ''),
     spec: (item.group.specs || []).join('、'),
-    quantity: Number(item.group.total) || 0,
+    quantity: (() => {
+      const rule = labelBoxRule(item.group.material, item.group.name);
+      if (!rule) return Number(item.group.total) || 0;
+      return labelBoxQuantityText(item.group.total, rule.perBox);
+    })(),
     remaining: Number(item.group.total) || 0,
+    perBox: (labelBoxRule(item.group.material, item.group.name) || {}).perBox || 0,
+    bigCount: labelMaterialCount(item.group.material, 'big'),
+    smallCount: labelMaterialCount(item.group.material, 'small'),
     date: (item.group.dates || [])[0] || String((snapshot && snapshot.today) || '').slice(0, 10),
   }));
 }
@@ -3887,9 +3945,12 @@ function labelRowHtml(row, index) {
     <span class="label-remaining" data-label-remaining="${index}">${fmt(labelRowRemaining(row))}</span>
     <input class="label-print-input" type="date" data-label-field="date" value="${escapeHtml(row.date)}">
     <div class="label-print-row-actions">
+      ${row.bigCount ? `<span class="label-habit" title="用大标签打印过 ${row.bigCount} 次">大${row.bigCount}</span>` : ''}
+      ${row.smallCount ? `<span class="label-habit" title="用小标签打印过 ${row.smallCount} 次">小${row.smallCount}</span>` : ''}
       ${printedTag}
       <button type="button" class="label-row-btn" data-label-copy="${index}">复制</button>
       <button type="button" class="label-row-btn danger" data-label-remove="${index}">删除</button>
+      <button type="button" class="label-row-btn done" data-label-mark="${index}" title="标记为已打印，从待打印列表里移走">已打印</button>
     </div>
   </div>`;
 }
@@ -3933,7 +3994,8 @@ function refreshLabelRemaining() {
     if (!cell) return;
     const remaining = labelRowRemaining(row);
     const filled = labelMaterialFilled(row.material);
-    const over = remaining > 0 && filled > remaining;
+    // 按整框发货的产品，数量大于未交是正常的（整框取整），不标红
+    const over = !row.perBox && remaining > 0 && filled > remaining;
     cell.textContent = fmt(remaining) + (over ? `（已填 ${fmt(filled)}）` : '');
     cell.classList.toggle('over', over);
     cell.title = remaining > 0 ? `该料号未交合计 ${fmt(remaining)} 件，当前已填 ${fmt(filled)} 件` : '';
@@ -3948,7 +4010,7 @@ function updateLabelSummary() {
   const total = picked.reduce((sum, row) => sum + labelRowQuantity(row), 0);
   const blank = picked.filter((row) => labelRowQuantity(row) === 0).length;
   const overMaterials = [...new Set(labelRows
-    .filter((row) => labelRowRemaining(row) > 0 && labelMaterialFilled(row.material) > labelRowRemaining(row))
+    .filter((row) => !row.perBox && labelRowRemaining(row) > 0 && labelMaterialFilled(row.material) > labelRowRemaining(row))
     .map((row) => String(row.material || '').trim()))];
   els.labelPrintSummary.textContent = `${labelModeText()}：已勾选 ${picked.length} 行 / ${fmt(total)} 件`
     + (blank ? `（其中 ${blank} 行数量留空）` : '')
@@ -4000,6 +4062,28 @@ function handleLabelPrintInput(event) {
   if (field === 'selected') row.selected = Boolean(event.target.checked);
   else if (field === 'quantity') row.quantity = event.target.value === '' ? '' : event.target.value;
   else row[field] = event.target.value;
+  if (field === 'material' || field === 'name') {
+    const rule = labelBoxRule(row.material, row.name);
+    row.perBox = rule ? rule.perBox : 0;
+  }
+  updateLabelSummary();
+}
+
+function handleLabelPrintChange(event) {
+  const field = event.target.dataset.labelField;
+  if (field !== 'quantity') return;
+  const index = labelRowIndex(event.target);
+  if (index < 0) return;
+  const row = labelRows[index];
+  const liveRule = labelBoxRule(row.material, row.name);
+  const perBox = row.perBox || (liveRule ? liveRule.perBox : 0);
+  if (!row || !perBox) return;
+  row.perBox = perBox;
+  const entered = labelQuantityNumber(event.target.value);
+  if (!entered) return;
+  const text = labelBoxQuantityText(entered, perBox);
+  row.quantity = text;
+  event.target.value = text;
   updateLabelSummary();
 }
 
@@ -4011,6 +4095,18 @@ function handleLabelPrintClick(event) {
     if (!source) return;
     labelRows.splice(index + 1, 0, { ...source, id: nextLabelRowId(), printed: false });
     renderLabelRows();
+    return;
+  }
+  const markButton = event.target.closest('[data-label-mark]');
+  if (markButton) {
+    const index = Number(markButton.dataset.labelMark);
+    const row = labelRows[index];
+    if (row) {
+      if (row.sourceKey) { labelPrintedKeys.add(row.sourceKey); writePrintedKeys(); }
+      labelRows.splice(index, 1);
+      renderLabelRows();
+      showToast(`${row.material} 已标记为已打印`);
+    }
     return;
   }
   const removeButton = event.target.closest('[data-label-remove]');
@@ -4057,6 +4153,7 @@ async function confirmLabelPrint() {
     const result = await deliveryHelper('/labels', body);
     sourceKeys.forEach((key) => labelPrintedKeys.add(key));
     writePrintedKeys();
+    bumpLabelStats(picked.map((row) => row.material), mode);
     const written = mode === 'big' ? result.bigRows : result.smallRows;
     const errors = Array.isArray(result.errors) && result.errors.length ? '；' + result.errors.join('；') : '';
     if (mode === 'big') {
@@ -5382,7 +5479,10 @@ if (els.desktopRemainingExport) els.desktopRemainingExport.addEventListener('cli
 if (els.desktopLabelPrint) els.desktopLabelPrint.addEventListener('click', openLabelPrintModal);
 if (els.labelPrintRows) {
   els.labelPrintRows.addEventListener('input', handleLabelPrintInput);
-  els.labelPrintRows.addEventListener('change', handleLabelPrintInput);
+  els.labelPrintRows.addEventListener('change', (event) => {
+    handleLabelPrintInput(event);
+    handleLabelPrintChange(event);
+  });
   els.labelPrintRows.addEventListener('click', handleLabelPrintClick);
 }
 if (els.labelPrintSelectAll) {

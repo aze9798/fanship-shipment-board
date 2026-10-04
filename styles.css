@@ -2822,7 +2822,7 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .label-print-head,
 .label-print-row {
   display: grid;
-  grid-template-columns: 34px 130px minmax(160px, 1.5fr) minmax(110px, 1fr) 96px 108px 124px 116px;
+  grid-template-columns: 34px 124px minmax(150px, 1.4fr) minmax(104px, 1fr) 92px 100px 118px 168px;
   gap: 8px;
   align-items: center;
   padding: 8px 10px;
@@ -2946,3 +2946,35 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 }
 .label-print-row.printed { opacity: .62; }
 .label-print-actions { align-items: center; }
+
+/* ===== 标签弹窗：已打印按钮 + 打印习惯小标签 ===== */
+.label-row-btn.done {
+  border-color: #cfe0dd;
+  background: #f2f9f7;
+  color: #0f766e;
+}
+.label-row-btn.done:hover { background: #e6f5f1; }
+.label-habit {
+  align-self: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #eef6f4;
+  color: #4a7a74;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* 操作列三个按钮要放得下：缩小内边距、不换行、允许横向排列 */
+.label-print-row-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.label-row-btn {
+  padding: 0 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
