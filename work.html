@@ -110,11 +110,11 @@
         <div class="clock-actions"><button id="clockAction" class="primary">开始计时</button></div>
       </div>
       <div id="specialTimePanel" class="card special-time hidden">
-        <div class="section-head"><div><h2>结束时间按规则归整</h2><p id="specialTimeHint"></p></div></div>
-        <label class="field"><span>特殊情况说明（例如：客户急件加班到 19:00）</span><input id="specialTimeNote" type="text" maxlength="80" placeholder="请写明特殊情况，留空则按归整时间计算"></label>
+        <div class="section-head"><div><h2>这条计时需要确认</h2><p id="specialTimeHint"></p></div></div>
+        <label class="field"><span>备注说明（可以不填；填了就算这条是特殊事件）</span><input id="specialTimeNote" type="text" maxlength="80" placeholder="例如：客户急件加班到 20:20"></label>
         <div class="special-time-actions">
-          <button id="specialTimeConfirm" class="primary" type="button">确认为特殊情况</button>
-          <button id="specialTimeDismiss" class="ghost" type="button">不用了，按归整时间</button>
+          <button id="specialTimeConfirm" class="primary" type="button">确认</button>
+          <button id="specialTimeDismiss" class="ghost" type="button">稍后再说</button>
         </div>
       </div>
       <div class="stats"><div class="stat"><span>今日有效工时</span><strong id="todayMinutes">0.0h</strong></div><div class="stat"><span>本月累计</span><strong id="monthMinutes">0.0h</strong></div></div>
@@ -327,7 +327,7 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
     $('todayMinutes').textContent = fmtMinutes(state?.todayMinutes);
     $('monthMinutes').textContent = fmtMinutes(state?.monthMinutes);
     const rows = state?.todayEntries || []; $('todayCount').textContent = `${rows.length} 段`;
-    $('todayEntries').innerHTML = rows.length ? rows.map((x) => `<div class="record"><div><strong>${esc(fmtClock(x.startedAt))} → ${x.endedAt ? esc(fmtClock(x.endedAt)) : '进行中'}</strong><small>${x.status === 'closed' ? '已完成' : '未结束'}${x.specialConfirmed ? '<em class="record-special">特殊情况</em>' : ''}${x.specialNote ? ` · ${esc(x.specialNote)}` : ''}</small></div><strong>${x.endedAt ? `${Number(x.rawMinutes || 0)} 分钟` : '计时中'}</strong></div>`).join('') : '<div class="empty">今天还没有计时记录</div>';
+    $('todayEntries').innerHTML = rows.length ? rows.map((x) => `<div class="record"><div><strong>${esc(fmtClock(x.startedAt))} → ${x.endedAt ? esc(fmtClock(x.endedAt)) : '进行中'}</strong><small>${x.status === 'closed' ? '已完成' : '未结束'}${x.specialConfirmed ? '<em class="record-special">已备注</em>' : ''}${x.specialNote ? ` · ${esc(x.specialNote)}` : ''}</small></div><strong>${x.endedAt ? `${Number(x.rawMinutes || 0)} 分钟` : '计时中'}</strong></div>`).join('') : '<div class="empty">今天还没有计时记录</div>';
   }
   function currentProcess() {
   return (state?.processes || []).find((p) => p.id === selectedProcessId) || null;
@@ -684,13 +684,15 @@ function renderPiece() {
         result = await rpc('work_stop_timer', { p_code:code });
       }
       await loadState();
-      if (active && result && result.snapped) {
+      if (active && result && result.needConfirm) {
         pendingSpecialEntry = result.id || '';
         const clock = (v) => fmtClock(v);
-        $('specialTimeHint').textContent = `实际结束 ${clock(result.rawEndedAt)}，按 ${clock(result.endedAt)} 计入。如果有特殊情况，请在下面说明后确认。`;
+        $('specialTimeHint').textContent = result.capped
+          ? `实际结束 ${clock(result.rawEndedAt)}，超过 20:30 的部分按 20:30 计入（实际时间已保留）。如果有特殊情况，可在下面备注。`
+          : `实际结束 ${clock(result.rawEndedAt)}，工时按实际 ${clock(result.endedAt)} 计入。如果有特殊情况，可在下面备注。`;
         $('specialTimeNote').value = '';
         renderSpecialPanel();
-        toast('已按 ' + clock(result.endedAt) + ' 计入，如有特殊情况请确认');
+        toast('这条计时需要确认，备注可以不填');
       } else if (active && result && result.specialConfirmed) {
         pendingSpecialEntry = '';
         renderSpecialPanel();
@@ -705,14 +707,13 @@ function renderPiece() {
   async function confirmSpecialTime() {
     if (!pendingSpecialEntry) return;
     const note = $('specialTimeNote').value.trim();
-    if (!note) { toast('请先填写特殊情况说明'); return; }
     const btn = $('specialTimeConfirm'); btn.disabled = true;
     try {
       await rpc('work_confirm_special_time', { p_code:code, p_entry_id:pendingSpecialEntry, p_note:note });
       pendingSpecialEntry = '';
       renderSpecialPanel();
       await loadState();
-      toast('已按实际结束时间记录，并备注了特殊情况');
+      toast(note ? '已确认，并记为特殊事件' : '已确认');
     } catch (e) { toast(e.message || '确认失败'); } finally { btn.disabled = false; }
   }
   async function searchProducts() {
@@ -1102,7 +1103,7 @@ function variantDisplay(processName, value) {
   if (logoutButton) logoutButton.addEventListener('click', () => { state = null; salaryData = null; editEntry = null; code = ''; clearStoredCode(); render(); });
   $('clockAction').addEventListener('click', clockAction);
   if ($('specialTimeConfirm')) $('specialTimeConfirm').addEventListener('click', confirmSpecialTime);
-  if ($('specialTimeDismiss')) $('specialTimeDismiss').addEventListener('click', () => { pendingSpecialEntry = ''; renderSpecialPanel(); toast('已按归整时间计入'); });
+  if ($('specialTimeDismiss')) $('specialTimeDismiss').addEventListener('click', () => { pendingSpecialEntry = ''; renderSpecialPanel(); toast('已保留这条计时，可稍后在记录里查看'); });
   document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
     document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x === b));
     const tab = b.dataset.tab;
