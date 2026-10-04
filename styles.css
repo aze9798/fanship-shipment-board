@@ -2621,3 +2621,38 @@ html { scrollbar-width: auto; }
   .record-filter-option { font-size: 11px; }
   .record-month-select { font-size: 11px; }
 }
+/* 帆图标文字样式（覆盖 .brand span 的默认小字样式） */
+.brand-mark.module-fab .module-fab-mark {
+  display: grid;
+  margin: 0;
+  color: #fff;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+/* ===== 标签指示器（Elastic Tab indicator）：left + width 驱动，中段拉伸回收 ===== */
+.elastic-tabs { position: relative; }
+.elastic-tabs > .elastic-indicator {
+  position: absolute;
+  top: var(--indicator-top, 0);
+  left: 0;
+  width: 0;
+  height: var(--indicator-height, 100%);
+  border-radius: var(--indicator-radius, 999px);
+  background: var(--indicator-bg, #0f766e);
+  box-shadow: var(--indicator-shadow, none);
+  pointer-events: none;
+  z-index: 0;
+  will-change: left, width, opacity;
+}
+.elastic-tabs > button { position: relative; z-index: 1; }
+/* 指示器自己画底色，原来的 active 底色让位 */
+.elastic-tabs > .active {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.elastic-tabs > .chip.active { border-color: transparent !important; }
+.mobile-tabs { --indicator-bg: #fff; --indicator-radius: 10px; --indicator-shadow: 0 2px 9px rgba(32, 57, 64, .09); }
+.mobile-work-tabs { --indicator-bg: #fff; --indicator-radius: 10px; --indicator-shadow: 0 4px 12px rgba(36, 92, 88, .1); }
+.query-tabs, .drawing-tabs, .file-format-tabs { --indicator-bg: var(--primary); --indicator-radius: 999px; }

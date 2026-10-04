@@ -2239,6 +2239,7 @@ function switchMobileWorkTab(tab) {
   if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = mobileWorkTab !== 'review';
   if (mobileWorkTab === 'report') loadWorkReport().catch(() => {});
   else loadWorkReviews().catch(() => {});
+  refreshElasticTabs();
 }
 function setDesktopModule(module, view = '') {
   desktopModule = boardRole === 'admin' && module === 'work' ? 'work' : 'shipment';
@@ -2257,6 +2258,7 @@ function setDesktopModule(module, view = '') {
   }
   if (desktopModule === 'work') showDesktopView(view || 'workReport');
   else showDesktopView(view || (desktopView && !String(desktopView).startsWith('work') ? desktopView : 'overview'));
+  refreshElasticTabs();
 }
 // 报工审核：电脑端和手机端共用同一套数据和接口
 function workReviewStatusText(status) {
@@ -2444,17 +2446,7 @@ function showDesktopView(name) {
   for (const [key, section] of Object.entries(pages)) {
     if (section) section.hidden = key !== target;
   }
-  if (els.mobileRecordsPanel) {
-  els.mobileRecordsPanel.addEventListener('click', handleMobileRecordFilterClick);
-  els.mobileRecordsPanel.addEventListener('change', (event) => {
-    if (event.target.id === 'recordsMonthSelect') {
-      recordsMonth = event.target.value;
-      renderMobileRecordFilterPanel();
-    }
-  });
-}
-
-document.querySelectorAll('[data-desktop-view]').forEach((link) => {
+  document.querySelectorAll('[data-desktop-view]').forEach((link) => {
     link.classList.toggle('active', link.dataset.desktopView === target);
   });
   if (target === 'remaining') renderDesktopRemaining();
@@ -2465,6 +2457,7 @@ document.querySelectorAll('[data-desktop-view]').forEach((link) => {
   if (target === 'workReport') loadWorkReport().catch(() => {});
   if (target === 'workReview') loadWorkReviews().catch(() => {});
   window.scrollTo({ top: 0 });
+  refreshElasticTabs();
 }
 
 function renderAll() {
@@ -2973,6 +2966,15 @@ function handleMobileRecordFilterClick(event) {
   return false;
 }
 
+if (els.mobileRecordsPanel) {
+  els.mobileRecordsPanel.addEventListener('click', handleMobileRecordFilterClick);
+  els.mobileRecordsPanel.addEventListener('change', (event) => {
+    if (event.target.id === 'recordsMonthSelect') {
+      recordsMonth = event.target.value;
+      renderMobileRecordFilterPanel();
+    }
+  });
+}
 function shipmentMatches(shipment, query, lookup = null) {
   if (!query) return true;
   const map = lookup || orderLookupMap();
@@ -3071,6 +3073,7 @@ function applyQueryTab() {
     document.querySelectorAll(`[data-query-pane="${tab}"]`).forEach((pane) => { pane.hidden = !on; });
   }
   if (els.queryTitle) els.queryTitle.textContent = QUERY_TITLES[queryTab] || '发货记录';
+  refreshElasticTabs();
 }
 
 document.querySelectorAll('[data-query-tab]').forEach((button) => {
@@ -4473,6 +4476,7 @@ function switchMobileTab(tab) {
   if (els.mobileFilesPanel) els.mobileFilesPanel.hidden = tab !== 'files';
   if (tab === 'files') renderCloudFiles();
   renderCart();
+  refreshElasticTabs();
   renderMobileModule();
 }
 
@@ -4662,6 +4666,11 @@ document.addEventListener('click', (event) => {
   if (!els.moduleSwitchButton || !els.moduleSwitchButton.classList.contains('expanded')) return;
   if (els.moduleSwitchButton.contains(event.target)) return;
   closeDesktopModuleSheet();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  closeDesktopModuleSheet();
+  closeMobileModuleSheet();
 });
 if (els.desktopWorkReportDate) els.desktopWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReport(); });
 if (els.mobileWorkReportDate) els.mobileWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReport(); });
@@ -5293,6 +5302,129 @@ function setupRpcExportLink() {
     });
   }
 }
+
+
+/* ===== 标签指示器（Elastic Tab indicator） ===== */
+const elasticTabHandles = [];
+function elasticBezierEase(x1, y1, x2, y2) {
+  const cx = 3 * x1;
+  const bx = 3 * (x2 - x1) - cx;
+  const ax = 1 - cx - bx;
+  const cy = 3 * y1;
+  const by = 3 * (y2 - y1) - cy;
+  const ay = 1 - cy - by;
+  const sampleX = (t) => ((ax * t + bx) * t + cx) * t;
+  const sampleY = (t) => ((ay * t + by) * t + cy) * t;
+  const slopeX = (t) => (3 * ax * t + 2 * bx) * t + cx;
+  return (x) => {
+    let t = x;
+    for (let i = 0; i < 6; i += 1) {
+      const delta = sampleX(t) - x;
+      const slope = slopeX(t);
+      if (Math.abs(delta) < 1e-5 || Math.abs(slope) < 1e-6) break;
+      t -= delta / slope;
+    }
+    if (t < 0) t = 0;
+    if (t > 1) t = 1;
+    return sampleY(t);
+  };
+}
+const elasticEase = elasticBezierEase(.2, .9, .22, 1);
+const ELASTIC_DURATION = 480;
+const ELASTIC_STAGGER = 6 * (1000 / 60); // 后沿延后 6 帧起步
+function elasticOvershoot(p) {
+  return p + Math.sin(Math.PI * Math.min(1, p)) * (1 - p) * 0.05;
+}
+function attachElasticTabs(container, itemSelector) {
+  const items = [...container.querySelectorAll(itemSelector)];
+  if (items.length < 2) return null;
+  container.classList.add('elastic-tabs');
+  const indicator = document.createElement('span');
+  indicator.className = 'elastic-indicator';
+  indicator.setAttribute('aria-hidden', 'true');
+  container.insertBefore(indicator, container.firstChild);
+  let current = null;
+  let raf = 0;
+  const setBox = (left, width, top, height) => {
+    indicator.style.left = left + 'px';
+    indicator.style.width = width + 'px';
+    if (top != null) indicator.style.top = top + 'px';
+    if (height != null) indicator.style.height = height + 'px';
+  };
+  const measure = () => {
+    const active = items.find((el) => el.classList.contains('active'));
+    if (!active || !active.offsetWidth) return null;
+    return { left: active.offsetLeft, width: active.offsetWidth, top: active.offsetTop, height: active.offsetHeight };
+  };
+  const snap = () => {
+    const target = measure();
+    if (!target) { indicator.style.opacity = '0'; return null; }
+    indicator.style.opacity = '1';
+    cancelAnimationFrame(raf);
+    current = target;
+    setBox(target.left, target.width, target.top, target.height);
+    return target;
+  };
+  const move = () => {
+    const target = measure();
+    if (!target) { indicator.style.opacity = '0'; return; }
+    indicator.style.opacity = '1';
+    const from = current || target;
+    cancelAnimationFrame(raf);
+    if (from.left === target.left && from.width === target.width) { current = target; setBox(target.left, target.width, target.top, target.height); return; }
+    const dir = (target.left + target.width / 2) >= (from.left + from.width / 2) ? 1 : -1;
+    const leadFrom = dir > 0 ? from.left + from.width : from.left;
+    const leadTo = dir > 0 ? target.left + target.width : target.left;
+    const trailFrom = dir > 0 ? from.left : from.left + from.width;
+    const trailTo = dir > 0 ? target.left : target.left + target.width;
+    const peak = Math.max(from.width, target.width) * 1.15;
+    const barWidth = container.clientWidth || (target.left + target.width);
+    const startedAt = performance.now();
+    current = target;
+    const step = (now) => {
+      const elapsed = now - startedAt;
+      const pLead = Math.min(1, elapsed / ELASTIC_DURATION);
+      const lead = leadFrom + (leadTo - leadFrom) * elasticOvershoot(elasticEase(pLead));
+      const pTrail = Math.min(1, Math.max(0, (elapsed - ELASTIC_STAGGER) / ELASTIC_DURATION));
+      let trail = trailFrom + (trailTo - trailFrom) * elasticEase(pTrail);
+      // 中段把后沿再往回拽，形成两倍以上的液体拉伸
+      trail -= dir * Math.sin(Math.PI * pLead) * peak;
+      let left = Math.min(lead, trail);
+      let right = Math.max(lead, trail);
+      if (left < 0) left = 0;
+      if (right > barWidth) right = barWidth;
+      if (right - left < 6) right = Math.min(barWidth, left + 6);
+      setBox(left, Math.max(6, right - left), target.top, target.height);
+      if (pLead < 1 || pTrail < 1) raf = requestAnimationFrame(step);
+      else setBox(target.left, target.width, target.top, target.height);
+    };
+    raf = requestAnimationFrame(step);
+  };
+  snap();
+  const observer = new MutationObserver(() => move());
+  observer.observe(container, { attributes: true, attributeFilter: ['class'], subtree: true });
+  const handle = { snap, move };
+  elasticTabHandles.push(handle);
+  return handle;
+}
+function initElasticTabs() {
+  const groups = [
+    ['.mobile-tabs', '.mobile-tab'],
+    ['.mobile-work-tabs', 'button'],
+    ['#drawingCategoryTabs', '.chip'],
+  ];
+  for (const [sel, item] of groups) {
+    document.querySelectorAll(sel).forEach((container) => attachElasticTabs(container, item));
+  }
+  document.querySelectorAll('.query-tabs').forEach((container) => attachElasticTabs(container, '.chip'));
+}
+function refreshElasticTabs() {
+  requestAnimationFrame(() => {
+    for (const handle of elasticTabHandles) handle.snap();
+  });
+}
+initElasticTabs();
+window.addEventListener('resize', () => { for (const handle of elasticTabHandles) handle.snap(); });
 
 syncMobileEntryLink();
 applyDesktopColumnWidths();
