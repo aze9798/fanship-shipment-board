@@ -2812,11 +2812,21 @@ function matchesSearchQuery(text, query) {
   if (haystack.includes(target)) return true;
   return searchTokenList(query).every((token) => haystack.includes(normalizeSearchText(token)));
 }
+function shipmentCompany(shipment) {
+  const explicit = String(shipment?.customer || '').trim();
+  if (explicit === '邦凡') return '邦凡';
+  const items = shipment?.items || [];
+  if (items.some((line) => /^6140/.test(String(line.material || '')) || /护栏|护脚栏/.test(String(line.name || '')))) return '邦凡';
+  if (explicit === '艾沃意特') return '艾沃意特';
+  const batch = deliveryBatchText(shipment?.deliveryBatch);
+  const file = (snapshot?.deliveryFiles || []).find((row) => /\.xlsx$/i.test(String(row.fileName || '')) && deliveryBatchText(row.batch) === batch);
+  return String(file?.kind || '艾沃意特').trim() || '艾沃意特';
+}
 function shipmentDisplayBatch(shipment) {
   const explicit = deliveryBatchText(shipment?.deliveryBatch);
   if (explicit && explicit !== '历史已开单') return explicit;
   const date = shipShanghaiDate(shipment?.createdAt);
-  const company = String(shipment?.customer || '').trim();
+  const company = shipmentCompany(shipment);
   const assignedBatches = new Set((snapshot?.shipments || [])
     .map((row) => deliveryBatchText(row.deliveryBatch))
     .filter((batch) => batch && batch !== '历史已开单'));
@@ -2838,7 +2848,7 @@ function shipmentDisplayBatch(shipment) {
 function recordAvailableDates(company = recordsCompany) {
   const dates = new Set();
   for (const shipment of (snapshot?.shipments || [])) {
-    if (company && String(shipment.customer || '').trim() !== company) continue;
+    if (company && shipmentCompany(shipment) !== company) continue;
     const date = shipShanghaiDate(shipment.createdAt);
     if (date) dates.add(date);
   }
@@ -2858,7 +2868,7 @@ function recordBatchOptions(company = recordsCompany) {
     if (batch) batches.add(batch);
   }
   for (const shipment of (snapshot?.shipments || [])) {
-    if (company && String(shipment.customer || '').trim() !== company) continue;
+    if (company && shipmentCompany(shipment) !== company) continue;
     const batch = shipmentDisplayBatch(shipment);
     if (batch && batch !== '历史已开单') batches.add(batch);
   }
@@ -3742,7 +3752,7 @@ function renderMobileRecords() {
   const query = String(recordsSearch || '').trim();
   const lookup = orderLookupMap();
   const rows = (snapshot.shipments || []).filter((shipment) => {
-    if (recordsCompany && String(shipment.customer || '').trim() !== recordsCompany) return false;
+    if (recordsCompany && shipmentCompany(shipment) !== recordsCompany) return false;
     if (recordsBatch && shipmentDisplayBatch(shipment) !== recordsBatch) return false;
     if (recordsDate && shipShanghaiDate(shipment.createdAt) !== recordsDate) return false;
     return shipmentMatches(shipment, query, lookup);
@@ -5343,13 +5353,24 @@ function attachElasticTabs(container, itemSelector) {
   indicator.className = 'elastic-indicator';
   indicator.setAttribute('aria-hidden', 'true');
   container.insertBefore(indicator, container.firstChild);
-  let current = null;
+
+  let live = null;      // 当前实际渲染的位置（动画被打断时从这里接着走）
+  let settled = null;   // 稳定位置
   let raf = 0;
-  const setBox = (left, width, top, height) => {
+  let pending = 0;
+  let lastTargetKey = '';
+
+  const applyBox = (left, width, top, height) => {
     indicator.style.left = left + 'px';
     indicator.style.width = width + 'px';
     if (top != null) indicator.style.top = top + 'px';
     if (height != null) indicator.style.height = height + 'px';
+    live = {
+      left,
+      width,
+      top: top != null ? top : (live ? live.top : 0),
+      height: height != null ? height : (live ? live.height : 0),
+    };
   };
   const measure = () => {
     const active = items.find((el) => el.classList.contains('active'));
@@ -5358,52 +5379,86 @@ function attachElasticTabs(container, itemSelector) {
   };
   const snap = () => {
     const target = measure();
-    if (!target) { indicator.style.opacity = '0'; return null; }
-    indicator.style.opacity = '1';
     cancelAnimationFrame(raf);
-    current = target;
-    setBox(target.left, target.width, target.top, target.height);
+    cancelAnimationFrame(pending);
+    if (!target) { indicator.style.opacity = '0'; live = null; settled = null; lastTargetKey = ''; return null; }
+    indicator.style.opacity = '1';
+    settled = target;
+    lastTargetKey = target.left + ':' + target.width;
+    applyBox(target.left, target.width, target.top, target.height);
     return target;
   };
-  const move = () => {
+  const run = () => {
     const target = measure();
-    if (!target) { indicator.style.opacity = '0'; return; }
+    if (!target) { indicator.style.opacity = '0'; live = null; settled = null; return; }
     indicator.style.opacity = '1';
-    const from = current || target;
-    cancelAnimationFrame(raf);
-    if (from.left === target.left && from.width === target.width) { current = target; setBox(target.left, target.width, target.top, target.height); return; }
+    const from = live || settled || target;
+    const key = target.left + ':' + target.width;
+    if ((Math.abs(from.left - target.left) < 0.5 && Math.abs(from.width - target.width) < 0.5) || key === lastTargetKey && raf === 0) {
+      settled = target;
+      lastTargetKey = key;
+      applyBox(target.left, target.width, target.top, target.height);
+      return;
+    }
+    lastTargetKey = key;
     const dir = (target.left + target.width / 2) >= (from.left + from.width / 2) ? 1 : -1;
     const leadFrom = dir > 0 ? from.left + from.width : from.left;
     const leadTo = dir > 0 ? target.left + target.width : target.left;
     const trailFrom = dir > 0 ? from.left : from.left + from.width;
     const trailTo = dir > 0 ? target.left : target.left + target.width;
-    const peak = Math.max(from.width, target.width) * 1.15;
+    const peak = Math.max(from.width, target.width) * 0.62;
     const barWidth = container.clientWidth || (target.left + target.width);
     const startedAt = performance.now();
-    current = target;
+    cancelAnimationFrame(raf);
     const step = (now) => {
       const elapsed = now - startedAt;
       const pLead = Math.min(1, elapsed / ELASTIC_DURATION);
       const lead = leadFrom + (leadTo - leadFrom) * elasticOvershoot(elasticEase(pLead));
       const pTrail = Math.min(1, Math.max(0, (elapsed - ELASTIC_STAGGER) / ELASTIC_DURATION));
-      let trail = trailFrom + (trailTo - trailFrom) * elasticEase(pTrail);
-      // 中段把后沿再往回拽，形成两倍以上的液体拉伸
-      trail -= dir * Math.sin(Math.PI * pLead) * peak;
+      const trailBase = trailFrom + (trailTo - trailFrom) * elasticEase(pTrail);
+      const trail = trailBase - dir * Math.sin(Math.PI * pLead) * peak;
       let left = Math.min(lead, trail);
       let right = Math.max(lead, trail);
+      // 中段最多拉到基础宽度的 2.4 倍，保证“两倍以上”又不会夸张
+      const maxStretch = Math.max(from.width, target.width) * 2.4;
+      if (right - left > maxStretch) {
+        if (dir > 0) left = right - maxStretch;
+        else right = left + maxStretch;
+      }
       if (left < 0) left = 0;
-      if (right > barWidth) right = barWidth;
+      if (right > barWidth) {
+        const over = right - barWidth;
+        right = barWidth;
+        left = Math.max(0, left - over);
+      }
       if (right - left < 6) right = Math.min(barWidth, left + 6);
-      setBox(left, Math.max(6, right - left), target.top, target.height);
-      if (pLead < 1 || pTrail < 1) raf = requestAnimationFrame(step);
-      else setBox(target.left, target.width, target.top, target.height);
+      applyBox(left, Math.max(6, right - left), target.top, target.height);
+      if (pLead < 1 || pTrail < 1) {
+        raf = requestAnimationFrame(step);
+      } else {
+        raf = 0;
+        settled = target;
+        applyBox(target.left, target.width, target.top, target.height);
+      }
     };
     raf = requestAnimationFrame(step);
   };
+  const schedule = () => {
+    cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(() => { pending = 0; run(); });
+  };
+
   snap();
-  const observer = new MutationObserver(() => move());
+  const observer = new MutationObserver(schedule);
   observer.observe(container, { attributes: true, attributeFilter: ['class'], subtree: true });
-  const handle = { snap, move };
+  // 只在“位置还没建立/容器刚显示”时直接落位，正常切换交给动画
+  const reflow = () => {
+    const target = measure();
+    if (!target) return;
+    if (!live || live.width === 0 || Math.abs(live.width - target.width) > 0.5 && raf === 0 && lastTargetKey === '') snap();
+    else if (!live) snap();
+  };
+  const handle = { snap, move: schedule, reflow };
   elasticTabHandles.push(handle);
   return handle;
 }
@@ -5420,7 +5475,7 @@ function initElasticTabs() {
 }
 function refreshElasticTabs() {
   requestAnimationFrame(() => {
-    for (const handle of elasticTabHandles) handle.snap();
+    for (const handle of elasticTabHandles) handle.reflow();
   });
 }
 initElasticTabs();
