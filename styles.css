@@ -2736,3 +2736,12 @@ html { scrollbar-width: auto; }
 @media (max-width: 700px) {
   .order-edit-form { grid-template-columns: 1fr; }
 }
+/* ===== 普通端实时总览：隐藏单价 / 金额两列（管理员才显示） ===== */
+body:not([data-board-role="admin"]) #desktopView .orders-table thead th:nth-child(9),
+body:not([data-board-role="admin"]) #desktopView .orders-table thead th:nth-child(10),
+body:not([data-board-role="admin"]) #desktopView .orders-table tbody td:nth-child(9),
+body:not([data-board-role="admin"]) #desktopView .orders-table tbody td:nth-child(10),
+body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(9),
+body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
+  display: none !important;
+}

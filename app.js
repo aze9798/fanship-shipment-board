@@ -629,6 +629,7 @@ const els = {
   orderEditModal: $('#orderEditModal'),
   orderEditInfo: $('#orderEditInfo'),
   orderEditQty: $('#orderEditQty'),
+  orderEditShipped: $('#orderEditShipped'),
   orderEditDue: $('#orderEditDue'),
   orderEditError: $('#orderEditError'),
   orderEditClose: $('#orderEditClose'),
@@ -1166,6 +1167,8 @@ function currentAssetVersion() {
 function applyRoleUI() {
   const isAdmin = boardRole === 'admin';
   const suffix = isAdmin ? '（管理员）' : '';
+  // 普通端实时总览不显示单价 / 金额（本身也没有数据）
+  document.body.dataset.boardRole = isAdmin ? 'admin' : 'user';
   const el = document.getElementById('brandTitle');
   if (el) el.innerHTML = `帆顺科技${isAdmin ? '<small>（管理员）</small>' : ''}`;
   if (!isAdmin) desktopModule = 'shipment';
