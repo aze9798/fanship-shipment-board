@@ -2457,43 +2457,10 @@ html { scrollbar-width: auto; }
 .mobile-fab { position: absolute; left: 0; top: 0; }
 .mobile-fab.expanded { position: absolute; left: -2px; top: -2px; }
 
-/* ===== 实时总览：宽度由用户自己调（默认铺满 1500px） ===== */
-#desktopView { --overview-width: 1500px; overflow-x: auto; }
+
+/* ===== 实时总览：固定最佳宽度（宽度超出窗口时该区域内部横向滚动） ===== */
+#desktopView { overflow-x: auto; }
 #desktopView .dashboard-grid {
-  width: var(--overview-width);
+  width: 1870px;
   max-width: none;
-}
-.width-control {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 12px;
-  border: 1px solid #dbe7e6;
-  border-radius: 11px;
-  background: #fff;
-  color: #56707a;
-  font-size: 12px;
-  font-weight: 700;
-  box-shadow: 0 4px 12px rgba(20, 50, 60, .05);
-}
-.width-control input[type="range"] {
-  width: 130px;
-  accent-color: #7fe0d1;
-  cursor: pointer;
-}
-.width-control strong {
-  min-width: 56px;
-  color: #0f5f59;
-  font-size: 12px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-.width-control .button.tiny {
-  min-height: 26px;
-  padding: 0 9px;
-  font-size: 11px;
-}
-@media (max-width: 900px) {
-  .width-control { display: none; }
 }

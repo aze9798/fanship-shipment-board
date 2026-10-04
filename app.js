@@ -533,9 +533,6 @@ const els = {
   desktopLoadingOpenSubmit: $('#desktopLoadingOpenSubmit'),
   desktopLoadingRecords: $('#desktopLoadingRecords'),
   mobileModuleSwitch: $('#mobileModuleSwitch'),
-  overviewWidthRange: $('#overviewWidthRange'),
-  overviewWidthValue: $('#overviewWidthValue'),
-  overviewWidthReset: $('#overviewWidthReset'),
   mobileModuleMenu: $('#mobileModuleMenu'),
   mobileWorkReviewPanel: $('#mobileWorkReviewPanel'),
   mobileWorkReviewStatus: $('#mobileWorkReviewStatus'),
@@ -2486,32 +2483,6 @@ function renderDesktopMetrics() {
   if (els.metricShipped) els.metricShipped.textContent = fmt(summary.shippedQuantity);
   if (els.metricShipmentCount) els.metricShipmentCount.textContent = summary.shipmentCount ? `${summary.shipmentCount} 笔发货记录` : '尚未提交发货';
   if (els.metricUrgent) els.metricUrgent.textContent = fmt(summary.overdue + summary.dueToday);
-}
-
-const OVERVIEW_WIDTH_KEY = 'shipmentOverviewWidth';
-const OVERVIEW_WIDTH_DEFAULT = 1500;
-function readOverviewWidth() {
-  try {
-    const saved = Number(localStorage.getItem(OVERVIEW_WIDTH_KEY));
-    if (Number.isFinite(saved) && saved >= 1100 && saved <= 2400) return Math.round(saved);
-  } catch {}
-  return OVERVIEW_WIDTH_DEFAULT;
-}
-function applyOverviewWidth(value, { persist = true } = {}) {
-  const width = Math.max(1100, Math.min(2400, Math.round(Number(value) || OVERVIEW_WIDTH_DEFAULT)));
-  const view = document.getElementById('desktopView');
-  if (view) view.style.setProperty('--overview-width', width + 'px');
-  if (els.overviewWidthRange) els.overviewWidthRange.value = String(width);
-  if (els.overviewWidthValue) els.overviewWidthValue.textContent = width + 'px';
-  if (persist) { try { localStorage.setItem(OVERVIEW_WIDTH_KEY, String(width)); } catch {} }
-  return width;
-}
-function fitOverviewWidthToViewport() {
-  const view = document.getElementById('desktopView');
-  if (!view) return;
-  const style = getComputedStyle(view);
-  const pad = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
-  return Math.max(1100, Math.min(2400, Math.round(view.clientWidth - pad)));
 }
 
 const DESKTOP_COLUMN_WIDTH_KEY = 'shipmentDesktopColumnWidths';
@@ -4467,20 +4438,6 @@ if (els.desktopLoadingCart) {
     syncDesktopCartAfterChange();
   });
 }
-if (els.overviewWidthRange) {
-  els.overviewWidthRange.addEventListener('input', (event) => {
-    applyOverviewWidth(event.target.value);
-    applyDesktopColumnWidths();
-  });
-}
-if (els.overviewWidthReset) {
-  els.overviewWidthReset.addEventListener('click', () => {
-    const width = fitOverviewWidthToViewport() || OVERVIEW_WIDTH_DEFAULT;
-    applyOverviewWidth(width);
-    applyDesktopColumnWidths();
-    showToast(`表格宽度已按当前窗口自适应（${width}px）`);
-  });
-}
 if (els.desktopLoadingOpenSubmit) els.desktopLoadingOpenSubmit.addEventListener('click', openSubmitModal);
 if (els.moduleSwitchButton) els.moduleSwitchButton.addEventListener('click', () => setDesktopModule(desktopModule === 'work' ? 'shipment' : 'work'));
 if (els.desktopWorkReportDate) els.desktopWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReport(); });
@@ -5115,7 +5072,6 @@ function setupRpcExportLink() {
 }
 
 syncMobileEntryLink();
-applyOverviewWidth(readOverviewWidth(), { persist:false });
 applyDesktopColumnWidths();
 setupDesktopColumnResize();
 applyDesktopRemainingColumnWidths();
