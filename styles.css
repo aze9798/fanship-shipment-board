@@ -2496,6 +2496,8 @@ html { scrollbar-width: auto; }
   padding-left: 0;
 }
 /* ===== 电脑端帆图标：同一个容器从 64×64 连续过渡成 470×300 的切换面板 ===== */
+/* 面板展开时要压在主内容之上 */
+.sidebar { z-index: 40; }
 .sidebar .brand { align-items: center; }
 .module-fab-slot {
   position: relative;
@@ -2595,4 +2597,27 @@ html { scrollbar-width: auto; }
 .delivery-batch-card .delivery-lines-head .mono {
   font-family: inherit !important;
   color: inherit !important;
+}
+/* 帆图标在管理员角色确认前保持隐藏（display 规则不能被 .brand-mark 覆盖） */
+.brand-mark.module-fab[hidden] { display: none !important; }
+
+/* 手机查询：公司、发货编号、月份日期筛选 */
+.records-tools .record-filter-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.record-filter-button { height: 34px; padding: 0 6px; border: 1px solid #d7e1e3; border-radius: 9px; background: #fff; color: #35565e; font: inherit; font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.record-filter-button.active { border-color: #0f766e; background: #eefaf8; color: #0f766e; }
+.record-filter-panel { padding: 8px; border: 1px solid #dce5e7; border-radius: 11px; background: #fbfcfc; }
+.record-filter-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.record-filter-option { min-height: 30px; padding: 0 10px; border: 1px solid #d7e1e3; border-radius: 999px; background: #fff; color: #526c72; font: inherit; font-size: 12px; font-weight: 700; }
+.record-filter-option.active { border-color: #0f766e; background: #e8f7f4; color: #0f766e; }
+.record-filter-empty { padding: 8px 4px; color: #87979d; font-size: 12px; }
+.record-month-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; align-items: center; }
+.record-month-select { height: 34px; padding: 0 9px; border: 1px solid #d7e1e3; border-radius: 9px; background: #fff; color: #35565e; font: inherit; font-size: 12px; }
+.record-date-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 8px; }
+.record-date-option { height: 30px; padding: 0; border: 1px solid #d7e1e3; border-radius: 7px; background: #fff; color: #35565e; font: inherit; font-size: 12px; font-weight: 700; }
+.record-date-option.active { border-color: #0f766e; background: #0f766e; color: #fff; }
+.record-date-option.blocked, .record-date-option:disabled { border-color: #edf1f2; background: #f5f7f7; color: #c8d1d3; }
+@media (max-width: 420px) {
+  .record-filter-button { font-size: 11px; }
+  .record-filter-option { font-size: 11px; }
+  .record-month-select { font-size: 11px; }
 }

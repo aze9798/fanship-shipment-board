@@ -257,6 +257,10 @@ let mobileSearch = '';
 let historyDate = '';
 let recordsSearch = '';
 let recordsDate = '';
+let recordsCompany = '艾沃意特';
+let recordsBatch = '';
+let recordsMonth = '';
+let recordsFilterPanel = '';
 let historyQuery = '';
 let queryTab = 'shipments';
 let offsetQuery = '';
@@ -2440,7 +2444,17 @@ function showDesktopView(name) {
   for (const [key, section] of Object.entries(pages)) {
     if (section) section.hidden = key !== target;
   }
-  document.querySelectorAll('[data-desktop-view]').forEach((link) => {
+  if (els.mobileRecordsPanel) {
+  els.mobileRecordsPanel.addEventListener('click', handleMobileRecordFilterClick);
+  els.mobileRecordsPanel.addEventListener('change', (event) => {
+    if (event.target.id === 'recordsMonthSelect') {
+      recordsMonth = event.target.value;
+      renderMobileRecordFilterPanel();
+    }
+  });
+}
+
+document.querySelectorAll('[data-desktop-view]').forEach((link) => {
     link.classList.toggle('active', link.dataset.desktopView === target);
   });
   if (target === 'remaining') renderDesktopRemaining();
@@ -2805,11 +2819,165 @@ function matchesSearchQuery(text, query) {
   if (haystack.includes(target)) return true;
   return searchTokenList(query).every((token) => haystack.includes(normalizeSearchText(token)));
 }
+function shipmentDisplayBatch(shipment) {
+  const explicit = deliveryBatchText(shipment?.deliveryBatch);
+  if (explicit && explicit !== '历史已开单') return explicit;
+  const date = shipShanghaiDate(shipment?.createdAt);
+  const company = String(shipment?.customer || '').trim();
+  const assignedBatches = new Set((snapshot?.shipments || [])
+    .map((row) => deliveryBatchText(row.deliveryBatch))
+    .filter((batch) => batch && batch !== '历史已开单'));
+  const candidates = (snapshot?.deliveryFiles || []).filter((row) => {
+    const batch = deliveryBatchText(row.batch);
+    return /\.xlsx$/i.test(String(row.fileName || ''))
+      && String(row.deliveryDate || '') === date
+      && (!company || String(row.kind || '').trim() === company)
+      && batch
+      && !assignedBatches.has(batch);
+  });
+  if (candidates.length) {
+    candidates.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    return deliveryBatchText(candidates[0].batch) || explicit || '历史已开单';
+  }
+  return explicit || '历史已开单';
+}
+
+function recordAvailableDates(company = recordsCompany) {
+  const dates = new Set();
+  for (const shipment of (snapshot?.shipments || [])) {
+    if (company && String(shipment.customer || '').trim() !== company) continue;
+    const date = shipShanghaiDate(shipment.createdAt);
+    if (date) dates.add(date);
+  }
+  return [...dates].sort();
+}
+
+function recordAvailableMonths() {
+  return [...new Set(recordAvailableDates().map((date) => date.slice(0, 7)))].sort().reverse();
+}
+
+function recordBatchOptions(company = recordsCompany) {
+  const batches = new Set();
+  for (const row of (snapshot?.deliveryFiles || [])) {
+    if (!/\.xlsx$/i.test(String(row.fileName || ''))) continue;
+    if (company && String(row.kind || '').trim() !== company) continue;
+    const batch = deliveryBatchText(row.batch);
+    if (batch) batches.add(batch);
+  }
+  for (const shipment of (snapshot?.shipments || [])) {
+    if (company && String(shipment.customer || '').trim() !== company) continue;
+    const batch = shipmentDisplayBatch(shipment);
+    if (batch && batch !== '历史已开单') batches.add(batch);
+  }
+  return [...batches].sort((a, b) => {
+    const na = Number(a);
+    const nb = Number(b);
+    if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return nb - na;
+    return String(b).localeCompare(String(a), 'zh-CN');
+  });
+}
+
+function renderMobileRecordFilterPanel() {
+  const panel = document.getElementById('recordsFilterPanel');
+  if (!panel) return;
+  if (!recordsFilterPanel) {
+    panel.hidden = true;
+    panel.innerHTML = '';
+    return;
+  }
+  panel.hidden = false;
+  if (recordsFilterPanel === 'company') {
+    panel.innerHTML = `<div class="record-filter-options">
+      ${['艾沃意特', '邦凡'].map((company) => `<button type="button" class="record-filter-option ${company === recordsCompany ? 'active' : ''}" data-record-company="${escapeHtml(company)}">${escapeHtml(company)}</button>`).join('')}
+    </div>`;
+    return;
+  }
+  if (recordsFilterPanel === 'batch') {
+    const options = recordBatchOptions();
+    panel.innerHTML = `<div class="record-filter-options">
+      <button type="button" class="record-filter-option ${recordsBatch ? '' : 'active'}" data-record-batch="">全部发货编号</button>
+      ${options.map((batch) => `<button type="button" class="record-filter-option ${batch === recordsBatch ? 'active' : ''}" data-record-batch="${escapeHtml(batch)}">${escapeHtml(batch)}</button>`).join('') || '<span class="record-filter-empty">当前公司还没有发货编号</span>'}
+    </div>`;
+    return;
+  }
+  const months = recordAvailableMonths();
+  if (!recordsMonth || !months.includes(recordsMonth)) recordsMonth = months[0] || '';
+  const dates = recordAvailableDates().filter((date) => date.startsWith(recordsMonth));
+  if (!recordsMonth) {
+    panel.innerHTML = '<div class="record-filter-empty">当前公司还没有可筛选的发货日期</div>';
+    return;
+  }
+  const [year, month] = recordsMonth.split('-').map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const dayButtons = Array.from({ length: daysInMonth }, (_, index) => {
+    const day = index + 1;
+    const date = `${recordsMonth}-${String(day).padStart(2, '0')}`;
+    const available = dates.includes(date);
+    return `<button type="button" class="record-date-option ${available ? '' : 'blocked'} ${recordsDate === date ? 'active' : ''}" ${available ? `data-record-date="${date}"` : 'disabled'}>${day}</button>`;
+  }).join('');
+  panel.innerHTML = `
+    <div class="record-month-row">
+      <select id="recordsMonthSelect" class="record-month-select">
+        ${months.map((monthValue) => `<option value="${monthValue}" ${monthValue === recordsMonth ? 'selected' : ''}>${monthValue.slice(0, 4)}年${monthValue.slice(5, 7)}月</option>`).join('')}
+      </select>
+      <button type="button" class="record-filter-option ${recordsDate ? '' : 'active'}" data-record-date="">全部发货日期</button>
+    </div>
+    <div class="record-date-grid">${dayButtons}</div>`;
+}
+
+function renderMobileRecordFilters() {
+  const companyButton = document.getElementById('recordsCompanyFilter');
+  const batchButton = document.getElementById('recordsBatchFilter');
+  const dateButton = document.getElementById('recordsDateFilter');
+  if (companyButton) companyButton.textContent = recordsCompany || '全部公司';
+  if (batchButton) batchButton.textContent = recordsBatch ? `发货编号 ${recordsBatch}` : '全部发货编号';
+  if (dateButton) dateButton.textContent = recordsDate ? `发货日期 ${recordsDate}` : '全部发货日期';
+  document.querySelectorAll('[data-record-filter]').forEach((button) => {
+    button.classList.toggle('active', button.dataset.recordFilter === recordsFilterPanel);
+  });
+  renderMobileRecordFilterPanel();
+}
+
+function handleMobileRecordFilterClick(event) {
+  const filterButton = event.target.closest('[data-record-filter]');
+  if (filterButton) {
+    recordsFilterPanel = recordsFilterPanel === filterButton.dataset.recordFilter ? '' : filterButton.dataset.recordFilter;
+    renderMobileRecordFilters();
+    return true;
+  }
+  const companyButton = event.target.closest('[data-record-company]');
+  if (companyButton) {
+    recordsCompany = companyButton.dataset.recordCompany || '艾沃意特';
+    recordsBatch = '';
+    recordsDate = '';
+    recordsMonth = '';
+    recordsFilterPanel = '';
+    renderMobileRecords();
+    return true;
+  }
+  const batchButton = event.target.closest('[data-record-batch]');
+  if (batchButton) {
+    recordsBatch = batchButton.dataset.recordBatch || '';
+    recordsDate = '';
+    recordsFilterPanel = '';
+    renderMobileRecords();
+    return true;
+  }
+  const dateButton = event.target.closest('[data-record-date]');
+  if (dateButton) {
+    recordsDate = dateButton.dataset.recordDate || '';
+    recordsFilterPanel = '';
+    renderMobileRecords();
+    return true;
+  }
+  return false;
+}
+
 function shipmentMatches(shipment, query, lookup = null) {
   if (!query) return true;
   const map = lookup || orderLookupMap();
   const text = [
-    shipment.deliveryBatch, shipment.billedAt, shipment.vehicle, shipment.operator, shipment.note,
+    shipment.deliveryBatch, shipmentDisplayBatch(shipment), shipment.billedAt, shipment.vehicle, shipment.operator, shipment.note,
     ...shipment.items.flatMap((line) => [line.material, line.name, line.spec, orderMetaSearchText(line.orderId, line, map)]),
   ].join('|');
   return matchesSearchQuery(text, query);
@@ -2974,10 +3142,10 @@ function buildDeliveryGroups(shipments, queryText = '') {
   const query = String(queryText || '').trim();
   const batchQuery = /^\d+$/.test(query) ? query : '';
   const orderLookup = orderLookupMap();
-  const selectedBatch = new Set((shipments || []).map((shipment) => deliveryBatchText(shipment.deliveryBatch)).filter(Boolean));
+  const selectedBatch = new Set((shipments || []).map((shipment) => shipmentDisplayBatch(shipment)).filter(Boolean));
   const selectedShipmentIds = new Set((shipments || []).map((shipment) => String(shipment.id)));
   const allShipments = (snapshot?.shipments || []).filter((shipment) => {
-    const batch = deliveryBatchText(shipment.deliveryBatch);
+    const batch = shipmentDisplayBatch(shipment);
     return selectedShipmentIds.has(String(shipment.id)) || (batch && selectedBatch.has(batch));
   });
 
@@ -3009,10 +3177,11 @@ function buildDeliveryGroups(shipments, queryText = '') {
         });
       }
       if (!items.length) continue;
+      const displayBatch = shipmentDisplayBatch(shipment);
       searchGroups.push({
         key: `search:${shipment.id}`,
-        batch: deliveryBatchText(shipment.deliveryBatch),
-        title: `发货记录 · ${deliveryStamp(shipment.createdAt)}`,
+        batch: displayBatch,
+        title: displayBatch ? `送货单 ${displayBatch} · ${deliveryStamp(shipment.createdAt)}` : `发货记录 · ${deliveryStamp(shipment.createdAt)}`,
         billed: Boolean(shipment.deliveryBatch),
         createdAt: shipment.createdAt,
         shipmentIds: [String(shipment.id)],
@@ -3052,7 +3221,7 @@ function buildDeliveryGroups(shipments, queryText = '') {
     return map.get(key);
   };
   for (const shipment of allShipments) {
-    const batch = deliveryBatchText(shipment.deliveryBatch);
+    const batch = shipmentDisplayBatch(shipment);
     const key = batch ? `batch:${batch}` : `shipment:${shipment.id}`;
     const group = ensureGroup(key, { batch, createdAt: shipment.billedAt || shipment.createdAt });
     group.billed = group.billed || Boolean(batch);
@@ -3566,7 +3735,15 @@ function refreshRemainingViews() {
 
 function renderMobileRecords() {
   if (!els.recordsList || !snapshot) return;
-  const rows = filterShipments(recordsDate, recordsSearch);
+  renderMobileRecordFilters();
+  const query = String(recordsSearch || '').trim();
+  const lookup = orderLookupMap();
+  const rows = (snapshot.shipments || []).filter((shipment) => {
+    if (recordsCompany && String(shipment.customer || '').trim() !== recordsCompany) return false;
+    if (recordsBatch && shipmentDisplayBatch(shipment) !== recordsBatch) return false;
+    if (recordsDate && shipShanghaiDate(shipment.createdAt) !== recordsDate) return false;
+    return shipmentMatches(shipment, query, lookup);
+  });
   renderQueryPanes(els.recordsList, els.recordsOffsetList, els.recordsOverList, renderShipmentSection(rows, recordsSearch), els.recordsReplacementList);
   void renderCloudFiles();
   els.recordsList.querySelectorAll('[data-expand]').forEach((button) => button.addEventListener('click', () => {

@@ -21,7 +21,7 @@
     <aside class="sidebar desktop-only">
       <div class="brand">
         <div class="module-fab-slot">
-        <div id="moduleSwitchButton" class="brand-mark module-fab" role="button" tabindex="0" aria-expanded="false" aria-label="切换模块" title="切换模块">
+        <div id="moduleSwitchButton" class="brand-mark module-fab" role="button" tabindex="0" aria-expanded="false" aria-label="切换模块" title="切换模块" hidden>
           <span class="module-fab-mark">帆</span>
           <div id="moduleSwitchSheet" class="module-fab-sheet">
             <p class="module-fab-title">切换模块</p>
@@ -543,12 +543,15 @@
             <button class="chip" data-query-tab="overs" type="button">无订单发货</button>
             <button class="chip" data-query-tab="replacements" type="button">补发记录</button>
           </div>
-          <div class="remaining-tools" data-query-pane="shipments">
+          <div class="remaining-tools records-tools" data-query-pane="shipments">
             <input id="recordsSearch" type="search" placeholder="搜索采购单号 / 物料编号 / 名称" autocomplete="off">
-            <div class="remaining-due-row">
-              <input id="recordsDate" type="date" lang="zh-CN" title="按发货日期查看">
-              <button id="recordsClear" class="button ghost" type="button">全部日期</button>
+            <div class="record-filter-row">
+              <button id="recordsCompanyFilter" class="record-filter-button active" type="button" data-record-filter="company">艾沃意特</button>
+              <button id="recordsBatchFilter" class="record-filter-button" type="button" data-record-filter="batch">全部发货编号</button>
+              <button id="recordsDateFilter" class="record-filter-button" type="button" data-record-filter="date">全部发货日期</button>
             </div>
+            <input id="recordsDate" type="date" hidden>
+            <div id="recordsFilterPanel" class="record-filter-panel" hidden></div>
           </div>
           <div id="recordsList" data-query-pane="shipments"></div>
           <div class="remaining-tools" data-query-pane="offsets" hidden>
