@@ -2669,3 +2669,9 @@ html { scrollbar-width: auto; }
   font-weight: 800;
   letter-spacing: .01em;
 }
+
+/* ===== 手机端功能页签：整体上移，下方留出空间 ===== */
+.mobile-tabs {
+  margin-top: -50px;
+  margin-bottom: 60px;
+}

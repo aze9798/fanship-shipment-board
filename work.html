@@ -78,7 +78,7 @@
   </style>
 </head><body>
 <div class="page">
-  <div class="brand"><div class="logo">帆</div><div><strong>帆顺科技</strong><small>工时 · 计件</small></div></div>
+  <div class="brand"><div class="logo">帆</div><div><strong>帆顺科技</strong></div></div>
   <section id="loginView" class="card">
     <h1 class="login-title">员工登录</h1>
     <p class="login-sub">输入个人访问码，登录一次后本机会自动记住。</p>
@@ -87,7 +87,7 @@
     <div id="loginError" class="error hidden"></div>
   </section>
   <section id="mainView" class="hidden">
-    <div class="top"><div><h1 id="employeeName">员工</h1><p id="employeeMeta"></p></div><button id="logoutButton" class="logout">退出登录</button></div>
+    <div class="top"><div><h1 id="employeeName">员工</h1><p id="employeeMeta"></p></div></div>
     <div class="tabs"><button class="active" data-tab="time">计时</button><button data-tab="piece">计件</button><button data-tab="salary">工资</button></div>
     <section id="timePanel">
       <div id="sessionBetaCard" class="card session-beta hidden">
@@ -100,7 +100,7 @@
       <div id="normalClockCard" class="card clock-card">
         <div class="clock-label" id="clockLabel">当前状态</div>
         <div class="clock-time" id="clockTime">00:00</div>
-        <div class="clock-note" id="clockNote">上班时间 7:30–17:00，加班最晚 20:30</div>
+        <div class="clock-note" id="clockNote" hidden></div>
         <div class="clock-actions"><button id="clockAction" class="primary">开始计时</button></div>
       </div>
       <div class="stats"><div class="stat"><span>今日有效工时</span><strong id="todayMinutes">0.0h</strong></div><div class="stat"><span>本月累计</span><strong id="monthMinutes">0.0h</strong></div></div>
@@ -306,7 +306,9 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
     const active = Boolean(state?.activeEntry);
     $('clockLabel').textContent = active ? '正在计时' : '当前未计时';
     $('clockTime').textContent = currentElapsedText();
-    $('clockNote').textContent = active ? `开始于 ${fmtClock(state.activeEntry.startedAt)}` : '上班时间 7:30–17:00，加班最晚 20:30';
+    const note = $('clockNote');
+    note.textContent = active ? `开始于 ${fmtClock(state.activeEntry.startedAt)}` : '';
+    note.hidden = !active;
     const btn = $('clockAction'); btn.textContent = active ? '结束本次计时' : '开始计时'; btn.classList.toggle('clock-stop', active);
     $('todayMinutes').textContent = fmtMinutes(state?.todayMinutes);
     $('monthMinutes').textContent = fmtMinutes(state?.monthMinutes);
@@ -589,10 +591,20 @@ function renderPiece() {
     const entries = data.entries || [];
     $('salaryEntriesCount').textContent = `${entries.length} 笔`;
     $('salaryEntries').innerHTML = entries.length ? entries.map(salaryEntryCard).join('') : '<div class="card empty">当天没有计件记录</div>';
-  }  function render() {
+  }
+  function tradeLabel(employee) {
+    if (!employee) return '';
+    const names = (state?.processes || []).map((p) => String(p.name || ''));
+    const has = (kw) => names.some((n) => n.includes(kw));
+    if (has('折弯') || has('弯管')) return '折弯';
+    if (has('焊') || has('烧') || has('点圈') || has('拼头') || has('烧头')) return '焊接';
+    if (employee.track === 'welding') return '焊接';
+    return '后道';
+  }
+  function render() {
     show($('loginView'), !state); show($('mainView'), Boolean(state)); if (!state) return;
     $('employeeName').textContent = state.employee.name;
-    $('employeeMeta').textContent = `${state.employee.employeeNo} · ${state.employee.track === 'welding' ? '焊接' : '后道'}`;
+    $('employeeMeta').textContent = tradeLabel(state.employee);
     renderTime(); renderBetaSession(); renderPiece(); if (salaryData) renderSalary();
   }
   async function loadState() {
@@ -1024,7 +1036,8 @@ function variantDisplay(processName, value) {
   }
   $('loginButton').addEventListener('click', () => login($('codeInput').value));
   $('codeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') login($('codeInput').value); });
-  $('logoutButton').addEventListener('click', () => { state = null; salaryData = null; editEntry = null; code = ''; clearStoredCode(); render(); });
+  const logoutButton = $('logoutButton');
+  if (logoutButton) logoutButton.addEventListener('click', () => { state = null; salaryData = null; editEntry = null; code = ''; clearStoredCode(); render(); });
   $('clockAction').addEventListener('click', clockAction);
   document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
     document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x === b));
