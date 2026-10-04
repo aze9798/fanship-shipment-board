@@ -364,8 +364,8 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
   height: 38px; padding: 0 10px; border: 1px solid #d7e1e3; border-radius: 10px; font: inherit; font-size: 13px; background: #fbfcfc; color: #17333b;
 }
 .remaining-due-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
-.desktop-remaining-tools { display: grid; grid-template-columns: minmax(260px, 1fr) 708px; gap: 12px; align-items: center; padding: 0 18px 14px; }
-.desktop-remaining-tools .search-box { height: 42px; align-self: center; }
+.desktop-remaining-tools { display: grid; grid-template-columns: minmax(260px, 1fr) 700px; gap: 12px; align-items: center; padding: 0 18px 14px; }
+.desktop-remaining-tools .search-box { height: 60px; align-self: center; }
 .desktop-remaining-panel .table-wrap { max-height: none; }
 .grouped-remaining-table { width: 1300px; min-width: 1300px; max-width: none; }
 .grouped-remaining-table td { vertical-align: middle; }
@@ -374,7 +374,7 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 @media (max-width: 900px) {
   .desktop-remaining-tools { grid-template-columns: 1fr; }
 }
-.remaining-date-box { display: grid; gap: 7px; padding: 9px 10px; border: 1px solid #dce5e7; border-radius: 12px; background: #fbfcfc; } .remaining-date-box.desktop { width: 708px; min-height: 96px; margin: 15px 0 0 5px; align-content: start; }
+.remaining-date-box { display: grid; gap: 7px; padding: 9px 10px; border: 1px solid #dce5e7; border-radius: 12px; background: #fbfcfc; } .remaining-date-box.desktop { width: 700px; min-height: 96px; margin: 15px 0 0 5px; align-content: start; }
 .remaining-date-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #35565e; font-size: 11px; }
 .remaining-date-head strong { font-size: 12px; }
 .remaining-date-clear { padding: 2px 4px; border: 0; background: transparent; color: var(--primary); font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
@@ -1510,7 +1510,8 @@ body[data-view="mobile"] { background: #dfe7e9; }
   color: #17333b !important;
   font-size: 13px !important;
 }
-.drawing-search input::placeholder { color: #97a9ad; }
+.drawing-search input::placeholder { color: #97a9ad; text-align: center; }
+.drawing-search input::-webkit-input-placeholder { text-align: center; }
 .drawing-toolbar-right {
   display: flex;
   flex: 1 1 auto;
@@ -1521,11 +1522,11 @@ body[data-view="mobile"] { background: #dfe7e9; }
 }
 .drawing-count {
   flex: 0 0 auto;
-  padding: 6px 10px;
+  padding: 8px 14px;
   border-radius: 999px;
   background: #eaf6f3;
   color: #0f766e;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   white-space: nowrap;
 }
@@ -1536,13 +1537,13 @@ body[data-view="mobile"] { background: #dfe7e9; }
   margin: 0;
 }
 .drawing-tabs .chip {
-  min-height: 32px;
-  padding: 0 11px;
+  min-height: 38px;
+  padding: 0 16px;
   border: 1px solid #dce6e7;
-  border-radius: 9px;
+  border-radius: 11px;
   background: #fff;
   color: #536970;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
 }
 .drawing-tabs .chip.active {
@@ -1567,12 +1568,12 @@ body[data-view="mobile"] { background: #dfe7e9; }
   gap: 16px;
 }
 .drawing-list-head {
-  padding: 11px 15px;
+  padding: 13px 15px;
   background: #f4f9f8;
-  color: #7b8e93;
-  font-size: 10px;
+  color: #5f757b;
+  font-size: 12px;
   font-weight: 800;
-  letter-spacing: .08em;
+  letter-spacing: .05em;
 }
 .drawing-list-head span:last-child { text-align: right; }
 .drawing-row {
@@ -1587,9 +1588,9 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .drawing-material {
   min-width: 0;
   overflow: hidden;
-  color: #60777e;
-  font-size: 11px;
-  font-weight: 700;
+  color: #35525a;
+  font-size: 13px;
+  font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2193,3 +2194,30 @@ body[data-view="mobile"] { background: #e6edeb; }
 }
 .sidebar-foot { align-items: stretch; }
 .mode-badge { padding-left: 10px; }
+/* 电脑端装车登记：筛选框统一质感，确认按钮留出右侧呼吸空间 */
+#desktopLoadingView .desktop-loading-tools { grid-template-columns: minmax(260px, 1fr) 180px 200px; align-items: center; }
+#desktopLoadingView .loading-control { display: block; height: 42px; }
+#desktopLoadingView .loading-control input,
+#desktopLoadingView .loading-control select {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid #d6e2e0;
+  border-radius: 11px;
+  outline: none;
+  background: #fbfdfd;
+  color: var(--ink);
+}
+#desktopLoadingView .loading-control input:focus,
+#desktopLoadingView .loading-control select:focus {
+  border-color: #75bdb3;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(13, 113, 104, .09);
+}
+#desktopLoadingOpenSubmit { width: calc(100% - 20px); margin: 0 0 15px 20px; }
+.dashboard-grid { width: min(1500px, 100%); }
+/* 未交清单：搜索框高度与交期筛选框对齐 */
+#desktopRemainingView #desktopRemainingSearch {
+  height: 60px;
+  margin-top: -5px;
+}

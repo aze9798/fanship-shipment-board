@@ -786,11 +786,14 @@ function mobileRows() {
 
 function setLiveStatus(status) {
   const text = status === 'online' ? '实时同步中' : status === 'offline' ? '连接中断' : '正在连接';
-  els.liveText.textContent = text;
-  els.desktopLiveText.textContent = status === 'online' ? '实时同步' : text;
-  els.mobileLiveLabel.textContent = status === 'online' ? '数据实时同步' : text;
-  for (const dot of [els.liveDot, els.desktopLiveDot]) dot.classList.toggle('online', status === 'online');
-  for (const dot of [els.liveDot, els.desktopLiveDot]) dot.classList.toggle('offline', status === 'offline');
+  if (els.liveText) els.liveText.textContent = text;
+  if (els.desktopLiveText) els.desktopLiveText.textContent = status === 'online' ? '实时同步' : text;
+  if (els.mobileLiveLabel) els.mobileLiveLabel.textContent = status === 'online' ? '数据实时同步' : text;
+  for (const dot of [els.liveDot, els.desktopLiveDot]) {
+    if (!dot) continue;
+    dot.classList.toggle('online', status === 'online');
+    dot.classList.toggle('offline', status === 'offline');
+  }
 }
 
 async function loadState({ quiet = false } = {}) {
@@ -1586,10 +1589,7 @@ function renderDesktopDrawings() {
 function renderCloudFiles() {
   const desktopHtml = renderDeliveryFiles(filesDate, filesQuery);
   if (els.cloudFileList) els.cloudFileList.innerHTML = desktopHtml || '<div class="empty-state"><strong>还没有上传过送货单</strong><span>在打印助手预览页点“确认上传到云端”就会出现在这里。</span></div>';
-  if (els.filesSummary) {
-    const rows = filterDeliveryFiles(filesDate, filesQuery);
-    els.filesSummary.textContent = rows.length ? `共 ${rows.length} 个文件 · 最新上传排在最上面` : '还没有上传过送货单';
-  }
+
   const mobileHtml = renderDeliveryFiles(mobileFilesDate, mobileFilesQuery);
   if (els.mobileCloudFileList) els.mobileCloudFileList.innerHTML = mobileHtml || '<div class="empty-state"><strong>还没有上传过送货单</strong><span>在打印助手预览页点“确认上传到云端”就会出现在这里。</span></div>';
 }
@@ -1935,10 +1935,15 @@ function desktopLoadingOrders() {
 function renderDesktopLoadingRecords() {
   if (!els.desktopLoadingRecords) return;
   const rows = (snapshot?.shipments || []).slice(0, 8);
-  els.desktopLoadingRecords.innerHTML = rows.length ? rows.map((shipment) => `
-    <div class="loading-record"><strong>${escapeHtml(String(shipment.createdAt || '').slice(0, 16).replace('T', ' '))}</strong>
-    <span>${escapeHtml(shipment.vehicle || shipment.operator || '装车记录')} · ${fmt((shipment.items || []).length)} 项</span>
-    <b>${fmt(shipment.totalQuantity || 0)} 件</b></div>`).join('') : '<div class="empty-state"><strong>今天还没有装车记录</strong><span>提交后会显示在这里。</span></div>';
+  els.desktopLoadingRecords.innerHTML = rows.length ? rows.map((shipment) => {
+    const rawLabel = String(shipment.vehicle || shipment.operator || '').trim();
+    const label = (!rawLabel || rawLabel === '未填写' || rawLabel === '-') ? '' : rawLabel;
+    const meta = label ? `${label} · ${fmt((shipment.items || []).length)} 项` : `${fmt((shipment.items || []).length)} 项`;
+    return `
+      <div class="loading-record"><strong>${escapeHtml(String(shipment.createdAt || '').slice(0, 16).replace('T', ' '))}</strong>
+      <span>${escapeHtml(meta)}</span>
+      <b>${fmt(shipment.totalQuantity || 0)} 件</b></div>`;
+  }).join('') : '<div class="empty-state"><strong>今天还没有装车记录</strong><span>提交后会显示在这里。</span></div>';
 }
 function renderDesktopLoadingCart() {
   if (!els.desktopLoadingCart) return;
@@ -3188,6 +3193,42 @@ function remainingRows(queryText = remainingSearch) {
   return rows;
 }
 
+function uniqueRemainingNames(values) {
+  const fullwidth = /[\uFF08\uFF09\uFF3B\uFF3D\uFF5B\uFF5D\uFF0C\uFF1A\uFF1B]/g;
+  const toHalfwidth = (ch) => ({
+    '\uFF08': '(', '\uFF09': ')', '\uFF3B': '[', '\uFF3D': ']', '\uFF5B': '{', '\uFF5D': '}',
+    '\uFF0C': ',', '\uFF1A': ':', '\uFF1B': ';',
+  }[ch] || ch);
+  const normalize = (value) => String(value || '')
+    .replace(fullwidth, toHalfwidth)
+    .replace(/[\u2010-\u2015\u2212\u2500\u2501\uFE58\uFE63\uFF0D]/g, '-')
+    .replace(/\s+/g, '')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+  const penalty = (value) => {
+    const text = String(value || '');
+    return (text.match(fullwidth) || []).length * 2
+      + (text.match(/[\u2010-\u2015\u2212\u2500\u2501]/g) || []).length
+      + (text.match(/-{2,}/g) || []).length
+      + (text.match(/\s{2,}/g) || []).length;
+  };
+  const raw = [...new Set((values || []).map((value) => String(value || '').trim()).filter(Boolean))];
+  raw.sort((a, b) => penalty(a) - penalty(b)
+    || normalize(b).length - normalize(a).length
+    || a.length - b.length
+    || a.localeCompare(b, 'zh-CN'));
+  const result = [];
+  const keys = [];
+  for (const name of raw) {
+    const key = normalize(name);
+    if (!key) continue;
+    if (keys.some((existing) => existing === key || existing.includes(key) || key.includes(existing))) continue;
+    keys.push(key);
+    result.push(name);
+  }
+  return result;
+}
 function groupRemainingRows(rows) {
   const groups = new Map();
   for (const order of rows) {
@@ -3221,14 +3262,17 @@ function groupRemainingRows(rows) {
     group.detailCount += 1;
   }
   return [...groups.values()]
-    .map((group) => ({
+    .map((group) => {
+      const names = uniqueRemainingNames([...group.names]);
+      return {
       ...group,
-      name: [...group.names].sort().join('、'),
-      names: [...group.names].sort(),
+      name: names.join('、'),
+      names,
       specs: [...group.specs].sort(),
       dates: [...group.dates].sort(),
       companies: [...group.companies].sort(),
-    }))
+      };
+    })
     .sort((left, right) => {
       const leftDate = left.dates[0] || '9999-12-31';
       const rightDate = right.dates[0] || '9999-12-31';
