@@ -2670,8 +2670,12 @@ html { scrollbar-width: auto; }
   letter-spacing: .01em;
 }
 
-/* ===== 手机端功能页签：整体上移，下方留出空间 ===== */
+/* ===== 手机端功能页签：上移贴住头部下沿，下方留出空间 =====
+   （-50px 会让整条页签藏到头部后面、胶囊被裁掉，这里改成 0 让其紧贴头部下沿） */
 .mobile-tabs {
-  margin-top: -50px;
+  margin-top: 0;
   margin-bottom: 60px;
 }
+
+/* 弹性指示器给容器加的 position: relative 会破坏页签的吸顶，这里恢复 */
+.mobile-tabs.elastic-tabs { position: sticky; }
