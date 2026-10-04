@@ -2264,3 +2264,69 @@ body[data-view="mobile"] { background: #e6edeb; }
 #desktopLoadingView #desktopLoadingSearch { margin: 6px 0 0 6px; }
 #desktopLoadingView #desktopLoadingDue { margin: 6px 0 0 6px; }
 #desktopLoadingView #desktopLoadingCompany { margin: 6px 0 0 -3px; }
+
+/* ===== 本次装车：每行可直接改数量 / 取消 ===== */
+.loading-cart-line { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.loading-cart-actions { display: flex; align-items: center; gap: 6px; }
+.loading-cart-actions b { color: #0f766e; font-size: 13px; white-space: nowrap; }
+.loading-cart-qty {
+  width: 62px;
+  height: 32px;
+  padding: 0 6px;
+  border: 1px solid #cfdcdd;
+  border-radius: 8px;
+  background: #fff;
+  color: #17333b;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+.loading-cart-qty:focus { outline: none; border-color: #75bdb3; box-shadow: 0 0 0 3px rgba(13,113,104,.09); }
+.loading-cart-line .cart-remove { align-self: center; white-space: nowrap; }
+
+/* ===== 全站滚动条：加粗一点，鼠标移上去更粗更好抓 ===== */
+* { scrollbar-width: thin; scrollbar-color: #b3c4c8 #eef3f4; }
+html { scrollbar-width: auto; }
+::-webkit-scrollbar { width: 14px; height: 14px; }
+::-webkit-scrollbar-track { background: #eef3f4; border-radius: 999px; }
+::-webkit-scrollbar-thumb { background: #c2d2d5; border: 4px solid #eef3f4; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #7f9aa0; border-width: 2px; }
+::-webkit-scrollbar-thumb:active { background: #5f7c83; border-width: 2px; }
+
+/* ===== 查询页（送货单明细）：字号加大加粗，表头与数字列右对齐 ===== */
+.delivery-batch-card .history-head strong { font-size: 15px; font-weight: 800; color: #17333b; }
+.delivery-lines-head {
+  color: #465f68;
+  font-size: 13px;
+  font-weight: 800;
+}
+.delivery-lines-head .number { text-align: right; }
+.delivery-line {
+  color: #24383f;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.delivery-line strong { color: #0f5f59; font-size: 13px; font-weight: 800; }
+.delivery-line small { font-size: 11px; color: #6f848a; }
+.delivery-batch-card .history-total { color: #465f68; font-size: 13px; font-weight: 800; }
+.delivery-batch-card .history-expand { font-size: 13px; font-weight: 700; }
+
+/* ===== 查询页搜索结果：合并成一张表，增加“发货日期”列 ===== */
+@media (min-width: 901px) {
+  .delivery-lines.merged .delivery-lines-head,
+  .delivery-lines.merged .delivery-line {
+    grid-template-columns: minmax(140px, 1.05fr) minmax(120px, 0.95fr) minmax(200px, 1.5fr) 78px 54px 74px 132px;
+  }
+}
+.delivery-lines.merged .ship-date,
+.delivery-lines.merged .ship-date-head { color: #465f68; white-space: nowrap; }
+.delivery-lines.merged .delivery-lines-head .ship-date-head { text-align: left; }
+.merged-card { padding: 14px 16px; }
+/* 手机端沿用纵向堆叠布局，标签由 data-label 提供 */
+
+/* ===== 实时总览：减少左右留白，让主内容尽量铺开 ===== */
+@media (min-width: 1200px) {
+  #desktopView.desktop-view { padding-left: 16px; padding-right: 16px; }
+}

@@ -262,6 +262,8 @@ let offsetQuery = '';
 let offsetDate = '';
 let overQuery = '';
 let overDate = '';
+let replacementQuery = '';
+let replacementDate = '';
 let cloudFileFormat = 'excel';
 let cloudFileCompany = '艾沃意特';   // 云端送货单：再按公司分开   // 云端送货单：pdf / excel 分开看
 let filesQuery = '';
@@ -456,6 +458,10 @@ const els = {
   offsetClear: $('#offsetClear'),
   overSearch: $('#overSearch'),
   overDate: $('#overDate'),
+  replacementHistorySearch: $('#replacementHistorySearch'),
+  replacementHistoryDate: $('#replacementHistoryDate'),
+  recordsReplacementSearch: $('#recordsReplacementSearch'),
+  recordsReplacementDate: $('#recordsReplacementDate'),
   overClear: $('#overClear'),
   recordsOffsetSearch: $('#recordsOffsetSearch'),
   recordsOffsetDate: $('#recordsOffsetDate'),
@@ -1498,8 +1504,17 @@ function replacements() {
   return (snapshot && Array.isArray(snapshot.replacements)) ? snapshot.replacements : [];
 }
 
+function replacementHistoryRows() {
+  const query = replacementQuery.trim().toLowerCase();
+  return replacements().filter((row) => {
+    if (replacementDate && String(row.deliveryDate || '') !== replacementDate) return false;
+    if (!query) return true;
+    return [row.material, row.name, row.spec, row.remark, row.deliveryDate]
+      .some((value) => String(value ?? '').toLowerCase().includes(query));
+  });
+}
 function renderReplacementList() {
-  const rows = replacements();
+  const rows = replacementHistoryRows();
   if (!rows.length) return '';
   return `
     <section class="over-box">
@@ -1507,7 +1522,7 @@ function renderReplacementList() {
       ${rows.map((row) => `
         <div class="over-row">
           <span class="mono">${escapeHtml(row.material)}</span>
-          <span>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}${row.remark ? ' · 备注：' + escapeHtml(row.remark) : ''}<br><em>${escapeHtml(row.deliveryDate || '')}</em></span>
+          <span>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}${row.remark ? ' · 备注：' + escapeHtml(row.remark) : ''}<br><em>日期：${escapeHtml(row.deliveryDate || '')}</em></span>
           <strong>${fmt(row.quantity)} 件</strong>
           ${isLockedRecord(row.createdAt) || isBilledExtra(row.id)
             ? `<span class="row-locked" title="${isBilledExtra(row.id) ? '已开送货单并上传云端，不能撤回' : '登记满 7 天后不能再撤回'}">${isBilledExtra(row.id) ? '已开单' : '已归档'}</span>`
@@ -1771,18 +1786,47 @@ function offsetFilteredRows() {
 function renderOverDeliveryList() {
   const rows = overFilteredRows();
   if (!rows.length) return '';
-  const total = rows.reduce((sum, row) => sum + Number(row.remaining || 0), 0);
+  // 同一料件编号合并成一笔展示，数量相加
+  const groups = new Map();
+  for (const row of rows) {
+    const key = String(row.material || '').trim();
+    const billed = isBilledExtra(row.id);
+    const locked = billed || isLockedRecord(row.createdAt);
+    const current = groups.get(key);
+    if (current) {
+      current.quantity += Number(row.quantity || 0);
+      current.remaining += Number(row.remaining || 0);
+      current.ids.push(String(row.id));
+      current.billed = current.billed || billed;
+      current.locked = current.locked || locked;
+      if (!current.name && row.name) current.name = row.name;
+      if (!current.spec && row.spec) current.spec = row.spec;
+    } else {
+      groups.set(key, {
+        material: row.material,
+        name: row.name,
+        spec: row.spec,
+        quantity: Number(row.quantity || 0),
+        remaining: Number(row.remaining || 0),
+        ids: [String(row.id)],
+        billed,
+        locked,
+      });
+    }
+  }
+  const list = [...groups.values()];
+  const total = list.reduce((sum, row) => sum + Number(row.remaining || 0), 0);
   return `
     <section class="over-box">
-      <div class="over-head"><strong>无订单发货（待后续订单冲抵）</strong><span>${rows.length} 项 · ${fmt(total)} 件</span></div>
-      ${rows.map((row) => `
+      <div class="over-head"><strong>无订单发货（待后续订单冲抵）</strong><span>${list.length} 项 · ${fmt(total)} 件</span></div>
+      ${list.map((row) => `
         <div class="over-row">
           <span class="mono">${escapeHtml(row.material)}</span>
-          <span>${escapeHtml(row.name)}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}<br><em class="over-meta">采购单号：无 · 项次：无 · 订单量：无订单 · 已发：${fmt(row.quantity)} 件 · 剩余可冲抵：${fmt(row.remaining)} 件</em></span>
+          <span>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}${row.ids.length > 1 ? `<br><em class="over-meta">合并 ${row.ids.length} 笔登记</em>` : ''}</span>
           <strong>${fmt(row.remaining)} 件</strong>
-          ${isLockedRecord(row.createdAt) || isBilledExtra(row.id)
-            ? `<span class="row-locked" title="${isBilledExtra(row.id) ? '已开送货单并上传云端，不能撤回' : '登记满 7 天后不能再撤回'}">${isBilledExtra(row.id) ? '已开单' : '已归档'}</span>`
-            : `<button type="button" class="row-revoke" data-revoke-over="${escapeHtml(row.id)}">撤回</button>`}
+          ${row.locked
+            ? `<span class="row-locked" title="${row.billed ? '已开送货单并上传云端，不能撤回' : '登记满 7 天后不能再撤回'}">${row.billed ? '已开单' : '已归档'}</span>`
+            : `<button type="button" class="row-revoke" data-revoke-over="${escapeHtml(row.ids.join(','))}">撤回</button>`}
         </div>`).join('')}
       <p class="over-tip">这些货已经发出但没有对应采购单；点“撤回”可以撤销这笔登记，等出现同料号的新订单时导入新订单会提示你冲抵。</p>
     </section>`;
@@ -1886,7 +1930,7 @@ function renderOverOffsetList() {
         const seq = meta.seq || '无';
         return `<div class="over-row">
           <span class="mono">${escapeHtml(row.material)}</span>
-          <span>${escapeHtml(row.name || '')}<br><em class="over-meta">采购单号：${escapeHtml(po)} · 项次：${escapeHtml(seq)} · 订单量：${fmt(meta.orderQty)} · 已发：${fmt(meta.shipped)} · 未交：${fmt(meta.remaining)} · 冲抵：${fmt(row.quantity)} 件 · ${escapeHtml(stamp(row.appliedAt))}</em></span>
+          <span>${escapeHtml(row.name || '')}<br><em class="over-meta">采购单号：${escapeHtml(po)} · 项次：${escapeHtml(seq)} · 订单量：${fmt(meta.orderQty)} · 已发：${fmt(meta.shipped)} · 未交：${fmt(meta.remaining)} · 冲抵：${fmt(row.quantity)} 件 · 日期：${escapeHtml(stamp(row.appliedAt))}</em></span>
           <strong>${fmt(row.quantity)} 件</strong>
           ${isLockedRecord(row.appliedAt) || isBilledExtra(row.id)
             ? `<span class="row-locked" title="${isBilledExtra(row.id) ? '已开送货单并上传云端，不能撤回' : '冲抵满 7 天后不能再撤回'}">${isBilledExtra(row.id) ? '已开单' : '已归档'}</span>`
@@ -1954,10 +1998,12 @@ function renderDesktopLoadingCart() {
   const overRows = [...sessionOver.values()].filter((item) => Number(item.quantity) > 0);
   const total = rows.reduce((sum, row) => sum + row.quantity, 0) + overRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0) + replacementTotalQty();
   els.desktopLoadingCartHint.textContent = `${rows.length + overRows.length + sessionReplacements.length} 项 · ${fmt(total)} 件`;
+  const cartQtyInput = (kind, key, value, max) => `<input class="loading-cart-qty" type="number" inputmode="numeric" min="0" step="1"${max ? ` max="${Number(max) || ''}"` : ''} value="${Number(value) || 0}" data-cart-qty="${kind}" data-key="${escapeHtml(String(key))}" aria-label="本次数量">`;
+  const cartRemoveButton = (kind, key, label) => `<button type="button" class="cart-remove" data-cart-line-remove="${kind}" data-key="${escapeHtml(String(key))}">${label}</button>`;
   els.desktopLoadingCart.innerHTML = rows.length || overRows.length || sessionReplacements.length
-    ? rows.map(({ order, quantity }) => `<div class="loading-cart-line"><div><strong>${escapeHtml(order.material)} · ${escapeHtml(order.name || '')}</strong><span>${escapeHtml(order.po || '')} · 项次 ${escapeHtml(order.seq || '')} · 未交 ${fmt(order.remaining)}</span></div><b>${fmt(quantity)}</b></div>`).join('')
-      + overRows.map((item) => `<div class="loading-cart-line"><div><strong>${escapeHtml(item.name || item.material || '无订单发货')}</strong><span>无订单发货</span></div><b>${fmt(item.quantity)}</b></div>`).join('')
-      + sessionReplacements.map((item) => `<div class="loading-cart-line"><div><strong>${escapeHtml(item.material)} · ${escapeHtml(item.name || '')}</strong><span>补发</span></div><b>${fmt(item.quantity)}</b></div>`).join('')
+    ? rows.map(({ order, quantity }) => `<div class="loading-cart-line"><div><strong>${escapeHtml(order.material)} · ${escapeHtml(order.name || '')}</strong><span>${escapeHtml(order.po || '')} · 项次 ${escapeHtml(order.seq || '')} · 未交 ${fmt(order.remaining)}</span></div><div class="loading-cart-actions">${cartQtyInput('order', order.id, quantity, order.remaining)}${cartRemoveButton('order', order.id, '取消')}</div></div>`).join('')
+      + overRows.map((item) => `<div class="loading-cart-line"><div><strong>${escapeHtml(item.name || item.material || '无订单发货')}</strong><span>无订单发货${item.pending ? '' : '（已登记）'}</span></div><div class="loading-cart-actions">${item.pending ? cartQtyInput('over', item.material, item.quantity) : `<b>${fmt(item.quantity)} 件</b>`}${item.pending ? cartRemoveButton('over', item.material, '取消') : `<button type="button" class="cart-remove" data-cart-over="${escapeHtml(item.id)}">撤回</button>`}</div></div>`).join('')
+      + sessionReplacements.map((item, index) => `<div class="loading-cart-line"><div><strong>${escapeHtml(item.material)} · ${escapeHtml(item.name || '')}</strong><span>补发</span></div><div class="loading-cart-actions">${cartQtyInput('replacement', index, item.quantity)}${cartRemoveButton('replacement', index, '取消')}</div></div>`).join('')
     : '<div class="loading-cart-empty">还没有录入本次装车数量</div>';
   if (els.desktopLoadingOpenSubmit) els.desktopLoadingOpenSubmit.disabled = !(rows.length || overRows.length || sessionReplacements.length);
 }
@@ -2724,7 +2770,8 @@ function orderMetaFor(orderId, fallback = {}, lookup = null) {
 
 function orderMetaSearchText(orderId, fallback = {}, lookup = null) {
   const meta = orderMetaFor(orderId, fallback, lookup);
-  return [meta.po, meta.seq, meta.material, meta.name, meta.spec, meta.orderQty, meta.shipped, meta.remaining].join(' ').toLowerCase();
+  // 只匹配可见的编号/品名信息；字段用 | 分隔，避免跨字段拼出假匹配（如 0717+22 -> 1722）
+  return [meta.po, meta.seq, meta.material, meta.name, meta.spec].join('|').toLowerCase();
 }
 
 function normalizeSearchText(value) {
@@ -2749,9 +2796,9 @@ function shipmentMatches(shipment, query, lookup = null) {
   if (!query) return true;
   const map = lookup || orderLookupMap();
   const text = [
-    shipment.id, shipment.deliveryBatch, shipment.billedAt, shipment.vehicle, shipment.operator, shipment.note,
-    ...shipment.items.flatMap((line) => [line.material, line.name, line.spec, line.orderId, orderMetaSearchText(line.orderId, line, map)]),
-  ].join(' ');
+    shipment.deliveryBatch, shipment.billedAt, shipment.vehicle, shipment.operator, shipment.note,
+    ...shipment.items.flatMap((line) => [line.material, line.name, line.spec, orderMetaSearchText(line.orderId, line, map)]),
+  ].join('|');
   return matchesSearchQuery(text, query);
 }
 
@@ -2855,6 +2902,8 @@ function syncQueryInputs() {
   set(els.recordsOffsetSearch, offsetQuery); set(els.recordsOffsetDate, offsetDate);
   set(els.overSearch, overQuery); set(els.overDate, overDate);
   set(els.recordsOverSearch, overQuery); set(els.recordsOverDate, overDate);
+  set(els.replacementHistorySearch, replacementQuery); set(els.replacementHistoryDate, replacementDate);
+  set(els.recordsReplacementSearch, replacementQuery); set(els.recordsReplacementDate, replacementDate);
 }
 
 function renderQueryPanes(containerShipments, containerOffsets, containerOvers, shipmentsHtml, containerReplacements) {
@@ -2874,8 +2923,11 @@ function renderQueryPanes(containerShipments, containerOffsets, containerOvers, 
         : '<div class="empty-state"><strong>目前没有无订单发货</strong><span>装车时超出所有未交订单的部分，会自动记在这里。</span></div>');
   }
   if (containerReplacements) {
+    const replacementFiltering = Boolean(replacementDate) || Boolean(replacementQuery.trim());
     containerReplacements.innerHTML = renderReplacementList()
-      || '<div class="empty-state"><strong>还没有补发记录</strong><span>装车时用“补发（不良补货）”登记，就会出现在这里。</span></div>';
+      || (replacementFiltering
+        ? '<div class="empty-state"><strong>没有符合条件的补发记录</strong><span>换个搜索词或清空日期再试。</span></div>'
+        : '<div class="empty-state"><strong>还没有补发记录</strong><span>装车时用“补发（不良补货）”登记，就会出现在这里。</span></div>');
   }
   syncQueryInputs();
   applyQueryTab();
@@ -2895,14 +2947,15 @@ function deliveryStamp(value) {
   return date.toLocaleString('zh-CN', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit', timeZone:'Asia/Shanghai' });
 }
 function deliveryItemMatches(line, meta, query) {
+  // 只按用户能看到的字段匹配，避免内部 id 里的数字串造成误命中
   return matchesSearchQuery([
-    line.orderId, meta.po, meta.seq, line.material, line.name, line.spec,
-  ].join(' '), query);
+    meta.po, meta.seq, line.material, line.name, line.spec,
+  ].join('|'), query);
 }
 function deliveryRemainingText(value, hasOrder) {
-  if (!hasOrder) return '无未交';
+  if (!hasOrder) return '0';
   const number = Number(value || 0);
-  return number > 0 ? `${fmt(number)} 件` : '无未交';
+  return number > 0 ? `${fmt(number)} 件` : '0';
 }
 function buildDeliveryGroups(shipments, queryText = '') {
   const query = String(queryText || '').trim();
@@ -2916,7 +2969,11 @@ function buildDeliveryGroups(shipments, queryText = '') {
   });
 
   // 输入料件编号 / 品名时：只显示匹配的发货明细，按发货时间倒序，不合并整张送货单。
-  if (query && !(batchQuery && selectedBatch.has(batchQuery))) {
+  // 纯数字查询既可能是料件编号、也可能是送货单号：只要有一行明细命中，就按明细显示。
+  const hasItemMatch = query
+    ? allShipments.some((shipment) => (shipment.items || []).some((line) => deliveryItemMatches(line, orderMetaFor(line.orderId, line, orderLookup), query)))
+    : false;
+  if (query && (!(batchQuery && selectedBatch.has(batchQuery)) || hasItemMatch)) {
     const searchGroups = [];
     for (const shipment of allShipments) {
       const items = [];
@@ -3054,7 +3111,6 @@ function buildDeliveryGroups(shipments, queryText = '') {
     return `<article class="history-card delivery-batch-card ${group.billed ? 'billed-card' : ''}">
       <div class="history-head">
         <strong>${escapeHtml(group.title)}</strong>
-        <span>${group.billed ? (/^\d+$/.test(group.batch) ? `已开送货单 ${escapeHtml(group.batch)}` : (group.batch ? escapeHtml(group.batch) : '已开单')) : '未开单'} · ${group.items.length} 项 · ${fmt(group.total)} 件</span>
       </div>
       <div class="delivery-lines">
         <div class="delivery-lines-head"><span>采购单号</span><span>料件编号</span><span>品名</span><span class="number">发货数量</span><span class="number">项次</span><span class="number">未交</span></div>
@@ -3077,8 +3133,41 @@ function buildDeliveryGroups(shipments, queryText = '') {
     </article>`;
   }).join('');
 }
+function deliveryStampText(value) {
+  const text = String(value || '').trim();
+  if (!text) return '—';
+  return text.replace('T', ' ').slice(0, 16);
+}
+function renderMergedDeliveryRows(groups) {
+  const rows = [];
+  for (const group of groups) {
+    for (const item of group.items) rows.push({ ...item, shippedAt: group.createdAt || '' });
+  }
+  if (!rows.length) return '<div class="empty-state"><strong>没有符合条件的发货记录</strong><span>可以搜索送货单号、采购单号、料件编号或品名。</span></div>';
+  rows.sort((a, b) => String(b.shippedAt || '').localeCompare(String(a.shippedAt || '')));
+  return `<article class="history-card delivery-batch-card merged-card">
+      <div class="delivery-lines merged">
+        <div class="delivery-lines-head"><span>采购单号</span><span>料件编号</span><span>品名</span><span class="number">发货数量</span><span class="number">项次</span><span class="number">未交</span><span class="ship-date-head">发货日期</span></div>
+        ${rows.map((item) => `<div class="delivery-line">
+          <span data-label="采购单号">${escapeHtml(item.po)}${item.typeLabel ? ` <em>${escapeHtml(item.typeLabel)}</em>` : ''}</span>
+          <span data-label="料件编号" class="mono">${escapeHtml(item.material)}</span>
+          <span data-label="品名">${escapeHtml(item.name)}${item.spec ? ` · ${escapeHtml(item.spec)}` : ''}${item.remark ? `<small>备注：${escapeHtml(item.remark)}</small>` : ''}</span>
+          <strong data-label="发货数量" class="number">${fmt(item.quantity)} 件</strong>
+          <span data-label="项次" class="number">${escapeHtml(item.seq)}</span>
+          <span data-label="未交" class="number">${escapeHtml(deliveryRemainingText(item.remaining, item.hasOrder))}</span>
+          <span data-label="发货日期" class="ship-date">${escapeHtml(deliveryStampText(item.shippedAt))}</span>
+        </div>`).join('')}
+      </div>
+    </article>`;
+}
 function renderShipmentSection(shipments, queryText = '') {
-  return renderDeliveryGroups(buildDeliveryGroups(shipments, queryText));
+  const groups = buildDeliveryGroups(shipments, queryText);
+  // 按料件编号/品名搜索时合并成一张连续的表，方便纵向核对；
+  // 按送货单号搜索时仍按送货单分卡展示，保留送货单标题和撤回入口。
+  if (String(queryText || '').trim() && groups.length && groups.every((group) => group.searchMode)) {
+    return renderMergedDeliveryRows(groups);
+  }
+  return renderDeliveryGroups(groups);
 }function renderDesktopHistory() {
   if (!snapshot) return;
   const rows = filteredShipments();
@@ -3484,19 +3573,27 @@ async function revokeOffset(offsetId) {
 }
 
 async function revokeOverDelivery(overId) {
-  const overRow = overDeliveries().find((row) => String(row.id) === String(overId));
-  if (overRow && isBilledExtra(overId)) { showToast('这笔无订单发货已经开送货单并上传云端，不能撤回'); return; }
-  if (overRow && isLockedRecord(overRow.createdAt)) {
+  const ids = String(overId || '').split(',').map((value) => value.trim()).filter(Boolean);
+  if (!ids.length) return;
+  const all = overDeliveries();
+  const targets = ids.map((id) => all.find((row) => String(row.id) === String(id))).filter(Boolean);
+  if (targets.some((row) => isBilledExtra(row.id))) { showToast('这笔无订单发货已经开送货单并上传云端，不能撤回'); return; }
+  if (targets.some((row) => isLockedRecord(row.createdAt))) {
     showToast('这笔无订单发货已满 7 天，不能再撤回');
     return;
   }
-  if (!window.confirm('要把这笔“无订单发货”撤回吗？\n会同时撤销它引起的冲抵，订单未交恢复原样。')) return;
-  const result = await callRpc('board_revoke_over_delivery', { p_code: getAccessCode(), p_over_id: overId });
-  if (!result.response.ok) { showToast(result.data?.message || '撤回失败'); return; }
-  for (const [material, item] of [...sessionOver.entries()]) {
-    if (String(item.id) === String(overId)) sessionOver.delete(material);
+  const question = ids.length > 1
+    ? `要把这 ${ids.length} 笔“无订单发货”一起撤回吗？\n会同时撤销它们引起的冲抵，订单未交恢复原样。`
+    : '要把这笔“无订单发货”撤回吗？\n会同时撤销它引起的冲抵，订单未交恢复原样。';
+  if (!window.confirm(question)) return;
+  for (const id of ids) {
+    const result = await callRpc('board_revoke_over_delivery', { p_code: getAccessCode(), p_over_id: id });
+    if (!result.response.ok) { showToast(result.data?.message || '撤回失败'); return; }
+    for (const [material, item] of [...sessionOver.entries()]) {
+      if (String(item.id) === String(id)) sessionOver.delete(material);
+    }
   }
-  showToast('已撤回这笔无订单发货');
+  showToast(ids.length > 1 ? `已撤回 ${ids.length} 笔无订单发货` : '已撤回这笔无订单发货');
   await loadState({ quiet: true });
   renderAll();
 }
@@ -4267,6 +4364,60 @@ if (els.desktopLoadingCardList) {
     updateOrderCardSelection(input.dataset.id);
   });
 }
+function syncDesktopCartAfterChange() {
+  renderDesktopLoadingSummary();
+  renderMobileSummary();
+  renderDesktopLoadingCart();
+}
+if (els.desktopLoadingCart) {
+  els.desktopLoadingCart.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-cart-line-remove]');
+    if (!button) return;
+    const kind = button.dataset.cartLineRemove;
+    const key = String(button.dataset.key || '');
+    if (kind === 'order') {
+      selected.delete(key);
+      updateOrderCardSelection(key);
+      showAllocationNotice('已从本次装车中取消该物料。', 'ok');
+    } else if (kind === 'over') {
+      sessionOver.delete(key.trim());
+      showAllocationNotice(`已取消 ${key} 的无订单发货。`, 'ok');
+    } else if (kind === 'replacement') {
+      const index = Number(key);
+      if (Number.isInteger(index) && index >= 0) sessionReplacements.splice(index, 1);
+      showAllocationNotice('已取消该补发行。', 'ok');
+    }
+    syncDesktopCartAfterChange();
+  });
+  els.desktopLoadingCart.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-cart-qty]');
+    if (!input) return;
+    const kind = input.dataset.cartQty;
+    const key = String(input.dataset.key || '');
+    const value = Number(input.value);
+    if (kind === 'order') {
+      if (!Number.isFinite(value) || value <= 0) selected.delete(key);
+      else selected.set(key, Math.max(0, Math.min(Number(snapshot?.orders?.find((item) => item.id === key)?.remaining || 0) || value, Math.round(value))));
+      updateOrderCardSelection(key);
+    } else if (kind === 'over') {
+      const entry = sessionOver.get(key.trim());
+      if (entry) {
+        const quantity = Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+        if (quantity <= 0) sessionOver.delete(key.trim());
+        else entry.quantity = quantity;
+      }
+    } else if (kind === 'replacement') {
+      const index = Number(key);
+      const item = Number.isInteger(index) ? sessionReplacements[index] : null;
+      if (item) {
+        const quantity = Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+        if (quantity <= 0) sessionReplacements.splice(index, 1);
+        else item.quantity = quantity;
+      }
+    }
+    syncDesktopCartAfterChange();
+  });
+}
 if (els.desktopLoadingOpenSubmit) els.desktopLoadingOpenSubmit.addEventListener('click', openSubmitModal);
 if (els.moduleSwitchButton) els.moduleSwitchButton.addEventListener('click', () => setDesktopModule(desktopModule === 'work' ? 'shipment' : 'work'));
 if (els.desktopWorkReportDate) els.desktopWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReport(); });
@@ -4590,6 +4741,18 @@ function refreshQueryViews() {
 [['overClear'], ['recordsOverClear']].forEach(([key]) => {
   const el = els[key];
   if (el) el.addEventListener('click', () => { overDate = ''; refreshQueryViews(); });
+});
+[['replacementHistorySearch', 'replacementQuery'], ['recordsReplacementSearch', 'replacementQuery']].forEach(([key]) => {
+  const el = els[key];
+  if (el) el.addEventListener('input', (event) => { replacementQuery = event.target.value; refreshQueryViews(); });
+});
+[['replacementHistoryDate', 'replacementDate'], ['recordsReplacementDate', 'replacementDate']].forEach(([key]) => {
+  const el = els[key];
+  if (el) el.addEventListener('change', (event) => { replacementDate = event.target.value; refreshQueryViews(); });
+});
+[['replacementHistoryClear'], ['recordsReplacementClear']].forEach(([key]) => {
+  const el = els[key];
+  if (el) el.addEventListener('click', () => { replacementDate = ''; refreshQueryViews(); });
 });
 
 if (els.historySearch) els.historySearch.addEventListener('input', (event) => { historyQuery = event.target.value; renderDesktopHistory(); });
