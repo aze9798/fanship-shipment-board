@@ -2656,3 +2656,16 @@ html { scrollbar-width: auto; }
 .mobile-tabs { --indicator-bg: #fff; --indicator-radius: 10px; --indicator-shadow: 0 2px 9px rgba(32, 57, 64, .09); }
 .mobile-work-tabs { --indicator-bg: #fff; --indicator-radius: 10px; --indicator-shadow: 0 4px 12px rgba(36, 92, 88, .1); }
 .query-tabs, .drawing-tabs, .file-format-tabs { --indicator-bg: var(--primary); --indicator-radius: 999px; }
+
+/* ===== 电脑端查询页子项：字号加大加粗、间距拉宽到 50px ===== */
+#desktopShipmentsView .query-tabs {
+  gap: 50px;
+  padding: 2px 18px 12px;
+}
+#desktopShipmentsView .query-tabs .chip {
+  min-height: 38px;
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: .01em;
+}

@@ -2239,7 +2239,6 @@ function switchMobileWorkTab(tab) {
   if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = mobileWorkTab !== 'review';
   if (mobileWorkTab === 'report') loadWorkReport().catch(() => {});
   else loadWorkReviews().catch(() => {});
-  refreshElasticTabs();
 }
 function setDesktopModule(module, view = '') {
   desktopModule = boardRole === 'admin' && module === 'work' ? 'work' : 'shipment';
@@ -3083,7 +3082,6 @@ function applyQueryTab() {
     document.querySelectorAll(`[data-query-pane="${tab}"]`).forEach((pane) => { pane.hidden = !on; });
   }
   if (els.queryTitle) els.queryTitle.textContent = QUERY_TITLES[queryTab] || '发货记录';
-  refreshElasticTabs();
 }
 
 document.querySelectorAll('[data-query-tab]').forEach((button) => {
@@ -4486,7 +4484,6 @@ function switchMobileTab(tab) {
   if (els.mobileFilesPanel) els.mobileFilesPanel.hidden = tab !== 'files';
   if (tab === 'files') renderCloudFiles();
   renderCart();
-  refreshElasticTabs();
   renderMobileModule();
 }
 
