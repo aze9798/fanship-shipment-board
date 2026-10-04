@@ -1539,7 +1539,7 @@ function renderReplacementList() {
             ? `<span class="row-locked" title="${isBilledExtra(row.id) ? '已开送货单并上传云端，不能撤回' : '登记满 7 天后不能再撤回'}">${isBilledExtra(row.id) ? '已开单' : '已归档'}</span>`
             : `<button type="button" class="row-revoke" data-revoke-replacement="${escapeHtml(row.id)}">撤回</button>`}
         </div>`).join('')}
-      <p class="over-tip">补发是给前期交货的不良品补货，不扣未交，会进当天送货单（订单号/项次=无，备注按填写内容）。</p>
+      
     </section>`;
 }
 
