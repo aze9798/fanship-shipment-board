@@ -21,7 +21,7 @@
     <aside class="sidebar desktop-only">
       <div class="brand">
         <div class="brand-mark">帆</div>
-        <div>
+        <div class="brand-text">
           <strong id="brandTitle">帆顺科技</strong>
         </div>
       </div>
@@ -30,35 +30,35 @@
       <nav class="side-nav" aria-label="主导航">
         <a class="side-link active" href="./" data-desktop-view="overview" data-module="shipment">
           <span class="nav-dot"></span>
-          实时总览
+          <span class="nav-label">实时总览</span>
         </a>
         <a class="side-link" href="#remaining" data-desktop-view="remaining" data-module="shipment">
           <span class="nav-dot"></span>
-          未交清单
+          <span class="nav-label">未交清单</span>
         </a>
         <a class="side-link" href="#loading" data-desktop-view="loading" data-module="shipment">
           <span class="nav-dot"></span>
-          装车登记
+          <span class="nav-label">装车登记</span>
         </a>
         <a class="side-link" href="#query" data-desktop-view="shipments" data-module="shipment">
           <span class="nav-dot"></span>
-          查询
+          <span class="nav-label">查询</span>
         </a>
         <a class="side-link" href="#drawings" data-desktop-view="drawings" data-module="shipment">
           <span class="nav-dot"></span>
-          图纸库
+          <span class="nav-label">图纸库</span>
         </a>
         <a class="side-link" href="#delivery-files" data-desktop-view="files" data-module="shipment">
           <span class="nav-dot"></span>
-          云端送货单
+          <span class="nav-label">云端送货单</span>
         </a>
         <a id="desktopWorkReportLink" class="side-link" href="#work-report" data-desktop-view="workReport" data-module="work" hidden>
           <span class="nav-dot"></span>
-          报工情况
+          <span class="nav-label">报工情况</span>
         </a>
         <a id="desktopWorkReviewLink" class="side-link" href="#work-review" data-desktop-view="workReview" data-module="work" hidden>
           <span class="nav-dot"></span>
-          报工审核
+          <span class="nav-label">报工审核</span>
         </a>
       </nav>
 
@@ -112,10 +112,8 @@
               <label class="select-box">
                 <select id="desktopDueSelect">
                   <option value="all">全部交期</option>
-                  <option value="overdue">已逾期</option>
                   <option value="today">今天到期</option>
-                  <option value="tomorrow">明天到期</option>
-                  <option value="week">7天内到期</option>
+                  <option value="overdue">已逾期</option>
                   <option value="custom">指定日期…</option>
                 </select>
                 <div id="desktopDueRow" class="due-date-row" hidden>
@@ -345,13 +343,15 @@
           <section class="panel loading-orders-panel">
             <div class="desktop-loading-tools">
               <label class="loading-control"><input id="desktopLoadingSearch" type="search" placeholder="搜索物料编号、名称或规格" autocomplete="off"></label>
-              <label class="loading-control"><select id="desktopLoadingDue">
+              <label class="loading-control loading-due-control"><select id="desktopLoadingDue">
                 <option value="all">全部交期</option>
-                <option value="overdue">已逾期</option>
                 <option value="today">今天到期</option>
-                <option value="tomorrow">明天到期</option>
-                <option value="week">7天内到期</option>
-              </select></label>
+                <option value="overdue">已逾期</option>
+                <option value="custom">指定日期…</option>
+              </select>
+              <div id="desktopLoadingDueRow" class="due-date-row" hidden>
+                <input id="desktopLoadingDueDate" type="date" lang="zh-CN">
+              </div></label>
               <label class="loading-control"><select id="desktopLoadingCompany">
                 <option value="all">全部公司</option>
                 <option value="4074">帆顺金属 4074</option>

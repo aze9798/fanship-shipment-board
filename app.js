@@ -246,6 +246,7 @@ let remainingSearch = '';
 let desktopRemainingSearch = '';
 let desktopLoadingSearch = '';
 let desktopLoadingDue = 'all';
+let desktopLoadingDueDate = '';
 let desktopLoadingCompany = 'all';
 const remainingDates = new Set();
 let desktopDueFilter = 'all';
@@ -517,6 +518,8 @@ const els = {
   desktopLoadingView: $('#desktopLoadingView'),
   desktopLoadingSearch: $('#desktopLoadingSearch'),
   desktopLoadingDue: $('#desktopLoadingDue'),
+  desktopLoadingDueRow: $('#desktopLoadingDueRow'),
+  desktopLoadingDueDate: $('#desktopLoadingDueDate'),
   desktopLoadingCompany: $('#desktopLoadingCompany'),
   desktopLoadingRefresh: $('#desktopLoadingRefresh'),
   desktopLoadingSummary: $('#desktopLoadingSummary'),
@@ -1962,8 +1965,7 @@ function desktopLoadingDuePass(order) {
   const diff = Math.round((new Date(due + 'T00:00:00') - new Date(today + 'T00:00:00')) / day);
   if (desktopLoadingDue === 'overdue') return diff < 0;
   if (desktopLoadingDue === 'today') return diff === 0;
-  if (desktopLoadingDue === 'tomorrow') return diff === 1;
-  if (desktopLoadingDue === 'week') return diff >= 0 && diff <= 7;
+  if (desktopLoadingDue === 'custom') return Boolean(desktopLoadingDueDate) && due === desktopLoadingDueDate;
   return true;
 }
 function desktopLoadingOrders() {
@@ -3344,9 +3346,14 @@ function groupRemainingRows(rows) {
         companies: new Set(),
         total: 0,
         detailCount: 0,
+        drawing: null,
         mark: markMaterials.has(material),
       };
       groups.set(key, group);
+    }
+    if (!group.drawing) {
+      const drawing = drawingFor(order);
+      if (drawing) group.drawing = drawing;
     }
     const dueDate = String(order.dueDate || '').trim();
     const company = String(order.customer || '').trim();
@@ -3413,12 +3420,14 @@ function renderMobileRemaining() {
       const companyText = group.companies.length > 1
         ? '两家公司'
         : companyName(group.companies[0] || '');
+      const drawingButton = group.drawing ? drawingLinkHtml(group.drawing) : '';
       return `<article class="mobile-remaining-card">
         <div class="mobile-remaining-row">
           <div class="remaining-cell order-cell">
             <span>编号</span>
             <strong class="mono">${escapeHtml(group.material)}</strong>
             ${group.mark ? '<em class="mark-badge">需打标</em>' : ''}
+            ${drawingButton}
           </div>
           <div class="remaining-cell detail-cell">
             <div class="detail-line"><span>品名</span><strong>${escapeHtml(group.name)}</strong></div>
@@ -4333,7 +4342,12 @@ document.addEventListener('click', (event) => {
 document.querySelectorAll('.mobile-tab').forEach((button) => button.addEventListener('click', () => switchMobileTab(button.dataset.tab)));
 
 if (els.desktopLoadingSearch) els.desktopLoadingSearch.addEventListener('input', (event) => { desktopLoadingSearch = event.target.value; renderDesktopLoading(); });
-if (els.desktopLoadingDue) els.desktopLoadingDue.addEventListener('change', (event) => { desktopLoadingDue = event.target.value; renderDesktopLoading(); });
+if (els.desktopLoadingDue) els.desktopLoadingDue.addEventListener('change', (event) => {
+  desktopLoadingDue = event.target.value;
+  if (els.desktopLoadingDueRow) els.desktopLoadingDueRow.hidden = desktopLoadingDue !== 'custom';
+  renderDesktopLoading();
+});
+if (els.desktopLoadingDueDate) els.desktopLoadingDueDate.addEventListener('change', (event) => { desktopLoadingDueDate = event.target.value; renderDesktopLoading(); });
 if (els.desktopLoadingCompany) els.desktopLoadingCompany.addEventListener('change', (event) => { desktopLoadingCompany = event.target.value; renderDesktopLoading(); });
 if (els.desktopLoadingRefresh) els.desktopLoadingRefresh.addEventListener('click', async () => { await loadState({ quiet:false }); renderAll(); renderDesktopLoading(); showToast('未交订单已刷新'); });
 if (els.desktopLoadingCardList) {
