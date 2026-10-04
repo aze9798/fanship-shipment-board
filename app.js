@@ -533,6 +533,9 @@ const els = {
   desktopLoadingOpenSubmit: $('#desktopLoadingOpenSubmit'),
   desktopLoadingRecords: $('#desktopLoadingRecords'),
   mobileModuleSwitch: $('#mobileModuleSwitch'),
+  overviewWidthRange: $('#overviewWidthRange'),
+  overviewWidthValue: $('#overviewWidthValue'),
+  overviewWidthReset: $('#overviewWidthReset'),
   mobileModuleMenu: $('#mobileModuleMenu'),
   mobileWorkReviewPanel: $('#mobileWorkReviewPanel'),
   mobileWorkReviewStatus: $('#mobileWorkReviewStatus'),
@@ -1167,7 +1170,9 @@ function applyRoleUI() {
   if (!isAdmin && mobileModule === 'workReview') mobileModule = 'entry';
   renderMobileModule();
   const el2 = document.getElementById('mobileBrandTitle');
-  if (el2) el2.textContent = '帆顺科技' + suffix + ' · ' + (mobileModule === 'workReview' ? '报工审核' : '装车登记');
+  if (el2) el2.textContent = '帆顺科技' + suffix;
+  const el3 = document.getElementById('mobileBrandModule');
+  if (el3) el3.textContent = mobileModule === 'workReview' ? '报工审核' : '装车登记';
   const stamp = document.getElementById('sourceStamp');
   if (stamp) stamp.dataset.role = boardRole;
   document.title = '帆顺科技' + suffix;
@@ -2380,7 +2385,9 @@ function renderMobileModule() {
     els.mobileModuleSwitch.setAttribute('aria-disabled', String(!isAdmin));
   }
   const title = document.getElementById('mobileBrandTitle');
-  if (title) title.textContent = `帆顺科技${isAdmin ? '（管理员）' : ''} · ${workMode ? '报工审核' : '装车登记'}`;
+  if (title) title.textContent = `帆顺科技${isAdmin ? '（管理员）' : ''}`;
+  const moduleLabel = document.getElementById('mobileBrandModule');
+  if (moduleLabel) moduleLabel.textContent = workMode ? '报工审核' : '装车登记';
   const summary = document.querySelector('.mobile-summary');
   const tabs = document.querySelector('.mobile-tabs');
   if (summary) summary.hidden = workMode;
@@ -2398,7 +2405,7 @@ function renderMobileModule() {
 function switchMobileModule(module) {
   if (module === 'workReview' && boardRole !== 'admin') { showToast('报工审核只对管理员开放'); return; }
   mobileModule = module === 'workReview' ? 'workReview' : 'entry';
-  if (els.mobileModuleMenu) els.mobileModuleMenu.hidden = true;
+  closeMobileModuleSheet();
   if (mobileModule === 'workReview') {
     renderMobileModule();
   } else {
@@ -2479,6 +2486,32 @@ function renderDesktopMetrics() {
   if (els.metricShipped) els.metricShipped.textContent = fmt(summary.shippedQuantity);
   if (els.metricShipmentCount) els.metricShipmentCount.textContent = summary.shipmentCount ? `${summary.shipmentCount} 笔发货记录` : '尚未提交发货';
   if (els.metricUrgent) els.metricUrgent.textContent = fmt(summary.overdue + summary.dueToday);
+}
+
+const OVERVIEW_WIDTH_KEY = 'shipmentOverviewWidth';
+const OVERVIEW_WIDTH_DEFAULT = 1500;
+function readOverviewWidth() {
+  try {
+    const saved = Number(localStorage.getItem(OVERVIEW_WIDTH_KEY));
+    if (Number.isFinite(saved) && saved >= 1100 && saved <= 2400) return Math.round(saved);
+  } catch {}
+  return OVERVIEW_WIDTH_DEFAULT;
+}
+function applyOverviewWidth(value, { persist = true } = {}) {
+  const width = Math.max(1100, Math.min(2400, Math.round(Number(value) || OVERVIEW_WIDTH_DEFAULT)));
+  const view = document.getElementById('desktopView');
+  if (view) view.style.setProperty('--overview-width', width + 'px');
+  if (els.overviewWidthRange) els.overviewWidthRange.value = String(width);
+  if (els.overviewWidthValue) els.overviewWidthValue.textContent = width + 'px';
+  if (persist) { try { localStorage.setItem(OVERVIEW_WIDTH_KEY, String(width)); } catch {} }
+  return width;
+}
+function fitOverviewWidthToViewport() {
+  const view = document.getElementById('desktopView');
+  if (!view) return;
+  const style = getComputedStyle(view);
+  const pad = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+  return Math.max(1100, Math.min(2400, Math.round(view.clientWidth - pad)));
 }
 
 const DESKTOP_COLUMN_WIDTH_KEY = 'shipmentDesktopColumnWidths';
@@ -3237,9 +3270,9 @@ function renderMobileSummary() {
   const pendingOverRows = [...sessionOver.values()].filter((item) => Number(item.quantity) > 0);
   const pendingOverQty = pendingOverRows.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const replacementQty = replacementTotalQty();
-  els.mobileSelectedQty.textContent = fmt(selectedQty + pendingOverQty + replacementQty);
-  els.mobileSelectedItems.textContent = `${selectedItems + pendingOverRows.length + sessionReplacements.length} 项物料`;
-  els.mobileRemainingQty.textContent = fmt(snapshot.summary.remainingQuantity);
+  if (els.mobileSelectedQty) els.mobileSelectedQty.textContent = fmt(selectedQty + pendingOverQty + replacementQty);
+  if (els.mobileSelectedItems) els.mobileSelectedItems.textContent = `${selectedItems + pendingOverRows.length + sessionReplacements.length} 项物料`;
+  if (els.mobileRemainingQty) els.mobileRemainingQty.textContent = fmt(snapshot.summary.remainingQuantity);
   renderDesktopLoadingSummary();
 }
 
@@ -3413,7 +3446,7 @@ function renderMobileRemaining() {
   const rows = groups.slice(0, 150);
   els.remainingList.innerHTML = `
     <div class="remaining-list-summary">
-      <div><strong>${fmt(groups.length)} 项物料</strong><span>${fmt(all.length)} 条订单明细 · 合计 ${qtyText(total)} 件</span></div>
+      <div><strong>${fmt(groups.length)} 项物料</strong></div>
       <em>${escapeHtml(selectedText)}</em>
     </div>
     ${rows.map((group) => {
@@ -3427,11 +3460,13 @@ function renderMobileRemaining() {
             <span>编号</span>
             <strong class="mono">${escapeHtml(group.material)}</strong>
             ${group.mark ? '<em class="mark-badge">需打标</em>' : ''}
-            ${drawingButton}
           </div>
           <div class="remaining-cell detail-cell">
-            <div class="detail-line"><span>品名</span><strong>${escapeHtml(group.name)}</strong></div>
-            <div class="detail-line"><span>规格</span><strong class="mono">${escapeHtml(group.specs.join('、') || '—')}</strong></div>
+            <div class="detail-copy">
+              <div class="detail-line"><span>品名</span><strong>${escapeHtml(group.name)}</strong></div>
+              <div class="detail-line"><span>规格</span><strong class="mono">${escapeHtml(group.specs.join('、') || '—')}</strong></div>
+            </div>
+            ${drawingButton ? `<div class="detail-drawing-slot">${drawingButton}</div>` : ''}
           </div>
           <div class="remaining-cell meta-cell">
             <div class="meta-line"><span>未交</span><strong class="quantity-value">${escapeHtml(qtyText(group.total))}</strong></div>
@@ -4432,6 +4467,20 @@ if (els.desktopLoadingCart) {
     syncDesktopCartAfterChange();
   });
 }
+if (els.overviewWidthRange) {
+  els.overviewWidthRange.addEventListener('input', (event) => {
+    applyOverviewWidth(event.target.value);
+    applyDesktopColumnWidths();
+  });
+}
+if (els.overviewWidthReset) {
+  els.overviewWidthReset.addEventListener('click', () => {
+    const width = fitOverviewWidthToViewport() || OVERVIEW_WIDTH_DEFAULT;
+    applyOverviewWidth(width);
+    applyDesktopColumnWidths();
+    showToast(`表格宽度已按当前窗口自适应（${width}px）`);
+  });
+}
 if (els.desktopLoadingOpenSubmit) els.desktopLoadingOpenSubmit.addEventListener('click', openSubmitModal);
 if (els.moduleSwitchButton) els.moduleSwitchButton.addEventListener('click', () => setDesktopModule(desktopModule === 'work' ? 'shipment' : 'work'));
 if (els.desktopWorkReportDate) els.desktopWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReport(); });
@@ -4477,12 +4526,27 @@ if (els.mobileWorkReviewRefresh) els.mobileWorkReviewRefresh.addEventListener('c
     openWorkReviewEditor(button.dataset.openWorkReview);
   });
 });
+function openMobileModuleSheet() {
+  if (!els.mobileModuleSwitch) return;
+  els.mobileModuleSwitch.classList.add('expanded');
+  els.mobileModuleSwitch.setAttribute('aria-expanded', 'true');
+  document.body.classList.add('module-sheet-open');
+}
+function closeMobileModuleSheet() {
+  if (!els.mobileModuleSwitch) return;
+  els.mobileModuleSwitch.classList.remove('expanded');
+  els.mobileModuleSwitch.setAttribute('aria-expanded', 'false');
+  document.body.classList.remove('module-sheet-open');
+}
 if (els.mobileModuleSwitch) {
   const toggleModuleMenu = (event) => {
+    // 面板内的按钮点击由面板自己处理，避免冒泡回来又把面板重新打开
+    if (event.target.closest && event.target.closest('#mobileModuleMenu')) return;
     event.preventDefault();
     event.stopPropagation();
     if (boardRole !== 'admin') { showToast('管理员模式才能切换报工审核'); return; }
-    if (els.mobileModuleMenu) els.mobileModuleMenu.hidden = !els.mobileModuleMenu.hidden;
+    if (els.mobileModuleSwitch.classList.contains('expanded')) closeMobileModuleSheet();
+    else openMobileModuleSheet();
   };
   els.mobileModuleSwitch.addEventListener('click', toggleModuleMenu);
   els.mobileModuleSwitch.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') toggleModuleMenu(event); });
@@ -4491,13 +4555,14 @@ if (els.mobileModuleMenu) {
   els.mobileModuleMenu.addEventListener('click', (event) => {
     const button = event.target.closest('[data-mobile-module]');
     if (!button) return;
+    event.stopPropagation();
     switchMobileModule(button.dataset.mobileModule);
   });
 }
 document.addEventListener('click', (event) => {
-  if (!els.mobileModuleMenu || els.mobileModuleMenu.hidden) return;
-  if (els.mobileModuleSwitch?.contains(event.target) || els.mobileModuleMenu.contains(event.target)) return;
-  els.mobileModuleMenu.hidden = true;
+  if (!els.mobileModuleSwitch || !els.mobileModuleSwitch.classList.contains('expanded')) return;
+  if (els.mobileModuleSwitch.contains(event.target)) return;
+  closeMobileModuleSheet();
 });
 if (els.workReviewClose) els.workReviewClose.addEventListener('click', closeWorkReviewEditor);
 if (els.workReviewSave) els.workReviewSave.addEventListener('click', () => submitWorkReview('save'));
@@ -5050,6 +5115,7 @@ function setupRpcExportLink() {
 }
 
 syncMobileEntryLink();
+applyOverviewWidth(readOverviewWidth(), { persist:false });
 applyDesktopColumnWidths();
 setupDesktopColumnResize();
 applyDesktopRemainingColumnWidths();

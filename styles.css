@@ -756,8 +756,10 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .meta-line span { color: #87979d; font-size: 8px; font-weight: 700; letter-spacing: .04em; }
 .order-cell > span { display: block; margin-bottom: 3px; }
 .order-cell > strong { display: block; color: #24383f; font-size: 10px; line-height: 1.25; overflow-wrap: anywhere; }
-.order-cell .drawing-link { display: inline-flex; margin: 4px 0 0; padding: 2px 5px; font-size: 8px; }
-.detail-cell { display: grid; gap: 4px; }
+.detail-drawing-slot { flex: 0 0 auto; align-self: center; }
+.detail-drawing-slot .drawing-link { display: inline-flex; margin: 0; padding: 3px 6px; font-size: 8px; white-space: nowrap; }
+.detail-cell { display: flex; align-items: center; gap: 6px; }
+.detail-copy { flex: 1 1 auto; min-width: 0; display: grid; gap: 4px; }
 .detail-line { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px; align-items: baseline; }
 .detail-line span { white-space: nowrap; }
 .detail-line strong { min-width: 0; color: #24383f; font-size: 10px; line-height: 1.2; overflow-wrap: anywhere; }
@@ -2332,45 +2334,166 @@ html { scrollbar-width: auto; }
   #desktopView.desktop-view { padding-left: 16px; padding-right: 16px; }
 }
 
-/* ===== 电脑端左侧导航收成细栏：只占 56px，鼠标移上去展开覆盖，主内容接近满屏 ===== */
-@media (min-width: 1000px) {
-  .app-shell { grid-template-columns: 56px minmax(0, 1fr); }
-  .sidebar {
-    position: sticky;
-    z-index: 60;
-    width: 56px;
-    padding: 18px 8px;
-    gap: 18px;
-    overflow: hidden;
-    white-space: nowrap;
-    background-color: #0b252c;
-    transition: width .2s ease, padding .2s ease, box-shadow .2s ease;
-  }
-  .sidebar:hover, .sidebar:focus-within {
-    width: 236px;
-    padding: 18px 16px;
-    box-shadow: 14px 0 36px rgba(3, 20, 24, .38);
-  }
-  .sidebar .brand { padding: 0; justify-content: center; }
-  .sidebar:hover .brand { padding: 2px 4px 8px; justify-content: flex-start; }
-  .sidebar .brand-mark { flex: 0 0 38px; width: 38px; height: 38px; font-size: 17px; border-radius: 12px; }
-  .sidebar .brand-text { display: none; }
-  .sidebar:hover .brand-text { display: block; }
-  .sidebar .side-link { justify-content: center; padding: 0; gap: 0; }
-  .sidebar:hover .side-link { justify-content: flex-start; padding: 0 12px; gap: 11px; }
-  .sidebar .nav-label { display: none; }
-  .sidebar:hover .nav-label { display: inline; }
-  .sidebar .nav-dot { flex: 0 0 auto; width: 10px; height: 10px; }
-  .sidebar .module-switch {
-    width: 40px; height: 40px; margin: 0 auto; padding: 0;
-    display: grid; place-items: center; font-size: 0;
-  }
-  .sidebar .module-switch::before { content: "⇄"; font-size: 17px; }
-  .sidebar:hover .module-switch { width: auto; height: auto; margin: 0; padding: 11px 12px; font-size: 12px; }
-  .sidebar:hover .module-switch::before { content: none; }
-  .sidebar .live-card { display: none; }
-  .sidebar:hover .live-card { display: block; }
-  .sidebar-foot { display: none; }
-  .sidebar:hover .sidebar-foot { display: grid; }
-  #desktopView.desktop-view { padding-left: 10px; padding-right: 10px; }
+/* ===== 手机端头部：帆图标变 FAB，点开连续过渡成切换面板 ===== */
+.mobile-head { align-items: center; gap: 12px; }
+.mobile-brand-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 2px;
+}
+.mobile-brand-text strong {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  line-height: 1.2;
+}
+.mobile-brand-text #mobileBrandModule {
+  color: #cdeee8;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.mobile-brand-text #mobileLiveLabel {
+  color: rgba(255, 255, 255, .68);
+  font-size: 11px;
+  line-height: 1.2;
+}
+.mobile-fab {
+  position: relative;
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 32px;
+  overflow: hidden;
+  cursor: pointer;
+  background: linear-gradient(145deg, #23a394, #0a6a63);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, .24), inset 0 1px 0 rgba(255, 255, 255, .18);
+  transition:
+    width .48s cubic-bezier(.2, .9, .22, 1),
+    height .48s cubic-bezier(.2, .9, .22, 1),
+    border-radius .48s cubic-bezier(.2, .9, .22, 1),
+    box-shadow .48s cubic-bezier(.2, .9, .22, 1);
+  will-change: width, height, border-radius;
+}
+.mobile-fab-mark {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 21px;
+  font-weight: 800;
+  transition: opacity .16s ease;
+}
+.mobile-fab-sheet {
+  position: absolute;
+  inset: 0;
+  padding: 20px 18px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease .06s;
+}
+.mobile-fab-title {
+  margin: 0 0 2px;
+  color: rgba(255, 255, 255, .74);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+.mobile-fab-sheet button {
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, .22);
+  border-radius: 14px;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  background: rgba(255, 255, 255, .12);
+  color: #fff;
+  cursor: pointer;
+}
+.mobile-fab-sheet button b { font-size: 16px; font-weight: 800; }
+.mobile-fab-sheet button small { color: rgba(255, 255, 255, .78); font-size: 11px; }
+.mobile-fab-sheet button:active { background: rgba(255, 255, 255, .22); }
+.mobile-fab.expanded {
+  width: min(470px, calc(100vw - 32px));
+  height: 300px;
+  border-radius: 28px;
+  z-index: 60;
+  box-shadow: 0 26px 55px rgba(4, 32, 36, .38);
+}
+.mobile-fab.expanded .mobile-fab-mark { opacity: 0; }
+.mobile-fab.expanded .mobile-fab-sheet { opacity: 1; pointer-events: auto; }
+.mobile-fab.expanded .mobile-fab-sheet > * {
+  animation: mobileFabItemIn .3s cubic-bezier(.2, .9, .22, 1) both;
+  animation-delay: calc(var(--i, 0) * 66ms);
+}
+@keyframes mobileFabItemIn {
+  from { opacity: 0; transform: translateY(10px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+/* 面板展开时，头部其余内容保持不动，面板浮在上层 */
+.mobile-fab.expanded ~ .mobile-brand-text,
+.mobile-fab.expanded ~ .mobile-head-actions { opacity: 0; transition: opacity .18s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .mobile-fab, .mobile-fab-sheet, .mobile-fab.expanded .mobile-fab-sheet > * { transition-duration: .01ms; animation-duration: .01ms; }
+}
+
+/* ===== 手机端 FAB 槽位：展开面板不再撑开头部布局 ===== */
+.mobile-fab-slot {
+  position: relative;
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+}
+.mobile-fab { position: absolute; left: 0; top: 0; }
+.mobile-fab.expanded { position: absolute; left: -2px; top: -2px; }
+
+/* ===== 实时总览：宽度由用户自己调（默认铺满 1500px） ===== */
+#desktopView { --overview-width: 1500px; overflow-x: auto; }
+#desktopView .dashboard-grid {
+  width: var(--overview-width);
+  max-width: none;
+}
+.width-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid #dbe7e6;
+  border-radius: 11px;
+  background: #fff;
+  color: #56707a;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(20, 50, 60, .05);
+}
+.width-control input[type="range"] {
+  width: 130px;
+  accent-color: #7fe0d1;
+  cursor: pointer;
+}
+.width-control strong {
+  min-width: 56px;
+  color: #0f5f59;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.width-control .button.tiny {
+  min-height: 26px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+@media (max-width: 900px) {
+  .width-control { display: none; }
 }

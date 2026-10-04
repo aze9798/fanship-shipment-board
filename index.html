@@ -21,7 +21,7 @@
     <aside class="sidebar desktop-only">
       <div class="brand">
         <div class="brand-mark">帆</div>
-        <div class="brand-text">
+        <div>
           <strong id="brandTitle">帆顺科技</strong>
         </div>
       </div>
@@ -30,35 +30,35 @@
       <nav class="side-nav" aria-label="主导航">
         <a class="side-link active" href="./" data-desktop-view="overview" data-module="shipment">
           <span class="nav-dot"></span>
-          <span class="nav-label">实时总览</span>
+          实时总览
         </a>
         <a class="side-link" href="#remaining" data-desktop-view="remaining" data-module="shipment">
           <span class="nav-dot"></span>
-          <span class="nav-label">未交清单</span>
+          未交清单
         </a>
         <a class="side-link" href="#loading" data-desktop-view="loading" data-module="shipment">
           <span class="nav-dot"></span>
-          <span class="nav-label">装车登记</span>
+          装车登记
         </a>
         <a class="side-link" href="#query" data-desktop-view="shipments" data-module="shipment">
           <span class="nav-dot"></span>
-          <span class="nav-label">查询</span>
+          查询
         </a>
         <a class="side-link" href="#drawings" data-desktop-view="drawings" data-module="shipment">
           <span class="nav-dot"></span>
-          <span class="nav-label">图纸库</span>
+          图纸库
         </a>
         <a class="side-link" href="#delivery-files" data-desktop-view="files" data-module="shipment">
           <span class="nav-dot"></span>
-          <span class="nav-label">云端送货单</span>
+          云端送货单
         </a>
         <a id="desktopWorkReportLink" class="side-link" href="#work-report" data-desktop-view="workReport" data-module="work" hidden>
           <span class="nav-dot"></span>
-          <span class="nav-label">报工情况</span>
+          报工情况
         </a>
         <a id="desktopWorkReviewLink" class="side-link" href="#work-review" data-desktop-view="workReview" data-module="work" hidden>
           <span class="nav-dot"></span>
-          <span class="nav-label">报工审核</span>
+          报工审核
         </a>
       </nav>
 
@@ -86,6 +86,12 @@
             <h1>发货计划总览</h1>
           </div>
           <div class="topbar-actions">
+            <div class="width-control" title="拖动可调整实时总览的宽度">
+              <span>表格宽度</span>
+              <input id="overviewWidthRange" type="range" min="1100" max="2400" step="10" value="1500" aria-label="实时总览宽度">
+              <strong id="overviewWidthValue">1500px</strong>
+              <button id="overviewWidthReset" class="button ghost tiny" type="button">自适应</button>
+            </div>
             <button id="pdfImportButton" class="button primary" type="button">导入采购订单 PDF</button>
 
             <button id="resetButton" class="button ghost danger-text" type="button">清空演示记录</button>
@@ -444,37 +450,27 @@
 
       <section id="mobileView" class="mobile-view mobile-only">
         <header class="mobile-head">
-          <div id="mobileModuleSwitch" class="mobile-brand mobile-module-switch" role="button" tabindex="0" title="切换装车登记 / 报工审核">
-            <div class="brand-mark small">帆</div>
-            <div>
-              <strong id="mobileBrandTitle">手机装车登记</strong>
-              <span id="mobileLiveLabel">正在连接</span>
+          <div class="mobile-fab-slot">
+          <div id="mobileModuleSwitch" class="mobile-fab" role="button" tabindex="0" aria-expanded="false" title="切换装车登记 / 报工审核">
+            <span class="mobile-fab-mark">帆</span>
+            <div id="mobileModuleMenu" class="mobile-fab-sheet">
+              <p class="mobile-fab-title">切换模块</p>
+              <button type="button" data-mobile-module="entry" style="--i:1"><b>装车登记</b><small>搜索物料、登记装车</small></button>
+              <button type="button" data-mobile-module="workReview" style="--i:2"><b>报工审核</b><small>查看报工并审核</small></button>
             </div>
-            <b class="mobile-module-caret">⌄</b>
+          </div>
+          </div>
+          <div class="mobile-brand-text">
+            <strong id="mobileBrandTitle">帆顺科技</strong>
+            <span id="mobileBrandModule">装车登记</span>
+            <span id="mobileLiveLabel">正在连接</span>
           </div>
           <div class="mobile-head-actions">
             <button id="mobileRefresh" class="icon-button" type="button" aria-label="刷新数据">↻</button>
             <button id="mobileSwitchCode" class="icon-button" type="button" aria-label="切换访问码" title="切换访问码">🔑</button>
           </div>
         </header>
-        <div id="mobileModuleMenu" class="mobile-module-menu" hidden>
-          <button type="button" data-mobile-module="entry">装车登记</button>
-          <button type="button" data-mobile-module="workReview">报工审核</button>
-        </div>
 
-        <section class="mobile-summary">
-          <div>
-            <span>本次已选</span>
-            <strong id="mobileSelectedQty">0</strong>
-            <small id="mobileSelectedItems">0 项物料</small>
-          </div>
-          <div>
-            <span>当前未交</span>
-            <strong id="mobileRemainingQty">--</strong>
-            <small>全部剩余</small>
-          </div>
-
-        </section>
 
         <nav class="mobile-tabs" aria-label="手机功能">
           <button class="mobile-tab active" data-tab="entry" type="button">装车录入</button>
