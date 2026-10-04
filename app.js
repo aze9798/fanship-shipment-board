@@ -2829,6 +2829,7 @@ function openOrderEdit(orderId) {
       + `${order.spec ? `<span>图号：${escapeHtml(order.spec)}</span>` : ''}`;
   }
   if (els.orderEditQty) els.orderEditQty.value = String(Number(order.orderQty || order.openingRemaining || 0));
+  if (els.orderEditShipped) els.orderEditShipped.value = String(Number(order.shipped || 0));
   if (els.orderEditDue) els.orderEditDue.value = order.dueDate || '';
   if (els.orderEditError) els.orderEditError.hidden = true;
   if (els.orderEditModal) els.orderEditModal.hidden = false;
@@ -2839,6 +2840,7 @@ async function saveOrderEdit() {
   const order = currentEditingOrder();
   if (!order) { showToast('找不到这笔订单'); closeOrderEdit(); return; }
   const rawQty = String(els.orderEditQty?.value || '').trim();
+  const rawShipped = String(els.orderEditShipped?.value || '').trim();
   const dueDate = String(els.orderEditDue?.value || '');
   const errorBox = els.orderEditError;
   const fail = (message) => {
@@ -2848,14 +2850,17 @@ async function saveOrderEdit() {
   if (!/^\d+$/.test(rawQty)) { fail('订单数量只能填整数'); return; }
   const orderQty = Number(rawQty);
   if (!Number.isSafeInteger(orderQty) || orderQty < 0) { fail('订单数量只能填 0 或正整数'); return; }
+  if (!/^\d+$/.test(rawShipped)) { fail('已交数量只能填整数'); return; }
+  const shippedQty = Number(rawShipped);
+  if (!Number.isSafeInteger(shippedQty) || shippedQty < 0) { fail('已交数量只能填 0 或正整数'); return; }
   const cancelling = orderQty === 0;
-  if (cancelling && Number(order.shipped || 0) > 0) {
+  if (cancelling && shippedQty > 0) {
     fail('该订单已有发货记录，需先撤回发货后再取消订单');
     return;
   }
   if (cancelling && !window.confirm(`确定取消订单 ${order.po} 项次 ${order.seq} 吗？\n取消后该订单会从未交清单移除。`)) return;
-  if (!cancelling && orderQty < Number(order.shipped || 0)) {
-    fail(`订单数量不能小于已发货数量 ${fmt(order.shipped)}`);
+  if (!cancelling && orderQty < shippedQty) {
+    fail(`订单数量不能小于已交数量 ${fmt(shippedQty)}`);
     return;
   }
   if (!cancelling && !dueDate) { fail('请选择交货日期'); return; }
@@ -2866,6 +2871,7 @@ async function saveOrderEdit() {
       p_code: getAccessCode(),
       p_order_id: order.id,
       p_order_qty: orderQty,
+      p_shipped_qty: shippedQty,
       p_due_date: cancelling ? null : dueDate,
     });
     if (!result.response.ok) throw new Error(result.data?.message || '保存失败');

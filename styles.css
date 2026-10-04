@@ -2720,3 +2720,19 @@ html { scrollbar-width: auto; }
 }
 .history-col-resizer:hover::after,
 .history-col-resizer.dragging::after { background: rgba(15, 118, 110, .45); }
+/* 发货日期下拉：选项里带了送货单编号，需要限宽避免把手机页面撑出横向滚动 */
+#mobileFilesDate,
+#filesDate {
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+#mobileFilesPanel .remaining-due-row { min-width: 0; }
+#mobileFilesPanel .remaining-due-row select { min-width: 0; flex: 1 1 auto; }
+
+/* 订单变更：订单数量、已交数量、交货日期三列水平排列 */
+.order-edit-card { max-width: 760px; }
+.order-edit-form { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+@media (max-width: 700px) {
+  .order-edit-form { grid-template-columns: 1fr; }
+}
