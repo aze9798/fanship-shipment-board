@@ -26,10 +26,10 @@
     .section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}.section-head h2{margin:0;font-size:17px}.section-head p{margin:4px 0 0;color:var(--muted);font-size:11px}
     .clock-card{background:linear-gradient(145deg,#0c6f68,#0c8b7f);color:#fff;border:0}
   .special-time{border:1px solid #f0d9a8;background:#fffaf0}
-  .special-time-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-  .special-time-actions button{flex:1 1 auto}
-  .special-time .section-head h2{font-size:15px}
-  .special-time .section-head p{margin:2px 0 0;color:#8a6b22;font-size:12px}
+  .special-time-hint{margin:0 0 8px;color:#8a6b22;font-size:12px;line-height:1.5}
+  .special-time-row{display:flex;gap:8px;align-items:center}
+  .special-time-row input{flex:1 1 auto;min-width:0;border:1px solid #e3d3a8;border-radius:10px;padding:10px 12px;font-size:13px;background:#fff}
+  .special-time-row button{flex:0 0 auto;min-width:84px}
   .record .record-special{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:#fff3d6;color:#9a6b12;font-size:10px;font-weight:700}.clock-label{font-size:11px;opacity:.8}.clock-time{font-size:36px;font-weight:900;letter-spacing:.02em;margin:6px 0}.clock-note{font-size:11px;opacity:.8}
     .clock-actions{display:grid;grid-template-columns:1fr;gap:9px;margin-top:16px}.clock-actions button{min-height:50px}.clock-stop{background:#fff;color:#a83e2e;border-color:rgba(255,255,255,.7)}
     .stats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}.stat{padding:12px;border-radius:13px;background:var(--primary-soft)}.stat span{display:block;color:#61807b;font-size:10px}.stat strong{display:block;margin-top:4px;font-size:20px}
@@ -110,11 +110,10 @@
         <div class="clock-actions"><button id="clockAction" class="primary">开始计时</button></div>
       </div>
       <div id="specialTimePanel" class="card special-time hidden">
-        <div class="section-head"><div><h2>这条计时需要确认</h2><p id="specialTimeHint"></p></div></div>
-        <label class="field"><span>备注说明（可以不填；填了就算这条是特殊事件）</span><input id="specialTimeNote" type="text" maxlength="80" placeholder="例如：客户急件加班到 20:20"></label>
-        <div class="special-time-actions">
+        <p class="special-time-hint" id="specialTimeHint"></p>
+        <div class="special-time-row">
+          <input id="specialTimeNote" type="text" maxlength="80" placeholder="备注说明（例如：客户急件加班到 19:00）">
           <button id="specialTimeConfirm" class="primary" type="button">确认</button>
-          <button id="specialTimeDismiss" class="ghost" type="button">稍后再说</button>
         </div>
       </div>
       <div class="stats"><div class="stat"><span>今日有效工时</span><strong id="todayMinutes">0.0h</strong></div><div class="stat"><span>本月累计</span><strong id="monthMinutes">0.0h</strong></div></div>
@@ -688,8 +687,8 @@ function renderPiece() {
         pendingSpecialEntry = result.id || '';
         const clock = (v) => fmtClock(v);
         $('specialTimeHint').textContent = result.capped
-          ? `实际结束 ${clock(result.rawEndedAt)}，超过 20:30 的部分按 20:30 计入（实际时间已保留）。如果有特殊情况，可在下面备注。`
-          : `实际结束 ${clock(result.rawEndedAt)}，工时按实际 ${clock(result.endedAt)} 计入。如果有特殊情况，可在下面备注。`;
+          ? `实际结束 ${clock(result.rawEndedAt)}，超过 20:30 的部分按 20:30 计入。`
+          : `实际结束 ${clock(result.rawEndedAt)}，工时按实际计入。`;
         $('specialTimeNote').value = '';
         renderSpecialPanel();
         toast('这条计时需要确认，备注可以不填');
@@ -1103,7 +1102,6 @@ function variantDisplay(processName, value) {
   if (logoutButton) logoutButton.addEventListener('click', () => { state = null; salaryData = null; editEntry = null; code = ''; clearStoredCode(); render(); });
   $('clockAction').addEventListener('click', clockAction);
   if ($('specialTimeConfirm')) $('specialTimeConfirm').addEventListener('click', confirmSpecialTime);
-  if ($('specialTimeDismiss')) $('specialTimeDismiss').addEventListener('click', () => { pendingSpecialEntry = ''; renderSpecialPanel(); toast('已保留这条计时，可稍后在记录里查看'); });
   document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
     document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x === b));
     const tab = b.dataset.tab;

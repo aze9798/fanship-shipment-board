@@ -2685,6 +2685,14 @@ function applyDeliveryColumnWidths(kind, widths = readDeliveryColumnWidths(kind)
   const selector = kind === 'merged' ? '.delivery-lines.merged' : '.delivery-lines.grouped';
   const lines = [...document.querySelectorAll(selector)];
   if (!lines.length) return;
+  // 手机端是纵向堆叠布局：不套用固定列宽，否则整行会被撑到 700px 以上并出现横向滚动
+  if (window.matchMedia('(max-width: 900px)').matches) {
+    lines.forEach((line) => {
+      line.style.minWidth = '';
+      [...line.children].forEach((child) => { child.style.gridTemplateColumns = ''; });
+    });
+    return;
+  }
   const defaults = DELIVERY_COLUMN_DEFAULT_WIDTHS[kind] || DELIVERY_COLUMN_DEFAULT_WIDTHS.grouped;
   const normalized = defaults.map((fallback, index) => {
     const width = Number(widths[index]);
@@ -3462,6 +3470,7 @@ function renderShipmentSection(shipments, queryText = '') {
   renderQueryPanes(els.shipmentHistory, els.offsetHistory, els.overHistory, renderShipmentSection(rows, historyQuery), els.replacementHistory);
   void renderCloudFiles();
   requestAnimationFrame(() => { applyDeliveryColumnWidths('grouped'); applyDeliveryColumnWidths('merged'); });
+window.addEventListener('resize', () => { applyDeliveryColumnWidths('grouped'); applyDeliveryColumnWidths('merged'); });
 }
 
 function orderCard(order) {
