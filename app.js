@@ -3891,7 +3891,21 @@ function labelPool() {
       || String(a.group.material || '').localeCompare(String(b.group.material || '')));
 }
 
+function labelRemainingAllDates() {
+  // 订单剩余未交：统计这个料号在所有交期上的未交合计，不受当前交期筛选影响
+  const map = new Map();
+  for (const order of (snapshot?.orders || [])) {
+    const remaining = Number(order.remaining || 0);
+    if (remaining <= 0) continue;
+    const material = String(order.material || '').trim();
+    if (!material) continue;
+    map.set(material, (map.get(material) || 0) + remaining);
+  }
+  return map;
+}
+
 function buildLabelRows() {
+  const remainingAll = labelRemainingAllDates();
   return labelPool().map((item) => ({
     id: nextLabelRowId(),
     sourceKey: item.key,
@@ -3905,7 +3919,9 @@ function buildLabelRows() {
       if (!rule) return Number(item.group.total) || 0;
       return labelBoxQuantityText(item.group.total, rule.perBox);
     })(),
-    remaining: Number(item.group.total) || 0,
+    remaining: remainingAll.has(String(item.group.material || '').trim())
+      ? Number(remainingAll.get(String(item.group.material || '').trim()))
+      : Number(item.group.total) || 0,
     perBox: (labelBoxRule(item.group.material, item.group.name) || {}).perBox || 0,
     bigCount: labelMaterialCount(item.group.material, 'big'),
     smallCount: labelMaterialCount(item.group.material, 'small'),
