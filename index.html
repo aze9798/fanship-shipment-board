@@ -182,7 +182,6 @@
         <header class="topbar">
           <div>
             <h1>未交清单</h1>
-            <p class="subhead">可多选交期；相同物料编号 + 品名自动合并；打标按《发货单.xlsx》的“检查打标”表判断。</p>
           </div>
           <div class="topbar-actions">
             <button id="desktopRemainingPrint" class="button ghost" type="button">打印清单</button>
@@ -205,23 +204,22 @@
           </div>
           <div class="table-wrap">
             <table class="orders-table grouped-remaining-table">
-              <colgroup>
-                <col style="width: 130px">
-                <col style="width: 260px">
-                <col style="width: 230px">
-                <col style="width: 80px">
-                <col style="width: 70px">
+              <colgroup id="desktopRemainingColgroup">
                 <col style="width: 180px">
-                <col style="width: 70px">
+                <col style="width: 340px">
+                <col style="width: 290px">
+                <col style="width: 100px">
+                <col style="width: 90px">
+                <col style="width: 300px">
               </colgroup>
               <thead>
                 <tr>
-                  <th>物料编号</th>
-                  <th>名称</th>
-                  <th>规格</th>
-                  <th class="number">未交</th>
-                  <th>打标</th>
-                  <th>交货日期</th>
+                  <th>物料编号<span class="col-resizer" data-col-index="0" role="separator" title="拖动调整列宽，双击恢复默认"></span></th>
+                  <th>名称<span class="col-resizer" data-col-index="1" role="separator" title="拖动调整列宽，双击恢复默认"></span></th>
+                  <th>规格<span class="col-resizer" data-col-index="2" role="separator" title="拖动调整列宽，双击恢复默认"></span></th>
+                  <th class="number">未交<span class="col-resizer" data-col-index="3" role="separator" title="拖动调整列宽，双击恢复默认"></span></th>
+                  <th>打标<span class="col-resizer" data-col-index="4" role="separator" title="拖动调整列宽，双击恢复默认"></span></th>
+                  <th>交货日期<span class="col-resizer" data-col-index="5" role="separator" title="拖动调整列宽，双击恢复默认"></span></th>
                 </tr>
               </thead>
               <tbody id="desktopRemainingBody"></tbody>

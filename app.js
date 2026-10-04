@@ -2504,6 +2504,76 @@ function setupDesktopColumnResize() {
   });
 }
 
+const DESKTOP_REMAINING_COLUMN_WIDTH_KEY = 'shipmentDesktopRemainingColumnWidths';
+const DESKTOP_REMAINING_COLUMN_DEFAULT_WIDTHS = [180, 340, 290, 100, 90, 300];
+
+function readDesktopRemainingColumnWidths() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DESKTOP_REMAINING_COLUMN_WIDTH_KEY) || '[]');
+    if (Array.isArray(saved) && saved.length === DESKTOP_REMAINING_COLUMN_DEFAULT_WIDTHS.length) {
+      return saved.map((value, index) => {
+        const width = Number(value);
+        return Number.isFinite(width) ? Math.max(44, Math.min(520, Math.round(width))) : DESKTOP_REMAINING_COLUMN_DEFAULT_WIDTHS[index];
+      });
+    }
+  } catch {}
+  return [...DESKTOP_REMAINING_COLUMN_DEFAULT_WIDTHS];
+}
+
+function writeDesktopRemainingColumnWidths(widths) {
+  try { localStorage.setItem(DESKTOP_REMAINING_COLUMN_WIDTH_KEY, JSON.stringify(widths)); } catch {}
+}
+
+function applyDesktopRemainingColumnWidths(widths = readDesktopRemainingColumnWidths()) {
+  const columns = [...document.querySelectorAll('#desktopRemainingColgroup col')];
+  if (!columns.length) return;
+  const normalized = columns.map((_, index) => {
+    const width = Number(widths[index]);
+    return Number.isFinite(width) ? Math.max(44, Math.min(520, Math.round(width))) : DESKTOP_REMAINING_COLUMN_DEFAULT_WIDTHS[index];
+  });
+  columns.forEach((column, index) => { column.style.width = `${normalized[index]}px`; });
+  const table = columns[0].closest('table');
+  if (table) {
+    table.style.width = '1300px';
+    table.style.minWidth = '1300px';
+  }
+}
+
+function setupDesktopRemainingColumnResize() {
+  const table = document.querySelector('#desktopRemainingView .grouped-remaining-table');
+  if (!table) return;
+  const headers = [...table.querySelectorAll('thead th')];
+  headers.forEach((header, index) => {
+    const handle = header.querySelector('.col-resizer');
+    if (!handle) return;
+    handle.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      const startX = event.clientX;
+      const widths = readDesktopRemainingColumnWidths();
+      const startWidth = widths[index];
+      const onMove = (moveEvent) => {
+        widths[index] = Math.max(44, Math.min(520, Math.round(startWidth + moveEvent.clientX - startX)));
+        applyDesktopRemainingColumnWidths(widths);
+      };
+      const onUp = () => {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        handle.classList.remove('dragging');
+        writeDesktopRemainingColumnWidths(widths);
+      };
+      handle.classList.add('dragging');
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    });
+    handle.addEventListener('dblclick', () => {
+      const widths = readDesktopRemainingColumnWidths();
+      widths[index] = DESKTOP_REMAINING_COLUMN_DEFAULT_WIDTHS[index];
+      applyDesktopRemainingColumnWidths(widths);
+      writeDesktopRemainingColumnWidths(widths);
+    });
+  });
+}
 function renderDesktopTable() {
   const rows = desktopRows();
   els.desktopTableBody.innerHTML = rows.map((order) => {
@@ -3110,6 +3180,7 @@ function renderRemainingDateChips() {
 }
 
 function remainingRows(queryText = remainingSearch) {
+  if (!snapshot) return [];
   let rows = filteredOrders('active');
   const query = String(queryText || '').trim().toLowerCase();
   if (query) rows = rows.filter((order) => searchable(order).includes(query));
@@ -3304,7 +3375,7 @@ function exportRemainingList(groups = remainingGroups()) {
 }
 
 function renderDesktopRemaining() {
-  if (!els.desktopRemainingBody) return;
+  if (!els.desktopRemainingBody || !snapshot) return;
   renderRemainingDateChips();
   const rows = remainingRows(desktopRemainingSearch);
   const groups = groupRemainingRows(rows);
@@ -4753,6 +4824,8 @@ function setupRpcExportLink() {
 syncMobileEntryLink();
 applyDesktopColumnWidths();
 setupDesktopColumnResize();
+applyDesktopRemainingColumnWidths();
+setupDesktopRemainingColumnResize();
 setupRpcExportLink();
 if (!getAccessCode()) askAccessCode();
 await loadBoardRole();
