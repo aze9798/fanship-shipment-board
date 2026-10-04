@@ -14,7 +14,7 @@
     *{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#e9f2f0 0,#f7faf9 220px,#f2f5f6 100%);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
     button,input{font:inherit}button{cursor:pointer}.hidden{display:none!important}
     .page{max-width:460px;margin:0 auto;padding:16px 14px 32px;min-height:100vh}
-    .brand{display:flex;align-items:center;gap:10px;margin:4px 2px 18px}.logo{font-size:15px;font-weight:800;letter-spacing:-.02em;margin-left:160px;width:38px;height:38px;border-radius:12px;background:var(--primary);color:#fff;display:grid;place-items:center;font-weight:900}
+    .brand{display:flex;align-items:center;gap:10px;margin:4px 2px 18px}.logo{font-size:15px;font-weight:800;letter-spacing:-.02em;margin-left:100px;width:38px;height:38px;border-radius:12px;background:var(--primary);color:#fff;display:grid;place-items:center;font-weight:900}
     .brand strong{font-size:18px}.brand small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
     .card{background:var(--card);border:1px solid rgba(217,229,228,.9);border-radius:16px;box-shadow:var(--shadow);padding:16px;margin-bottom:12px}
     .login-title{margin:0 0 6px;font-size:22px}.login-sub{margin:0 0 18px;color:var(--muted);font-size:12px}
@@ -32,14 +32,14 @@
   .special-time-row button{flex:0 0 auto;min-width:84px}
   .record .record-special{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:#fff3d6;color:#9a6b12;font-size:10px;font-weight:700}.clock-label{font-size:11px;opacity:.8}.clock-time{font-size:36px;font-weight:900;letter-spacing:.02em;margin:6px 0}.clock-note{font-size:11px;opacity:.8}
     .clock-actions{display:grid;grid-template-columns:1fr;gap:9px;margin-top:16px}
-  .clock-actions .clock-action{min-height:50px;position:relative;display:grid;place-items:center;width:100%;padding:0 16px;border:1px solid transparent;border-radius:12px;overflow:hidden;cursor:pointer;transition:width .38s cubic-bezier(.2,.9,.22,1),height .38s cubic-bezier(.2,.9,.22,1),border-radius .38s cubic-bezier(.2,.9,.22,1),background .3s ease,color .3s ease}
-  .clock-action .ca-text,.clock-action .ca-result{white-space:nowrap;font-size:16px;font-weight:700;transition:opacity .18s ease}
+  .clock-actions .clock-action{min-height:50px;position:relative;display:grid;place-items:center;width:100%;padding:0 16px;border:1px solid transparent;border-radius:12px;overflow:hidden;cursor:pointer;transition:width .51s cubic-bezier(.2,.9,.22,1),height .51s cubic-bezier(.2,.9,.22,1),border-radius .51s cubic-bezier(.2,.9,.22,1),background .4s ease,color .4s ease}
+  .clock-action .ca-text,.clock-action .ca-result{white-space:nowrap;font-size:16px;font-weight:700;transition:opacity .24s ease}
   .clock-action .ca-result{opacity:0;display:none}
-  .clock-action .ca-ring,.clock-action .ca-check{position:absolute;inset:0;margin:auto;width:76px;height:76px;opacity:0;transition:opacity .18s ease;pointer-events:none}
+  .clock-action .ca-ring,.clock-action .ca-check{position:absolute;inset:0;margin:auto;width:76px;height:76px;opacity:0;transition:opacity .24s ease;pointer-events:none}
   .clock-action .ca-ring circle{fill:none;stroke-width:3.5;stroke-linecap:round}
   .clock-action .ca-ring-bg{stroke:rgba(255,255,255,.28)}
-  .clock-action .ca-ring-fg{stroke:#fff;stroke-dasharray:213.6;stroke-dashoffset:213.6;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset 1.05s cubic-bezier(.35,.15,.2,1)}
-  .clock-action .ca-check-path{fill:none;stroke:#0f766e;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:44;stroke-dashoffset:44;transition:stroke-dashoffset .3s ease .05s}
+  .clock-action .ca-ring-fg{stroke:#fff;stroke-dasharray:213.6;stroke-dashoffset:213.6;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset 1.4s cubic-bezier(.35,.15,.2,1)}
+  .clock-action .ca-check-path{fill:none;stroke:#0f766e;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:44;stroke-dashoffset:44;transition:stroke-dashoffset .4s ease .07s}
   /* 收起成圆 + 环形进度 */
   .clock-action.is-loading{width:76px;height:76px;min-height:76px;border-radius:50%;padding:0;background:#fff;border-color:#fff;margin:0 auto}
   .clock-action.is-loading .ca-text,.clock-action.is-loading .ca-result{opacity:0}
@@ -57,7 +57,8 @@
   .clock-action.is-result .ca-ring,.clock-action.is-result .ca-check{opacity:0}
   .clock-action.is-result .ca-result{display:block;opacity:1;color:#0f766e}
   .clock-action.is-result .ca-text{display:none}
-  .clock-stop{background:#fff;color:#a83e2e;border-color:rgba(255,255,255,.7)}
+  /* 结束状态沿用开始计时同一套配色（不做红色） */
+  .clock-stop{background:inherit;color:inherit;border-color:inherit}
     .stats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}.stat{padding:12px;border-radius:13px;background:var(--primary-soft)}.stat span{display:block;color:#61807b;font-size:10px}.stat strong{display:block;margin-top:4px;font-size:20px}
     .rules{display:grid;gap:6px;font-size:11px;color:#60777d}.rules div{display:flex;justify-content:space-between;padding:7px 9px;border-radius:9px;background:#f6f9f9}.rules b{color:#294b52}
     .list-title{display:flex;justify-content:space-between;align-items:center;margin:14px 1px 8px}.list-title strong{font-size:13px}.list-title span{font-size:11px;color:var(--muted)}
@@ -716,7 +717,7 @@ function renderPiece() {
     btn.classList.remove('clock-stop');
     btn.classList.add('is-loading');
     // 先收成圆形，再走环形进度
-    setTimeout(() => btn.classList.add('is-ring-run'), 360);
+    setTimeout(() => btn.classList.add('is-ring-run'), 480);
   }
   function finishClockMorph(btn, text) {
     btn.classList.add('is-success');
@@ -724,14 +725,14 @@ function renderPiece() {
       const result = btn.querySelector('.ca-result');
       if (result) result.textContent = text;
       btn.classList.add('is-result');
-    }, 480);
+    }, 640);
     setTimeout(() => {
       btn.classList.remove('is-loading','is-ring-run','is-success','is-result');
       btn.classList.add('clock-stop');
       const label = btn.querySelector('.ca-text');
       if (label) label.textContent = '开始计时';
       btn.disabled = false;
-    }, 2100);
+    }, 2800);
   }
   function resetClockMorph(btn) {
     btn.classList.remove('is-loading','is-ring-run','is-success','is-result');
