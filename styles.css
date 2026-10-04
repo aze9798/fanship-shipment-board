@@ -2822,10 +2822,32 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .label-print-head,
 .label-print-row {
   display: grid;
-  grid-template-columns: 34px 130px minmax(180px, 1.6fr) minmax(120px, 1.1fr) 90px 130px 116px;
+  grid-template-columns: 34px 130px minmax(160px, 1.5fr) minmax(110px, 1fr) 96px 108px 124px 116px;
   gap: 8px;
   align-items: center;
   padding: 8px 10px;
+}
+.label-remaining {
+  display: block;
+  padding: 0 8px;
+  color: #56707a;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
+}
+.label-remaining.over { color: #c0392b; }
+.label-remaining.over::after {
+  content: " 超出";
+  font-size: 11px;
+  font-weight: 700;
+}
+.label-remaining-hint {
+  display: block;
+  color: #8b9ca1;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: right;
 }
 .label-print-head {
   position: sticky;

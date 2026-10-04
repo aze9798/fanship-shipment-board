@@ -3850,6 +3850,7 @@ function buildLabelRows() {
     name: String(item.group.name || ''),
     spec: (item.group.specs || []).join('、'),
     quantity: Number(item.group.total) || 0,
+    remaining: Number(item.group.total) || 0,
     date: (item.group.dates || [])[0] || String((snapshot && snapshot.today) || '').slice(0, 10),
   }));
 }
@@ -3882,7 +3883,8 @@ function labelRowHtml(row, index) {
     <input class="label-print-input mono" data-label-field="material" value="${escapeHtml(row.material)}" placeholder="物料编码">
     <input class="label-print-input" data-label-field="name" value="${escapeHtml(row.name)}" placeholder="物料名称">
     <input class="label-print-input" data-label-field="spec" value="${escapeHtml(row.spec)}" placeholder="规格">
-    <input class="label-print-input number" type="number" min="1" step="1" inputmode="numeric" data-label-field="quantity" value="${labelRowQuantity(row) || ''}" placeholder="">
+    <input class="label-print-input number" type="text" inputmode="numeric" data-label-field="quantity" value="${escapeHtml(String(row.quantity ?? ''))}" placeholder="可填 6套">
+    <span class="label-remaining" data-label-remaining="${index}">${fmt(labelRowRemaining(row))}</span>
     <input class="label-print-input" type="date" data-label-field="date" value="${escapeHtml(row.date)}">
     <div class="label-print-row-actions">
       ${printedTag}
@@ -3916,24 +3918,65 @@ function renderLabelRows() {
   updateLabelSummary();
 }
 
+function labelMaterialFilled(material) {
+  const key = String(material || '').trim();
+  if (!key) return 0;
+  return labelRows
+    .filter((row) => String(row.material || '').trim() === key)
+    .reduce((sum, row) => sum + labelRowQuantity(row), 0);
+}
+
+function refreshLabelRemaining() {
+  if (!els.labelPrintRows) return;
+  labelRows.forEach((row, index) => {
+    const cell = els.labelPrintRows.querySelector(`[data-label-remaining="${index}"]`);
+    if (!cell) return;
+    const remaining = labelRowRemaining(row);
+    const filled = labelMaterialFilled(row.material);
+    const over = remaining > 0 && filled > remaining;
+    cell.textContent = fmt(remaining) + (over ? `（已填 ${fmt(filled)}）` : '');
+    cell.classList.toggle('over', over);
+    cell.title = remaining > 0 ? `该料号未交合计 ${fmt(remaining)} 件，当前已填 ${fmt(filled)} 件` : '';
+  });
+}
+
 function updateLabelSummary() {
+  refreshLabelRemaining();
   if (!els.labelPrintSummary) return;
   const valid = labelRows.filter((row) => labelRowIsValid(row) && !row.printed);
   const picked = valid.filter((row) => row.selected);
   const total = picked.reduce((sum, row) => sum + labelRowQuantity(row), 0);
   const blank = picked.filter((row) => labelRowQuantity(row) === 0).length;
+  const overMaterials = [...new Set(labelRows
+    .filter((row) => labelRowRemaining(row) > 0 && labelMaterialFilled(row.material) > labelRowRemaining(row))
+    .map((row) => String(row.material || '').trim()))];
   els.labelPrintSummary.textContent = `${labelModeText()}：已勾选 ${picked.length} 行 / ${fmt(total)} 件`
     + (blank ? `（其中 ${blank} 行数量留空）` : '')
-    + `，待打印 ${valid.length} 行`;
+    + `，待打印 ${valid.length} 行`
+    + (overMaterials.length ? `；⚠ ${overMaterials.join('、')} 已填数量超过订单未交` : '');
   if (els.labelPrintSelectAll) {
     els.labelPrintSelectAll.checked = valid.length > 0 && valid.every((row) => row.selected);
   }
   if (els.labelPrintConfirm) els.labelPrintConfirm.disabled = picked.length === 0;
 }
 
+function labelQuantityNumber(value) {
+  // 数量允许带文字，例如「6套」「40根」，取里面的数字参与提示和合计
+  const text = String(value ?? '').trim();
+  if (!text) return 0;
+  const matched = text.match(/\d+(?:\.\d+)?/);
+  if (!matched) return 0;
+  const number = Number(matched[0]);
+  return Number.isFinite(number) ? number : 0;
+}
+
 function labelRowQuantity(row) {
-  const value = Number(row.quantity);
-  return Number.isFinite(value) && value > 0 ? value : 0;
+  return labelQuantityNumber(row.quantity);
+}
+
+function labelRowRemaining(row) {
+  const value = Number(row.remaining);
+  return Number.isFinite(value) ? value : 0;
 }
 
 function labelRowIsValid(row) {
@@ -3986,13 +4029,12 @@ function showLabelPrintError(message) {
 
 function labelPayload(rows) {
   return rows.map((row) => {
-    const raw = row.quantity;
-    const blank = raw === '' || raw == null;
+    const raw = String(row.quantity ?? '').trim();
     return {
       material: String(row.material || '').trim(),
       name: String(row.name || '').trim(),
       spec: String(row.spec || '').trim(),
-      quantity: blank ? '' : Math.round(Number(raw) || 0),
+      quantity: raw,
       date: String(row.date || '').trim(),
     };
   });
