@@ -31,7 +31,33 @@
   .special-time-row input{flex:1 1 auto;min-width:0;border:1px solid #e3d3a8;border-radius:10px;padding:10px 12px;font-size:13px;background:#fff}
   .special-time-row button{flex:0 0 auto;min-width:84px}
   .record .record-special{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:#fff3d6;color:#9a6b12;font-size:10px;font-weight:700}.clock-label{font-size:11px;opacity:.8}.clock-time{font-size:36px;font-weight:900;letter-spacing:.02em;margin:6px 0}.clock-note{font-size:11px;opacity:.8}
-    .clock-actions{display:grid;grid-template-columns:1fr;gap:9px;margin-top:16px}.clock-actions button{min-height:50px}.clock-stop{background:#fff;color:#a83e2e;border-color:rgba(255,255,255,.7)}
+    .clock-actions{display:grid;grid-template-columns:1fr;gap:9px;margin-top:16px}
+  .clock-actions .clock-action{min-height:50px;position:relative;display:grid;place-items:center;width:100%;padding:0 16px;border:1px solid transparent;border-radius:12px;overflow:hidden;cursor:pointer;transition:width .38s cubic-bezier(.2,.9,.22,1),height .38s cubic-bezier(.2,.9,.22,1),border-radius .38s cubic-bezier(.2,.9,.22,1),background .3s ease,color .3s ease}
+  .clock-action .ca-text,.clock-action .ca-result{white-space:nowrap;font-size:16px;font-weight:700;transition:opacity .18s ease}
+  .clock-action .ca-result{opacity:0;display:none}
+  .clock-action .ca-ring,.clock-action .ca-check{position:absolute;inset:0;margin:auto;width:76px;height:76px;opacity:0;transition:opacity .18s ease;pointer-events:none}
+  .clock-action .ca-ring circle{fill:none;stroke-width:3.5;stroke-linecap:round}
+  .clock-action .ca-ring-bg{stroke:rgba(255,255,255,.28)}
+  .clock-action .ca-ring-fg{stroke:#fff;stroke-dasharray:213.6;stroke-dashoffset:213.6;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset 1.05s cubic-bezier(.35,.15,.2,1)}
+  .clock-action .ca-check-path{fill:none;stroke:#0f766e;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:44;stroke-dashoffset:44;transition:stroke-dashoffset .3s ease .05s}
+  /* 收起成圆 + 环形进度 */
+  .clock-action.is-loading{width:76px;height:76px;min-height:76px;border-radius:50%;padding:0;background:#fff;border-color:#fff;margin:0 auto}
+  .clock-action.is-loading .ca-text,.clock-action.is-loading .ca-result{opacity:0}
+  .clock-action.is-loading .ca-ring{opacity:1}
+  .clock-action.is-loading .ca-ring-fg{stroke:#0f766e}
+  .clock-action.is-loading .ca-ring-bg{stroke:rgba(15,118,110,.16)}
+  .clock-action.is-ring-run .ca-ring-fg{stroke-dashoffset:0}
+  /* 环形合拢 + 画勾 */
+  .clock-action.is-success{background:#fff;border-color:#fff}
+  .clock-action.is-success .ca-ring-fg{stroke:#0f766e;stroke-dashoffset:0}
+  .clock-action.is-success .ca-check{opacity:1}
+  .clock-action.is-success .ca-check-path{stroke-dashoffset:0}
+  /* 横向展开成结果条 */
+  .clock-action.is-result{width:100%;height:50px;min-height:50px;border-radius:12px;background:#fff;border-color:#fff;margin:0}
+  .clock-action.is-result .ca-ring,.clock-action.is-result .ca-check{opacity:0}
+  .clock-action.is-result .ca-result{display:block;opacity:1;color:#0f766e}
+  .clock-action.is-result .ca-text{display:none}
+  .clock-stop{background:#fff;color:#a83e2e;border-color:rgba(255,255,255,.7)}
     .stats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}.stat{padding:12px;border-radius:13px;background:var(--primary-soft)}.stat span{display:block;color:#61807b;font-size:10px}.stat strong{display:block;margin-top:4px;font-size:20px}
     .rules{display:grid;gap:6px;font-size:11px;color:#60777d}.rules div{display:flex;justify-content:space-between;padding:7px 9px;border-radius:9px;background:#f6f9f9}.rules b{color:#294b52}
     .list-title{display:flex;justify-content:space-between;align-items:center;margin:14px 1px 8px}.list-title strong{font-size:13px}.list-title span{font-size:11px;color:var(--muted)}
@@ -107,7 +133,19 @@
         <div class="clock-label" id="clockLabel">当前状态</div>
         <div class="clock-time" id="clockTime">00:00</div>
         <div class="clock-note" id="clockNote" hidden></div>
-        <div class="clock-actions"><button id="clockAction" class="primary">开始计时</button></div>
+        <div class="clock-actions">
+        <button id="clockAction" class="clock-action primary" type="button">
+          <span class="ca-text">开始计时</span>
+          <svg class="ca-ring" viewBox="0 0 76 76" aria-hidden="true">
+            <circle class="ca-ring-bg" cx="38" cy="38" r="34"></circle>
+            <circle class="ca-ring-fg" cx="38" cy="38" r="34"></circle>
+          </svg>
+          <svg class="ca-check" viewBox="0 0 76 76" aria-hidden="true">
+            <path class="ca-check-path" d="M25 39.5 34 48.5 52 29"></path>
+          </svg>
+          <span class="ca-result"></span>
+        </button>
+      </div>
       </div>
       <div id="specialTimePanel" class="card special-time hidden">
         <p class="special-time-hint" id="specialTimeHint"></p>
@@ -322,7 +360,12 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
     const note = $('clockNote');
     note.textContent = active ? `开始于 ${fmtClock(state.activeEntry.startedAt)}` : '';
     note.hidden = !active;
-    const btn = $('clockAction'); btn.textContent = active ? '结束本次计时' : '开始计时'; btn.classList.toggle('clock-stop', active);
+    const btn = $('clockAction');
+    if (!btn.classList.contains('is-loading') && !btn.classList.contains('is-success') && !btn.classList.contains('is-result')) {
+      const label = btn.querySelector('.ca-text') || btn;
+      label.textContent = active ? '结束本次计时' : '开始计时';
+      btn.classList.toggle('clock-stop', active);
+    }
     $('todayMinutes').textContent = fmtMinutes(state?.todayMinutes);
     $('monthMinutes').textContent = fmtMinutes(state?.monthMinutes);
     const rows = state?.todayEntries || []; $('todayCount').textContent = `${rows.length} 段`;
@@ -669,9 +712,38 @@ function renderPiece() {
     if (!pendingSpecialEntry) { panel.classList.add('hidden'); return; }
     panel.classList.remove('hidden');
   }
+  function playClockMorph(btn) {
+    btn.classList.remove('clock-stop');
+    btn.classList.add('is-loading');
+    // 先收成圆形，再走环形进度
+    setTimeout(() => btn.classList.add('is-ring-run'), 360);
+  }
+  function finishClockMorph(btn, text) {
+    btn.classList.add('is-success');
+    setTimeout(() => {
+      const result = btn.querySelector('.ca-result');
+      if (result) result.textContent = text;
+      btn.classList.add('is-result');
+    }, 480);
+    setTimeout(() => {
+      btn.classList.remove('is-loading','is-ring-run','is-success','is-result');
+      btn.classList.add('clock-stop');
+      const label = btn.querySelector('.ca-text');
+      if (label) label.textContent = '开始计时';
+      btn.disabled = false;
+    }, 2100);
+  }
+  function resetClockMorph(btn) {
+    btn.classList.remove('is-loading','is-ring-run','is-success','is-result');
+    const label = btn.querySelector('.ca-text');
+    if (label) label.textContent = state?.activeEntry ? '结束本次计时' : '开始计时';
+    btn.classList.toggle('clock-stop', Boolean(state?.activeEntry));
+    btn.disabled = false;
+  }
   async function clockAction() {
     const active = Boolean(state?.activeEntry); const btn = $('clockAction');
     btn.disabled = true;
+    if (active) playClockMorph(btn);
     try {
       const note = $('specialTimeNote') ? $('specialTimeNote').value.trim() : '';
       let result;
@@ -701,7 +773,19 @@ function renderPiece() {
         renderSpecialPanel();
         toast(active ? '本次计时已结束' : '计时已开始');
       }
-    } catch (e) { toast(e.message || '操作失败'); } finally { btn.disabled = false; }
+      if (active) {
+        const clock = (v) => fmtClock(v);
+        const text = result && result.capped
+          ? `已结束 · 按 ${clock(result.endedAt)} 计`
+          : result && result.endedAt ? `已结束 · ${clock(result.endedAt)}` : '本次计时已结束';
+        finishClockMorph(btn, text);
+      } else {
+        btn.disabled = false;
+      }
+    } catch (e) {
+      resetClockMorph(btn);
+      toast(e.message || '操作失败');
+    }
   }
   async function confirmSpecialTime() {
     if (!pendingSpecialEntry) return;

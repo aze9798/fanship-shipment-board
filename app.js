@@ -3828,7 +3828,7 @@ function labelRowHtml(row, index) {
     <input class="label-print-input mono" data-label-field="material" value="${escapeHtml(row.material)}" placeholder="物料编码">
     <input class="label-print-input" data-label-field="name" value="${escapeHtml(row.name)}" placeholder="物料名称">
     <input class="label-print-input" data-label-field="spec" value="${escapeHtml(row.spec)}" placeholder="规格">
-    <input class="label-print-input number" type="number" min="1" step="1" inputmode="numeric" data-label-field="quantity" value="${Number(row.quantity) || 0}">
+    <input class="label-print-input number" type="number" min="1" step="1" inputmode="numeric" data-label-field="quantity" value="${labelRowQuantity(row) || ''}" placeholder="">
     <input class="label-print-input" type="date" data-label-field="date" value="${escapeHtml(row.date)}">
     <div class="label-print-row-actions">
       <button type="button" class="label-row-btn" data-label-copy="${index}">复制</button>
@@ -3845,17 +3845,24 @@ function renderLabelRows() {
   updateLabelSummary();
 }
 
+function labelRowQuantity(row) {
+  const value = Number(row.quantity);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
 function labelRowIsValid(row) {
-  return Boolean(String(row.material || '').trim()) && Number(row.quantity) > 0;
+  // 数量允许留空（空着代表自己手填），只要求有物料编码
+  return Boolean(String(row.material || '').trim());
 }
 function updateLabelSummary() {
   if (!els.labelPrintSummary) return;
   const valid = labelRows.filter(labelRowIsValid);
   const big = valid.filter((row) => row.selected);
   const small = valid.filter((row) => !row.selected);
-  const bigQty = big.reduce((sum, row) => sum + Number(row.quantity || 0), 0);
-  const smallQty = small.reduce((sum, row) => sum + Number(row.quantity || 0), 0);
-  els.labelPrintSummary.textContent = `勾选 ${big.length} 行 / ${fmt(bigQty)} 件 → A4 大标签；未勾选 ${small.length} 行 / ${fmt(smallQty)} 件 → 艾沃意特小标签`;
+  const bigQty = big.reduce((sum, row) => sum + labelRowQuantity(row), 0);
+  const smallQty = small.reduce((sum, row) => sum + labelRowQuantity(row), 0);
+  const blank = valid.filter((row) => labelRowQuantity(row) === 0).length;
+  els.labelPrintSummary.textContent = `勾选 ${big.length} 行 / ${fmt(bigQty)} 件 → A4 大标签；未勾选 ${small.length} 行 / ${fmt(smallQty)} 件 → 艾沃意特小标签`
+    + (blank ? `（其中 ${blank} 行数量留空，打印出来是空白）` : '');
   if (els.labelPrintSelectAll) {
     els.labelPrintSelectAll.checked = labelRows.length > 0 && labelRows.every((row) => row.selected);
   }
@@ -3876,7 +3883,7 @@ function handleLabelPrintInput(event) {
   if (index < 0) return;
   const row = labelRows[index];
   if (field === 'selected') row.selected = Boolean(event.target.checked);
-  else if (field === 'quantity') row.quantity = Number(event.target.value) || 0;
+  else if (field === 'quantity') row.quantity = event.target.value === '' ? '' : event.target.value;
   else row[field] = event.target.value;
   updateLabelSummary();
 }
@@ -3906,19 +3913,23 @@ function showLabelPrintError(message) {
 }
 
 function labelPayload(rows) {
-  return rows.map((row) => ({
-    material: String(row.material || '').trim(),
-    name: String(row.name || '').trim(),
-    spec: String(row.spec || '').trim(),
-    quantity: Math.round(Number(row.quantity) || 0),
-    date: String(row.date || '').trim(),
-  }));
+  return rows.map((row) => {
+    const raw = row.quantity;
+    const blank = raw === '' || raw == null;
+    return {
+      material: String(row.material || '').trim(),
+      name: String(row.name || '').trim(),
+      spec: String(row.spec || '').trim(),
+      quantity: blank ? '' : Math.round(Number(raw) || 0),
+      date: String(row.date || '').trim(),
+    };
+  });
 }
 async function confirmLabelPrint() {
   const valid = labelRows.filter(labelRowIsValid);
   const big = labelPayload(valid.filter((row) => row.selected));
   const small = labelPayload(valid.filter((row) => !row.selected));
-  if (!valid.length) { showLabelPrintError('请至少保留一行，并保证物料编码和数量都不为空。'); return; }
+  if (!valid.length) { showLabelPrintError('请至少保留一行，并填写物料编码。'); return; }
   if (els.labelPrintError) els.labelPrintError.hidden = true;
   if (els.labelPrintConfirm) {
     els.labelPrintConfirm.disabled = true;
