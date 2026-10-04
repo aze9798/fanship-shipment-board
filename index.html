@@ -20,13 +20,22 @@
   <div id="app" class="app-shell">
     <aside class="sidebar desktop-only">
       <div class="brand">
-        <div class="brand-mark">帆</div>
+        <div class="module-fab-slot">
+        <div id="moduleSwitchButton" class="brand-mark module-fab" role="button" tabindex="0" aria-expanded="false" aria-label="切换模块" title="切换模块">
+          <span class="module-fab-mark">帆</span>
+          <div id="moduleSwitchSheet" class="module-fab-sheet">
+            <p class="module-fab-title">切换模块</p>
+            <button type="button" data-desktop-module="shipment" style="--i:1"><b>装车登记</b><small>总览 · 未交 · 装车 · 查询 · 图纸库</small></button>
+            <button type="button" data-desktop-module="workReport" style="--i:2"><b>报工情况</b><small>查看员工当天报工明细</small></button>
+            <button type="button" data-desktop-module="workReview" style="--i:3"><b>报工审核</b><small>审核自主申报与单价</small></button>
+          </div>
+        </div>
+        </div>
         <div>
           <strong id="brandTitle">帆顺科技</strong>
+          <span id="moduleSwitchLabel">装车登记</span>
         </div>
       </div>
-
-      <button id="moduleSwitchButton" class="module-switch" type="button" hidden>当前模块：装车登记</button>
       <nav class="side-nav" aria-label="主导航">
         <a class="side-link active" href="./" data-desktop-view="overview" data-module="shipment">
           <span class="nav-dot"></span>

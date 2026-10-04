@@ -482,6 +482,8 @@ const els = {
   mobileFilesDate: $('#mobileFilesDate'),
   mobileFilesClear: $('#mobileFilesClear'),
   moduleSwitchButton: $('#moduleSwitchButton'),
+  moduleSwitchSheet: $('#moduleSwitchSheet'),
+  moduleSwitchLabel: $('#moduleSwitchLabel'),
   desktopWorkReportLink: $('#desktopWorkReportLink'),
   desktopWorkReportView: $('#desktopWorkReportView'),
   desktopWorkReportRefresh: $('#desktopWorkReportRefresh'),
@@ -2242,7 +2244,12 @@ function setDesktopModule(module, view = '') {
   });
   if (els.moduleSwitchButton) {
     els.moduleSwitchButton.hidden = boardRole !== 'admin';
-    els.moduleSwitchButton.textContent = `当前模块：${desktopModule === 'work' ? '报工审核' : '装车登记'}`;
+    els.moduleSwitchButton.setAttribute('aria-disabled', String(boardRole !== 'admin'));
+  }
+  if (els.moduleSwitchLabel) {
+    els.moduleSwitchLabel.textContent = desktopModule === 'work'
+      ? (String(view || '').includes('Review') || (!view && String(desktopView).includes('Review')) ? '报工审核' : '报工情况')
+      : '装车登记';
   }
   if (desktopModule === 'work') showDesktopView(view || 'workReport');
   else showDesktopView(view || (desktopView && !String(desktopView).startsWith('work') ? desktopView : 'overview'));
@@ -3122,7 +3129,7 @@ function buildDeliveryGroups(shipments, queryText = '') {
         <div class="delivery-lines-head"><span>采购单号</span><span>料件编号</span><span>品名</span><span class="number">发货数量</span><span class="number">项次</span><span class="number">未交</span></div>
         ${shown.map((item) => `<div class="delivery-line">
           <span data-label="采购单号">${escapeHtml(item.po)}${item.typeLabel ? ` <em>${escapeHtml(item.typeLabel)}</em>` : ''}</span>
-          <span data-label="料件编号" class="mono">${escapeHtml(item.material)}</span>
+          <span data-label="料件编号">${escapeHtml(item.material)}</span>
           <span data-label="品名">${escapeHtml(item.name)}${item.spec ? ` · ${escapeHtml(item.spec)}` : ''}${item.remark ? `<small>备注：${escapeHtml(item.remark)}</small>` : ''}</span>
           <strong data-label="发货数量" class="number">${fmt(item.quantity)} 件</strong>
           <span data-label="项次" class="number">${escapeHtml(item.seq)}</span>
@@ -4440,7 +4447,45 @@ if (els.desktopLoadingCart) {
   });
 }
 if (els.desktopLoadingOpenSubmit) els.desktopLoadingOpenSubmit.addEventListener('click', openSubmitModal);
-if (els.moduleSwitchButton) els.moduleSwitchButton.addEventListener('click', () => setDesktopModule(desktopModule === 'work' ? 'shipment' : 'work'));
+function openDesktopModuleSheet() {
+  if (!els.moduleSwitchButton) return;
+  els.moduleSwitchButton.classList.add('expanded');
+  els.moduleSwitchButton.setAttribute('aria-expanded', 'true');
+}
+function closeDesktopModuleSheet() {
+  if (!els.moduleSwitchButton) return;
+  els.moduleSwitchButton.classList.remove('expanded');
+  els.moduleSwitchButton.setAttribute('aria-expanded', 'false');
+}
+if (els.moduleSwitchButton) {
+  const toggleDesktopModuleSheet = (event) => {
+    // 面板内按钮自己处理，避免冒泡回来又开一次
+    if (event.target.closest && event.target.closest('#moduleSwitchSheet')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (boardRole !== 'admin') { showToast('管理员模式才能切换模块'); return; }
+    if (els.moduleSwitchButton.classList.contains('expanded')) closeDesktopModuleSheet();
+    else openDesktopModuleSheet();
+  };
+  els.moduleSwitchButton.addEventListener('click', toggleDesktopModuleSheet);
+  els.moduleSwitchButton.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') toggleDesktopModuleSheet(event); });
+}
+if (els.moduleSwitchSheet) {
+  els.moduleSwitchSheet.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-desktop-module]');
+    if (!button) return;
+    event.stopPropagation();
+    const target = button.dataset.desktopModule;
+    closeDesktopModuleSheet();
+    if (target === 'shipment') setDesktopModule('shipment', 'overview');
+    else setDesktopModule('work', target === 'workReview' ? 'workReview' : 'workReport');
+  });
+}
+document.addEventListener('click', (event) => {
+  if (!els.moduleSwitchButton || !els.moduleSwitchButton.classList.contains('expanded')) return;
+  if (els.moduleSwitchButton.contains(event.target)) return;
+  closeDesktopModuleSheet();
+});
 if (els.desktopWorkReportDate) els.desktopWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReport(); });
 if (els.mobileWorkReportDate) els.mobileWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReport(); });
 if (els.desktopWorkReportEmployee) els.desktopWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; loadWorkReport(); });
