@@ -2684,3 +2684,13 @@ html { scrollbar-width: auto; }
 .mobile-tabs.elastic-tabs { position: sticky; }
 
 .brand-mark.module-fab[aria-disabled=true] { cursor: default; }
+/* 图标改成「帆顺」两个字后，收一档字号保证在圆形里居中不挤 */
+.module-fab-mark,
+.mobile-fab-mark,
+.brand-mark.module-fab .module-fab-mark {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  white-space: nowrap;
+}
+.brand-mark.small { font-size: 14px; }
