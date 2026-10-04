@@ -1149,7 +1149,7 @@ function applyRoleUI() {
   const isAdmin = boardRole === 'admin';
   const suffix = isAdmin ? '（管理员）' : '';
   const el = document.getElementById('brandTitle');
-  if (el) el.textContent = '帆顺科技' + suffix;
+  if (el) el.innerHTML = `帆顺科技${isAdmin ? '<small>（管理员）</small>' : ''}`;
   if (!isAdmin) desktopModule = 'shipment';
   setDesktopModule(desktopModule, desktopView);
   if (!isAdmin && mobileModule === 'workReview') mobileModule = 'entry';
@@ -2421,10 +2421,10 @@ function renderAll() {
 
 function renderDesktopMetrics() {
   const { summary } = snapshot;
-  els.metricRemaining.textContent = fmt(summary.remainingQuantity);
-  els.metricRemainingHint.textContent = `源数据未交 ${fmt(summary.sourceRemainingQuantity)} 件起算`;
-  els.metricShipped.textContent = fmt(summary.shippedQuantity);
-  els.metricShipmentCount.textContent = summary.shipmentCount ? `${summary.shipmentCount} 笔发货记录` : '尚未提交发货';
+  if (els.metricRemaining) els.metricRemaining.textContent = fmt(summary.remainingQuantity);
+  if (els.metricRemainingHint) els.metricRemainingHint.textContent = `源数据未交 ${fmt(summary.sourceRemainingQuantity)} 件起算`;
+  if (els.metricShipped) els.metricShipped.textContent = fmt(summary.shippedQuantity);
+  if (els.metricShipmentCount) els.metricShipmentCount.textContent = summary.shipmentCount ? `${summary.shipmentCount} 笔发货记录` : '尚未提交发货';
   if (els.metricUrgent) els.metricUrgent.textContent = fmt(summary.overdue + summary.dueToday);
 }
 

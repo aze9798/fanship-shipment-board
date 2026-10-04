@@ -46,7 +46,7 @@
         </a>
         <a class="side-link" href="#drawings" data-desktop-view="drawings" data-module="shipment">
           <span class="nav-dot"></span>
-          图纸
+          图纸库
         </a>
         <a class="side-link" href="#delivery-files" data-desktop-view="files" data-module="shipment">
           <span class="nav-dot"></span>
@@ -82,35 +82,22 @@
       <section id="desktopView" class="desktop-view desktop-only">
         <header class="topbar">
           <div>
-            <p class="eyebrow">艾沃意特 · 实时未交</p>
+
             <h1>发货计划总览</h1>
           </div>
           <div class="topbar-actions">
             <button id="pdfImportButton" class="button primary" type="button">导入采购订单 PDF</button>
-            <a class="button ghost" href="https://dkbeigqtiilgxthwkixg.supabase.co/functions/v1/shipment-board/api/export.csv">导出未交 CSV</a>
+
             <button id="resetButton" class="button ghost danger-text" type="button">清空演示记录</button>
           </div>
         </header>
 
-        <section class="metrics-grid" aria-label="关键数据">
-          <article class="metric-card primary">
-            <span class="metric-label">当前未交数量</span>
-            <strong id="metricRemaining">--</strong>
-            <small id="metricRemainingHint">全部订单明细</small>
-          </article>
-          <article class="metric-card">
-            <span class="metric-label">今日已装</span>
-            <strong id="metricShipped">--</strong>
-            <small id="metricShipmentCount">尚未提交发货</small>
-          </article>
-        </section>
 
         <section class="dashboard-grid">
           <div class="panel orders-panel">
             <div class="panel-head">
               <div>
-                <h2>剩余未交明细</h2>
-                <p>按交期优先排序，数据随手机提交自动刷新。拖动表头边界可调整列宽。</p>
+                <h2>未交明细</h2>
               </div>
               <div class="status-pill"><span id="desktopLiveDot" class="live-dot"></span><span id="desktopLiveText">实时同步</span></div>
             </div>

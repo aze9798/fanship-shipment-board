@@ -2182,3 +2182,14 @@ body[data-view="mobile"] { background: #e6edeb; }
   .app-shell { grid-template-columns: minmax(0, 1fr); }
   .main-area { width: 100%; }
 }
+/* 批注微调：管理员另起一行，底部模式与切换访问码对齐 */
+.brand strong small {
+  display: block;
+  margin-top: 4px;
+  color: #a9c5c8;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.sidebar-foot { align-items: stretch; }
+.mode-badge { padding-left: 10px; }
