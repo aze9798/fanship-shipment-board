@@ -144,6 +144,7 @@
                   <col style="width: 70px">
                   <col style="width: 75px">
                   <col style="width: 85px">
+                  <col class="col-spacer">
                 </colgroup>
                 <thead>
                   <tr>
@@ -158,6 +159,7 @@
                     <th class="number">单价<span class="col-resizer" data-col-index="8" role="separator" title="拖动调整列宽，双击恢复默认"></span></th>
                     <th class="number">金额<span class="col-resizer" data-col-index="9" role="separator" title="拖动调整列宽，双击恢复默认"></span></th>
                     <th>交期<span class="col-resizer" data-col-index="10" role="separator" title="拖动调整列宽，双击恢复默认"></span></th>
+                    <th class="col-spacer" aria-hidden="true"></th>
                   </tr>
                 </thead>
                 <tbody id="desktopTableBody"></tbody>
@@ -338,11 +340,6 @@
             <button id="desktopLoadingRefresh" class="button ghost" type="button">刷新未交</button>
           </div>
         </header>
-        <section class="desktop-loading-summary">
-          <article><span>本次已选</span><strong id="desktopLoadingSelectedQty">0</strong></article>
-          <article><span>当前未交</span><strong id="desktopLoadingRemainingQty">--</strong><small>全部剩余</small></article>
-          <article><span>可装车订单</span><strong id="desktopLoadingSummary">0</strong><small>当前筛选结果</small></article>
-        </section>
         <section class="desktop-loading-layout">
           <section class="panel loading-orders-panel">
             <div class="desktop-loading-tools">

@@ -1977,7 +1977,7 @@ function renderDesktopLoading() {
   const rows = desktopLoadingOrders();
   const limit = 120;
   const shown = rows.slice(0, limit);
-  els.desktopLoadingSummary.textContent = fmt(rows.length);
+  if (els.desktopLoadingSummary) els.desktopLoadingSummary.textContent = fmt(rows.length);
   els.desktopLoadingEmpty.hidden = rows.length > 0;
   els.desktopLoadingCardList.innerHTML = shown.map(orderCard).join('')
     + (rows.length > limit ? `<div class="empty-state desktop-loading-more"><strong>还有 ${fmt(rows.length - limit)} 项未显示</strong><span>请用搜索快速定位物料。</span></div>` : '');
@@ -2454,7 +2454,9 @@ function writeDesktopColumnWidths(widths) {
 }
 
 function applyDesktopColumnWidths(widths = readDesktopColumnWidths()) {
-  const columns = [...document.querySelectorAll('#desktopOrdersColgroup col')];
+  const allColumns = [...document.querySelectorAll('#desktopOrdersColgroup col')];
+  const spacer = allColumns.find((column) => column.classList.contains('col-spacer')) || null;
+  const columns = allColumns.filter((column) => !column.classList.contains('col-spacer'));
   if (!columns.length) return;
   const normalized = columns.map((_, index) => {
     const width = Number(widths[index]);
@@ -2462,14 +2464,16 @@ function applyDesktopColumnWidths(widths = readDesktopColumnWidths()) {
       ? Math.max(44, Math.min(420, Math.round(width)))
       : DESKTOP_COLUMN_DEFAULT_WIDTHS[index];
   });
-  const total = normalized.reduce((sum, width) => sum + width, 0);
+  // 每一列都按用户设定/默认的像素宽固定下来：拖动某一列时其它列完全不动。
   columns.forEach((column, index) => { column.style.width = `${normalized[index]}px`; });
+  if (spacer) spacer.style.width = 'auto';
   const table = columns[0].closest('table');
   if (table) {
-    // 表格铺满可用宽度；列宽总和作为最小宽度，较窄屏幕才出现横向滚动
-    const width = Math.max(980, total);
+    const total = normalized.reduce((sum, width) => sum + width, 0);
+    // 表格铺满面板：多出来的空间全部由末尾的“填充列”吸收，不参与各列宽度分配。
+    table.style.tableLayout = 'fixed';
     table.style.width = '100%';
-    table.style.minWidth = `${width}px`;
+    table.style.minWidth = `${Math.max(760, total)}px`;
   }
 }
 
@@ -2539,8 +2543,10 @@ function applyDesktopRemainingColumnWidths(widths = readDesktopRemainingColumnWi
   columns.forEach((column, index) => { column.style.width = `${normalized[index]}px`; });
   const table = columns[0].closest('table');
   if (table) {
-    table.style.width = '1300px';
-    table.style.minWidth = '1300px';
+    const width = Math.max(760, normalized.reduce((sum, item) => sum + item, 0));
+    table.style.tableLayout = 'fixed';
+    table.style.width = `${width}px`;
+    table.style.minWidth = `${width}px`;
   }
 }
 
@@ -2601,6 +2607,7 @@ function renderDesktopTable() {
         <td class="number">${escapeHtml(priceText)}</td>
         <td class="number">${escapeHtml(amountText)}</td>
         <td><span class="due-date">${escapeHtml(formatDate(order.dueDate))}</span><span class="due-badge ${badge.className}">${escapeHtml(dueStatus(order).text)}</span></td>
+        <td class="col-spacer" aria-hidden="true"></td>
       </tr>`;
   }).join('');
   els.desktopEmpty.hidden = rows.length > 0;
@@ -4870,6 +4877,14 @@ applyDesktopColumnWidths();
 setupDesktopColumnResize();
 applyDesktopRemainingColumnWidths();
 setupDesktopRemainingColumnResize();
+let desktopColumnResizeTimer = 0;
+window.addEventListener('resize', () => {
+  clearTimeout(desktopColumnResizeTimer);
+  desktopColumnResizeTimer = setTimeout(() => {
+    applyDesktopColumnWidths();
+    applyDesktopRemainingColumnWidths();
+  }, 160);
+});
 setupRpcExportLink();
 if (!getAccessCode()) askAccessCode();
 await loadBoardRole();
