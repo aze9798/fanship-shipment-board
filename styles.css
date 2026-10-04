@@ -2745,3 +2745,42 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(9),
 body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
   display: none !important;
 }
+
+/* ===== 云端送货单：明细标题居中放大，日期下拉与搜索框同款式 ===== */
+#cloudFileList .file-box .over-head,
+#mobileCloudFileList .file-box .over-head {
+  justify-content: center;
+  padding: 2px 0 6px;
+}
+#cloudFileList .file-box .over-head strong,
+#mobileCloudFileList .file-box .over-head strong {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: .01em;
+  text-align: center;
+}
+/* 发货日期下拉：和搜索框同一套外观（高度、边框、圆角、底色、字号） */
+#desktopFilesView .history-tools-row select#filesDate,
+#mobileFilesPanel .remaining-due-row select#mobileFilesDate {
+  height: 34px;
+  padding: 0 30px 0 12px;
+  border: 1px solid #d7e1e3;
+  border-radius: 9px;
+  background-color: #fbfcfc;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #6b8489 50%), linear-gradient(135deg, #6b8489 50%, transparent 50%);
+  background-position: calc(100% - 16px) calc(50% - 1px), calc(100% - 11px) calc(50% - 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+#mobileFilesPanel .remaining-due-row select#mobileFilesDate { height: 40px; font-size: 13px; }
+#desktopFilesView .history-tools-row select#filesDate:focus,
+#mobileFilesPanel .remaining-due-row select#mobileFilesDate:focus {
+  border-color: #83c7bf;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, .09);
+  outline: none;
+}

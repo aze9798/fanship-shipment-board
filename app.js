@@ -1679,7 +1679,7 @@ function renderDeliveryFiles(dateFilter, queryText) {
   if (!rows.length && !dateFilter && !String(queryText || '').trim()) return '';
   return `
     <section class="file-box">
-      <div class="over-head"><strong>已上传的送货单</strong><span>${rows.length} 个文件</span></div>
+      <div class="over-head"><strong>送货单明细</strong></div>
       <div class="file-format-tabs">
         <button class="chip${wantPdf ? '' : ' active'}" data-cloud-format="excel" type="button">EXCEL（下载打印送货单）</button>
         <button class="chip${wantPdf ? ' active' : ''}" data-cloud-format="pdf" type="button">PDF（云端归档）</button>
