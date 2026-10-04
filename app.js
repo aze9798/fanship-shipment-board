@@ -2247,8 +2247,10 @@ function setDesktopModule(module, view = '') {
     link.hidden = !allowed;
   });
   if (els.moduleSwitchButton) {
-    els.moduleSwitchButton.hidden = boardRole !== 'admin';
+    els.moduleSwitchButton.hidden = false;
     els.moduleSwitchButton.setAttribute('aria-disabled', String(boardRole !== 'admin'));
+    els.moduleSwitchButton.setAttribute('title', boardRole === 'admin' ? '切换模块' : '帆顺科技');
+    els.moduleSwitchButton.setAttribute('aria-label', boardRole === 'admin' ? '切换模块' : '帆顺科技');
   }
   if (els.moduleSwitchLabel) {
     els.moduleSwitchLabel.textContent = desktopModule === 'work'
@@ -4651,7 +4653,7 @@ if (els.moduleSwitchButton) {
     if (event.target.closest && event.target.closest('#moduleSwitchSheet')) return;
     event.preventDefault();
     event.stopPropagation();
-    if (boardRole !== 'admin') { showToast('管理员模式才能切换模块'); return; }
+    if (boardRole !== 'admin') return;
     if (els.moduleSwitchButton.classList.contains('expanded')) closeDesktopModuleSheet();
     else openDesktopModuleSheet();
   };
