@@ -1612,30 +1612,43 @@ function renderDesktopDrawings() {
 }
 
 // 云端送货单：独立页面（电脑端一个页面、手机端一个标签），Excel 和 PDF 各一份
-function syncMobileFileDateOptions() {
-  const select = els.mobileFilesDate;
+function syncFileDateOptions(select, current, reset) {
   if (!select || select.tagName !== 'SELECT') return;
-  const counts = new Map();
+  // 每个发货日期对应哪些送货单编号（不显示条数）
+  const batchesByDay = new Map();
   for (const file of deliveryFiles()) {
     const day = String(file.deliveryDate || '').slice(0, 10);
     if (!day) continue;
-    counts.set(day, (counts.get(day) || 0) + 1);
+    if (!batchesByDay.has(day)) batchesByDay.set(day, []);
+    const batch = deliveryBatchText(file.deliveryBatch != null ? file.deliveryBatch : file.batch);
+    const list = batchesByDay.get(day);
+    if (batch && !list.includes(batch)) list.push(batch);
   }
-  const days = [...counts.keys()].sort((a, b) => b.localeCompare(a));
-  const current = mobileFilesDate || select.value || '';
+  const days = [...batchesByDay.keys()].sort((a, b) => b.localeCompare(a));
+  const label = (day) => {
+    const list = batchesByDay.get(day) || [];
+    if (!list.length) return day;
+    list.sort((a, b) => String(b).localeCompare(String(a), 'zh-CN'));
+    return `${day}｜送货单 ${list.join('、')}`;
+  };
+  const wanted = current || select.value || '';
   const options = ['<option value="">全部日期</option>']
-    .concat(days.map((day) => `<option value="${escapeHtml(day)}">${escapeHtml(day)}（${counts.get(day)}）</option>`));
+    .concat(days.map((day) => `<option value="${escapeHtml(day)}">${escapeHtml(label(day))}</option>`));
   const html = options.join('');
   if (select.dataset.signature !== html) {
     select.innerHTML = html;
     select.dataset.signature = html;
   }
-  const exists = days.includes(current);
-  select.value = exists ? current : '';
-  if (current && !exists) mobileFilesDate = '';
+  const exists = days.includes(wanted);
+  select.value = exists ? wanted : '';
+  if (wanted && !exists) reset();
+}
+function syncFileDateOptionsAll() {
+  syncFileDateOptions(els.filesDate, filesDate, () => { filesDate = ''; });
+  syncFileDateOptions(els.mobileFilesDate, mobileFilesDate, () => { mobileFilesDate = ''; });
 }
 function renderCloudFiles() {
-  syncMobileFileDateOptions();
+  syncFileDateOptionsAll();
   const desktopHtml = renderDeliveryFiles(filesDate, filesQuery);
   if (els.cloudFileList) els.cloudFileList.innerHTML = desktopHtml || '<div class="empty-state"><strong>还没有上传过送货单</strong><span>在打印助手预览页点“确认上传到云端”就会出现在这里。</span></div>';
 
