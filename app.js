@@ -1612,7 +1612,30 @@ function renderDesktopDrawings() {
 }
 
 // 云端送货单：独立页面（电脑端一个页面、手机端一个标签），Excel 和 PDF 各一份
+function syncMobileFileDateOptions() {
+  const select = els.mobileFilesDate;
+  if (!select || select.tagName !== 'SELECT') return;
+  const counts = new Map();
+  for (const file of deliveryFiles()) {
+    const day = String(file.deliveryDate || '').slice(0, 10);
+    if (!day) continue;
+    counts.set(day, (counts.get(day) || 0) + 1);
+  }
+  const days = [...counts.keys()].sort((a, b) => b.localeCompare(a));
+  const current = mobileFilesDate || select.value || '';
+  const options = ['<option value="">全部日期</option>']
+    .concat(days.map((day) => `<option value="${escapeHtml(day)}">${escapeHtml(day)}（${counts.get(day)}）</option>`));
+  const html = options.join('');
+  if (select.dataset.signature !== html) {
+    select.innerHTML = html;
+    select.dataset.signature = html;
+  }
+  const exists = days.includes(current);
+  select.value = exists ? current : '';
+  if (current && !exists) mobileFilesDate = '';
+}
 function renderCloudFiles() {
+  syncMobileFileDateOptions();
   const desktopHtml = renderDeliveryFiles(filesDate, filesQuery);
   if (els.cloudFileList) els.cloudFileList.innerHTML = desktopHtml || '<div class="empty-state"><strong>还没有上传过送货单</strong><span>在打印助手预览页点“确认上传到云端”就会出现在这里。</span></div>';
 
