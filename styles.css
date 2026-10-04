@@ -2485,3 +2485,13 @@ html { scrollbar-width: auto; }
 #desktopFilesView .shipments-page .over-head,
 #desktopFilesView .shipments-page .over-row { font-size: 13px; }
 #desktopFilesView .shipments-page .file-download { font-size: 12px; }
+/* 左下角访问码与模式文字：保持同一字号、同一水平中心 */
+.sidebar-foot .sidebar-switch,
+.sidebar-foot .mode-badge {
+  font-size: 11px;
+  text-align: center;
+}
+.sidebar-foot .mode-badge {
+  margin-top: 4px;
+  padding-left: 0;
+}
