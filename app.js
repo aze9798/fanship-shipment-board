@@ -2693,8 +2693,10 @@ function applyDeliveryColumnWidths(kind, widths = readDeliveryColumnWidths(kind)
   const template = normalized.map((width) => `${width}px`).join(' ');
   const total = normalized.reduce((sum, width) => sum + width, 0);
   lines.forEach((line) => {
-    line.style.gridTemplateColumns = template;
     line.style.minWidth = `${total}px`;
+    [...line.children]
+      .filter((child) => child.classList.contains('delivery-lines-head') || child.classList.contains('delivery-line'))
+      .forEach((child) => { child.style.gridTemplateColumns = template; });
   });
 }
 
