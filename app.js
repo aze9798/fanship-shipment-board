@@ -2652,6 +2652,90 @@ function setupDesktopRemainingColumnResize() {
     });
   });
 }
+const DELIVERY_GROUPED_COLUMN_WIDTH_KEY = 'shipmentDeliveryGroupedColumnWidths';
+const DELIVERY_MERGED_COLUMN_WIDTH_KEY = 'shipmentDeliveryMergedColumnWidths';
+const DELIVERY_COLUMN_DEFAULT_WIDTHS = {
+  grouped: [150, 130, 220, 82, 58, 76],
+  merged: [135, 112, 180, 76, 52, 70, 106, 92],
+};
+
+function deliveryColumnWidthKey(kind) {
+  return kind === 'merged' ? DELIVERY_MERGED_COLUMN_WIDTH_KEY : DELIVERY_GROUPED_COLUMN_WIDTH_KEY;
+}
+
+function readDeliveryColumnWidths(kind) {
+  const defaults = DELIVERY_COLUMN_DEFAULT_WIDTHS[kind] || DELIVERY_COLUMN_DEFAULT_WIDTHS.grouped;
+  try {
+    const saved = JSON.parse(localStorage.getItem(deliveryColumnWidthKey(kind)) || '[]');
+    if (Array.isArray(saved) && saved.length === defaults.length) {
+      return saved.map((value, index) => {
+        const width = Number(value);
+        return Number.isFinite(width) ? Math.max(44, Math.min(520, Math.round(width))) : defaults[index];
+      });
+    }
+  } catch { }
+  return [...defaults];
+}
+
+function writeDeliveryColumnWidths(kind, widths) {
+  try { localStorage.setItem(deliveryColumnWidthKey(kind), JSON.stringify(widths)); } catch { }
+}
+
+function applyDeliveryColumnWidths(kind, widths = readDeliveryColumnWidths(kind)) {
+  const selector = kind === 'merged' ? '.delivery-lines.merged' : '.delivery-lines.grouped';
+  const lines = [...document.querySelectorAll(selector)];
+  if (!lines.length) return;
+  const defaults = DELIVERY_COLUMN_DEFAULT_WIDTHS[kind] || DELIVERY_COLUMN_DEFAULT_WIDTHS.grouped;
+  const normalized = defaults.map((fallback, index) => {
+    const width = Number(widths[index]);
+    return Number.isFinite(width) ? Math.max(44, Math.min(520, Math.round(width))) : fallback;
+  });
+  const template = normalized.map((width) => `${width}px`).join(' ');
+  const total = normalized.reduce((sum, width) => sum + width, 0);
+  lines.forEach((line) => {
+    line.style.gridTemplateColumns = template;
+    line.style.minWidth = `${total}px`;
+  });
+}
+
+function setupDeliveryColumnResize() {
+  document.addEventListener('pointerdown', (event) => {
+    const handle = event.target.closest('.history-col-resizer');
+    if (!handle || event.button !== 0) return;
+    const kind = handle.dataset.deliveryKind === 'merged' ? 'merged' : 'grouped';
+    const index = Number(handle.dataset.deliveryCol);
+    if (!Number.isFinite(index)) return;
+    event.preventDefault();
+    const startX = event.clientX;
+    const widths = readDeliveryColumnWidths(kind);
+    const startWidth = widths[index];
+    const onMove = (moveEvent) => {
+      widths[index] = Math.max(44, Math.min(520, Math.round(startWidth + moveEvent.clientX - startX)));
+      applyDeliveryColumnWidths(kind, widths);
+    };
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      handle.classList.remove('dragging');
+      writeDeliveryColumnWidths(kind, widths);
+    };
+    handle.classList.add('dragging');
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  });
+  document.addEventListener('dblclick', (event) => {
+    const handle = event.target.closest('.history-col-resizer');
+    if (!handle) return;
+    const kind = handle.dataset.deliveryKind === 'merged' ? 'merged' : 'grouped';
+    const index = Number(handle.dataset.deliveryCol);
+    const defaults = DELIVERY_COLUMN_DEFAULT_WIDTHS[kind] || DELIVERY_COLUMN_DEFAULT_WIDTHS.grouped;
+    const widths = readDeliveryColumnWidths(kind);
+    widths[index] = defaults[index];
+    applyDeliveryColumnWidths(kind, widths);
+    writeDeliveryColumnWidths(kind, widths);
+  });
+}
+
 function renderDesktopTable() {
   const rows = desktopRows();
   els.desktopTableBody.innerHTML = rows.map((order) => {
@@ -3307,8 +3391,8 @@ function buildDeliveryGroups(shipments, queryText = '') {
       <div class="history-head">
         <strong>${escapeHtml(group.title)}</strong>
       </div>
-      <div class="delivery-lines">
-        <div class="delivery-lines-head"><span>采购单号</span><span>料件编号</span><span>品名</span><span class="number">发货数量</span><span class="number">项次</span><span class="number">未交</span></div>
+      <div class="delivery-lines grouped">
+        <div class="delivery-lines-head"><span>采购单号<i class="history-col-resizer" data-delivery-kind="grouped" data-delivery-col="0" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span>料件编号<i class="history-col-resizer" data-delivery-kind="grouped" data-delivery-col="1" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span>品名<i class="history-col-resizer" data-delivery-kind="grouped" data-delivery-col="2" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">发货数量<i class="history-col-resizer" data-delivery-kind="grouped" data-delivery-col="3" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">项次<i class="history-col-resizer" data-delivery-kind="grouped" data-delivery-col="4" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">未交<i class="history-col-resizer" data-delivery-kind="grouped" data-delivery-col="5" role="separator" title="拖动调整列宽，双击恢复默认"></i></span></div>
         ${shown.map((item) => `<div class="delivery-line">
           <span data-label="采购单号">${escapeHtml(item.po)}${item.typeLabel ? ` <em>${escapeHtml(item.typeLabel)}</em>` : ''}</span>
           <span data-label="料件编号">${escapeHtml(item.material)}</span>
@@ -3342,7 +3426,7 @@ function renderMergedDeliveryRows(groups) {
   rows.sort((a, b) => String(b.shippedAt || '').localeCompare(String(a.shippedAt || '')));
   return `<article class="history-card delivery-batch-card merged-card">
       <div class="delivery-lines merged">
-        <div class="delivery-lines-head"><span>采购单号</span><span>料件编号</span><span>品名</span><span class="number">发货数量</span><span class="number">项次</span><span class="number">未交</span><span class="ship-batch-head">送货单编号</span><span class="ship-date-head">发货日期</span></div>
+        <div class="delivery-lines-head"><span>采购单号<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="0" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span>料件编号<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="1" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span>品名<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="2" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">发货数量<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="3" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">项次<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="4" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">未交<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="5" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="ship-batch-head">送货单编号<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="6" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="ship-date-head">发货日期<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="7" role="separator" title="拖动调整列宽，双击恢复默认"></i></span></div>
         ${rows.map((item) => `<div class="delivery-line">
           <span data-label="采购单号">${escapeHtml(item.po)}${item.typeLabel ? ` <em>${escapeHtml(item.typeLabel)}</em>` : ''}</span>
           <span data-label="料件编号">${escapeHtml(item.material)}</span>
@@ -3375,6 +3459,7 @@ function renderShipmentSection(shipments, queryText = '') {
   }
   renderQueryPanes(els.shipmentHistory, els.offsetHistory, els.overHistory, renderShipmentSection(rows, historyQuery), els.replacementHistory);
   void renderCloudFiles();
+  requestAnimationFrame(() => { applyDeliveryColumnWidths('grouped'); applyDeliveryColumnWidths('merged'); });
 }
 
 function orderCard(order) {
@@ -3759,6 +3844,7 @@ function renderMobileRecords() {
   });
   renderQueryPanes(els.recordsList, els.recordsOffsetList, els.recordsOverList, renderShipmentSection(rows, recordsSearch), els.recordsReplacementList);
   void renderCloudFiles();
+  requestAnimationFrame(() => { applyDeliveryColumnWidths('grouped'); applyDeliveryColumnWidths('merged'); });
   els.recordsList.querySelectorAll('[data-expand]').forEach((button) => button.addEventListener('click', () => {
     const id = button.dataset.expand;
     if (expandedShipments.has(id)) expandedShipments.delete(id);
@@ -5485,6 +5571,9 @@ applyDesktopColumnWidths();
 setupDesktopColumnResize();
 applyDesktopRemainingColumnWidths();
 setupDesktopRemainingColumnResize();
+setupDeliveryColumnResize();
+applyDeliveryColumnWidths('grouped');
+applyDeliveryColumnWidths('merged');
 let desktopColumnResizeTimer = 0;
 window.addEventListener('resize', () => {
   clearTimeout(desktopColumnResizeTimer);

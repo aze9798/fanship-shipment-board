@@ -1230,7 +1230,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
 }
 
 /* ===== 补发（不良补货） ===== */
-.replacement-open { margin-top: 9px; width: 100%; }
+.replacement-open { margin-top: 3px; width: 100%; }
 .replacement-box {
   margin-top: 9px;
   padding: 11px 12px;
@@ -2676,8 +2676,8 @@ html { scrollbar-width: auto; }
   margin-bottom: -5px;
 }
 .mobile-search {
-  margin-top: 10px;
-  margin-bottom: -5px;
+  margin-top: 0;
+  margin-bottom: 5px;
 }
 
 /* 弹性指示器给容器加的 position: relative 会破坏页签的吸顶，这里恢复 */
@@ -2694,3 +2694,29 @@ html { scrollbar-width: auto; }
   white-space: nowrap;
 }
 .brand-mark.small { font-size: 14px; }
+
+/* 查询页送货单明细：列宽可拖动，双击恢复默认 */
+.delivery-lines { overflow-x: auto; }
+.delivery-lines-head > span { position: relative; }
+.history-col-resizer {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  bottom: -5px;
+  width: 10px;
+  z-index: 4;
+  cursor: col-resize;
+  user-select: none;
+}
+.history-col-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  border-radius: 999px;
+  background: transparent;
+}
+.history-col-resizer:hover::after,
+.history-col-resizer.dragging::after { background: rgba(15, 118, 110, .45); }
