@@ -1941,3 +1941,18 @@ body[data-view="mobile"] { background: #dfe7e9; }
   .delivery-line > span::before,.delivery-line > strong::before { content:attr(data-label); color:#819197; font-size:10px; font-weight:400; }
   .delivery-line small { grid-column:2; }
 }
+/* 电脑端剩余未交：新增单价/金额，按业务人员习惯排序并铺满页面 */
+#desktopView .orders-table { width: 100% !important; min-width: 980px; table-layout: fixed; }
+#desktopView .orders-table th,
+#desktopView .orders-table td { min-width: 0; padding-left: 8px; padding-right: 8px; }
+#desktopView .orders-table th:nth-child(1), #desktopView .orders-table td:nth-child(1) { width: 125px; }
+#desktopView .orders-table th:nth-child(2), #desktopView .orders-table td:nth-child(2) { width: 90px; }
+#desktopView .orders-table th:nth-child(3), #desktopView .orders-table td:nth-child(3) { width: 200px; }
+#desktopView .orders-table th:nth-child(4), #desktopView .orders-table td:nth-child(4) { width: 120px; }
+#desktopView .orders-table th:nth-child(5), #desktopView .orders-table td:nth-child(5) { width: 60px; }
+#desktopView .orders-table th:nth-child(6), #desktopView .orders-table td:nth-child(6) { width: 55px; }
+#desktopView .orders-table th:nth-child(7), #desktopView .orders-table td:nth-child(7) { width: 65px; }
+#desktopView .orders-table th:nth-child(8), #desktopView .orders-table td:nth-child(8) { width: 50px; }
+#desktopView .orders-table th:nth-child(9), #desktopView .orders-table td:nth-child(9) { width: 70px; }
+#desktopView .orders-table th:nth-child(10), #desktopView .orders-table td:nth-child(10) { width: 75px; }
+#desktopView .orders-table th:nth-child(11), #desktopView .orders-table td:nth-child(11) { width: 85px; }

@@ -2429,7 +2429,7 @@ function renderDesktopMetrics() {
 }
 
 const DESKTOP_COLUMN_WIDTH_KEY = 'shipmentDesktopColumnWidths';
-const DESKTOP_COLUMN_DEFAULT_WIDTHS = [118, 92, 220, 170, 64, 118, 72, 68, 76];
+const DESKTOP_COLUMN_DEFAULT_WIDTHS = [125, 90, 200, 120, 60, 55, 65, 50, 70, 75, 85];
 
 function readDesktopColumnWidths() {
   try {
@@ -2461,9 +2461,9 @@ function applyDesktopColumnWidths(widths = readDesktopColumnWidths()) {
   columns.forEach((column, index) => { column.style.width = `${normalized[index]}px`; });
   const table = columns[0].closest('table');
   if (table) {
-    // 固定表格宽度 = 各列宽度之和，这样拖动列宽才会真的动（而不是被 100% 宽度摊回去）
-    const width = Math.max(760, total);
-    table.style.width = `${width}px`;
+    // 表格铺满可用宽度；列宽总和作为最小宽度，较窄屏幕才出现横向滚动
+    const width = Math.max(980, total);
+    table.style.width = '100%';
     table.style.minWidth = `${width}px`;
   }
 }
@@ -2510,23 +2510,26 @@ function renderDesktopTable() {
     const badge = dueBadge(order);
     const typeLabel = ({ trial: '试制', sample: '承样', tooling: '工装' })[order.orderType] || '';
     const orderQty = Number(order.orderQty ?? order.openingRemaining ?? 0);
+    const amount = amountFor(order.id);
+    const priceText = boardRole === 'admin' && amount && amount.unitPrice != null ? fmt(amount.unitPrice) : '--';
+    const amountText = boardRole === 'admin' && amount && amount.amount != null ? fmt(amount.amount) : '--';
     return `
       <tr>
-        <td><span class="order-id">${escapeHtml(order.po)}</span><span class="seq-inline">项次 ${escapeHtml(order.seq)}</span><span class="company-tag" title="${escapeHtml(companyName(orderCompany(order)))}">${escapeHtml(orderCompany(order) || '—')}</span>${typeLabel ? `<span class="order-type-tag">${typeLabel}</span>` : ''}${boardRole === 'admin' ? `<button type="button" class="order-edit-link" data-edit-order="${escapeHtml(order.id)}">变更</button>` : ''}${(() => { const am = amountFor(order.id); return boardRole === 'admin' && am && am.orderAmount != null ? `<span class="amount-line">单总 ${fmt(am.orderAmount)}</span>` : ''; })()}</td>
+        <td><span class="order-id">${escapeHtml(order.po)}</span><span class="company-tag" title="${escapeHtml(companyName(orderCompany(order)))}">${escapeHtml(orderCompany(order) || '—')}</span>${typeLabel ? `<span class="order-type-tag">${typeLabel}</span>` : ''}${boardRole === 'admin' ? `<button type="button" class="order-edit-link" data-edit-order="${escapeHtml(order.id)}">变更</button>` : ''}</td>
         <td><span class="material-code mono">${escapeHtml(order.material)}</span>${(() => { const info = materialSummary(order); return info.count > 1 ? `<span class="material-total-tag" title="同一物料编号所有采购单合计未交">共${fmt(info.total)}/${info.count}单</span>` : ''; })()}${(() => { const d = drawingFor(order); return d ? drawingLinkHtml(d) : ''; })()}</td>
         <td><span class="item-name">${escapeHtml(order.name)}</span></td>
         <td><span class="spec-code mono">${escapeHtml(order.spec || '—')}</span></td>
-        <td class="number">${escapeHtml(order.seq)}</td>
-        <td><span class="due-date">${escapeHtml(formatDate(order.dueDate))}</span><span class="due-badge ${badge.className}">${escapeHtml(dueStatus(order).text)}</span></td>
         <td class="number"><span class="order-qty-number">${fmt(orderQty)}</span></td>
         <td class="number"><span class="shipped-number">${fmt(order.shipped)}</span></td>
-        <td class="number"><span class="remaining-number">${fmt(order.remaining)}</span>${(() => { const am = amountFor(order.id); return boardRole === 'admin' && am && am.unitPrice != null ? `<span class="amount-line">单价 ${am.unitPrice} · 金额 ${fmt(am.amount)}</span>` : ''; })()}</td>
+        <td class="number"><span class="remaining-number">${fmt(order.remaining)}</span></td>
+        <td class="number">${escapeHtml(order.seq)}</td>
+        <td class="number">${escapeHtml(priceText)}</td>
+        <td class="number">${escapeHtml(amountText)}</td>
+        <td><span class="due-date">${escapeHtml(formatDate(order.dueDate))}</span><span class="due-badge ${badge.className}">${escapeHtml(dueStatus(order).text)}</span></td>
       </tr>`;
   }).join('');
   els.desktopEmpty.hidden = rows.length > 0;
-}
-
-function currentEditingOrder() {
+}function currentEditingOrder() {
   return (snapshot?.orders || []).find((order) => String(order.id) === String(editingOrderId));
 }
 
