@@ -3142,25 +3142,26 @@ function buildDeliveryGroups(shipments, queryText = '') {
 function deliveryStampText(value) {
   const text = String(value || '').trim();
   if (!text) return '—';
-  return text.replace('T', ' ').slice(0, 16);
+  return text.replace('T', ' ').slice(0, 10);
 }
 function renderMergedDeliveryRows(groups) {
   const rows = [];
   for (const group of groups) {
-    for (const item of group.items) rows.push({ ...item, shippedAt: group.createdAt || '' });
+    for (const item of group.items) rows.push({ ...item, batch: group.batch || '', shippedAt: group.createdAt || '' });
   }
   if (!rows.length) return '<div class="empty-state"><strong>没有符合条件的发货记录</strong><span>可以搜索送货单号、采购单号、料件编号或品名。</span></div>';
   rows.sort((a, b) => String(b.shippedAt || '').localeCompare(String(a.shippedAt || '')));
   return `<article class="history-card delivery-batch-card merged-card">
       <div class="delivery-lines merged">
-        <div class="delivery-lines-head"><span>采购单号</span><span>料件编号</span><span>品名</span><span class="number">发货数量</span><span class="number">项次</span><span class="number">未交</span><span class="ship-date-head">发货日期</span></div>
+        <div class="delivery-lines-head"><span>采购单号</span><span>料件编号</span><span>品名</span><span class="number">发货数量</span><span class="number">项次</span><span class="number">未交</span><span class="ship-batch-head">送货单编号</span><span class="ship-date-head">发货日期</span></div>
         ${rows.map((item) => `<div class="delivery-line">
           <span data-label="采购单号">${escapeHtml(item.po)}${item.typeLabel ? ` <em>${escapeHtml(item.typeLabel)}</em>` : ''}</span>
-          <span data-label="料件编号" class="mono">${escapeHtml(item.material)}</span>
+          <span data-label="料件编号">${escapeHtml(item.material)}</span>
           <span data-label="品名">${escapeHtml(item.name)}${item.spec ? ` · ${escapeHtml(item.spec)}` : ''}${item.remark ? `<small>备注：${escapeHtml(item.remark)}</small>` : ''}</span>
           <strong data-label="发货数量" class="number">${fmt(item.quantity)} 件</strong>
           <span data-label="项次" class="number">${escapeHtml(item.seq)}</span>
           <span data-label="未交" class="number">${escapeHtml(deliveryRemainingText(item.remaining, item.hasOrder))}</span>
+          <span data-label="送货单编号" class="ship-batch">${escapeHtml(item.batch || '—')}</span>
           <span data-label="发货日期" class="ship-date">${escapeHtml(deliveryStampText(item.shippedAt))}</span>
         </div>`).join('')}
       </div>

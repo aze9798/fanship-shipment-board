@@ -2320,9 +2320,19 @@ html { scrollbar-width: auto; }
 @media (min-width: 901px) {
   .delivery-lines.merged .delivery-lines-head,
   .delivery-lines.merged .delivery-line {
-    grid-template-columns: minmax(140px, 1.05fr) minmax(120px, 0.95fr) minmax(200px, 1.5fr) 78px 54px 74px 132px;
+    grid-template-columns: minmax(135px, 1.05fr) minmax(112px, 0.9fr) minmax(180px, 1.35fr) 76px 52px 70px 106px 92px;
   }
 }
+.delivery-lines.merged .delivery-lines-head > *,
+.delivery-lines.merged .delivery-line > * {
+  text-align: center !important;
+}
+.delivery-lines.merged .delivery-line .mono {
+  font-family: inherit;
+  color: inherit;
+}
+.delivery-lines.merged .ship-batch,
+.delivery-lines.merged .ship-batch-head,
 .delivery-lines.merged .ship-date,
 .delivery-lines.merged .ship-date-head { color: #465f68; white-space: nowrap; }
 .delivery-lines.merged .delivery-lines-head .ship-date-head { text-align: left; }
@@ -2464,3 +2474,14 @@ html { scrollbar-width: auto; }
   width: 1870px;
   max-width: none;
 }
+
+/* 云端送货单：整体字号上调一号 */
+#desktopFilesView .files-topbar .eyebrow { font-size: 12px; }
+#desktopFilesView .files-topbar h1 { font-size: clamp(29px, 2.2vw, 38px); }
+#desktopFilesView .shipments-page .panel-head h2 { font-size: 18px; }
+#desktopFilesView .shipments-page .panel-head p { font-size: 12px; }
+#desktopFilesView .shipments-page .history-tools input,
+#desktopFilesView .shipments-page .history-tools-row button { font-size: 13px; }
+#desktopFilesView .shipments-page .over-head,
+#desktopFilesView .shipments-page .over-row { font-size: 13px; }
+#desktopFilesView .shipments-page .file-download { font-size: 12px; }
