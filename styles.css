@@ -2784,3 +2784,101 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
   box-shadow: 0 0 0 3px rgba(15, 118, 110, .09);
   outline: none;
 }
+
+/* ===== 未交清单：打印标签（大标签 / 小标签）弹窗 ===== */
+#desktopRemainingView .label-print-button { white-space: nowrap; }
+.label-print-card {
+  width: min(1080px, calc(100vw - 48px));
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+}
+.label-print-tip {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f2f8f7;
+  color: #4d6a70;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.label-print-tip strong { color: #0f766e; }
+.label-print-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.label-print-all { display: inline-flex; align-items: center; gap: 6px; color: #47636b; font-size: 12px; font-weight: 700; }
+.label-print-summary { color: #0f766e; font-size: 12px; font-weight: 800; }
+.label-print-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid #e2ecea;
+  border-radius: 12px;
+}
+.label-print-head,
+.label-print-row {
+  display: grid;
+  grid-template-columns: 34px 130px minmax(180px, 1.6fr) minmax(120px, 1.1fr) 90px 130px 116px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+}
+.label-print-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f4f9f8;
+  color: #5f757b;
+  font-size: 12px;
+  font-weight: 800;
+}
+.label-print-row { border-top: 1px solid #eef4f3; }
+.label-print-row:nth-child(even) { background: #fbfdfd; }
+.label-print-input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid #d7e1e3;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+}
+.label-print-input:focus { outline: none; border-color: #83c7bf; box-shadow: 0 0 0 3px rgba(15, 118, 110, .09); }
+.label-print-input.number { text-align: right; font-weight: 700; }
+.label-print-check { display: grid; place-items: center; }
+.label-print-check input { width: 16px; height: 16px; accent-color: #0f766e; }
+.label-print-row-actions { display: flex; gap: 6px; }
+.label-row-btn {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #cfe0dd;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.label-row-btn:hover { background: #eef8f6; }
+.label-row-btn.danger { border-color: #ecd2d0; color: #b4483f; }
+.label-row-btn.danger:hover { background: #fdf1f0; }
+.label-print-empty { padding: 26px 12px; text-align: center; color: #7b9096; font-size: 13px; }
+.label-print-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+}
+@media (max-width: 900px) {
+  .label-print-head { display: none; }
+  .label-print-row { grid-template-columns: 34px 1fr; gap: 6px 8px; }
+  .label-print-row .label-print-input { grid-column: 2; }
+  .label-print-row-actions { grid-column: 2; }
+}

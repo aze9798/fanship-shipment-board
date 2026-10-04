@@ -594,6 +594,15 @@ const els = {
   desktopRemainingDateChips: $('#desktopRemainingDateChips'),
   desktopRemainingDateClear: $('#desktopRemainingDateClear'),
   desktopRemainingPrint: $('#desktopRemainingPrint'),
+  desktopLabelPrint: $('#desktopLabelPrint'),
+  labelPrintModal: $('#labelPrintModal'),
+  labelPrintRows: $('#labelPrintRows'),
+  labelPrintSummary: $('#labelPrintSummary'),
+  labelPrintSelectAll: $('#labelPrintSelectAll'),
+  labelPrintError: $('#labelPrintError'),
+  labelPrintClose: $('#labelPrintClose'),
+  labelPrintCancel: $('#labelPrintCancel'),
+  labelPrintConfirm: $('#labelPrintConfirm'),
   desktopRemainingExport: $('#desktopRemainingExport'),
   desktopRemainingSummary: $('#desktopRemainingSummary'),
   desktopRemainingBody: $('#desktopRemainingBody'),
@@ -3783,6 +3792,157 @@ function renderMobileRemaining() {
     ${groups.length > 150 ? `<div class="empty-state mobile-empty"><strong>还有 ${fmt(groups.length - 150)} 项未显示</strong><span>请用搜索或交期筛选缩小范围。</span></div>` : ''}`;
 }
 
+let labelRows = [];
+let labelRowSeq = 0;
+
+function nextLabelRowId() {
+  labelRowSeq += 1;
+  return 'lb' + labelRowSeq;
+}
+
+function openLabelPrintModal() {
+  if (!snapshot) return;
+  const groups = remainingGroups(desktopRemainingSearch);
+  if (!groups.length) { showToast('当前未交清单没有可打印标签的物料'); return; }
+  labelRows = groups.map((group) => ({
+    id: nextLabelRowId(),
+    selected: true,
+    material: String(group.material || ''),
+    name: String(group.name || ''),
+    spec: (group.specs || []).join('、'),
+    quantity: Number(group.total) || 0,
+    date: (group.dates || [])[0] || String(snapshot.today || '').slice(0, 10),
+  }));
+  renderLabelRows();
+  if (els.labelPrintError) els.labelPrintError.hidden = true;
+  if (els.labelPrintModal) els.labelPrintModal.hidden = false;
+}
+
+function closeLabelPrintModal() {
+  if (els.labelPrintModal) els.labelPrintModal.hidden = true;
+}
+
+function labelRowHtml(row, index) {
+  return `<div class="label-print-row" data-label-row="${index}">
+    <label class="label-print-check"><input type="checkbox" data-label-field="selected"${row.selected ? ' checked' : ''}></label>
+    <input class="label-print-input mono" data-label-field="material" value="${escapeHtml(row.material)}" placeholder="物料编码">
+    <input class="label-print-input" data-label-field="name" value="${escapeHtml(row.name)}" placeholder="物料名称">
+    <input class="label-print-input" data-label-field="spec" value="${escapeHtml(row.spec)}" placeholder="规格">
+    <input class="label-print-input number" type="number" min="1" step="1" inputmode="numeric" data-label-field="quantity" value="${Number(row.quantity) || 0}">
+    <input class="label-print-input" type="date" data-label-field="date" value="${escapeHtml(row.date)}">
+    <div class="label-print-row-actions">
+      <button type="button" class="label-row-btn" data-label-copy="${index}">复制</button>
+      <button type="button" class="label-row-btn danger" data-label-remove="${index}">删除</button>
+    </div>
+  </div>`;
+}
+
+function renderLabelRows() {
+  if (!els.labelPrintRows) return;
+  els.labelPrintRows.innerHTML = labelRows.length
+    ? labelRows.map((row, index) => labelRowHtml(row, index)).join('')
+    : '<div class="label-print-empty">没有可打印的物料，请先在未交清单里按交期筛选。</div>';
+  updateLabelSummary();
+}
+
+function labelRowIsValid(row) {
+  return Boolean(String(row.material || '').trim()) && Number(row.quantity) > 0;
+}
+function updateLabelSummary() {
+  if (!els.labelPrintSummary) return;
+  const valid = labelRows.filter(labelRowIsValid);
+  const big = valid.filter((row) => row.selected);
+  const small = valid.filter((row) => !row.selected);
+  const bigQty = big.reduce((sum, row) => sum + Number(row.quantity || 0), 0);
+  const smallQty = small.reduce((sum, row) => sum + Number(row.quantity || 0), 0);
+  els.labelPrintSummary.textContent = `勾选 ${big.length} 行 / ${fmt(bigQty)} 件 → A4 大标签；未勾选 ${small.length} 行 / ${fmt(smallQty)} 件 → 艾沃意特小标签`;
+  if (els.labelPrintSelectAll) {
+    els.labelPrintSelectAll.checked = labelRows.length > 0 && labelRows.every((row) => row.selected);
+  }
+  if (els.labelPrintConfirm) els.labelPrintConfirm.disabled = valid.length === 0;
+}
+
+function labelRowIndex(target) {
+  const row = target.closest('[data-label-row]');
+  if (!row) return -1;
+  const index = Number(row.dataset.labelRow);
+  return Number.isInteger(index) && index >= 0 && index < labelRows.length ? index : -1;
+}
+
+function handleLabelPrintInput(event) {
+  const field = event.target.dataset.labelField;
+  if (!field) return;
+  const index = labelRowIndex(event.target);
+  if (index < 0) return;
+  const row = labelRows[index];
+  if (field === 'selected') row.selected = Boolean(event.target.checked);
+  else if (field === 'quantity') row.quantity = Number(event.target.value) || 0;
+  else row[field] = event.target.value;
+  updateLabelSummary();
+}
+
+function handleLabelPrintClick(event) {
+  const copyButton = event.target.closest('[data-label-copy]');
+  if (copyButton) {
+    const index = Number(copyButton.dataset.labelCopy);
+    const source = labelRows[index];
+    if (!source) return;
+    labelRows.splice(index + 1, 0, { ...source, id: nextLabelRowId() });
+    renderLabelRows();
+    return;
+  }
+  const removeButton = event.target.closest('[data-label-remove]');
+  if (removeButton) {
+    const index = Number(removeButton.dataset.labelRemove);
+    if (index >= 0 && index < labelRows.length) labelRows.splice(index, 1);
+    renderLabelRows();
+  }
+}
+
+function showLabelPrintError(message) {
+  if (!els.labelPrintError) return;
+  els.labelPrintError.textContent = message;
+  els.labelPrintError.hidden = false;
+}
+
+function labelPayload(rows) {
+  return rows.map((row) => ({
+    material: String(row.material || '').trim(),
+    name: String(row.name || '').trim(),
+    spec: String(row.spec || '').trim(),
+    quantity: Math.round(Number(row.quantity) || 0),
+    date: String(row.date || '').trim(),
+  }));
+}
+async function confirmLabelPrint() {
+  const valid = labelRows.filter(labelRowIsValid);
+  const big = labelPayload(valid.filter((row) => row.selected));
+  const small = labelPayload(valid.filter((row) => !row.selected));
+  if (!valid.length) { showLabelPrintError('请至少保留一行，并保证物料编码和数量都不为空。'); return; }
+  if (els.labelPrintError) els.labelPrintError.hidden = true;
+  if (els.labelPrintConfirm) {
+    els.labelPrintConfirm.disabled = true;
+    els.labelPrintConfirm.textContent = '正在写入…';
+  }
+  try {
+    const result = await deliveryHelper('/labels', { big, small });
+    closeLabelPrintModal();
+    const parts = [];
+    if (result.bigRows > 0) parts.push(`A4 大标签 ${result.bigRows} 行`);
+    if (result.smallRows > 0) parts.push(`艾沃意特小标签 ${result.smallRows} 行`);
+    const closed = result.excelClosed ? '（已先关闭 Excel）' : '';
+    const errors = Array.isArray(result.errors) && result.errors.length ? '；' + result.errors.join('；') : '';
+    showToast(`已写入 ${parts.join('、')}${closed}，已打开对应模板，请在打印窗口里选择打印机${errors}`);
+  } catch (error) {
+    showLabelPrintError('打印助手没响应或写入失败：' + (error.message || error) + '。请确认「启动打印助手」窗口正在运行。');
+  } finally {
+    if (els.labelPrintConfirm) {
+      els.labelPrintConfirm.disabled = false;
+      els.labelPrintConfirm.textContent = '确认并打印';
+    }
+  }
+}
+
 function printRemainingList(groups = remainingGroups()) {
   if (!groups.length) {
     showToast('没有可打印的未交数据');
@@ -5086,6 +5246,25 @@ if (els.desktopRemainingDateChips) els.desktopRemainingDateChips.addEventListene
 if (els.desktopRemainingDateClear) els.desktopRemainingDateClear.addEventListener('click', handleRemainingFilterClick);
 if (els.desktopRemainingPrint) els.desktopRemainingPrint.addEventListener('click', handleRemainingFilterClick);
 if (els.desktopRemainingExport) els.desktopRemainingExport.addEventListener('click', handleRemainingFilterClick);
+if (els.desktopLabelPrint) els.desktopLabelPrint.addEventListener('click', openLabelPrintModal);
+if (els.labelPrintRows) {
+  els.labelPrintRows.addEventListener('input', handleLabelPrintInput);
+  els.labelPrintRows.addEventListener('change', handleLabelPrintInput);
+  els.labelPrintRows.addEventListener('click', handleLabelPrintClick);
+}
+if (els.labelPrintSelectAll) {
+  els.labelPrintSelectAll.addEventListener('change', (event) => {
+    const checked = Boolean(event.target.checked);
+    labelRows.forEach((row) => { row.selected = checked; });
+    renderLabelRows();
+  });
+}
+if (els.labelPrintClose) els.labelPrintClose.addEventListener('click', closeLabelPrintModal);
+if (els.labelPrintCancel) els.labelPrintCancel.addEventListener('click', closeLabelPrintModal);
+if (els.labelPrintConfirm) els.labelPrintConfirm.addEventListener('click', confirmLabelPrint);
+if (els.labelPrintModal) {
+  els.labelPrintModal.addEventListener('click', (event) => { if (event.target === els.labelPrintModal) closeLabelPrintModal(); });
+}
 
 if (els.mobileRecordsPanel) {
   els.mobileRecordsPanel.addEventListener('input', (event) => {

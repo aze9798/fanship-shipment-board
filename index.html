@@ -188,7 +188,8 @@
           </div>
           <div class="topbar-actions">
             <button id="desktopRemainingPrint" class="button ghost" type="button">打印清单</button>
-            <button id="desktopRemainingExport" class="button primary" type="button">导出 Excel</button>
+            <button id="desktopLabelPrint" class="button primary label-print-button" type="button">打印标签</button>
+            <button id="desktopRemainingExport" class="button ghost" type="button">导出 Excel</button>
           </div>
         </header>
         <section class="panel desktop-remaining-panel">
@@ -765,6 +766,34 @@
       </div>
     </section>
   </div>
+  <div id="labelPrintModal" class="modal-backdrop" hidden>
+    <section class="modal-card label-print-card" role="dialog" aria-modal="true" aria-labelledby="labelPrintTitle">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow">A4 大标签</p>
+          <h2 id="labelPrintTitle">整理要打印的标签</h2>
+        </div>
+        <button id="labelPrintClose" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <p class="label-print-tip"><strong>勾选</strong>的走进 A4 大标签（A4大标签.xlsx / A4大标签.tprts）；<strong>没勾选</strong>的自动走艾沃意特小标签（艾沃意特模板.xlsx / 艾沃意特模板.tprts）。数量可以直接改；一架子放不下的，点「复制」拆成多行再分别填数量。确认后两个 Excel 的旧数据行会被删掉、写入新数据，并打开对应模板让你选打印机。</p>
+      <div class="label-print-tools">
+        <label class="label-print-all"><input id="labelPrintSelectAll" type="checkbox" checked> 全选</label>
+        <span id="labelPrintSummary" class="label-print-summary"></span>
+      </div>
+      <div class="label-print-table-wrap">
+        <div class="label-print-head">
+          <span></span><span>物料编码</span><span>物料名称</span><span>规格</span><span>产品数量</span><span>日期</span><span>操作</span>
+        </div>
+        <div id="labelPrintRows" class="label-print-rows"></div>
+      </div>
+      <div id="labelPrintError" class="form-error" hidden></div>
+      <div class="label-print-actions">
+        <button id="labelPrintCancel" class="button ghost" type="button">取消</button>
+        <button id="labelPrintConfirm" class="button primary" type="button">确认并打印</button>
+      </div>
+    </section>
+  </div>
+
   <div id="orderEditModal" class="modal-backdrop" hidden>
     <section class="modal-card order-edit-card" role="dialog" aria-modal="true" aria-labelledby="orderEditTitle">
       <div class="modal-head">
