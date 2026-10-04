@@ -2882,3 +2882,45 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
   .label-print-row .label-print-input { grid-column: 2; }
   .label-print-row-actions { grid-column: 2; }
 }
+
+/* ===== 标签弹窗：大标签 / 小标签 切换 + 已打印标记 ===== */
+.label-print-modes {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.label-print-modes button {
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid #d7e4e2;
+  border-radius: 11px;
+  background: #fff;
+  color: #4a666d;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.label-print-modes button.active {
+  border-color: #0f766e;
+  background: linear-gradient(180deg, #117d73, #0f766e);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(13, 113, 104, .18);
+}
+.label-print-printed-info {
+  margin-right: auto;
+  color: #7b9096;
+  font-size: 12px;
+  font-weight: 700;
+}
+.label-printed-tag {
+  align-self: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eef4f3;
+  color: #7b9096;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.label-print-row.printed { opacity: .62; }
+.label-print-actions { align-items: center; }

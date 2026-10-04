@@ -775,9 +775,14 @@
         </div>
         <button id="labelPrintClose" class="icon-button" type="button" aria-label="关闭">×</button>
       </div>
-      <p class="label-print-tip"><strong>勾选</strong>的走进 A4 大标签（A4大标签.xlsx / A4大标签.tprts）；<strong>没勾选</strong>的自动走艾沃意特小标签（艾沃意特模板.xlsx / 艾沃意特模板.tprts）。数量可以直接改；一架子放不下的，点「复制」拆成多行再分别填数量。确认后两个 Excel 的旧数据行会被删掉、写入新数据，并打开对应模板让你选打印机。</p>
+      <div class="label-print-modes" id="labelPrintModes">
+        <button type="button" data-label-mode="big" class="active">大标签（Brother A4）</button>
+        <button type="button" data-label-mode="small">小标签（HPRT D35）</button>
+      </div>
+      <p class="label-print-tip" id="labelPrintTip"></p>
       <div class="label-print-tools">
         <label class="label-print-all"><input id="labelPrintSelectAll" type="checkbox" checked> 全选</label>
+        <label class="label-print-all"><input id="labelPrintShowPrinted" type="checkbox"> 显示已打印的</label>
         <span id="labelPrintSummary" class="label-print-summary"></span>
       </div>
       <div class="label-print-table-wrap">
@@ -788,8 +793,9 @@
       </div>
       <div id="labelPrintError" class="form-error" hidden></div>
       <div class="label-print-actions">
-        <button id="labelPrintCancel" class="button ghost" type="button">取消</button>
-        <button id="labelPrintConfirm" class="button primary" type="button">确认并打印</button>
+        <span id="labelPrintPrintedInfo" class="label-print-printed-info"></span>
+        <button id="labelPrintCancel" class="button ghost" type="button">关闭</button>
+        <button id="labelPrintConfirm" class="button primary" type="button">确认并打印大标签</button>
       </div>
     </section>
   </div>

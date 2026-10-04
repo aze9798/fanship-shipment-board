@@ -599,6 +599,10 @@ const els = {
   labelPrintRows: $('#labelPrintRows'),
   labelPrintSummary: $('#labelPrintSummary'),
   labelPrintSelectAll: $('#labelPrintSelectAll'),
+  labelPrintModes: $('#labelPrintModes'),
+  labelPrintTip: $('#labelPrintTip'),
+  labelPrintShowPrinted: $('#labelPrintShowPrinted'),
+  labelPrintPrintedInfo: $('#labelPrintPrintedInfo'),
   labelPrintError: $('#labelPrintError'),
   labelPrintClose: $('#labelPrintClose'),
   labelPrintCancel: $('#labelPrintCancel'),
@@ -3794,25 +3798,67 @@ function renderMobileRemaining() {
 
 let labelRows = [];
 let labelRowSeq = 0;
+let labelPrintMode = 'big';           // big=大标签，small=小标签
+let labelPrintedKeys = new Set();     // 已经打印过的产品（本机当天记录）
+const LABEL_PRINTED_KEY = 'shipmentLabelPrinted';
 
 function nextLabelRowId() {
   labelRowSeq += 1;
   return 'lb' + labelRowSeq;
 }
 
-function openLabelPrintModal() {
-  if (!snapshot) return;
-  const groups = remainingGroups(desktopRemainingSearch);
-  if (!groups.length) { showToast('当前未交清单没有可打印标签的物料'); return; }
-  labelRows = groups.map((group) => ({
+function labelToday() {
+  return String((snapshot && snapshot.today) || TODAY || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+}
+
+function readPrintedKeys() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LABEL_PRINTED_KEY) || '{}');
+    if (saved && saved.day === labelToday() && Array.isArray(saved.keys)) return new Set(saved.keys);
+  } catch { }
+  return new Set();
+}
+
+function writePrintedKeys() {
+  try {
+    localStorage.setItem(LABEL_PRINTED_KEY, JSON.stringify({ day: labelToday(), keys: [...labelPrintedKeys] }));
+  } catch { }
+}
+
+function labelSourceKey(group) {
+  return [String(group.material || ''), (group.specs || []).join('、'), (group.dates || []).join(',')].join('|');
+}
+
+function labelModeText(mode = labelPrintMode) {
+  return mode === 'small' ? '小标签' : '大标签';
+}
+
+function labelPool() {
+  const showPrinted = Boolean(els.labelPrintShowPrinted && els.labelPrintShowPrinted.checked);
+  return remainingGroups(desktopRemainingSearch)
+    .map((group) => ({ group, key: labelSourceKey(group), printed: labelPrintedKeys.has(labelSourceKey(group)) }))
+    .filter((item) => showPrinted || !item.printed);
+}
+
+function buildLabelRows() {
+  return labelPool().map((item) => ({
     id: nextLabelRowId(),
-    selected: true,
-    material: String(group.material || ''),
-    name: String(group.name || ''),
-    spec: (group.specs || []).join('、'),
-    quantity: Number(group.total) || 0,
-    date: (group.dates || [])[0] || String(snapshot.today || '').slice(0, 10),
+    sourceKey: item.key,
+    printed: item.printed,
+    selected: !item.printed,
+    material: String(item.group.material || ''),
+    name: String(item.group.name || ''),
+    spec: (item.group.specs || []).join('、'),
+    quantity: Number(item.group.total) || 0,
+    date: (item.group.dates || [])[0] || String((snapshot && snapshot.today) || '').slice(0, 10),
   }));
+}
+
+function openLabelPrintModal(mode = 'big') {
+  if (!snapshot) return;
+  labelPrintedKeys = readPrintedKeys();
+  labelPrintMode = mode === 'small' ? 'small' : 'big';
+  labelRows = buildLabelRows();
   renderLabelRows();
   if (els.labelPrintError) els.labelPrintError.hidden = true;
   if (els.labelPrintModal) els.labelPrintModal.hidden = false;
@@ -3822,15 +3868,24 @@ function closeLabelPrintModal() {
   if (els.labelPrintModal) els.labelPrintModal.hidden = true;
 }
 
+function switchLabelPrintMode(mode) {
+  labelPrintMode = mode === 'small' ? 'small' : 'big';
+  labelRows = buildLabelRows();
+  renderLabelRows();
+  if (els.labelPrintError) els.labelPrintError.hidden = true;
+}
+
 function labelRowHtml(row, index) {
-  return `<div class="label-print-row" data-label-row="${index}">
-    <label class="label-print-check"><input type="checkbox" data-label-field="selected"${row.selected ? ' checked' : ''}></label>
+  const printedTag = row.printed ? '<span class="label-printed-tag">已打印</span>' : '';
+  return `<div class="label-print-row${row.printed ? ' printed' : ''}" data-label-row="${index}">
+    <label class="label-print-check"><input type="checkbox" data-label-field="selected"${row.selected ? ' checked' : ''}${row.printed ? ' disabled' : ''}></label>
     <input class="label-print-input mono" data-label-field="material" value="${escapeHtml(row.material)}" placeholder="物料编码">
     <input class="label-print-input" data-label-field="name" value="${escapeHtml(row.name)}" placeholder="物料名称">
     <input class="label-print-input" data-label-field="spec" value="${escapeHtml(row.spec)}" placeholder="规格">
     <input class="label-print-input number" type="number" min="1" step="1" inputmode="numeric" data-label-field="quantity" value="${labelRowQuantity(row) || ''}" placeholder="">
     <input class="label-print-input" type="date" data-label-field="date" value="${escapeHtml(row.date)}">
     <div class="label-print-row-actions">
+      ${printedTag}
       <button type="button" class="label-row-btn" data-label-copy="${index}">复制</button>
       <button type="button" class="label-row-btn danger" data-label-remove="${index}">删除</button>
     </div>
@@ -3841,32 +3896,49 @@ function renderLabelRows() {
   if (!els.labelPrintRows) return;
   els.labelPrintRows.innerHTML = labelRows.length
     ? labelRows.map((row, index) => labelRowHtml(row, index)).join('')
-    : '<div class="label-print-empty">没有可打印的物料，请先在未交清单里按交期筛选。</div>';
+    : '<div class="label-print-empty">这类标签没有待打印的产品了。可以切到另一种标签，或先在未交清单里按交期筛选。</div>';
+  if (els.labelPrintModes) {
+    els.labelPrintModes.querySelectorAll('[data-label-mode]').forEach((button) => {
+      button.classList.toggle('active', button.dataset.labelMode === labelPrintMode);
+    });
+  }
+  if (els.labelPrintTip) {
+    els.labelPrintTip.innerHTML = labelPrintMode === 'big'
+      ? '<strong>大标签</strong>：勾选要打的（打 <strong>Brother DCP-L2628DW Printer</strong>）。<strong>没勾选的不会打印</strong>，留到小标签那一步。数量可以改；一架子放不下的点「复制」拆行。'
+      : '<strong>小标签</strong>：这里已经剔除了刚打过大标签的产品。改好数量后勾选要打的（打 <strong>HPRT D35</strong>），没勾选的仍然不会打印。';
+  }
+  if (els.labelPrintConfirm) {
+    els.labelPrintConfirm.textContent = labelPrintMode === 'big' ? '确认并打印大标签' : '确认并打印小标签';
+  }
+  if (els.labelPrintPrintedInfo) {
+    els.labelPrintPrintedInfo.textContent = labelPrintedKeys.size ? `今天已打印 ${labelPrintedKeys.size} 项` : '';
+  }
   updateLabelSummary();
+}
+
+function updateLabelSummary() {
+  if (!els.labelPrintSummary) return;
+  const valid = labelRows.filter((row) => labelRowIsValid(row) && !row.printed);
+  const picked = valid.filter((row) => row.selected);
+  const total = picked.reduce((sum, row) => sum + labelRowQuantity(row), 0);
+  const blank = picked.filter((row) => labelRowQuantity(row) === 0).length;
+  els.labelPrintSummary.textContent = `${labelModeText()}：已勾选 ${picked.length} 行 / ${fmt(total)} 件`
+    + (blank ? `（其中 ${blank} 行数量留空）` : '')
+    + `，待打印 ${valid.length} 行`;
+  if (els.labelPrintSelectAll) {
+    els.labelPrintSelectAll.checked = valid.length > 0 && valid.every((row) => row.selected);
+  }
+  if (els.labelPrintConfirm) els.labelPrintConfirm.disabled = picked.length === 0;
 }
 
 function labelRowQuantity(row) {
   const value = Number(row.quantity);
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
+
 function labelRowIsValid(row) {
   // 数量允许留空（空着代表自己手填），只要求有物料编码
   return Boolean(String(row.material || '').trim());
-}
-function updateLabelSummary() {
-  if (!els.labelPrintSummary) return;
-  const valid = labelRows.filter(labelRowIsValid);
-  const big = valid.filter((row) => row.selected);
-  const small = valid.filter((row) => !row.selected);
-  const bigQty = big.reduce((sum, row) => sum + labelRowQuantity(row), 0);
-  const smallQty = small.reduce((sum, row) => sum + labelRowQuantity(row), 0);
-  const blank = valid.filter((row) => labelRowQuantity(row) === 0).length;
-  els.labelPrintSummary.textContent = `勾选 ${big.length} 行 / ${fmt(bigQty)} 件 → A4 大标签；未勾选 ${small.length} 行 / ${fmt(smallQty)} 件 → 艾沃意特小标签`
-    + (blank ? `（其中 ${blank} 行数量留空，打印出来是空白）` : '');
-  if (els.labelPrintSelectAll) {
-    els.labelPrintSelectAll.checked = labelRows.length > 0 && labelRows.every((row) => row.selected);
-  }
-  if (els.labelPrintConfirm) els.labelPrintConfirm.disabled = valid.length === 0;
 }
 
 function labelRowIndex(target) {
@@ -3894,7 +3966,7 @@ function handleLabelPrintClick(event) {
     const index = Number(copyButton.dataset.labelCopy);
     const source = labelRows[index];
     if (!source) return;
-    labelRows.splice(index + 1, 0, { ...source, id: nextLabelRowId() });
+    labelRows.splice(index + 1, 0, { ...source, id: nextLabelRowId(), printed: false });
     renderLabelRows();
     return;
   }
@@ -3925,31 +3997,39 @@ function labelPayload(rows) {
     };
   });
 }
+
 async function confirmLabelPrint() {
-  const valid = labelRows.filter(labelRowIsValid);
-  const big = labelPayload(valid.filter((row) => row.selected));
-  const small = labelPayload(valid.filter((row) => !row.selected));
-  if (!valid.length) { showLabelPrintError('请至少保留一行，并填写物料编码。'); return; }
+  const mode = labelPrintMode;
+  const valid = labelRows.filter((row) => labelRowIsValid(row) && !row.printed);
+  const picked = valid.filter((row) => row.selected);
+  if (!picked.length) { showLabelPrintError('请先勾选要打印的行（没勾选的不打印）。'); return; }
+  const payload = labelPayload(picked);
+  const sourceKeys = [...new Set(picked.map((row) => row.sourceKey).filter(Boolean))];
   if (els.labelPrintError) els.labelPrintError.hidden = true;
   if (els.labelPrintConfirm) {
     els.labelPrintConfirm.disabled = true;
     els.labelPrintConfirm.textContent = '正在写入…';
   }
   try {
-    const result = await deliveryHelper('/labels', { big, small });
-    closeLabelPrintModal();
-    const parts = [];
-    if (result.bigRows > 0) parts.push(`A4 大标签 ${result.bigRows} 行`);
-    if (result.smallRows > 0) parts.push(`艾沃意特小标签 ${result.smallRows} 行`);
-    const closed = result.excelClosed ? '（已先关闭 Excel）' : '';
+    const body = mode === 'big' ? { big: payload, small: [] } : { big: [], small: payload };
+    const result = await deliveryHelper('/labels', body);
+    sourceKeys.forEach((key) => labelPrintedKeys.add(key));
+    writePrintedKeys();
+    const written = mode === 'big' ? result.bigRows : result.smallRows;
     const errors = Array.isArray(result.errors) && result.errors.length ? '；' + result.errors.join('；') : '';
-    showToast(`已写入 ${parts.join('、')}${closed}，已打开对应模板，请在打印窗口里选择打印机${errors}`);
+    if (mode === 'big') {
+      switchLabelPrintMode('small');
+      showToast(`大标签已写入 ${written} 行并发送打印，已自动切到小标签：刚打过的 ${sourceKeys.length} 项已剔除，剩下的改好再确认${errors}`);
+    } else {
+      closeLabelPrintModal();
+      showToast(`小标签已写入 ${written} 行并发送打印，今天的标签任务完成${errors}`);
+    }
   } catch (error) {
-    showLabelPrintError('打印助手没响应或写入失败：' + (error.message || error) + '。请确认「启动打印助手」窗口正在运行。');
+    showLabelPrintError('打印助手没响应或写入失败：' + (error.message || error) + '。请确认打印助手窗口正在运行。');
   } finally {
     if (els.labelPrintConfirm) {
       els.labelPrintConfirm.disabled = false;
-      els.labelPrintConfirm.textContent = '确认并打印';
+      renderLabelRows();
     }
   }
 }
@@ -5267,6 +5347,19 @@ if (els.labelPrintSelectAll) {
   els.labelPrintSelectAll.addEventListener('change', (event) => {
     const checked = Boolean(event.target.checked);
     labelRows.forEach((row) => { row.selected = checked; });
+    renderLabelRows();
+  });
+}
+if (els.labelPrintModes) {
+  els.labelPrintModes.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-label-mode]');
+    if (!button) return;
+    switchLabelPrintMode(button.dataset.labelMode);
+  });
+}
+if (els.labelPrintShowPrinted) {
+  els.labelPrintShowPrinted.addEventListener('change', () => {
+    labelRows = buildLabelRows();
     renderLabelRows();
   });
 }
