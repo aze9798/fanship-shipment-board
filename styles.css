@@ -2978,3 +2978,61 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
   font-size: 11px;
   white-space: nowrap;
 }
+
+/* ===== 整框产品超量提示 + 两种处理选项 ===== */
+.label-qty-cell { min-width: 0; }
+.label-box-warn {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #fdf3f2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.3;
+}
+.label-box-warn.over { color: #c0392b; font-weight: 800; }
+.label-box-warn.accepted {
+  background: #fff6e6;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #fff6e6;
+  color: #a15c08;
+  font-weight: 700;
+}
+.label-box-warn button {
+  min-height: 24px;
+  padding: 0 7px;
+  border: 1px solid #e6b7b2;
+  border-radius: 7px;
+  background: #fff;
+  color: #b4483f;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.label-box-warn button:hover { background: #fdf1f0; }
+.label-box-warn button[data-label-box-keep] {
+  border-color: #d9c39a;
+  color: #8a6412;
+}
+.label-box-warn button[data-label-box-keep]:hover { background: #fff8ec; }
+
+/* ===== 标签弹窗：所有列居中 + 标题字号加大 ===== */
+.label-print-card .eyebrow {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+.label-print-head span { text-align: center; }
+.label-print-input,
+.label-print-input.number { text-align: center; }
+.label-remaining { text-align: center; }
+.label-print-row-actions { justify-content: center; }
+.label-print-row .label-box-warn { text-align: left; }
+.label-print-tools { margin-top: 4px; }

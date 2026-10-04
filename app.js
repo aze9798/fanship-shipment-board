@@ -3941,7 +3941,9 @@ function labelRowHtml(row, index) {
     <input class="label-print-input mono" data-label-field="material" value="${escapeHtml(row.material)}" placeholder="物料编码">
     <input class="label-print-input" data-label-field="name" value="${escapeHtml(row.name)}" placeholder="物料名称">
     <input class="label-print-input" data-label-field="spec" value="${escapeHtml(row.spec)}" placeholder="规格">
-    <input class="label-print-input number" type="text" inputmode="numeric" data-label-field="quantity" value="${escapeHtml(String(row.quantity ?? ''))}" placeholder="可填 6套">
+    <div class="label-qty-cell">
+      <input class="label-print-input number" type="text" inputmode="numeric" data-label-field="quantity" value="${escapeHtml(String(row.quantity ?? ''))}" placeholder="可填 6套">
+    </div>
     <span class="label-remaining" data-label-remaining="${index}">${fmt(labelRowRemaining(row))}</span>
     <input class="label-print-input" type="date" data-label-field="date" value="${escapeHtml(row.date)}">
     <div class="label-print-row-actions">
@@ -3952,6 +3954,7 @@ function labelRowHtml(row, index) {
       <button type="button" class="label-row-btn danger" data-label-remove="${index}">删除</button>
       <button type="button" class="label-row-btn done" data-label-mark="${index}" title="标记为已打印，从待打印列表里移走">已打印</button>
     </div>
+    <div class="label-box-warn" data-label-box-warn="${index}" hidden></div>
   </div>`;
 }
 
@@ -3991,14 +3994,34 @@ function refreshLabelRemaining() {
   if (!els.labelPrintRows) return;
   labelRows.forEach((row, index) => {
     const cell = els.labelPrintRows.querySelector(`[data-label-remaining="${index}"]`);
-    if (!cell) return;
+    const warn = els.labelPrintRows.querySelector(`[data-label-box-warn="${index}"]`);
     const remaining = labelRowRemaining(row);
     const filled = labelMaterialFilled(row.material);
-    // 按整框发货的产品，数量大于未交是正常的（整框取整），不标红
-    const over = !row.perBox && remaining > 0 && filled > remaining;
-    cell.textContent = fmt(remaining) + (over ? `（已填 ${fmt(filled)}）` : '');
-    cell.classList.toggle('over', over);
-    cell.title = remaining > 0 ? `该料号未交合计 ${fmt(remaining)} 件，当前已填 ${fmt(filled)} 件` : '';
+    const box = labelBoxState(row);
+    const over = !box && remaining > 0 && filled > remaining;
+    if (cell) {
+      cell.textContent = fmt(remaining) + (over ? `（已填 ${fmt(filled)}）` : '');
+      cell.classList.toggle('over', over);
+      cell.title = remaining > 0 ? `该料号未交合计 ${fmt(remaining)} 件，当前已填 ${fmt(filled)} 件` : '';
+    }
+    if (!warn) return;
+    if (box && box.over) {
+      const extra = box.rounded - box.remaining;
+      if (row.overAccepted) {
+        warn.hidden = false;
+        warn.className = 'label-box-warn accepted';
+        warn.innerHTML = `按 ${fmt(box.rounded)} 发，${fmt(extra)} 走无订单发货`;
+      } else {
+        warn.hidden = false;
+        warn.className = 'label-box-warn over';
+        warn.innerHTML = `<span>超出未交 ${fmt(extra)} 件</span>`
+          + `<button type="button" data-label-box-fix="${index}">改成 ${escapeHtml(labelBoxFitText(box.remaining, box.perBox))}</button>`
+          + `<button type="button" data-label-box-keep="${index}">按 ${fmt(box.rounded)} 发（${fmt(extra)} 无订单发货）</button>`;
+      }
+    } else {
+      warn.hidden = true;
+      warn.innerHTML = '';
+    }
   });
 }
 
@@ -4010,7 +4033,13 @@ function updateLabelSummary() {
   const total = picked.reduce((sum, row) => sum + labelRowQuantity(row), 0);
   const blank = picked.filter((row) => labelRowQuantity(row) === 0).length;
   const overMaterials = [...new Set(labelRows
-    .filter((row) => !row.perBox && labelRowRemaining(row) > 0 && labelMaterialFilled(row.material) > labelRowRemaining(row))
+    .filter((row) => {
+      const remaining = labelRowRemaining(row);
+      if (remaining <= 0) return false;
+      const box = labelBoxState(row);
+      if (box) return box.over && !row.overAccepted;
+      return labelMaterialFilled(row.material) > remaining;
+    })
     .map((row) => String(row.material || '').trim()))];
   els.labelPrintSummary.textContent = `${labelModeText()}：已勾选 ${picked.length} 行 / ${fmt(total)} 件`
     + (blank ? `（其中 ${blank} 行数量留空）` : '')
@@ -4034,6 +4063,32 @@ function labelQuantityNumber(value) {
 
 function labelRowQuantity(row) {
   return labelQuantityNumber(row.quantity);
+}
+
+function labelBoxState(row) {
+  if (row.boxMixed) return null; // 用户已选“按未交数量拆框”，不再整框取整
+  const rule = labelBoxRule(row.material, row.name);
+  const perBox = row.perBox || (rule ? rule.perBox : 0);
+  if (!perBox) return null;
+  const entered = labelQuantityNumber(row.quantity);
+  const rounded = entered > 0 ? Math.ceil(entered / perBox) * perBox : 0;
+  const remaining = labelRowRemaining(row);
+  return {
+    perBox,
+    entered,
+    rounded,
+    remaining,
+    over: remaining > 0 && rounded > remaining,
+  };
+}
+
+function labelBoxFitText(remaining, perBox) {
+  const boxes = Math.floor(remaining / perBox);
+  const rest = remaining - boxes * perBox;
+  const parts = [];
+  if (boxes > 0) parts.push(perBox + '×' + boxes);
+  if (rest > 0) parts.push(String(rest));
+  return remaining + '（' + parts.join('+') + '）';
 }
 
 function labelRowRemaining(row) {
@@ -4083,6 +4138,8 @@ function handleLabelPrintChange(event) {
   if (!entered) return;
   const text = labelBoxQuantityText(entered, perBox);
   row.quantity = text;
+  row.overAccepted = false;
+  row.boxMixed = false;
   event.target.value = text;
   updateLabelSummary();
 }
@@ -4095,6 +4152,34 @@ function handleLabelPrintClick(event) {
     if (!source) return;
     labelRows.splice(index + 1, 0, { ...source, id: nextLabelRowId(), printed: false });
     renderLabelRows();
+    return;
+  }
+  const fixButton = event.target.closest('[data-label-box-fix]');
+  if (fixButton) {
+    const index = Number(fixButton.dataset.labelBoxFix);
+    const row = labelRows[index];
+    if (row) {
+      const box = labelBoxState(row);
+      if (box) {
+        row.quantity = labelBoxFitText(box.remaining, box.perBox);
+        row.overAccepted = false;
+        row.boxMixed = true;
+        renderLabelRows();
+        showToast(`已改为 ${row.quantity}`);
+      }
+    }
+    return;
+  }
+  const keepButton = event.target.closest('[data-label-box-keep]');
+  if (keepButton) {
+    const index = Number(keepButton.dataset.labelBoxKeep);
+    const row = labelRows[index];
+    if (row) {
+      row.overAccepted = true;
+      refreshLabelRemaining();
+      updateLabelSummary();
+      showToast(`按 ${labelBoxState(row).rounded} 发，超出部分走无订单发货`);
+    }
     return;
   }
   const markButton = event.target.closest('[data-label-mark]');

@@ -187,7 +187,7 @@
             <h1>未交清单</h1>
           </div>
           <div class="topbar-actions">
-            <button id="desktopRemainingPrint" class="button ghost" type="button">打印清单</button>
+            <button id="desktopRemainingPrint" class="button primary" type="button">打印清单</button>
             <button id="desktopLabelPrint" class="button primary label-print-button" type="button">打印标签</button>
             <button id="desktopRemainingExport" class="button ghost" type="button">导出 Excel</button>
           </div>
@@ -289,7 +289,6 @@
       <section id="desktopDrawingsView" class="desktop-view desktop-only" hidden>
         <header class="topbar drawings-topbar">
           <div>
-            <p class="eyebrow">产品资料库</p>
             <h1>图纸</h1>
           </div>
         </header>
@@ -319,7 +318,6 @@
       <section id="desktopFilesView" class="desktop-view desktop-only" hidden>
         <header class="topbar files-topbar">
           <div>
-            <p class="eyebrow">送货单存档</p>
             <h1>云端送货单</h1>
           </div>
         </header>
@@ -770,8 +768,7 @@
     <section class="modal-card label-print-card" role="dialog" aria-modal="true" aria-labelledby="labelPrintTitle">
       <div class="modal-head">
         <div>
-          <p class="eyebrow">A4 大标签</p>
-          <h2 id="labelPrintTitle">整理要打印的标签</h2>
+          <p class="eyebrow" id="labelPrintTitle">A4 大标签</p>
         </div>
         <button id="labelPrintClose" class="icon-button" type="button" aria-label="关闭">×</button>
       </div>
@@ -779,10 +776,9 @@
         <button type="button" data-label-mode="big" class="active">大标签（Brother A4）</button>
         <button type="button" data-label-mode="small">小标签（HPRT D35）</button>
       </div>
-      <p class="label-print-tip" id="labelPrintTip"></p>
       <div class="label-print-tools">
         <label class="label-print-all"><input id="labelPrintSelectAll" type="checkbox" checked> 全选</label>
-        <label class="label-print-all"><input id="labelPrintShowPrinted" type="checkbox"> 显示已打印的</label>
+        <label class="label-print-all"><input id="labelPrintShowPrinted" type="checkbox"> 已打印</label>
         <span id="labelPrintSummary" class="label-print-summary"></span>
       </div>
       <div class="label-print-table-wrap">
