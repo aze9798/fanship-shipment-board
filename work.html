@@ -68,8 +68,8 @@
     .picked{padding:12px;border-radius:12px;background:#eef8f6;margin-top:10px}.picked strong{display:block;font-size:13px}.picked span{display:block;color:var(--muted);font-size:10px;margin-top:3px}
     .process-grid{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.process{border:1px solid var(--line);border-radius:10px;background:#fff;padding:8px 11px;color:#536b72}.process.active{border-color:var(--primary);background:var(--primary);color:#fff}
     .piece-form{display:grid;gap:11px;margin-top:12px}.piece-form .row{display:grid;grid-template-columns:1fr;gap:9px;min-width:0}.piece-form .row>*{min-width:0}.piece-form input{width:100%;min-width:0;height:46px;border:1px solid var(--line);border-radius:11px;padding:0 11px;background:#fbfdfd;outline:none}.variant-box{margin-top:12px;padding:14px;border-radius:12px;background:#f7fbfa;border:1px solid #e2edeb;scroll-margin-top:18px}.variant-box.variant-attention{border-color:#0f766e;box-shadow:0 0 0 4px rgba(15,118,110,.12);transform:scale(1.01);transition:.25s}.variant-label{margin-bottom:8px;color:#587178;font-size:12px;font-weight:700}.variant-options{display:flex;flex-wrap:wrap;gap:7px}.variant-options button{min-height:36px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#536b72}.variant-options button.active{border-color:var(--primary);background:var(--primary);color:#fff}.variant-box input{width:100%;height:40px;border:1px solid var(--line);border-radius:10px;padding:0 11px;background:#fff;outline:none}
-    .piece-submit{width:100%;min-height:50px}.piece-record{background:#f8fbfa;border:1px solid #edf2f2;border-radius:12px;padding:11px;margin-top:8px}.piece-record strong{font-size:13px}.piece-record span{display:block;color:var(--muted);font-size:10px;margin-top:3px}.piece-money{color:var(--primary)!important;font-weight:700;font-size:11px!important}.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#173b42;color:#fff;padding:11px 15px;border-radius:12px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:99;max-width:88vw;text-align:center}
-.modal-backdrop{position:fixed;inset:0;background:rgba(8,31,36,.42);display:grid;place-items:center;padding:20px;z-index:120}.modal-card{width:100%;max-width:360px;background:#fff;border-radius:16px;padding:17px;box-shadow:0 18px 45px rgba(0,0,0,.22)}.modal-card h3{margin:0 0 8px;font-size:17px}.modal-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.modal-actions button{min-height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:#fff}.modal-actions .danger{background:#b42318;border-color:#b42318;color:#fff}.record-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}.record-status{font-size:10px;color:#71868b}.record-status.approved{color:#0f766e}.record-status.revoked,.record-status.rejected{color:#b42318}.revoke-piece{border:1px solid #e2b9b4;border-radius:8px;background:#fff7f6;color:#b42318;padding:4px 9px;font-size:11px}
+    .piece-submit{width:100%;min-height:50px}.piece-record{background:#f8fbfa;border:1px solid #edf2f2;border-radius:12px;padding:11px;margin-top:8px}.piece-record strong{font-size:13px;font-weight:800;color:var(--ink)}.piece-record > span{display:block;color:var(--muted);font-size:13px;font-weight:800;margin-top:3px}.piece-money{color:var(--primary)!important;font-weight:800;font-size:13px!important}.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#173b42;color:#fff;padding:11px 15px;border-radius:12px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:99;max-width:88vw;text-align:center}
+.modal-backdrop{position:fixed;inset:0;background:rgba(8,31,36,.42);display:grid;place-items:center;padding:20px;z-index:120}.modal-card{width:100%;max-width:360px;background:#fff;border-radius:16px;padding:17px;box-shadow:0 18px 45px rgba(0,0,0,.22)}.modal-card h3{margin:0 0 8px;font-size:17px}.modal-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.modal-actions button{min-height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:#fff}.modal-actions .danger{background:#b42318;border-color:#b42318;color:#fff}.record-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}.record-status{font-size:12px;font-weight:800;color:#71868b}.record-status.approved{color:#0f766e;font-size:15px;font-weight:900}.record-status.revoked,.record-status.rejected{color:#b42318}.revoke-piece{border:1px solid #e2b9b4;border-radius:8px;background:#fff7f6;color:#b42318;padding:4px 9px;font-size:11px}
     .action-stack{display:grid;gap:9px;margin-top:10px}
     .action-stack button{min-height:42px}
     .field select{width:100%;height:46px;border:1px solid var(--line);border-radius:12px;padding:0 13px;background:#fbfdfd;color:var(--ink);outline:none}
@@ -592,7 +592,7 @@ function renderPiece() {
     const name = x.name || x.submittedName || '';
     const process = x.process || x.submittedProcessName || '待审核';
     const statusText = x.status === 'revoked' ? '已撤回' : x.status === 'approved' ? '已通过' : x.status === 'rejected' ? '已退回' : (x.sourceType === 'catalog' ? '已提交' : '待审核');
-    const canEdit = x.status === 'submitted' || x.status === 'rejected' || x.status === 'revoked';
+    const canEdit = x.status === 'submitted' || x.status === 'rejected' || x.status === 'revoked' || x.status === 'approved';
     const canRevoke = x.status === 'submitted' || x.status === 'rejected' || x.status === 'approved';
     const priceText = x.status === 'approved' && x.unitPrice != null
       ? `单价 ${Number(x.unitPrice).toLocaleString('zh-CN',{maximumFractionDigits:4})} 元 · 金额 ${Number(x.amount || 0).toFixed(2)} 元`
@@ -600,7 +600,7 @@ function renderPiece() {
         ? `申报单价 ${Number(x.submittedUnitPrice).toLocaleString('zh-CN',{maximumFractionDigits:2})} 元 · 待审核`
         : '单价待审核';
     const reviewText = x.reviewNote ? `<span>${x.status === 'rejected' ? '退回原因：' : '审核备注：'}${esc(x.reviewNote)}</span>` : '';
-    const editText = x.status === 'revoked' ? '重新申报' : x.status === 'rejected' ? '修改后重提' : '编辑';
+    const editText = x.status === 'revoked' ? '重新申报' : x.status === 'rejected' ? '修改后重提' : x.status === 'approved' ? '修改数量' : '编辑';
     return `<div class="piece-record"><strong>${esc(material)} · ${esc(name)}</strong><span>${esc(process)}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''} · ${Number(x.quantity)} 件 · ${esc(x.workDate)}</span><span class="piece-money">${esc(priceText)}</span>${reviewText}<div class="record-foot"><span class="record-status ${x.status}">${statusText}</span><div class="salary-actions">${canEdit ? `<button type="button" data-edit-piece="${esc(x.id)}">${editText}</button>` : ''}${canRevoke ? `<button type="button" class="danger" data-revoke-piece="${esc(x.id)}">撤回</button>` : ''}</div></div></div>`;
   }).join('') : '<div class="card empty">还没有计件申报记录</div>';
   const matchedProcesses = selectedProduct
@@ -640,9 +640,9 @@ function renderPiece() {
       : x.submittedUnitPrice != null
         ? `申报单价 ${Number(x.submittedUnitPrice).toLocaleString('zh-CN',{maximumFractionDigits:2})} 元 · 不计工资`
         : '单价待审核';
-    const canEdit = x.status === 'submitted' || x.status === 'rejected' || x.status === 'revoked';
+    const canEdit = x.status === 'submitted' || x.status === 'rejected' || x.status === 'revoked' || x.status === 'approved';
     const canRevoke = x.status === 'submitted' || x.status === 'rejected' || x.status === 'approved';
-    const editText = x.status === 'revoked' ? '重新申报' : x.status === 'rejected' ? '修改后重提' : '编辑';
+    const editText = x.status === 'revoked' ? '重新申报' : x.status === 'rejected' ? '修改后重提' : x.status === 'approved' ? '修改数量' : '编辑';
     return `<div class="piece-record"><strong>${esc(x.material || '')} · ${esc(x.name || '')}</strong><span>${esc(x.process || '')}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''} · ${Number(x.quantity)} 件</span><span class="piece-money">${esc(price)}</span><div class="record-foot"><span class="record-status ${esc(x.status)}">${esc(status)}</span><div class="salary-actions">${canEdit ? `<button type="button" data-edit-piece="${esc(x.id)}">${editText}</button>` : ''}${canRevoke ? `<button type="button" class="danger" data-revoke-piece="${esc(x.id)}">撤回</button>` : ''}</div></div></div>`;
   }
   async function loadSalary() {
@@ -728,11 +728,11 @@ function renderPiece() {
     const day = ((salaryMonthData && salaryMonthData.days) || []).find((d) => String(d.date) === String(dateKey));
     if (!day) return salaryDetailShell('当天明细', '<div class="d-empty">找不到这天的记录</div>', '');
     const rows = (day.entries || []).filter((x) => x.status === 'approved');
-    const body = rows.length ? rows.map((x) => `<div class="d-row"><span>${esc(x.material || '')} · ${esc(x.name || '')} · ${esc(x.process || '')}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''}</span><span class="d-tag">${Number(x.quantity)} 件</span></div>`).join('') : '<div class="d-empty">这一天没有已审核的计件</div>';
+    const body = rows.length ? rows.map((x, i) => `<div class="d-row"><span>${i + 1}. ${esc(x.material || '')} · ${esc(x.name || '')} · ${esc(x.process || '')}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''}</span><span class="d-tag">${Number(x.quantity)} 件</span></div>`).join('') : '<div class="d-empty">这一天没有已审核的计件</div>';
     const pieceTotal = rows.reduce((sum, x) => sum + Number(x.amount || 0), 0);
     const pieceText = rows.length === 1
-      ? `1 笔 · ${fmtMoney(rows[0].unitPrice)} × ${Number(rows[0].quantity)} = ${fmtMoney(pieceTotal)} 元`
-      : `${rows.length} 笔 · 合计 ${fmtMoney(pieceTotal)} 元`;
+      ? `${fmtMoney(rows[0].unitPrice)} × ${Number(rows[0].quantity)} = ${fmtMoney(pieceTotal)} 元`
+      : `合计 ${fmtMoney(pieceTotal)} 元`;
     const foot = `<div class="d-row"><span>计时 ${(Number(day.timerMinutes || 0) / 60).toFixed(2)} 小时</span><strong>${pieceText}</strong></div>
       <div class="d-row"><span>合计</span><strong>${fmtMoney(day.totalPay)} 元</strong></div>`;
     return salaryDetailShell('当天明细 · ' + esc(dateKey), body, foot);
@@ -762,11 +762,11 @@ function renderPiece() {
   function buildPieceDetail() {
     const all = (salaryData && salaryData.entries) || [];
     const rows = all.filter((x) => x.status === 'approved');
-    const body = rows.length ? rows.map((x) => `<div class="d-row"><span>${esc(x.material || '')} · ${esc(x.name || '')} · ${esc(x.process || '')}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''}</span><span class="d-tag">${Number(x.quantity)} 件</span></div>`).join('') : '<div class="d-empty">这一天没有已审核的计件</div>';
+    const body = rows.length ? rows.map((x, i) => `<div class="d-row"><span>${i + 1}. ${esc(x.material || '')} · ${esc(x.name || '')} · ${esc(x.process || '')}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''}</span><span class="d-tag">${Number(x.quantity)} 件</span></div>`).join('') : '<div class="d-empty">这一天没有已审核的计件</div>';
     const total = rows.reduce((s, x) => s + Number(x.amount || 0), 0);
     const totalText = rows.length === 1
-      ? `1 笔 · ${fmtMoney(rows[0].unitPrice)} × ${Number(rows[0].quantity)} = ${fmtMoney(total)} 元`
-      : `${rows.length} 笔 · 合计 ${fmtMoney(total)} 元`;
+      ? `${fmtMoney(rows[0].unitPrice)} × ${Number(rows[0].quantity)} = ${fmtMoney(total)} 元`
+      : `合计 ${fmtMoney(total)} 元`;
     const foot = `<div class="d-row"><span>已审核</span><strong>${totalText}</strong></div>`;
     return salaryDetailShell('当天计件明细 · ' + esc(salaryData?.date || ''), body, foot);
   }
