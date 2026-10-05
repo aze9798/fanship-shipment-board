@@ -173,6 +173,8 @@
     .att-tag.manual{background:#e8f0ff;color:#3b5bdb}
     .att-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
     .att-reissue{border:1px solid #b9ddd7;background:#fff;color:var(--primary);border-radius:9px;padding:5px 10px;font-size:11px;font-weight:800}
+    .month-nav{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+    .month-nav button{border:1px solid #b9ddd7;background:#fff;color:var(--primary);border-radius:12px;min-height:42px;font-weight:800}
   </style>
 </head><body>
 <div class="page">
@@ -253,6 +255,7 @@
         </div>
         <label class="field" id="salaryDateWrap"><span>查看日期</span><input id="salaryDate" type="date"></label>
         <label class="field hidden" id="salaryMonthWrap"><span>查看月份</span><input id="salaryMonth" type="month"></label>
+        <div class="month-nav hidden" id="salaryMonthNav"><button id="salaryPrevMonth" type="button">上个月</button><button id="salaryNextMonth" type="button">下个月</button></div>
         <button id="salaryRefresh" class="ghost wide" type="button">刷新工资</button>
       </div>
       <div id="salarySummary" class="card salary-hero"><span>当天工资合计</span><strong>0.00 元</strong><small>计时工资 + 已通过计件工资</small></div>
@@ -265,13 +268,21 @@
     </section>
     <section id="payrollPanel" class="hidden">
       <div class="card">
-        <div class="section-head"><div><h2>我的工资</h2><p id="payrollSub">当月工资</p></div></div>
-        <label class="field"><span>查看月份</span><input id="payrollMonth" type="month"></label>
+        <div class="section-head"><div><h2>工资查看</h2></div></div>
+        <div id="payrollRangeSwitch" class="salary-range">
+          <button data-payroll-range="day" type="button">当天</button>
+          <button class="active" data-payroll-range="month" type="button">本月</button>
+        </div>
+        <label class="field hidden" id="payrollDateWrap"><span>查看日期</span><input id="payrollDate" type="date"></label>
+        <label class="field" id="payrollMonthWrap"><span>查看月份</span><input id="payrollMonth" type="month"></label>
+        <div class="month-nav" id="payrollMonthNav"><button id="payrollPrevMonth" type="button">上个月</button><button id="payrollNextMonth" type="button">下个月</button></div>
         <button id="payrollRefresh" class="ghost wide" type="button">刷新工资</button>
       </div>
-      <div id="payrollHero" class="card salary-hero"><span>本月工资</span><strong>--</strong><small></small></div>
+      <div id="payrollHero" class="card salary-hero"><span>工资合计</span><strong>--</strong><small></small></div>
       <div class="list-title"><strong>工资构成</strong></div>
       <div id="payrollBreakdown" class="card"></div>
+      <div class="list-title hidden" id="payrollMonthTitle"><strong>每日明细</strong><span id="payrollMonthCount"></span></div>
+      <div id="payrollMonthDays" class="card hidden"></div>
     </section>
     <section id="attendancePanel" class="hidden">
       <div class="card">
@@ -370,6 +381,7 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
   let profile = null;
   let attendanceData = null;
   let payrollData = null;
+  let payrollRange = 'month';
   let betaSession = null;
   let betaHistory = [];
   let betaStateLoaded = false;
@@ -754,7 +766,7 @@ function renderPiece() {
     if (button) button.disabled = true;
     try {
       if (salaryRange === 'month') {
-        if (!$('salaryMonth').value) $('salaryMonth').value = new Date().toLocaleDateString('en-CA', { timeZone:'Asia/Shanghai' }).slice(0, 7);
+        if (!$('salaryMonth').value) $('salaryMonth').value = previousMonth();
         salaryMonthValue = $('salaryMonth').value;
         salaryMonthData = await rpc('work_get_my_salary_month', { p_code:code, p_month: salaryMonthValue + '-01' });
         renderSalaryMonth();
@@ -1050,34 +1062,60 @@ function renderPiece() {
       return `<div class="att-row"><div><div class="att-date">${esc(String(d.workDate || '').slice(5))}</div><div class="att-times">${esc(times)}${esc(extra)}</div></div><div class="att-right"><span class="att-tag ${esc(d.status || '')}">${esc(tag)}</span>${action}</div></div>`;
     }).join('') : '<div class="d-empty">这个月还没有考勤记录</div>';
   }
+  function shiftMonthInput(inputId, delta) {
+    const el = $(inputId);
+    if (!el) return;
+    const v = el.value || previousMonth();
+    const [y, m] = v.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    el.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
   async function loadMyPayroll() {
     if (!code) return;
-    const month = $('payrollMonth')?.value || currentMonth();
-    const { from } = monthBounds(month);
-    payrollData = await rpc('work_get_my_payroll', { p_code:code, p_month:from });
+    const params = { p_code: code, p_mode: payrollRange, p_value: null };
+    if (payrollRange === 'month') {
+      if (!$('payrollMonth').value) $('payrollMonth').value = previousMonth();
+      params.p_value = $('payrollMonth').value + '-01';
+    } else {
+      if (!$('payrollDate').value) $('payrollDate').value = new Date().toLocaleDateString('en-CA', { timeZone:'Asia/Shanghai' });
+      params.p_value = $('payrollDate').value;
+    }
+    payrollData = await rpc('work_get_my_payroll', params);
     renderMyPayroll();
   }
   function renderMyPayroll() {
     const d = payrollData || {};
     const n = (v) => Number(v || 0);
     const money = (v) => (v === null || v === undefined) ? '--' : Number(v).toLocaleString('zh-CN', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' 元';
-    $('payrollSub').textContent = `${d.month || ''} 工资`;
-    $('payrollHero').innerHTML = `<span>${esc(d.month || '')} 工资合计</span><strong>${money(d.totalPay)}</strong><small>${esc(d.note || '')}</small>`;
+    const hours = (m) => Math.round(n(m) / 60 * 10) / 10;
+    $('payrollHero').innerHTML = `<span>${esc(d.label || '')} 工资合计</span><strong>${money(d.totalPay)}</strong><small>${esc(d.note || '')}</small>`;
     const rows = [];
     if (d.salaryType === 'daily') {
-      rows.push(['出勤天数', `${n(d.attendanceDays)} 天`]);
+      rows.push(['出勤', `${n(d.attendanceDays)} 天`]);
       rows.push(['日工资', money(d.dailySalary)]);
       rows.push(['基本工资', money(d.basePay)]);
-      rows.push(['没上班', `${n(d.absentDays)} 天`]);
-      rows.push(['加班', `${n(d.overtimeDays)} 天 · ${n(d.overtimeMinutes)} 分钟`]);
+      if (d.mode === 'month') {
+        rows.push(['没上班', `${n(d.absentDays)} 天`]);
+        rows.push(['加班', `${n(d.overtimeDays)} 天 · ${hours(d.overtimeMinutes)} 小时`]);
+      } else {
+        rows.push(['当天加班', `${hours(d.overtimeMinutes)} 小时`]);
+      }
       rows.push(['加班费', money(d.overtimeAmount)]);
     } else if (d.salaryType === 'monthly') {
       rows.push(['月薪', money(d.monthlySalary)]);
-      rows.push(['出勤天数', `${n(d.attendanceDays)} 天`]);
+      if (d.mode === 'month') rows.push(['出勤', `${n(d.attendanceDays)} 天`]);
     } else {
       rows.push(['说明', d.note || '']);
     }
     $('payrollBreakdown').innerHTML = rows.map(([k, v]) => `<div class="salary-line"><div class="salary-line-main"><span>${esc(k)}</span><strong>${esc(String(v))}</strong></div></div>`).join('');
+    const showMonth = d.mode === 'month';
+    show($('payrollMonthTitle'), showMonth);
+    show($('payrollMonthDays'), showMonth);
+    if (showMonth) {
+      const days = d.days || [];
+      $('payrollMonthCount').textContent = `${days.length} 天`;
+      $('payrollMonthDays').innerHTML = days.length ? days.map((x) => `<div class="att-row"><div><div class="att-date">${esc(String(x.workDate || '').slice(5))}</div><div class="att-times">${esc([x.checkInRaw || x.checkIn || '', x.checkOutRaw || x.checkOut || ''].filter(Boolean).join(' / ') || '无打卡')}${n(x.overtimeMinutes) > 0 ? ' · 加班 ' + hours(x.overtimeMinutes) + 'h' : ''}</div></div><span class="att-tag ${esc(x.status || '')}">${esc(ATT_STATUS[x.status] || x.status || '')}</span></div>`).join('') : '<div class="d-empty">这个月还没有记录</div>';
+    }
   }
   let reissueDay = null;
   function openReissueModal(workDate) {
@@ -1719,6 +1757,21 @@ function variantDisplay(processName, value) {
   if ($('attendanceRefresh')) $('attendanceRefresh').addEventListener('click', () => loadMyAttendance().catch(() => {}));
   if ($('payrollRefresh')) $('payrollRefresh').addEventListener('click', () => loadMyPayroll().catch(() => {}));
   if ($('payrollMonth')) $('payrollMonth').addEventListener('change', () => loadMyPayroll().catch(() => {}));
+  if ($('payrollRangeSwitch')) $('payrollRangeSwitch').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-payroll-range]');
+    if (!btn) return;
+    payrollRange = btn.dataset.payrollRange === 'month' ? 'month' : 'day';
+    [...$('payrollRangeSwitch').querySelectorAll('button')].forEach((b) => b.classList.toggle('active', b === btn));
+    show($('payrollDateWrap'), payrollRange === 'day');
+    show($('payrollMonthWrap'), payrollRange === 'month');
+    show($('payrollMonthNav'), payrollRange === 'month');
+    loadMyPayroll().catch(() => {});
+  });
+  if ($('payrollPrevMonth')) $('payrollPrevMonth').addEventListener('click', () => { shiftMonthInput('payrollMonth', -1); loadMyPayroll().catch(() => {}); });
+  if ($('payrollNextMonth')) $('payrollNextMonth').addEventListener('click', () => { shiftMonthInput('payrollMonth', 1); loadMyPayroll().catch(() => {}); });
+  if ($('payrollDate')) $('payrollDate').addEventListener('change', () => loadMyPayroll().catch(() => {}));
+  if ($('salaryPrevMonth')) $('salaryPrevMonth').addEventListener('click', () => { shiftMonthInput('salaryMonth', -1); loadSalary().catch(() => {}); });
+  if ($('salaryNextMonth')) $('salaryNextMonth').addEventListener('click', () => { shiftMonthInput('salaryMonth', 1); loadSalary().catch(() => {}); });
   if ($('attendanceMonth')) $('attendanceMonth').addEventListener('change', () => loadMyAttendance().catch(() => {}));
   if ($('reissueClose')) $('reissueClose').addEventListener('click', closeReissueModal);
   if ($('reissueCancel')) $('reissueCancel').addEventListener('click', closeReissueModal);
@@ -1821,6 +1874,7 @@ function variantDisplay(processName, value) {
     [...$('salaryRangeSwitch').querySelectorAll('button')].forEach((b) => b.classList.toggle('active', b === btn));
     show($('salaryDateWrap'), salaryRange === 'day');
     show($('salaryMonthWrap'), salaryRange === 'month');
+    show($('salaryMonthNav'), salaryRange === 'month');
     show($('salaryEntriesTitle'), salaryRange === 'day');
     show($('salaryEntries'), salaryRange === 'day');
     show($('salaryMonthTitle'), salaryRange === 'month');
