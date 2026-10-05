@@ -27,6 +27,9 @@
     .clock-card{background:linear-gradient(145deg,#0c6f68,#0c8b7f);color:#fff;border:0}
   .special-time{border:1px solid #f0d9a8;background:#fffaf0}
   .special-time-hint{margin:0 0 8px;color:#8a6b22;font-size:12px;line-height:1.5}
+  .special-time-check{display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;color:#76520f;font-size:13px;font-weight:800;line-height:1.45}
+  .special-time-check input{width:20px;height:20px;flex:0 0 auto;margin:0;accent-color:var(--primary)}
+  .special-time-preview{margin:0 0 9px;padding:10px 12px;border:1px solid #ead9aa;border-radius:10px;background:#fff;color:#6f5317;font-size:13px;line-height:1.65}
   .special-time-row{display:flex;gap:8px;align-items:center}
   .special-time-row input{flex:1 1 auto;min-width:0;border:1px solid #e3d3a8;border-radius:10px;padding:10px 12px;font-size:13px;background:#fff}
   .special-time-row button{flex:0 0 auto;min-width:84px}
@@ -173,8 +176,10 @@
       </div>
       <div id="specialTimePanel" class="card special-time hidden">
         <p class="special-time-hint" id="specialTimeHint"></p>
+        <label class="special-time-check"><input id="specialTimeOvertime" type="checkbox"><span>确认加班（勾选后 17:00 后工时计入，并扣晚餐 30 分钟）</span></label>
+        <div id="specialTimePreview" class="special-time-preview hidden"></div>
         <div class="special-time-row">
-          <input id="specialTimeNote" type="text" maxlength="80" placeholder="备注说明（例如：客户急件加班到 19:00）">
+          <input id="specialTimeNote" type="text" maxlength="80" placeholder="备注说明（选填）">
           <button id="specialTimeConfirm" class="primary" type="button">确认</button>
         </div>
       </div>
@@ -411,7 +416,7 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
     $('todayMinutes').textContent = fmtMinutes(state?.todayMinutes);
     $('monthMinutes').textContent = fmtMinutes(state?.monthMinutes);
     const rows = state?.todayEntries || []; $('todayCount').textContent = `${rows.length} 段`;
-    $('todayEntries').innerHTML = rows.length ? rows.map((x) => `<div class="record"><div><strong>${esc(fmtClock(x.startedAt))} → ${x.endedAt ? esc(fmtClock(x.endedAt)) : '进行中'}</strong><small>${x.status === 'closed' ? '已完成' : '未结束'}${x.specialConfirmed ? '<em class="record-special">已备注</em>' : ''}${x.specialNote ? ` · ${esc(x.specialNote)}` : ''}</small></div><strong>${x.endedAt ? `${Number(x.rawMinutes || 0)} 分钟` : '计时中'}</strong></div>`).join('') : '<div class="empty">今天还没有计时记录</div>';
+    $('todayEntries').innerHTML = rows.length ? rows.map((x) => `<div class="record"><div><strong>${esc(fmtClock(x.startedAt))} → ${x.endedAt ? esc(fmtClock(x.endedAt)) : '进行中'}</strong><small>${x.status === 'closed' ? '已完成' : '未结束'}${x.overtimeConfirmed ? '<em class="record-special">已确认加班</em>' : (x.specialConfirmed ? '<em class="record-special">已备注</em>' : '')}${x.specialNote ? ` · ${esc(x.specialNote)}` : ''}</small></div><strong>${x.endedAt ? `${Number(x.rawMinutes || 0)} 分钟` : '计时中'}</strong></div>`).join('') : '<div class="empty">今天还没有计时记录</div>';
   }
   function currentProcess() {
   return (state?.processes || []).find((p) => p.id === selectedProcessId) || null;
@@ -686,12 +691,16 @@ function renderPiece() {
     $('salaryStatusHint').textContent = salaryStatusNotice(data);
     const rate = Number(data.employee?.hourlyRate || 0);
     const rateText = Number.isInteger(rate) ? String(rate) : rate.toFixed(2);
+    const overtimeRate = Number(data.overtimeHourlyRate || 0) || rate;
+    const overtimeRateText = Number.isInteger(overtimeRate) ? String(overtimeRate) : overtimeRate.toFixed(2);
+    const overtimeHours = Number(data.overtimeMinutes || 0) / 60;
     $('salaryBreakdown').innerHTML = `
       <div class="salary-line expandable" data-salary-detail="time" role="button" tabindex="0" aria-expanded="false">
         <div class="salary-line-main"><span>计时工时</span><strong>${Number(data.timerHours || 0).toFixed(2)} 小时</strong></div>
         <div class="salary-detail" data-detail-body="time"></div>
       </div>
-      <div class="salary-line"><div class="salary-line-main"><span>计时时薪</span><strong>${rateText}元/小时</strong></div></div>
+      <div class="salary-line"><div class="salary-line-main"><span>${overtimeHours > 0 ? '正常时薪' : '计时时薪'}</span><strong>${rateText}元/小时</strong></div></div>
+      ${overtimeHours > 0 ? `<div class="salary-line"><div class="salary-line-main"><span>加班时薪</span><strong>${overtimeRateText}元/小时</strong></div></div><div class="salary-line"><div class="salary-line-main"><span>其中加班工时</span><strong>${overtimeHours.toFixed(2)} 小时</strong></div></div>` : ''}
       <div class="salary-line"><div class="salary-line-main"><span>计时工资</span><strong>${fmtMoney(data.timerPay)} 元</strong></div></div>
       <div class="salary-line expandable" data-salary-detail="piece" role="button" tabindex="0" aria-expanded="false">
         <div class="salary-line-main"><span>已审核计件</span><strong>${Number(data.approvedCount || 0)} 笔 · ${Number(data.approvedQuantity || 0)} 件</strong></div>
@@ -764,11 +773,15 @@ function renderPiece() {
     }
     const rows = (data && data.entries) || [];
     const mins = Number(data?.totalMinutes || 0);
+    const normalMins = Number(data?.normalMinutes || 0);
+    const overtimeMins = Number(data?.overtimeMinutes || 0);
     const body = rows.length ? rows.map((r) => {
-      const note = r.specialNote ? `<span class="d-tag">备注 ${esc(r.specialNote)}</span>` : '';
+      const note = `${r.overtimeConfirmed ? '<span class="d-tag">已确认加班</span>' : ''}${r.specialNote ? `<span class="d-tag">备注 ${esc(r.specialNote)}</span>` : ''}`;
       return `<div class="d-row"><span>${esc(fmtClock(r.startedAt))} → ${r.open ? '计时中' : esc(fmtClock(r.endedAt))}${note}</span><strong>${Number(r.minutes || 0)} 分钟</strong></div>`;
     }).join('') : '<div class="d-empty">这一天没有计时记录</div>';
-    const foot = `<div class="d-row"><span>当天有效计时合计</span><strong>${(mins / 60).toFixed(2)} 小时</strong></div>`;
+    const foot = `<div class="d-row"><span>当天有效计时合计</span><strong>${(mins / 60).toFixed(2)} 小时</strong></div>
+      <div class="d-row"><span>正常工时</span><strong>${(normalMins / 60).toFixed(2)} 小时</strong></div>
+      ${overtimeMins > 0 ? `<div class="d-row"><span>加班工时</span><strong>${(overtimeMins / 60).toFixed(2)} 小时</strong></div>` : ''}`;
     return salaryDetailShell('当天计时明细 · ' + esc(day), body, foot);
   }
   function buildPieceDetail() {
@@ -879,6 +892,20 @@ function renderPiece() {
     } catch (e) { show($('loginError'), true); $('loginError').textContent = e.message || '登录失败'; }
   }
   let pendingSpecialEntry = '';
+  let specialPreviewReady = false;
+  function updateSpecialConfirmAction() {
+    const btn = $('specialTimeConfirm');
+    if (!btn) return;
+    const overtime = Boolean($('specialTimeOvertime')?.checked);
+    btn.textContent = specialPreviewReady ? '确认工时' : (overtime ? '下一步' : '确认不加班');
+  }
+  function resetSpecialConfirm() {
+    specialPreviewReady = false;
+    if ($('specialTimeOvertime')) $('specialTimeOvertime').checked = false;
+    if ($('specialTimeNote')) $('specialTimeNote').value = '';
+    show($('specialTimePreview'), false);
+    updateSpecialConfirmAction();
+  }
   function renderSpecialPanel() {
     const panel = $('specialTimePanel');
     if (!panel) return;
@@ -918,12 +945,10 @@ function renderPiece() {
     btn.disabled = true;
     if (active) playClockMorph(btn);
     try {
-      const note = $('specialTimeNote') ? $('specialTimeNote').value.trim() : '';
       let result;
       try {
-        result = await rpc(active ? 'work_stop_timer' : 'work_start_timer', active ? { p_code:code, p_note:note } : { p_code:code });
+        result = await rpc(active ? 'work_stop_timer' : 'work_start_timer', { p_code:code });
       } catch (stopError) {
-        // 数据库还没执行 fix-work-time-bounds.sql 时，退回旧签名，保证计时能结束
         if (!active) throw stopError;
         result = await rpc('work_stop_timer', { p_code:code });
       }
@@ -932,15 +957,15 @@ function renderPiece() {
         pendingSpecialEntry = result.id || '';
         const clock = (v) => fmtClock(v);
         $('specialTimeHint').textContent = result.capped
-          ? `实际结束 ${clock(result.rawEndedAt)}，超过 20:30 的部分按 20:30 计入。`
-          : `实际结束 ${clock(result.rawEndedAt)}，工时按实际计入。`;
-        $('specialTimeNote').value = '';
+          ? `实际结束 ${clock(result.rawEndedAt)}，超过 20:30 的部分按 20:30 计入。不勾选只计正常 9 小时。`
+          : `实际结束 ${clock(result.rawEndedAt)}。勾选“确认加班”后，17:00 后工时计入并扣晚餐 30 分钟；不勾选只计正常 9 小时。`;
+        resetSpecialConfirm();
         renderSpecialPanel();
-        toast('这条计时需要确认，备注可以不填');
-      } else if (active && result && result.specialConfirmed) {
+        toast('请确认是否加班');
+      } else if (active && result && result.overtimeConfirmed) {
         pendingSpecialEntry = '';
         renderSpecialPanel();
-        toast('本次计时已结束（已按特殊情况记录）');
+        toast('本次计时已结束（已确认加班）');
       } else {
         pendingSpecialEntry = '';
         renderSpecialPanel();
@@ -1026,13 +1051,28 @@ function renderPiece() {
   async function confirmSpecialTime() {
     if (!pendingSpecialEntry) return;
     const note = $('specialTimeNote').value.trim();
+    const overtime = Boolean($('specialTimeOvertime')?.checked);
     const btn = $('specialTimeConfirm'); btn.disabled = true;
     try {
-      await rpc('work_confirm_special_time', { p_code:code, p_entry_id:pendingSpecialEntry, p_note:note });
+      if (overtime && !specialPreviewReady) {
+        const preview = await rpc('work_preview_overtime', { p_code:code, p_entry_id:pendingSpecialEntry });
+        const normalHours = Number(preview.normalMinutes || 0) / 60;
+        const overtimeHours = Number(preview.overtimeMinutes || 0) / 60;
+        const totalHours = normalHours + overtimeHours;
+        const normalPay = Number(preview.normalPay || 0);
+        const overtimePay = Number(preview.overtimePay || 0);
+        $('specialTimePreview').innerHTML = `本次将计入：正常 ${normalHours.toFixed(2)} 小时 + 加班 ${overtimeHours.toFixed(2)} 小时 = 合计 ${totalHours.toFixed(2)} 小时。<br>预计计时工资：正常 ${fmtMoney(normalPay)} 元 + 加班 ${fmtMoney(overtimePay)} 元（${Number(preview.overtimeHourlyRate || 0).toFixed(2)} 元/小时）= ${fmtMoney(normalPay + overtimePay)} 元。`;
+        show($('specialTimePreview'), true);
+        specialPreviewReady = true;
+        updateSpecialConfirmAction();
+        return;
+      }
+      await rpc('work_confirm_special_time', { p_code:code, p_entry_id:pendingSpecialEntry, p_note:note, p_overtime:overtime });
       pendingSpecialEntry = '';
+      resetSpecialConfirm();
       renderSpecialPanel();
       await loadState();
-      toast(note ? '已确认，并记为特殊事件' : '已确认');
+      toast(overtime ? '已确认加班，工时和加班工资已计入' : '已确认不加班，只计正常 9 小时');
     } catch (e) { toast(e.message || '确认失败'); } finally { btn.disabled = false; }
   }
   async function searchProducts() {
@@ -1445,6 +1485,7 @@ function variantDisplay(processName, value) {
   if (logoutButton) logoutButton.addEventListener('click', () => { state = null; salaryData = null; editEntry = null; code = ''; clearStoredCode(); render(); });
   $('clockAction').addEventListener('click', clockAction);
   if ($('specialTimeConfirm')) $('specialTimeConfirm').addEventListener('click', confirmSpecialTime);
+  if ($('specialTimeOvertime')) $('specialTimeOvertime').addEventListener('change', () => { specialPreviewReady = false; show($('specialTimePreview'), false); updateSpecialConfirmAction(); });
   document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
     document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x === b));
     const tab = b.dataset.tab;
