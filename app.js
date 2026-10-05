@@ -246,7 +246,6 @@ let remainingSearch = '';
 let desktopRemainingSearch = '';
 let desktopLoadingSearch = '';
 let desktopLoadingDue = 'all';
-let desktopLoadingDueDate = '';
 let desktopLoadingCompany = 'all';
 const remainingDates = new Set();
 let desktopDueFilter = 'all';
@@ -524,8 +523,6 @@ const els = {
   desktopLoadingView: $('#desktopLoadingView'),
   desktopLoadingSearch: $('#desktopLoadingSearch'),
   desktopLoadingDue: $('#desktopLoadingDue'),
-  desktopLoadingDueRow: $('#desktopLoadingDueRow'),
-  desktopLoadingDueDate: $('#desktopLoadingDueDate'),
   desktopLoadingCompany: $('#desktopLoadingCompany'),
   desktopLoadingRefresh: $('#desktopLoadingRefresh'),
   desktopLoadingSummary: $('#desktopLoadingSummary'),
@@ -2036,8 +2033,43 @@ function desktopLoadingDuePass(order) {
   const diff = Math.round((new Date(due + 'T00:00:00') - new Date(today + 'T00:00:00')) / day);
   if (desktopLoadingDue === 'overdue') return diff < 0;
   if (desktopLoadingDue === 'today') return diff === 0;
-  if (desktopLoadingDue === 'custom') return Boolean(desktopLoadingDueDate) && due === desktopLoadingDueDate;
+  if (desktopLoadingDue.startsWith('date:')) return due === desktopLoadingDue.slice(5);
   return true;
+}
+// 下拉里自动列出「要发货的日期」（未交订单里出现过的交期），前三个固定项不变
+function desktopLoadingDueLabel(dateKey) {
+  const matched = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateKey || ''));
+  return matched ? `${Number(matched[2])}月${Number(matched[3])}日` : String(dateKey || '');
+}
+function desktopLoadingDueDates() {
+  const dates = new Set();
+  for (const order of (snapshot?.orders || [])) {
+    if (!(Number(order.remaining || 0) > 0)) continue;
+    if (desktopLoadingCompany !== 'all' && String(orderCompany(order) || '') !== desktopLoadingCompany) continue;
+    const due = String(order.dueDate || '').slice(0, 10);
+    if (due) dates.add(due);
+  }
+  return [...dates].sort();
+}
+function syncDesktopLoadingDueOptions() {
+  const select = els.desktopLoadingDue;
+  if (!select) return;
+  const dates = desktopLoadingDueDates();
+  const signature = dates.join(',');
+  if (select.dataset.dateSignature === signature) return;
+  select.dataset.dateSignature = signature;
+  for (const option of [...select.querySelectorAll('option[data-due-date]')]) option.remove();
+  for (const date of dates) {
+    const option = document.createElement('option');
+    option.value = 'date:' + date;
+    option.dataset.dueDate = date;
+    option.textContent = desktopLoadingDueLabel(date);
+    select.appendChild(option);
+  }
+  if (![...select.options].some((option) => option.value === desktopLoadingDue)) {
+    desktopLoadingDue = 'all';
+    select.value = 'all';
+  }
 }
 function desktopLoadingOrders() {
   const query = desktopLoadingSearch.trim().toLowerCase();
@@ -2093,6 +2125,7 @@ function renderDesktopLoadingSummary() {
 }
 function renderDesktopLoading() {
   if (!els.desktopLoadingCardList) return;
+  syncDesktopLoadingDueOptions();
   const rows = desktopLoadingOrders();
   const limit = 120;
   const shown = rows.slice(0, limit);
@@ -5240,13 +5273,8 @@ document.querySelectorAll('.mobile-tab').forEach((button) => button.addEventList
 if (els.desktopLoadingSearch) els.desktopLoadingSearch.addEventListener('input', (event) => { desktopLoadingSearch = event.target.value; renderDesktopLoading(); });
 if (els.desktopLoadingDue) els.desktopLoadingDue.addEventListener('change', (event) => {
   desktopLoadingDue = event.target.value;
-  if (els.desktopLoadingDueRow) els.desktopLoadingDueRow.hidden = desktopLoadingDue !== 'custom';
-  // 选了「指定日期…」时筛选行多一列放日期框，避免日期框溢出到下面被卡片挡住
-  const loadingTools = els.desktopLoadingDue.closest('.desktop-loading-tools');
-  if (loadingTools) loadingTools.classList.toggle('has-due-date', desktopLoadingDue === 'custom');
   renderDesktopLoading();
 });
-if (els.desktopLoadingDueDate) els.desktopLoadingDueDate.addEventListener('change', (event) => { desktopLoadingDueDate = event.target.value; renderDesktopLoading(); });
 if (els.desktopLoadingCompany) els.desktopLoadingCompany.addEventListener('change', (event) => { desktopLoadingCompany = event.target.value; renderDesktopLoading(); });
 if (els.desktopLoadingRefresh) els.desktopLoadingRefresh.addEventListener('click', async () => { await loadState({ quiet:false }); renderAll(); renderDesktopLoading(); showToast('未交订单已刷新'); });
 if (els.desktopLoadingCardList) {

@@ -728,8 +728,13 @@ function renderPiece() {
     const day = ((salaryMonthData && salaryMonthData.days) || []).find((d) => String(d.date) === String(dateKey));
     if (!day) return salaryDetailShell('当天明细', '<div class="d-empty">找不到这天的记录</div>', '');
     const rows = (day.entries || []).filter((x) => x.status === 'approved');
-    const body = rows.length ? rows.map((x) => `<div class="d-row"><span>${esc(x.material || '')} · ${esc(x.name || '')} · ${esc(x.process || '')}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''}<span class="d-tag">${Number(x.quantity)} 件</span></span><strong>${fmtMoney(x.unitPrice)} × ${Number(x.quantity)} = ${fmtMoney(x.amount)} 元</strong></div>`).join('') : '<div class="d-empty">这一天没有已审核的计件</div>';
-    const foot = `<div class="d-row"><span>计时 ${(Number(day.timerMinutes || 0) / 60).toFixed(2)} 小时 · 计件 ${rows.length} 笔</span><strong>合计 ${fmtMoney(day.totalPay)} 元</strong></div>`;
+    const body = rows.length ? rows.map((x) => `<div class="d-row"><span>${esc(x.material || '')} · ${esc(x.name || '')} · ${esc(x.process || '')}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''}</span><span class="d-tag">${Number(x.quantity)} 件</span></div>`).join('') : '<div class="d-empty">这一天没有已审核的计件</div>';
+    const pieceTotal = rows.reduce((sum, x) => sum + Number(x.amount || 0), 0);
+    const pieceText = rows.length === 1
+      ? `1 笔 · ${fmtMoney(rows[0].unitPrice)} × ${Number(rows[0].quantity)} = ${fmtMoney(pieceTotal)} 元`
+      : `${rows.length} 笔 · 合计 ${fmtMoney(pieceTotal)} 元`;
+    const foot = `<div class="d-row"><span>计时 ${(Number(day.timerMinutes || 0) / 60).toFixed(2)} 小时</span><strong>${pieceText}</strong></div>
+      <div class="d-row"><span>合计</span><strong>${fmtMoney(day.totalPay)} 元</strong></div>`;
     return salaryDetailShell('当天明细 · ' + esc(dateKey), body, foot);
   }
   function salaryDetailShell(title, rowsHtml, footHtml) {
@@ -757,9 +762,12 @@ function renderPiece() {
   function buildPieceDetail() {
     const all = (salaryData && salaryData.entries) || [];
     const rows = all.filter((x) => x.status === 'approved');
-    const body = rows.length ? rows.map((x) => `<div class="d-row"><span>${esc(x.material || '')} · ${esc(x.name || '')} · ${esc(x.process || '')}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''}<span class="d-tag">${Number(x.quantity)} 件</span></span><strong>${fmtMoney(x.unitPrice)} × ${Number(x.quantity)} = ${fmtMoney(x.amount)} 元</strong></div>`).join('') : '<div class="d-empty">这一天没有已审核的计件</div>';
+    const body = rows.length ? rows.map((x) => `<div class="d-row"><span>${esc(x.material || '')} · ${esc(x.name || '')} · ${esc(x.process || '')}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''}</span><span class="d-tag">${Number(x.quantity)} 件</span></div>`).join('') : '<div class="d-empty">这一天没有已审核的计件</div>';
     const total = rows.reduce((s, x) => s + Number(x.amount || 0), 0);
-    const foot = `<div class="d-row"><span>已审核计件合计</span><strong>${rows.length} 笔 · ${fmtMoney(total)} 元</strong></div>`;
+    const totalText = rows.length === 1
+      ? `1 笔 · ${fmtMoney(rows[0].unitPrice)} × ${Number(rows[0].quantity)} = ${fmtMoney(total)} 元`
+      : `${rows.length} 笔 · 合计 ${fmtMoney(total)} 元`;
+    const foot = `<div class="d-row"><span>已审核</span><strong>${totalText}</strong></div>`;
     return salaryDetailShell('当天计件明细 · ' + esc(salaryData?.date || ''), body, foot);
   }
   async function toggleSalaryDetail(line) {
