@@ -23,7 +23,7 @@
     .error{margin-top:10px;padding:10px 12px;border-radius:10px;background:#fff1f0;color:var(--danger);font-size:12px}
     .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.top h1{margin:0;font-size:26px}.top>div{display:flex;flex-direction:column;align-items:center}.top p{margin:4px 0 0;color:var(--muted);font-size:14px}.logout{border:0;background:transparent;color:var(--muted);font-size:12px}
     .tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:5px;background:#e3eeec;border-radius:14px;margin-bottom:12px}.tabs button{border:0;border-radius:10px;background:transparent;color:#5e747a;min-height:42px;font-weight:800}.tabs button.active{background:#fff;color:var(--primary);box-shadow:0 4px 12px rgba(36,92,88,.1)}
-    .section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}.section-head h2{margin:0;font-size:17px}.section-head p{margin:4px 0 0;color:var(--muted);font-size:11px}
+    .section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}.section-head h2{margin:0;font-size:20px}.section-head p{margin:4px 0 0;color:var(--muted);font-size:11px}
     .clock-card{background:linear-gradient(145deg,#0c6f68,#0c8b7f);color:#fff;border:0}
   .special-time{border:1px solid #f0d9a8;background:#fffaf0}
   .special-time-hint{margin:0 0 8px;color:#8a6b22;font-size:12px;line-height:1.5}
@@ -66,7 +66,7 @@
     .rules{display:grid;gap:6px;font-size:11px;color:#60777d}.rules div{display:flex;justify-content:space-between;padding:7px 9px;border-radius:9px;background:#f6f9f9}.rules b{color:#294b52}
     .list-title{display:flex;justify-content:space-between;align-items:center;margin:14px 1px 8px}.list-title strong{font-size:13px}.list-title span{font-size:11px;color:var(--muted)}
     .record{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;border-top:1px solid #edf2f2}.record:first-child{border-top:0}.record small{display:block;color:var(--muted);font-size:10px;margin-top:3px}.record strong{font-size:13px}.empty{padding:24px 10px;text-align:center;color:var(--muted);font-size:12px}
-    .search-wrap{position:relative}.search-wrap input{width:100%;height:46px;border:1px solid var(--line);border-radius:12px;padding:0 13px 0 40px;background:#fbfdfd;outline:none}.search-wrap::before{content:"⌕";position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#6c908b;font-size:20px;font-weight:800}
+    .search-wrap{position:relative}.search-wrap input{width:100%;height:46px;border:1px solid var(--line);border-radius:12px;padding:0 48px 0 40px;background:#fbfdfd;outline:none}.search-wrap input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}.search-wrap::before{content:"⌕";position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#6c908b;font-size:20px;font-weight:800}.search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:34px;height:34px;border:0;border-radius:50%;background:#e7f2f0;color:#3f656b;font-size:22px;line-height:1;display:grid;place-items:center;padding:0;z-index:2}.search-clear:hover{background:#d8ebe7;color:var(--primary)}
     .suggest{margin-top:7px;border:1px solid #cddedb;border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 8px 20px rgba(18,78,75,.06)}.suggest button{position:relative;display:block;width:100%;padding:15px 14px 15px 19px;border:0;border-top:1px solid #e5eeec;background:#fff;text-align:left;transition:background .16s ease}.suggest button:first-child{border-top:0}.suggest button::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:4px;border-radius:0 5px 5px 0;background:var(--primary);opacity:.78}.suggest button:hover,.suggest button:focus{background:#edf8f5}.suggest button:active{background:#e2f3ef}.suggest strong{display:block;font-size:16px;line-height:1.45;font-weight:900;color:var(--ink);word-break:break-word}.suggest span{display:block;color:#5f777d;font-size:13px;line-height:1.45;margin-top:4px;font-weight:700;word-break:break-word}
     .picked{padding:12px;border-radius:12px;background:#eef8f6;margin-top:10px}.picked strong{display:block;font-size:13px}.picked span{display:block;color:var(--muted);font-size:10px;margin-top:3px}
     .process-grid{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.process{border:1px solid var(--line);border-radius:10px;background:#fff;padding:8px 11px;color:#536b72}.process.active{border-color:var(--primary);background:var(--primary);color:#fff}
@@ -75,6 +75,7 @@
 .modal-backdrop{position:fixed;inset:0;background:rgba(8,31,36,.42);display:grid;place-items:center;padding:20px;z-index:120}.modal-card{width:100%;max-width:360px;background:#fff;border-radius:16px;padding:17px;box-shadow:0 18px 45px rgba(0,0,0,.22)}.modal-card h3{margin:0 0 8px;font-size:17px}.modal-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.modal-actions button{min-height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:#fff}.modal-actions .danger{background:#b42318;border-color:#b42318;color:#fff}.record-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}.record-status{font-size:12px;font-weight:800;color:#71868b}.record-status.approved{color:#0f766e;font-size:15px;font-weight:900}.record-status.revoked,.record-status.rejected{color:#b42318}.revoke-piece{border:1px solid #e2b9b4;border-radius:8px;background:#fff7f6;color:#b42318;padding:4px 9px;font-size:11px}
     .action-stack{display:grid;gap:9px;margin-top:10px}
     .action-stack button{min-height:42px}
+    #priceChangeButton{font-size:20px;font-weight:900;min-height:50px}
     .field select{width:100%;height:46px;border:1px solid var(--line);border-radius:12px;padding:0 13px;background:#fbfdfd;color:var(--ink);outline:none}
     .field select:focus{border-color:#74c2b7;box-shadow:0 0 0 4px rgba(15,118,110,.08)}
     .request-card{max-height:88vh;overflow:auto}
@@ -117,7 +118,7 @@
     .card{border-color:rgba(216,227,225,.95);border-radius:18px;box-shadow:0 12px 34px rgba(12,45,50,.085);padding:18px}.login-title{font-size:24px;letter-spacing:-.04em}.login-sub{line-height:1.65}
     .field input,.search-wrap input,.piece-form input,.request-fields input,.request-fields select,.variant-custom input{background:#fbfdfd;border-color:#d6e2e0;transition:border-color .18s ease,box-shadow .18s ease,background-color .18s ease}.field input:hover,.search-wrap input:hover,.piece-form input:hover{border-color:#bdd3d0}.field input:focus,.search-wrap input:focus,.piece-form input:focus,.request-fields input:focus,.request-fields select:focus{background:#fff;border-color:#75bdb3;box-shadow:0 0 0 4px rgba(13,113,104,.09)}.search-wrap input.has-selection{background:#edf8f5;border-color:#8fcfc3;color:var(--ink);font-weight:800;box-shadow:0 0 0 3px rgba(15,118,110,.06)}
     .primary,.ghost{border-radius:13px;min-height:48px;transition:transform .18s ease,box-shadow .18s ease,filter .18s ease}.primary{background:linear-gradient(180deg,#117d73,var(--primary));box-shadow:0 10px 22px rgba(13,113,104,.18)}.primary:hover{filter:brightness(1.04);box-shadow:0 14px 28px rgba(13,113,104,.24)}.ghost{background:rgba(255,255,255,.94)}
-    .top{margin-bottom:15px}.top h1{letter-spacing:-.04em}.tabs{padding:5px;background:rgba(224,235,232,.9);border-radius:15px;box-shadow:inset 0 1px 3px rgba(23,57,61,.05)}.tabs button{min-height:44px;font-size:15px}.tabs button.active{box-shadow:0 6px 17px rgba(28,57,62,.11)}
+    .top{margin-bottom:15px}.top h1{letter-spacing:-.04em}.tabs{padding:5px;background:rgba(224,235,232,.9);border-radius:15px;box-shadow:inset 0 1px 3px rgba(23,57,61,.05)}.tabs button{min-height:48px;font-size:20px}.tabs button.active{box-shadow:0 6px 17px rgba(28,57,62,.11)}
     .clock-card{position:relative;overflow:hidden;background:radial-gradient(circle at 88% 16%,rgba(255,255,255,.14),transparent 28%),linear-gradient(145deg,#0b6f68,#09514e);box-shadow:0 18px 38px rgba(7,80,77,.20)}.clock-card::after{content:"";position:absolute;right:-42px;bottom:-58px;width:150px;height:150px;border:1px solid rgba(255,255,255,.14);border-radius:50%}.clock-time{font-variant-numeric:tabular-nums;letter-spacing:.035em}.clock-actions,.stats{position:relative;z-index:1}
     .stat{border:1px solid rgba(13,113,104,.08);box-shadow:0 6px 16px rgba(12,45,50,.035)}.stat strong{font-variant-numeric:tabular-nums}.selected-price-card{border-radius:14px;background:linear-gradient(180deg,#edf9f6,#e7f4f1);border-color:#c9e7df}.selected-price-card.warn{background:linear-gradient(180deg,#fff8ec,#fff3df)}
     .process-grid{gap:9px}.process{min-height:46px;border-radius:12px;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease,background-color .16s ease}.process:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(12,45,50,.08)}.process.active{background:linear-gradient(180deg,#117d73,#0d7168);box-shadow:0 9px 20px rgba(13,113,104,.22)}.variant-options button{min-height:50px;transition:transform .16s ease,box-shadow .16s ease}.variant-options button:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(12,45,50,.08)}
@@ -189,7 +190,7 @@
     <section id="piecePanel" class="hidden">
       <div id="pieceSessionNotice" class="selected-price-card warn hidden">请先到“计时”页开始计件工作，再回来申报数量。</div>
       <div class="card"><div class="section-head"><div><h2>计件申报</h2><p>搜索产品，选择工序，填写数量后提交。</p></div></div>
-        <div class="search-wrap"><input id="productSearch" type="search" placeholder="搜索产品编号 / 产品名 / 图号" autocomplete="off"></div>
+        <div class="search-wrap"><input id="productSearch" type="search" placeholder="搜索产品编号 / 产品名 / 图号" autocomplete="off"><button id="productSearchClear" class="search-clear hidden" type="button" aria-label="清空搜索">×</button></div>
         <div id="productSuggest" class="suggest hidden"></div>
         <div class="action-stack"><button id="newPieceButton" class="ghost" type="button">找不到产品？自主申报新产品</button></div>
         <div id="pickedProduct" class="picked hidden"></div>
@@ -571,7 +572,7 @@ async function refreshSelectedPrice() {
     if (token !== selectedPriceToken) return;
     if (result?.unitPrice != null) {
       card.classList.remove('warn');
-      card.innerHTML = `<strong>当前单价：${Number(result.unitPrice).toLocaleString('zh-CN',{maximumFractionDigits:4})} 元</strong><span>${result.source === 'default' ? '系统默认价' : '正式单价'} · 数量 × 单价自动计算</span>`;
+      card.innerHTML = `<strong>当前单价：${Number(result.unitPrice).toLocaleString('zh-CN',{maximumFractionDigits:4})} 元</strong>`;
     } else {
       card.classList.add('warn');
       card.innerHTML = '<strong>当前没有配置单价</strong><span>请点击下面“单价不对？申请修改”提交审核</span>';
@@ -1521,6 +1522,7 @@ function variantDisplay(processName, value) {
     if (tab === 'salary') loadSalary().catch(() => {});
   }));
   $('productSearch').addEventListener('input', () => {
+    show($('productSearchClear'), Boolean($('productSearch').value.trim()));
     if (selectedProduct) {
       selectedProduct = null; selectedProcessId = ''; selectedVariant = null;
       $('productSearch').classList.remove('has-selection');
@@ -1530,6 +1532,15 @@ function variantDisplay(processName, value) {
     }
     clearTimeout(searchTimer); searchTimer = setTimeout(searchProducts, 220);
   });
+  $('productSearchClear').addEventListener('click', () => {
+    closeVariantModal();
+    $('productSearch').value = '';
+    $('productSearch').classList.remove('has-selection');
+    $('productSearch').title = '';
+    selectedProduct = null; selectedProcessId = ''; selectedVariant = null;
+    show($('productSuggest'), false); show($('productSearchClear'), false); show($('newPieceButton'), true);
+    renderPiece(); $('productSearch').focus();
+  });
   $('productSuggest').addEventListener('click', (e) => {
     if (e.target.closest('[data-open-custom]')) { show($('productSuggest'), false); show($('newPieceButton'), true); openCustomRequest(); return; }
     const b = e.target.closest('[data-product]'); if (!b) return;
@@ -1538,6 +1549,7 @@ function variantDisplay(processName, value) {
     $('productSearch').value = `${selectedProduct.material} · ${selectedProduct.name}`;
     $('productSearch').title = [selectedProduct.material, selectedProduct.name, selectedProduct.spec].filter(Boolean).join(' · ');
     $('productSearch').classList.add('has-selection');
+    show($('productSearchClear'), true);
     show($('pickedProduct'), false); show($('productSuggest'), false); show($('newPieceButton'), false); loadProductProcesses(selectedProduct.id);
   });
   $('processGrid').addEventListener('click', (e) => {
