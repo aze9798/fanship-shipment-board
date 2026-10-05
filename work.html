@@ -812,7 +812,10 @@ function renderPiece() {
     show($('loginView'), !state); show($('mainView'), Boolean(state)); if (!state) return;
     $('employeeName').textContent = state.employee.name;
     $('employeeMeta').textContent = tradeLabel(state.employee);
-    renderTime(); renderBetaSession(); renderPiece(); if (salaryData) renderSalary();
+    renderTime(); renderBetaSession(); renderPiece();
+    // 工资面板按当前查看范围重绘，避免自动刷新时把"本月"覆盖成"当天"
+    if (salaryRange === 'month') { if (salaryMonthData) renderSalaryMonth(); }
+    else if (salaryData) renderSalary();
   }
   async function loadState() {
     const [nextState, submissions] = await Promise.all([
