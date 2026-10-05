@@ -186,7 +186,7 @@
   </section>
   <section id="mainView" class="hidden">
     <div class="top"><div><h1 id="employeeName">员工</h1><p id="employeeMeta"></p></div></div>
-    <div class="tabs"><button class="active" data-tab="time" data-piece-tab>计时</button><button data-tab="piece" data-piece-tab>计件</button><button data-tab="salary" data-piece-tab>工资</button><button data-tab="attendance">考勤</button></div>
+    <div class="tabs"><button class="active" data-tab="time" data-piece-tab>计时</button><button data-tab="piece" data-piece-tab>计件</button><button data-tab="salary">工资</button><button data-tab="attendance">考勤</button></div>
     <section id="timePanel">
       <div id="sessionBetaCard" class="card session-beta hidden">
         <h2 id="sessionBetaTitle">选择工作类型</h2>
@@ -262,6 +262,16 @@
       <div id="salaryEntries"></div>
       <div class="list-title hidden" id="salaryMonthTitle"><strong>每日明细</strong><span id="salaryMonthDaysCount"></span></div>
       <div id="salaryMonthDays" class="card hidden"></div>
+    </section>
+    <section id="payrollPanel" class="hidden">
+      <div class="card">
+        <div class="section-head"><div><h2>我的工资</h2><p id="payrollSub">当月工资</p></div></div>
+        <label class="field"><span>查看月份</span><input id="payrollMonth" type="month"></label>
+        <button id="payrollRefresh" class="ghost wide" type="button">刷新工资</button>
+      </div>
+      <div id="payrollHero" class="card salary-hero"><span>本月工资</span><strong>--</strong><small></small></div>
+      <div class="list-title"><strong>工资构成</strong></div>
+      <div id="payrollBreakdown" class="card"></div>
     </section>
     <section id="attendancePanel" class="hidden">
       <div class="card">
@@ -359,6 +369,7 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
   let salaryData = null;
   let profile = null;
   let attendanceData = null;
+  let payrollData = null;
   let betaSession = null;
   let betaHistory = [];
   let betaStateLoaded = false;
@@ -978,6 +989,8 @@ function renderPiece() {
     document.querySelectorAll('[data-piece-tab]').forEach((el) => el.classList.toggle('hidden', !isPiece));
     const monthInput = $('attendanceMonth');
     if (monthInput && !monthInput.value) monthInput.value = currentMonth();
+    const payrollInput = $('payrollMonth');
+    if (payrollInput && !payrollInput.value) payrollInput.value = currentMonth();
     if (!isPiece) {
       const att = document.querySelector('.tabs button[data-tab="attendance"]');
       if (att && !att.classList.contains('active')) att.click();
@@ -1030,6 +1043,35 @@ function renderPiece() {
       }
       return `<div class="att-row"><div><div class="att-date">${esc(String(d.workDate || '').slice(5))}</div><div class="att-times">${esc(times)}${esc(extra)}</div></div><div class="att-right"><span class="att-tag ${esc(d.status || '')}">${esc(tag)}</span>${action}</div></div>`;
     }).join('') : '<div class="d-empty">这个月还没有考勤记录</div>';
+  }
+  async function loadMyPayroll() {
+    if (!code) return;
+    const month = $('payrollMonth')?.value || currentMonth();
+    const { from } = monthBounds(month);
+    payrollData = await rpc('work_get_my_payroll', { p_code:code, p_month:from });
+    renderMyPayroll();
+  }
+  function renderMyPayroll() {
+    const d = payrollData || {};
+    const n = (v) => Number(v || 0);
+    const money = (v) => (v === null || v === undefined) ? '--' : Number(v).toLocaleString('zh-CN', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' 元';
+    $('payrollSub').textContent = `${d.month || ''} 工资`;
+    $('payrollHero').innerHTML = `<span>${esc(d.month || '')} 工资合计</span><strong>${money(d.totalPay)}</strong><small>${esc(d.note || '')}</small>`;
+    const rows = [];
+    if (d.salaryType === 'daily') {
+      rows.push(['出勤天数', `${n(d.attendanceDays)} 天`]);
+      rows.push(['日工资', money(d.dailySalary)]);
+      rows.push(['基本工资', money(d.basePay)]);
+      rows.push(['没上班', `${n(d.absentDays)} 天`]);
+      rows.push(['加班', `${n(d.overtimeDays)} 天 · ${n(d.overtimeMinutes)} 分钟`]);
+      rows.push(['加班费', money(d.overtimeAmount)]);
+    } else if (d.salaryType === 'monthly') {
+      rows.push(['月薪', money(d.monthlySalary)]);
+      rows.push(['出勤天数', `${n(d.attendanceDays)} 天`]);
+    } else {
+      rows.push(['说明', d.note || '']);
+    }
+    $('payrollBreakdown').innerHTML = rows.map(([k, v]) => `<div class="salary-line"><div class="salary-line-main"><span>${esc(k)}</span><strong>${esc(String(v))}</strong></div></div>`).join('');
   }
   let reissueDay = null;
   function openReissueModal(workDate) {
@@ -1669,6 +1711,8 @@ function variantDisplay(processName, value) {
   if (logoutButton) logoutButton.addEventListener('click', () => { state = null; salaryData = null; editEntry = null; code = ''; clearStoredCode(); render(); });
   $('clockAction').addEventListener('click', clockAction);
   if ($('attendanceRefresh')) $('attendanceRefresh').addEventListener('click', () => loadMyAttendance().catch(() => {}));
+  if ($('payrollRefresh')) $('payrollRefresh').addEventListener('click', () => loadMyPayroll().catch(() => {}));
+  if ($('payrollMonth')) $('payrollMonth').addEventListener('change', () => loadMyPayroll().catch(() => {}));
   if ($('attendanceMonth')) $('attendanceMonth').addEventListener('change', () => loadMyAttendance().catch(() => {}));
   if ($('reissueClose')) $('reissueClose').addEventListener('click', closeReissueModal);
   if ($('reissueCancel')) $('reissueCancel').addEventListener('click', closeReissueModal);
@@ -1682,8 +1726,12 @@ function variantDisplay(processName, value) {
   document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
     document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x === b));
     const tab = b.dataset.tab;
-    show($('timePanel'), tab === 'time'); show($('piecePanel'), tab === 'piece'); show($('salaryPanel'), tab === 'salary'); show($('attendancePanel'), tab === 'attendance');
-    if (tab === 'salary') loadSalary().catch(() => {});
+    show($('timePanel'), tab === 'time'); show($('piecePanel'), tab === 'piece'); show($('attendancePanel'), tab === 'attendance');
+    const pieceSalary = !profile || profile.salaryType === 'hourly_piece';
+    show($('salaryPanel'), tab === 'salary' && pieceSalary);
+    show($('payrollPanel'), tab === 'salary' && !pieceSalary);
+    if (tab === 'salary' && pieceSalary) loadSalary().catch(() => {});
+    if (tab === 'salary' && !pieceSalary) loadMyPayroll().catch(() => {});
     if (tab === 'attendance') loadMyAttendance().catch(() => {});
   }));
   $('productSearch').addEventListener('input', () => {
