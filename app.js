@@ -4767,9 +4767,17 @@ async function refreshDeliveryPreview() {
   }
 }
 
-function openDeliveryModal() {
+async function openDeliveryModal() {
   const date = snapshot?.today || TODAY;
   const url = `${PRINT_HELPER_BASE}/preview?date=${encodeURIComponent(date)}`;
+  // 先确认打印助手在运行，否则浏览器会跳到“拒绝访问”的错误页，用户看不懂
+  try {
+    const health = await fetch(`${PRINT_HELPER_BASE}/health`, { cache: 'no-store' });
+    if (!health.ok) throw new Error('打印助手没有响应');
+  } catch {
+    showToast('打印助手没在运行：请双击「发货实时看板\\printer\\启动打印助手.cmd」，保持那个窗口打开，再点生成发货单。', 'error');
+    return;
+  }
   showToast('正在打开本地送货单预览...');
   window.location.href = url;
 }
