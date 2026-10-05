@@ -3921,13 +3921,13 @@ function writeLabelAssign(assign) {
   try { localStorage.setItem(LABEL_ASSIGN_KEY, JSON.stringify(assign)); } catch { }
 }
 
-// 这个料号归哪种标签打：手动指定优先 → 再按打印习惯 → 都没记录就两边都出现
+// 这个料号归哪种标签打：手动转过优先 → 再按打印习惯 → 都没有的默认归大标签
 function labelAssignOf(material) {
   const key = String(material || '').trim();
-  if (!key) return '';
+  if (!key) return 'big';
   const explicit = readLabelAssign()[key];
   if (explicit === 'big' || explicit === 'small') return explicit;
-  return labelHabit(key);
+  return labelHabit(key) || 'big';
 }
 
 function setLabelAssign(material, mode) {
@@ -4023,11 +4023,8 @@ function labelPool() {
       const key = labelSourceKey(group);
       return { group, key, record: labelPrintedRecords[key] || null };
     })
-    // 归类：手动转过、或按打印习惯属于另一种标签的，不在这边显示
-    .filter((item) => {
-      const assign = labelAssignOf(item.group.material);
-      return !assign || assign === mode;
-    })
+    // 归类：每个料号只出现在它归属的那一页
+    .filter((item) => labelAssignOf(item.group.material) === mode)
     .filter((item) => (onlyPrinted ? Boolean(item.record) : (!item.record || keepPrinted)))
     .filter((item) => !query || [item.group.material, item.group.name, (item.group.specs || []).join(' ')]
       .some((value) => String(value || '').toLowerCase().includes(query)))
@@ -4108,10 +4105,8 @@ function switchLabelPrintMode(mode) {
 }
 
 function labelRowHtml(row, index) {
-  const modeText = row.printedMode === 'small' ? '小' : (row.printedMode === 'big' ? '大' : '');
-  const printedTag = row.printedAt
-    ? `<span class="label-printed-tag" title="最近一次打印：${escapeHtml(row.printedAt)}${modeText ? '（' + modeText + '标签）' : ''}，累计 ${row.printedCount} 次；要补打就打勾后确认">已打印 ${escapeHtml(row.printedDay)}${modeText ? ' ' + modeText : ''}</span>`
-    : '';
+  // 已打印状态只用于「只看已打印的（补打）」过滤，不在行里显示字样，免得挡内容
+  const printedTag = '';
   const moveTarget = labelPrintMode === 'big' ? 'small' : 'big';
   const moveText = moveTarget === 'small' ? '转小标签' : '转大标签';
   return `<div class="label-print-row${row.printed ? ' printed' : ''}" data-label-row="${index}">
@@ -4139,7 +4134,9 @@ function renderLabelRows() {
   if (!els.labelPrintRows) return;
   els.labelPrintRows.innerHTML = labelRows.length
     ? labelRows.map((row, index) => labelRowHtml(row, index)).join('')
-    : '<div class="label-print-empty">这类标签没有待打印的产品了。<br>已经打印过的：勾上上面「显示已打印的（补打）」，或者直接在上面搜索料号，就能找出来补打；也可以切到另一种标签。</div>';
+    : (labelPrintMode === 'small'
+      ? '<div class="label-print-empty">小标签这边还没有料号。<br>在「大标签」页里，把要打小标签的那一行点「转小标签」，它就会挪到这里（会记住这个料号，下次自动归小标签）。</div>'
+      : '<div class="label-print-empty">大标签这边没有待打印的产品了。<br>已经打印过的：勾上上面「只看已打印的（补打）」，或直接搜索料号找出来补打。</div>');
   if (els.labelPrintModes) {
     els.labelPrintModes.querySelectorAll('[data-label-mode]').forEach((button) => {
       button.classList.toggle('active', button.dataset.labelMode === labelPrintMode);
@@ -4147,8 +4144,8 @@ function renderLabelRows() {
   }
   if (els.labelPrintTip) {
     els.labelPrintTip.innerHTML = labelPrintMode === 'big'
-      ? '<strong>大标签</strong>：勾选要打的（打 <strong>Brother DCP-L2628DW Printer</strong>）。<strong>没勾选的不会打印</strong>，留到小标签那一步。数量可以改；一架子放不下的点「复制」拆行。'
-      : '<strong>小标签</strong>：这里已经剔除了刚打过大标签的产品。改好数量后勾选要打的（打 <strong>HPRT D35</strong>），没勾选的仍然不会打印。';
+      ? '<strong>大标签</strong>：勾选要打的（打 <strong>Brother DCP-L2628DW Printer</strong>）。<strong>没勾选的不会打印</strong>；要打小标签的行，点它后面的「转小标签」挪过去（会记住这个料号）。数量可以改；一架子放不下的点「复制」拆行。'
+      : '<strong>小标签</strong>：这里只显示归属小标签的料号（在大标签页点「转小标签」挪过来的）。改好数量后勾选要打的（打 <strong>HPRT D35</strong>），没勾选的仍然不会打印。';
   }
   if (els.labelPrintConfirm) {
     els.labelPrintConfirm.textContent = labelPrintMode === 'big' ? '确认并打印大标签' : '确认并打印小标签';
