@@ -3036,3 +3036,11 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .label-print-row-actions { justify-content: center; }
 .label-print-row .label-box-warn { text-align: left; }
 .label-print-tools { margin-top: 4px; }
+
+/* ===== 查询页“今天发货”快捷按钮 ===== */
+#desktopShipmentsView #historyToday.active {
+  border-color: #0f766e !important;
+  background: linear-gradient(180deg, #117d73, #0f766e) !important;
+  color: #fff !important;
+  box-shadow: 0 6px 16px rgba(13, 113, 104, .2);
+}

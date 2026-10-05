@@ -563,6 +563,7 @@ const els = {
   historySearch: $('#historySearch'),
   historyDate: $('#historyDate'),
   historyClear: $('#historyClear'),
+  historyToday: $('#historyToday'),
   mobileSelectedQty: $('#mobileSelectedQty'),
   mobileSelectedItems: $('#mobileSelectedItems'),
   mobileRemainingQty: $('#mobileRemainingQty'),
@@ -2977,7 +2978,9 @@ function shipmentCompany(shipment) {
 }
 function shipmentDisplayBatch(shipment) {
   const explicit = deliveryBatchText(shipment?.deliveryBatch);
-  if (explicit && explicit !== '历史已开单') return explicit;
+  // 真·历史导入数据保留原样；没开单的发货不再套用“历史已开单”，否则不同日期、不同批次的会被并到一起
+  if (explicit === '历史已开单') return '历史已开单';
+  if (explicit) return explicit;
   const date = shipShanghaiDate(shipment?.createdAt);
   const company = shipmentCompany(shipment);
   const assignedBatches = new Set((snapshot?.shipments || [])
@@ -2993,9 +2996,9 @@ function shipmentDisplayBatch(shipment) {
   });
   if (candidates.length) {
     candidates.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
-    return deliveryBatchText(candidates[0].batch) || explicit || '历史已开单';
+    return deliveryBatchText(candidates[0].batch) || '';
   }
-  return explicit || '历史已开单';
+  return ''; // 没开单：按单笔发货单独成卡，显示“未开单发货”
 }
 
 function recordAvailableDates(company = recordsCompany) {
@@ -3236,6 +3239,7 @@ function applyQueryTab() {
     document.querySelectorAll(`[data-query-pane="${tab}"]`).forEach((pane) => { pane.hidden = !on; });
   }
   if (els.queryTitle) els.queryTitle.textContent = QUERY_TITLES[queryTab] || '发货记录';
+  syncHistoryTodayButton();
 }
 
 document.querySelectorAll('[data-query-tab]').forEach((button) => {
@@ -3502,7 +3506,7 @@ function renderMergedDeliveryRows(groups) {
           <strong data-label="发货数量" class="number">${fmt(item.quantity)} 件</strong>
           <span data-label="项次" class="number">${escapeHtml(item.seq)}</span>
           <span data-label="未交" class="number">${escapeHtml(deliveryRemainingText(item.remaining, item.hasOrder))}</span>
-          <span data-label="送货单编号" class="ship-batch">${escapeHtml(item.batch || '—')}</span>
+          <span data-label="送货单编号" class="ship-batch">${escapeHtml(item.batch || '未开单')}</span>
           <span data-label="发货日期" class="ship-date">${escapeHtml(deliveryStampText(item.shippedAt))}</span>
         </div>`).join('')}
       </div>
@@ -5709,8 +5713,31 @@ function refreshQueryViews() {
 });
 
 if (els.historySearch) els.historySearch.addEventListener('input', (event) => { historyQuery = event.target.value; renderDesktopHistory(); });
-if (els.historyDate) els.historyDate.addEventListener('change', (event) => { historyDate = event.target.value; renderDesktopHistory(); });
-if (els.historyClear) els.historyClear.addEventListener('click', () => { historyDate = ''; if (els.historyDate) els.historyDate.value = ''; renderDesktopHistory(); });
+function syncHistoryTodayButton() {
+  if (!els.historyToday) return;
+  const today = String(snapshot?.today || TODAY || '').slice(0, 10);
+  els.historyToday.classList.toggle('active', Boolean(today) && historyDate === today);
+}
+if (els.historyDate) els.historyDate.addEventListener('change', (event) => {
+  historyDate = event.target.value;
+  syncHistoryTodayButton();
+  renderDesktopHistory();
+});
+if (els.historyClear) els.historyClear.addEventListener('click', () => {
+  historyDate = '';
+  if (els.historyDate) els.historyDate.value = '';
+  syncHistoryTodayButton();
+  renderDesktopHistory();
+});
+if (els.historyToday) els.historyToday.addEventListener('click', () => {
+  const today = String(snapshot?.today || TODAY || '').slice(0, 10);
+  if (!today) { showToast('还没取到服务器日期'); return; }
+  historyDate = historyDate === today ? '' : today;
+  if (els.historyDate) els.historyDate.value = historyDate;
+  syncHistoryTodayButton();
+  renderDesktopHistory();
+  showToast(historyDate ? ('只显示 ' + formatDate(today) + ' 的发货记录') : '已显示全部发货日期');
+});
 function handleHistoryClick(event) {
   const fileButton = event.target.closest('[data-file-id]');
   if (fileButton) { downloadDeliveryFile(fileButton.dataset.fileId, fileButton); return; }
