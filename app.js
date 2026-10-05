@@ -1534,12 +1534,16 @@ function replacements() {
 
 function replacementHistoryRows() {
   const query = replacementQuery.trim().toLowerCase();
-  return replacements().filter((row) => {
-    if (replacementDate && String(row.deliveryDate || '') !== replacementDate) return false;
-    if (!query) return true;
-    return [row.material, row.name, row.spec, row.remark, row.deliveryDate]
-      .some((value) => String(value ?? '').toLowerCase().includes(query));
-  });
+  return replacements()
+    .filter((row) => {
+      if (replacementDate && String(row.deliveryDate || '') !== replacementDate) return false;
+      if (!query) return true;
+      return [row.material, row.name, row.spec, row.remark, row.deliveryDate]
+        .some((value) => String(value ?? '').toLowerCase().includes(query));
+    })
+    // 最新的补发在最上面
+    .sort((a, b) => String(b.deliveryDate || '').localeCompare(String(a.deliveryDate || ''))
+      || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
 }
 function renderReplacementList() {
   const rows = replacementHistoryRows();
@@ -1830,21 +1834,27 @@ function recordDay(value) {
 
 function overFilteredRows() {
   const q = overQuery.trim().toLowerCase();
-  return overDeliveries().filter((row) => {
-    if (overDate && recordDay(row.createdAt) !== overDate) return false;
-    if (!q) return true;
-    return [row.material, row.name, row.spec, row.customer, row.quantity, row.remaining].join(' ').toLowerCase().includes(q);
-  });
+  return overDeliveries()
+    .filter((row) => {
+      if (overDate && recordDay(row.createdAt) !== overDate) return false;
+      if (!q) return true;
+      return [row.material, row.name, row.spec, row.customer, row.quantity, row.remaining].join(' ').toLowerCase().includes(q);
+    })
+    // 最新登记的在最上面
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
 }
 
 function offsetFilteredRows() {
   const q = offsetQuery.trim().toLowerCase();
-  return overOffsets().filter((row) => {
-    if (offsetDate && recordDay(row.appliedAt) !== offsetDate) return false;
-    if (!q) return true;
-    const meta = orderMetaSearchText(row.orderId, row);
-    return [row.material, row.name, row.spec, row.orderId, row.customer, meta].join(' ').toLowerCase().includes(q);
-  });
+  return overOffsets()
+    .filter((row) => {
+      if (offsetDate && recordDay(row.appliedAt) !== offsetDate) return false;
+      if (!q) return true;
+      const meta = orderMetaSearchText(row.orderId, row);
+      return [row.material, row.name, row.spec, row.orderId, row.customer, meta].join(' ').toLowerCase().includes(q);
+    })
+    // 最新冲抵的在最上面
+    .sort((a, b) => String(b.appliedAt || '').localeCompare(String(a.appliedAt || '')));
 }
 
 function renderOverDeliveryList() {
@@ -3449,10 +3459,7 @@ function buildDeliveryGroups(shipments, queryText = '') {
     group.items = [...merged.values()];
     group.total = group.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
     return group;
-  }).sort((a, b) => {
-    if (a.billed !== b.billed) return a.billed ? -1 : 1;
-    return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
-  });
+  }).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
 }function renderDeliveryGroups(groups) {
   if (!groups.length) return '<div class="empty-state"><strong>没有符合条件的发货记录</strong><span>可以搜索送货单号、采购单号、料件编号或品名。</span></div>';
   return groups.map((group) => {

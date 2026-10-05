@@ -87,7 +87,23 @@
     .selected-price-card button{margin-top:10px}
     @media(max-width:600px){input,select,textarea{font-size:16px!important}}
     .session-beta{background:linear-gradient(145deg,#173b42,#0f766e);color:#fff;border:0}
-    .salary-hero{background:linear-gradient(145deg,#0d5f5a,#11897d);color:#fff;border:0}.salary-hero span{display:block;font-size:11px;opacity:.82}.salary-hero strong{display:block;font-size:34px;margin:6px 0}.salary-hero small{display:block;font-size:11px;opacity:.82}.salary-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.salary-line{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-top:1px solid #edf2f2}.salary-line:first-child{border-top:0}.salary-line span{color:#687f84;font-size:12px}.salary-line strong{font-size:14px}.salary-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.salary-actions button{min-height:36px;padding:0 12px;border:1px solid #b9ddd7;border-radius:9px;background:#fff;color:var(--primary);font-weight:800}.salary-actions button.danger{color:var(--danger);border-color:#efc8c4}
+    .salary-hero{background:linear-gradient(145deg,#0d5f5a,#11897d);color:#fff;border:0}.salary-hero span{display:block;font-size:11px;opacity:.82}.salary-hero strong{display:block;font-size:34px;margin:6px 0}.salary-hero small{display:block;font-size:11px;opacity:.82}.salary-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.salary-line{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-top:1px solid #edf2f2}.salary-line:first-child{border-top:0}.salary-line-main{display:flex;justify-content:space-between;gap:10px;padding:9px 0}.salary-line-main span{color:#42575c;font-size:14px;font-weight:800}.salary-line-main strong{font-size:14px;font-weight:800}
+  .salary-line{display:block;padding:0}.salary-line.expandable{cursor:pointer}
+  .salary-line.expandable .salary-line-main strong{color:var(--primary);display:inline-flex;align-items:center;gap:6px}
+  .salary-line.expandable .salary-line-main strong::after{content:"⌄";font-size:11px;opacity:.75;display:inline-block;transition:transform .42s cubic-bezier(.2,.9,.22,1)}
+  .salary-line.expandable.expanded .salary-line-main strong::after{transform:rotate(180deg)}
+  .salary-detail{height:0;overflow:hidden;opacity:0;transition:height .42s cubic-bezier(.2,.9,.22,1),opacity .28s ease}
+  .salary-line.expanded .salary-detail{height:180px;opacity:1;overflow:auto}
+  .salary-detail .layer{opacity:0;transform:translateY(6px);transition:opacity .26s ease,transform .3s cubic-bezier(.2,.9,.22,1)}
+  .salary-line.expanded .layer-1{opacity:1;transform:none;transition-delay:.10s}
+  .salary-line.expanded .layer-2{opacity:1;transform:none;transition-delay:.20s}
+  .salary-line.expanded .layer-3{opacity:1;transform:none;transition-delay:.30s}
+  .salary-detail{padding:0 2px 10px}
+  .salary-detail h4{margin:2px 0 6px;font-size:12px;color:#5b747a;font-weight:800}
+  .salary-detail .d-row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px dashed #e6efee;font-size:12px;color:#3d555c}
+  .salary-detail .d-row:first-of-type{border-top:0}
+  .salary-detail .d-tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:#fff3d6;color:#9a6b12;font-size:10px;font-weight:700}
+  .salary-detail .d-empty{color:#8b9a9f;font-size:12px;padding:6px 0}.salary-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.salary-actions button{min-height:36px;padding:0 12px;border:1px solid #b9ddd7;border-radius:9px;background:#fff;color:var(--primary);font-weight:800}.salary-actions button.danger{color:var(--danger);border-color:#efc8c4}
     .session-beta h2{margin:0;font-size:17px}.session-beta p{margin:4px 0 0;font-size:11px;color:rgba(255,255,255,.78)}
     .session-elapsed{font-size:32px;font-weight:900;margin:12px 0}.session-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}.session-actions button{min-height:48px}.session-actions .wide{grid-column:1/-1}.session-history{display:grid;gap:7px;margin-top:14px}.session-history-row{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:9px;background:rgba(255,255,255,.12);font-size:11px}
     /* 工业精密感：员工工作台统一视觉与交互 */
@@ -179,7 +195,7 @@
     </section>
     <section id="salaryPanel" class="hidden">
       <div class="card">
-        <div class="section-head"><div><h2>工资查看</h2><p>默认显示今天；已通过计件才计入工资。</p></div></div>
+        <div class="section-head"><div><h2>工资查看</h2><p>默认显示今天；已审核计件才计入工资。</p></div></div>
         <label class="field"><span>查看日期</span><input id="salaryDate" type="date"></label>
         <button id="salaryRefresh" class="ghost wide" type="button">刷新工资</button>
       </div>
@@ -634,22 +650,92 @@ function renderPiece() {
   function renderSalary() {
     if (!salaryData) return;
     const data = salaryData;
-    $('salarySummary').innerHTML = `<span>${esc(data.date || '')} 工资合计</span><strong>${fmtMoney(data.totalPay)} 元</strong><small>计时工资 ${fmtMoney(data.timerPay)} 元 + 已通过计件工资 ${fmtMoney(data.piecePay)} 元</small>`;
+    $('salarySummary').innerHTML = `<span>${esc(data.date || '')} 工资合计</span><strong>${fmtMoney(data.totalPay)} 元</strong><small>计时工资 ${fmtMoney(data.timerPay)} 元 + 已审核计件工资 ${fmtMoney(data.piecePay)} 元</small>`;
     $('salaryStatusHint').textContent = salaryStatusNotice(data);
+    const rate = Number(data.employee?.hourlyRate || 0);
+    const rateText = Number.isInteger(rate) ? String(rate) : rate.toFixed(2);
     $('salaryBreakdown').innerHTML = `
-      <div class="salary-line"><span>计时工时</span><strong>${Number(data.timerHours || 0).toFixed(2)} 小时</strong></div>
-      <div class="salary-line"><span>计时时薪</span><strong>${fmtMoney(data.employee?.hourlyRate)} 元/小时</strong></div>
-      <div class="salary-line"><span>计时工资</span><strong>${fmtMoney(data.timerPay)} 元</strong></div>
-      <div class="salary-line"><span>计件工时（只核对，不计工资）</span><strong>${Number(data.pieceHours || 0).toFixed(2)} 小时</strong></div>
-      <div class="salary-line"><span>已通过计件</span><strong>${Number(data.approvedCount || 0)} 笔 · ${Number(data.approvedQuantity || 0)} 件</strong></div>
-      <div class="salary-line"><span>计件工资</span><strong>${fmtMoney(data.piecePay)} 元</strong></div>
-      <div class="salary-line"><span>工资合计</span><strong>${fmtMoney(data.totalPay)} 元</strong></div>
+      <div class="salary-line expandable" data-salary-detail="time" role="button" tabindex="0" aria-expanded="false">
+        <div class="salary-line-main"><span>计时工时</span><strong>${Number(data.timerHours || 0).toFixed(2)} 小时</strong></div>
+        <div class="salary-detail" data-detail-body="time"></div>
+      </div>
+      <div class="salary-line"><div class="salary-line-main"><span>计时时薪</span><strong>${rateText}元/小时</strong></div></div>
+      <div class="salary-line"><div class="salary-line-main"><span>计时工资</span><strong>${fmtMoney(data.timerPay)} 元</strong></div></div>
+      <div class="salary-line expandable" data-salary-detail="piece" role="button" tabindex="0" aria-expanded="false">
+        <div class="salary-line-main"><span>已审核计件</span><strong>${Number(data.approvedCount || 0)} 笔 · ${Number(data.approvedQuantity || 0)} 件</strong></div>
+        <div class="salary-detail" data-detail-body="piece"></div>
+      </div>
+      <div class="salary-line"><div class="salary-line-main"><span>计件工资</span><strong>${fmtMoney(data.piecePay)} 元</strong></div></div>
+      <div class="salary-line"><div class="salary-line-main"><span>工资合计</span><strong>${fmtMoney(data.totalPay)} 元</strong></div></div>
     `;
     const entries = data.entries || [];
     $('salaryEntriesCount').textContent = `${entries.length} 笔`;
     $('salaryEntries').innerHTML = entries.length ? entries.map(salaryEntryCard).join('') : '<div class="card empty">当天没有计件记录</div>';
   }
-  function tradeLabel(employee) {
+  function salaryDetailShell(title, rowsHtml, footHtml) {
+    return `<div class="layer layer-1"><h4>${esc(title)}</h4></div>
+      <div class="layer layer-2">${rowsHtml}</div>
+      <div class="layer layer-3">${footHtml}</div>`;
+  }
+  async function buildTimeDetail() {
+    const day = salaryDate || $('salaryDate').value;
+    let data;
+    try {
+      data = await rpc('work_get_my_time_entries', { p_code:code, p_date:day });
+    } catch (e) {
+      return salaryDetailShell('当天计时明细', '<div class="d-empty">计时明细需要先执行一次 fix-work-time-entries-rpc.sql</div>', '');
+    }
+    const rows = (data && data.entries) || [];
+    const mins = Number(data?.totalMinutes || 0);
+    const body = rows.length ? rows.map((r) => {
+      const note = r.specialNote ? `<span class="d-tag">备注 ${esc(r.specialNote)}</span>` : '';
+      return `<div class="d-row"><span>${esc(fmtClock(r.startedAt))} → ${r.open ? '计时中' : esc(fmtClock(r.endedAt))}${note}</span><strong>${Number(r.minutes || 0)} 分钟</strong></div>`;
+    }).join('') : '<div class="d-empty">这一天没有计时记录</div>';
+    const foot = `<div class="d-row"><span>当天有效计时合计</span><strong>${(mins / 60).toFixed(2)} 小时</strong></div>`;
+    return salaryDetailShell('当天计时明细 · ' + esc(day), body, foot);
+  }
+  function buildPieceDetail() {
+    const all = (salaryData && salaryData.entries) || [];
+    const rows = all.filter((x) => x.status === 'approved');
+    const body = rows.length ? rows.map((x) => `<div class="d-row"><span>${esc(x.material || '')} · ${esc(x.name || '')} · ${esc(x.process || '')}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''}<span class="d-tag">${Number(x.quantity)} 件</span></span><strong>${fmtMoney(x.unitPrice)} × ${Number(x.quantity)} = ${fmtMoney(x.amount)} 元</strong></div>`).join('') : '<div class="d-empty">这一天没有已审核的计件</div>';
+    const total = rows.reduce((s, x) => s + Number(x.amount || 0), 0);
+    const foot = `<div class="d-row"><span>已审核计件合计</span><strong>${rows.length} 笔 · ${fmtMoney(total)} 元</strong></div>`;
+    return salaryDetailShell('当天计件明细 · ' + esc(salaryData?.date || ''), body, foot);
+  }
+  async function toggleSalaryDetail(line) {
+    const key = line.dataset.salaryDetail;
+    const body = line.querySelector('[data-detail-body]');
+    const isOpen = line.classList.contains('expanded');
+    if (isOpen) {
+      line.classList.remove('expanded');
+      line.setAttribute('aria-expanded', 'false');
+      return;
+    }
+    if (body && !body.dataset.filled) {
+      body.innerHTML = key === 'time' ? await buildTimeDetail() : buildPieceDetail();
+      body.dataset.filled = '1';
+      // 先让内容以"未淡入"的状态渲染一帧，否则三层淡入会被跳过
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
+    line.classList.add('expanded');
+    line.setAttribute('aria-expanded', 'true');
+  }
+  function bindSalaryBreakdown() {
+    const box = $('salaryBreakdown');
+    if (!box) return;
+    box.addEventListener('click', (event) => {
+      const line = event.target.closest('[data-salary-detail]');
+      if (line) toggleSalaryDetail(line).catch(() => {});
+    });
+    box.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const line = event.target.closest('[data-salary-detail]');
+      if (!line) return;
+      event.preventDefault();
+      toggleSalaryDetail(line).catch(() => {});
+    });
+  }
+    function tradeLabel(employee) {
     if (!employee) return '';
     const names = (state?.processes || []).map((p) => String(p.name || ''));
     const has = (kw) => names.some((n) => n.includes(kw));
@@ -1238,6 +1324,7 @@ function variantDisplay(processName, value) {
     if (revoke) showRevoke(revoke.dataset.revokePiece);
   });
   $('salaryRefresh').addEventListener('click', () => loadSalary().catch(() => {}));
+  bindSalaryBreakdown();
   $('salaryDate').addEventListener('change', () => loadSalary().catch(() => {}));
   $('revokeCancel').addEventListener('click', closeRevoke);
   $('revokeConfirm').addEventListener('click', revokePiece);
