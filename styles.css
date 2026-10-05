@@ -3044,3 +3044,18 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
   color: #fff !important;
   box-shadow: 0 6px 16px rgba(13, 113, 104, .2);
 }
+
+/* 手机端本次装车底栏对比度修正 */
+.mobile-cart-bar span { color: rgba(255, 255, 255, .72) !important; }
+.mobile-cart-bar strong { color: #fff !important; }
+.mobile-cart-bar b { color: #fff !important; font-weight: 800; }
+.mobile-cart-bar .cart-hint { color: rgba(255, 255, 255, .8) !important; font-style: normal; }
+.mobile-cart-bar .button.primary {
+  background: #fff !important;
+  border-color: rgba(255, 255, 255, .92) !important;
+  color: #0b5c56 !important;
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .18);
+}
+.mobile-cart-bar .button.primary:hover { background: #f1fbf9 !important; }
+.mobile-cart-bar .cart-summary { cursor: pointer; }
