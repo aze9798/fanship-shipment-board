@@ -214,10 +214,10 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 .empty-state span { font-size: 11px; }
 .activity-panel { position: sticky; top: 17px; max-height: calc(100vh - 60px); overflow: hidden; }
 .shipment-history { max-height: calc(100vh - 235px); overflow-y: auto; padding: 0 15px 16px; }
-/* 装车登记卡片：「变更数量 / 交期」按钮 →「同料号共 N 单」→ 计划/已发/剩余 三段等间距，
-   避免按钮和料号合计条贴在一起，卡片看起来更整齐 */
+/* 装车登记卡片：「同料号共 N 单」跟在「变更数量 / 交期」下面（留一点间距，不贴在一起），
+   字号和「变更数量 / 交期」按钮保持一致，避免同一行里数字比文字大一号 */
 .material-total {
-  margin: 14px 0 0;
+  margin: 8px 0 0;
   padding: 5px 8px;
   border-radius: 8px;
   background: #eef7f6;
@@ -226,7 +226,7 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
   font-weight: 600;
 }
 
-.material-total b { font-size: 13px; }
+.material-total b { font-size: 11px; }
 
 .material-total-tag {
   display: block;
@@ -1887,7 +1887,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .desktop-loading-card-list .order-title strong{font-size:15px}
 .desktop-loading-card-list .order-title span{font-size:11px}
 .desktop-loading-card-list .order-edit-link.mobile{margin:8px 0 0}
-.desktop-loading-card-list .material-total{margin-top:14px}
+.desktop-loading-card-list .material-total{margin-top:8px}
 .desktop-loading-more{grid-column:1/-1}
 .desktop-loading-cart{display:grid;gap:8px;max-height:390px;overflow:auto;margin:10px 0 12px}
 .loading-cart-line{display:grid;grid-template-columns:1fr auto;gap:8px;padding:9px 10px;border-radius:10px;background:#f6faf9;border:1px solid #e4efed}
