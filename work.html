@@ -79,7 +79,7 @@
     .request-product{margin:10px 0 0;padding:10px 12px;border-radius:11px;background:#f5faf9;color:#3f6065;font-size:12px;line-height:1.55}
     .request-error{margin-top:10px;padding:9px 11px;border-radius:9px;background:#fff1f0;color:var(--danger);font-size:12px}
     .request-tip{margin-top:8px;color:var(--muted);font-size:10px;line-height:1.5}
-    .modal-actions .primary{border-color:var(--primary)}.variant-modal-card{max-width:390px}.variant-modal-card .modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.variant-modal-card .modal-head h3{margin:0;font-size:18px}.variant-modal-card .variant-options{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:14px}.variant-modal-card .variant-options button{min-height:48px;font-size:15px;font-weight:800;border-radius:11px;background:#fff}.variant-modal-card .variant-options button.active{border-color:var(--primary);background:var(--primary);color:#fff}.variant-custom{display:grid;grid-template-columns:1fr auto;gap:9px;margin-top:12px}.variant-custom input{height:46px;border:1px solid var(--line);border-radius:11px;padding:0 11px;background:#fff;font-size:16px}.variant-custom button{min-width:80px;border-radius:11px}
+    .modal-actions .primary{border-color:var(--primary);background:var(--primary);color:#fff}.variant-modal-card{max-width:390px}.variant-modal-card .modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.variant-modal-card .modal-head h3{margin:0;font-size:18px}.variant-modal-card .variant-options{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:14px}.variant-modal-card .variant-options button{min-height:48px;font-size:15px;font-weight:800;border-radius:11px;background:#fff}.variant-modal-card .variant-options button.active{border-color:var(--primary);background:var(--primary);color:#fff}.variant-custom{display:grid;grid-template-columns:1fr auto;gap:9px;margin-top:12px}.variant-custom input{height:46px;border:1px solid var(--line);border-radius:11px;padding:0 11px;background:#fff;font-size:16px}.variant-custom button{min-width:80px;border-radius:11px}
     .selected-price-card{margin-top:11px;padding:13px;border-radius:13px;background:#eef8f6;border:1px solid #cfe8e3;color:#28565b}
     .selected-price-card strong{display:block;font-size:20px;color:#0f766e}
     .selected-price-card span{display:block;margin-top:4px;color:#60777d;font-size:11px}
@@ -120,7 +120,10 @@
     .stat{border:1px solid rgba(13,113,104,.08);box-shadow:0 6px 16px rgba(12,45,50,.035)}.stat strong{font-variant-numeric:tabular-nums}.selected-price-card{border-radius:14px;background:linear-gradient(180deg,#edf9f6,#e7f4f1);border-color:#c9e7df}.selected-price-card.warn{background:linear-gradient(180deg,#fff8ec,#fff3df)}
     .process-grid{gap:9px}.process{min-height:46px;border-radius:12px;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease,background-color .16s ease}.process:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(12,45,50,.08)}.process.active{background:linear-gradient(180deg,#117d73,#0d7168);box-shadow:0 9px 20px rgba(13,113,104,.22)}.variant-options button{min-height:50px;transition:transform .16s ease,box-shadow .16s ease}.variant-options button:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(12,45,50,.08)}
     .piece-record{padding:14px;border-color:#dfe8e6;border-radius:14px;box-shadow:0 7px 20px rgba(12,45,50,.045);transition:transform .16s ease,box-shadow .16s ease}.piece-record:hover{transform:translateY(-1px);box-shadow:0 11px 26px rgba(12,45,50,.075)}.piece-money{color:var(--primary)}
-    .salary-hero{background:radial-gradient(circle at 88% 14%,rgba(255,255,255,.14),transparent 27%),linear-gradient(145deg,#0b6f68,#09514e);box-shadow:0 18px 38px rgba(7,80,77,.18)}.salary-line strong{font-variant-numeric:tabular-nums}
+    .salary-range{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;margin:10px 0 12px;border-radius:13px;background:#e6ebed}
+  .salary-range button{min-height:38px;border:0;border-radius:10px;background:transparent;color:#72848b;font-size:14px;font-weight:800}
+  .salary-range button.active{background:#fff;color:#0f766e;box-shadow:0 2px 9px rgba(32,57,64,.09)}
+  .salary-hero{background:radial-gradient(circle at 88% 14%,rgba(255,255,255,.14),transparent 27%),linear-gradient(145deg,#0b6f68,#09514e);box-shadow:0 18px 38px rgba(7,80,77,.18)}.salary-line strong{font-variant-numeric:tabular-nums}
     .modal-backdrop{backdrop-filter:blur(7px);background:rgba(8,30,35,.46);animation:fadeIn .16s ease both}.modal-card{box-shadow:0 28px 72px rgba(3,24,29,.28);animation:modalIn .22s cubic-bezier(.2,.8,.2,1) both}.toast{box-shadow:0 18px 44px rgba(4,28,33,.24);animation:toastIn .22s ease both}
     @keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes modalIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
     @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
@@ -196,14 +199,21 @@
     <section id="salaryPanel" class="hidden">
       <div class="card">
         <div class="section-head"><div><h2>工资查看</h2><p>默认显示今天；已审核计件才计入工资。</p></div></div>
-        <label class="field"><span>查看日期</span><input id="salaryDate" type="date"></label>
+        <div id="salaryRangeSwitch" class="salary-range">
+          <button class="active" data-salary-range="day" type="button">当天</button>
+          <button data-salary-range="month" type="button">本月</button>
+        </div>
+        <label class="field" id="salaryDateWrap"><span>查看日期</span><input id="salaryDate" type="date"></label>
+        <label class="field hidden" id="salaryMonthWrap"><span>查看月份</span><input id="salaryMonth" type="month"></label>
         <button id="salaryRefresh" class="ghost wide" type="button">刷新工资</button>
       </div>
       <div id="salarySummary" class="card salary-hero"><span>当天工资合计</span><strong>0.00 元</strong><small>计时工资 + 已通过计件工资</small></div>
       <div class="list-title"><strong>工资构成</strong><span id="salaryStatusHint"></span></div>
       <div id="salaryBreakdown" class="card"></div>
-      <div class="list-title"><strong>计件记录</strong><span id="salaryEntriesCount">0 笔</span></div>
+      <div class="list-title" id="salaryEntriesTitle"><strong>计件记录</strong><span id="salaryEntriesCount">0 笔</span></div>
       <div id="salaryEntries"></div>
+      <div class="list-title hidden" id="salaryMonthTitle"><strong>每日明细</strong><span id="salaryMonthDaysCount"></span></div>
+      <div id="salaryMonthDays" class="card hidden"></div>
     </section>
   </section>
 </div>
@@ -230,14 +240,15 @@
     <div id="requestProductSummary" class="request-product hidden"></div>
     <div class="request-fields">
       <label id="requestNameWrap" class="field"><span>品名</span><input id="requestName" type="text" placeholder="请填写产品品名"></label>
-      <label id="requestMaterialWrap" class="field"><span>料件编号</span><input id="requestMaterial" type="text" autocomplete="off" placeholder="请填写完整料件编号或后四位 不清楚请询问现场管理人员。"><small id="requestMaterialHint" class="request-tip">请填写完整料件编号或后四位 不清楚请询问现场管理人员。</small></label>
+      <label id="requestMaterialWrap" class="field"><span>料件编号</span><input id="requestMaterial" type="text" autocomplete="off" placeholder="请填写完整料件编号或后四位 不清楚请询问现场管理人员。"><small id="requestMaterialHint" class="request-tip" hidden></small></label>
       <div id="requestMaterialMatches" class="suggest hidden"></div>
-      <label id="requestSpecWrap" class="field"><span>规格 / 图号（选填）</span><input id="requestSpec" type="text" placeholder="如有多孔、刀数或图号可填写"></label>
+      <!-- 规格 / 图号字段按需求移除 -->
       <label id="requestProcessWrap" class="field"><span>工序</span><select id="requestProcess"></select></label>
       <label id="requestOtherProcessWrap" class="field hidden"><span>手工工序名称</span><input id="requestOtherProcess" type="text" placeholder="例如：激光切割"></label>
       <label id="requestVariantWrap" class="field hidden"><span id="requestVariantLabel">规格</span><select id="requestVariantValue"></select></label>
-      <label class="field"><span>数量（整数）</span><input id="requestQty" type="number" min="1" step="1" inputmode="numeric" placeholder="必须为大于 0 的整数"></label>
-      <label class="field"><span>单价（元，最多两位小数）</span><input id="requestPrice" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="折弯 0.2/刀，攻丝 0.2/孔"></label>
+          <label id="requestVariantCustomWrap" class="field hidden"><span id="requestVariantCustomLabel">自己填写</span><input id="requestVariantCustom" type="number" min="1" step="1" inputmode="numeric" placeholder=""></label>
+      <label class="field"><span>数量</span><input id="requestQty" type="number" min="1" step="1" inputmode="numeric" placeholder=""></label>
+      <label class="field"><span>单价</span><input id="requestPrice" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder=""></label>
       <label class="field"><span>备注（选填）</span><input id="requestNote" type="text" placeholder="可填写原因或补充说明"></label>
     </div>
     <div id="requestError" class="request-error hidden"></div>
@@ -267,6 +278,9 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
   let requestMaterialToken = 0;
   let editEntry = null;
   let salaryDate = '';
+  let salaryRange = 'day';
+  let salaryMonthValue = '';
+  let salaryMonthData = null;
   let salaryData = null;
   let betaSession = null;
   let betaHistory = [];
@@ -634,13 +648,20 @@ function renderPiece() {
   }
   async function loadSalary() {
     if (!code) return;
-    if (!$('salaryDate').value) $('salaryDate').value = new Date().toLocaleDateString('en-CA', { timeZone:'Asia/Shanghai' });
-    salaryDate = $('salaryDate').value;
     const button = $('salaryRefresh');
     if (button) button.disabled = true;
     try {
-      salaryData = await rpc('work_get_my_salary_day', { p_code:code, p_date:salaryDate });
-      renderSalary();
+      if (salaryRange === 'month') {
+        if (!$('salaryMonth').value) $('salaryMonth').value = new Date().toLocaleDateString('en-CA', { timeZone:'Asia/Shanghai' }).slice(0, 7);
+        salaryMonthValue = $('salaryMonth').value;
+        salaryMonthData = await rpc('work_get_my_salary_month', { p_code:code, p_month: salaryMonthValue + '-01' });
+        renderSalaryMonth();
+      } else {
+        if (!$('salaryDate').value) $('salaryDate').value = new Date().toLocaleDateString('en-CA', { timeZone:'Asia/Shanghai' });
+        salaryDate = $('salaryDate').value;
+        salaryData = await rpc('work_get_my_salary_day', { p_code:code, p_date:salaryDate });
+        renderSalary();
+      }
     } catch (e) {
       toast(e.message || '工资加载失败');
     } finally {
@@ -671,6 +692,47 @@ function renderPiece() {
     const entries = data.entries || [];
     $('salaryEntriesCount').textContent = `${entries.length} 笔`;
     $('salaryEntries').innerHTML = entries.length ? entries.map(salaryEntryCard).join('') : '<div class="card empty">当天没有计件记录</div>';
+  }
+  function renderSalaryMonth() {
+    const data = salaryMonthData;
+    if (!data) return;
+    const rate = Number(data.employee?.hourlyRate || 0);
+    const rateText = Number.isInteger(rate) ? String(rate) : rate.toFixed(2);
+    const monthText = String(data.month || '').slice(0, 7);
+    const monthApprovedCount = (data.days || []).reduce((sum, d) => sum + Number(d.approvedCount || 0), 0);
+    const monthApprovedQty = (data.days || []).reduce((sum, d) => sum + Number(d.approvedQuantity || 0), 0);
+    $('salarySummary').innerHTML = `<span>${esc(monthText)} 本月工资合计</span><strong>${fmtMoney(data.totalPay)} 元</strong><small>计时工资 ${fmtMoney(data.timerPay)} 元 + 已审核计件工资 ${fmtMoney(data.piecePay)} 元</small>`;
+    $('salaryStatusHint').textContent = `共 ${(data.days || []).length} 天有记录`;
+    $('salaryBreakdown').innerHTML = `
+      <div class="salary-line"><div class="salary-line-main"><span>本月计时工时</span><strong>${Number(data.timerHours || 0).toFixed(2)} 小时</strong></div></div>
+      <div class="salary-line"><div class="salary-line-main"><span>计时时薪</span><strong>${rateText}元/小时</strong></div></div>
+      <div class="salary-line"><div class="salary-line-main"><span>本月计时工资</span><strong>${fmtMoney(data.timerPay)} 元</strong></div></div>
+      <div class="salary-line"><div class="salary-line-main"><span>本月计件工时（核对用）</span><strong>${Number(data.pieceHours || 0).toFixed(2)} 小时</strong></div></div>
+      <div class="salary-line"><div class="salary-line-main"><span>本月已审核计件</span><strong>${monthApprovedCount} 笔 · ${monthApprovedQty} 件</strong></div></div>
+      <div class="salary-line"><div class="salary-line-main"><span>本月计件工资</span><strong>${fmtMoney(data.piecePay)} 元</strong></div></div>
+      <div class="salary-line"><div class="salary-line-main"><span>本月工资合计</span><strong>${fmtMoney(data.totalPay)} 元</strong></div></div>
+    `;
+    const days = (data.days || []).filter((d) => Number(d.totalPay || 0) > 0 || Number(d.approvedCount || 0) > 0 || Number(d.timerMinutes || 0) > 0);
+    $('salaryMonthDaysCount').textContent = days.length ? `${days.length} 天` : '';
+    $('salaryMonthDays').innerHTML = days.length ? days.map((d) => {
+      const dt = new Date(d.date + 'T00:00:00');
+      const label = Number.isNaN(dt.getTime()) ? d.date : `${dt.getMonth() + 1}/${dt.getDate()} 周${'日一二三四五六'[dt.getDay()]}`;
+      const brief = [];
+      if (Number(d.timerMinutes || 0) > 0) brief.push(`计时 ${(Number(d.timerMinutes) / 60).toFixed(2)}h`);
+      if (Number(d.approvedCount || 0) > 0) brief.push(`计件 ${Number(d.approvedCount)} 笔`);
+      return `<div class="salary-line expandable" data-month-day="${esc(d.date)}" role="button" tabindex="0" aria-expanded="false">
+        <div class="salary-line-main"><span>${esc(label)} · ${esc(brief.join(' · ') || '无记录')}</span><strong>${fmtMoney(d.totalPay)} 元</strong></div>
+        <div class="salary-detail" data-detail-body="month-day"></div>
+      </div>`;
+    }).join('') : '<div class="empty" style="padding:18px 0">本月还没有工资记录</div>';
+  }
+  function buildMonthDayDetail(dateKey) {
+    const day = ((salaryMonthData && salaryMonthData.days) || []).find((d) => String(d.date) === String(dateKey));
+    if (!day) return salaryDetailShell('当天明细', '<div class="d-empty">找不到这天的记录</div>', '');
+    const rows = (day.entries || []).filter((x) => x.status === 'approved');
+    const body = rows.length ? rows.map((x) => `<div class="d-row"><span>${esc(x.material || '')} · ${esc(x.name || '')} · ${esc(x.process || '')}${x.variantLabel ? ' · ' + esc(x.variantLabel) : ''}<span class="d-tag">${Number(x.quantity)} 件</span></span><strong>${fmtMoney(x.unitPrice)} × ${Number(x.quantity)} = ${fmtMoney(x.amount)} 元</strong></div>`).join('') : '<div class="d-empty">这一天没有已审核的计件</div>';
+    const foot = `<div class="d-row"><span>计时 ${(Number(day.timerMinutes || 0) / 60).toFixed(2)} 小时 · 计件 ${rows.length} 笔</span><strong>合计 ${fmtMoney(day.totalPay)} 元</strong></div>`;
+    return salaryDetailShell('当天明细 · ' + esc(dateKey), body, foot);
   }
   function salaryDetailShell(title, rowsHtml, footHtml) {
     return `<div class="layer layer-1"><h4>${esc(title)}</h4></div>
@@ -703,7 +765,8 @@ function renderPiece() {
     return salaryDetailShell('当天计件明细 · ' + esc(salaryData?.date || ''), body, foot);
   }
   async function toggleSalaryDetail(line) {
-    const key = line.dataset.salaryDetail;
+    const key = line.dataset.salaryDetail || (line.dataset.monthDay ? 'month' : '');
+    const monthDay = line.dataset.monthDay || '';
     const body = line.querySelector('[data-detail-body]');
     const isOpen = line.classList.contains('expanded');
     if (isOpen) {
@@ -712,7 +775,9 @@ function renderPiece() {
       return;
     }
     if (body && !body.dataset.filled) {
-      body.innerHTML = key === 'time' ? await buildTimeDetail() : buildPieceDetail();
+      body.innerHTML = monthDay
+        ? buildMonthDayDetail(monthDay)
+        : (key === 'time' ? await buildTimeDetail() : buildPieceDetail());
       body.dataset.filled = '1';
       // 先让内容以"未淡入"的状态渲染一帧，否则三层淡入会被跳过
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -721,15 +786,15 @@ function renderPiece() {
     line.setAttribute('aria-expanded', 'true');
   }
   function bindSalaryBreakdown() {
-    const box = $('salaryBreakdown');
+    const box = $('salaryPanel');
     if (!box) return;
     box.addEventListener('click', (event) => {
-      const line = event.target.closest('[data-salary-detail]');
+      const line = event.target.closest('[data-salary-detail], [data-month-day]');
       if (line) toggleSalaryDetail(line).catch(() => {});
     });
     box.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
-      const line = event.target.closest('[data-salary-detail]');
+      const line = event.target.closest('[data-salary-detail], [data-month-day]');
       if (!line) return;
       event.preventDefault();
       toggleSalaryDetail(line).catch(() => {});
@@ -967,7 +1032,10 @@ function variantDisplay(processName, value) {
     const process = currentRequestProcess();
     const config = requestVariantConfig(process);
     if (!config) return { key:'', value:0, label:'' };
-    const value = Number($('requestVariantValue').value || 0);
+    const raw = $('requestVariantValue').value;
+    const value = raw === 'custom'
+      ? Math.floor(Number($('requestVariantCustom')?.value || 0))
+      : Number(raw || 0);
     return { key:config.key, value, label:value > 0 ? variantDisplay(process.name, value) : '' };
   }
   function renderRequestVariant(keepValue = false) {
@@ -984,9 +1052,23 @@ function variantDisplay(processName, value) {
     const currentValue = Number(keepValue ? (selectedVariant?.value || editEntry?.variantValue || 0) : 0);
     const values = [...config.options];
     if (currentValue > 0 && !values.includes(currentValue)) values.push(currentValue);
-    input.innerHTML = '<option value="">请选择</option>' + values.map((value) => `<option value="${value}">${variantDisplay(process.name, value)}</option>`).join('');
+    input.innerHTML = '<option value="">请选择</option>'
+      + values.map((value) => `<option value="${value}">${variantDisplay(process.name, value)}</option>`).join('')
+      + (config.allowCustom ? '<option value="custom">自己填写</option>' : '');
     show(wrap, true);
-    input.value = currentValue > 0 ? String(currentValue) : '';
+    const customWrap = $('requestVariantCustomWrap');
+    const customInput = $('requestVariantCustom');
+    const isCustomValue = currentValue > 0 && !config.options.includes(currentValue);
+    if (isCustomValue) {
+      input.value = 'custom';
+      if (customInput) customInput.value = String(currentValue);
+      if ($('requestVariantCustomLabel')) $('requestVariantCustomLabel').textContent = `自己填写${config.label.replace(/^(攻丝|折弯|弯管)/, '')}`;
+      show(customWrap, true);
+    } else {
+      input.value = currentValue > 0 ? String(currentValue) : '';
+      if (customInput) customInput.value = '';
+      show(customWrap, false);
+    }
   }
   function updateRequestSuggestedPrice(force = false) {
     const process = currentRequestProcess();
@@ -994,7 +1076,8 @@ function variantDisplay(processName, value) {
     const input = $('requestPrice');
     let suggestion = null;
     if (process && config && (process.name === '折弯' || process.name === '攻丝')) {
-      const value = Number($('requestVariantValue').value || 0);
+      const raw = $('requestVariantValue').value;
+      const value = raw === 'custom' ? Math.floor(Number($('requestVariantCustom')?.value || 0)) : Number(raw || 0);
       if (value > 0) suggestion = Number((value * 0.2).toFixed(2));
     }
     const canReplace = !input.value || (requestAutoPrice != null && Number(input.value) === Number(requestAutoPrice));
@@ -1025,13 +1108,17 @@ function variantDisplay(processName, value) {
   }
   function setRequestMaterialHint(text) {
     const hint = $('requestMaterialHint');
-    if (hint) hint.textContent = text || '请填写完整料件编号或后四位 不清楚请询问现场管理人员。';
+    if (hint) {
+      hint.textContent = text || '';
+      hint.hidden = !text;
+    }
   }
   function fillRequestProduct(product, source = 'system') {
     if (!product) return;
     $('requestMaterial').value = product.material || '';
     if (!$('requestName').value.trim()) $('requestName').value = product.name || '';
-    if (!$('requestSpec').value.trim()) $('requestSpec').value = product.spec || '';
+    const specEl = $('requestSpec');
+    if (specEl && !specEl.value.trim()) specEl.value = product.spec || '';
     setRequestMaterialHint(`已匹配系统产品：${product.material || ''} · ${product.name || ''}${source === 'user' ? '' : '（已自动带出完整料号和品名）'}`);
     show($('requestMaterialMatches'), false);
   }
@@ -1089,13 +1176,13 @@ function variantDisplay(processName, value) {
     $('requestSubtitle').textContent = '产品或单价不在目录中，请填写后提交管理员审核。';
     show($('requestNameWrap'), true);
     show($('requestMaterialWrap'), true);
-    show($('requestSpecWrap'), true);
+    /* 规格字段已移除 */
     show($('requestProcessWrap'), true);
     show($('requestProductSummary'), false);
     $('requestProcess').disabled = false;
     $('requestName').value = prefillProduct && selectedProduct ? (selectedProduct.name || '') : '';
     $('requestMaterial').value = prefillProduct && selectedProduct ? (selectedProduct.material || '') : '';
-    $('requestSpec').value = prefillProduct && selectedProduct ? (selectedProduct.spec || '') : '';
+    if ($('requestSpec')) $('requestSpec').value = prefillProduct && selectedProduct ? (selectedProduct.spec || '') : '';
     $('requestOtherProcess').value = '';
     requestMaterialToken += 1;
     clearTimeout(requestMaterialTimer);
@@ -1120,7 +1207,7 @@ function variantDisplay(processName, value) {
     $('requestSubtitle').textContent = '原单价继续有效，审核通过后才会使用新单价。';
     show($('requestNameWrap'), false);
     show($('requestMaterialWrap'), false);
-    show($('requestSpecWrap'), false);
+    /* 规格字段已移除 */
     show($('requestProcessWrap'), true);
     show($('requestProductSummary'), true);
     $('requestProductSummary').innerHTML = `<strong>${esc(selectedProduct.material)} · ${esc(selectedProduct.name)}</strong><br>${esc(selectedProduct.spec || '无图号')}`;
@@ -1146,13 +1233,13 @@ function variantDisplay(processName, value) {
     $('requestSubtitle').textContent = entry.status === 'approved' ? '修改后会撤回原记录，并生成一条新的待审核记录。' : '修改后重新提交管理员审核。';
     show($('requestNameWrap'), true);
     show($('requestMaterialWrap'), true);
-    show($('requestSpecWrap'), true);
+    /* 规格字段已移除 */
     show($('requestProcessWrap'), true);
     show($('requestProductSummary'), false);
     $('requestProcess').disabled = false;
     $('requestName').value = entry.name || '';
     $('requestMaterial').value = entry.material || '';
-    $('requestSpec').value = entry.spec || '';
+    if ($('requestSpec')) $('requestSpec').value = entry.spec || '';
     $('requestOtherProcess').value = '';
     $('requestQty').value = entry.quantity ?? '';
     $('requestPrice').value = Number(entry.submittedUnitPrice ?? entry.unitPrice ?? '').toFixed(2);
@@ -1186,6 +1273,7 @@ function variantDisplay(processName, value) {
     const variant = requestVariant();
     const config = requestVariantConfig(process);
     if (config && variant.value <= 0) return setRequestError(`请填写${config.label}`);
+    if (config && !Number.isInteger(variant.value)) return setRequestError(`${config.label}必须是整数`);
     const qty = Number($('requestQty').value);
     if (!Number.isInteger(qty) || qty <= 0) return setRequestError('数量必须是大于 0 的整数');
     const price = parsePriceInput();
@@ -1201,7 +1289,7 @@ function variantDisplay(processName, value) {
           p_payload:{
             name:$('requestName').value.trim(),
             material:$('requestMaterial').value.trim(),
-            spec:$('requestSpec').value.trim(),
+            spec:$('requestSpec') ? $('requestSpec').value.trim() : (editEntry?.spec || ''),
             processName:manualProcess || process.name,
             quantity:qty,
             unitPrice:price,
@@ -1222,7 +1310,7 @@ function variantDisplay(processName, value) {
           p_code:code,
           p_name:name,
           p_material:material,
-          p_spec:$('requestSpec').value.trim(),
+          p_spec:$('requestSpec') ? $('requestSpec').value.trim() : '',
           p_process_id:process.name === '其他' ? null : process.id,
           p_process_name:manualProcess || process.name,
           p_quantity:qty,
@@ -1324,6 +1412,20 @@ function variantDisplay(processName, value) {
     if (revoke) showRevoke(revoke.dataset.revokePiece);
   });
   $('salaryRefresh').addEventListener('click', () => loadSalary().catch(() => {}));
+  $('salaryRangeSwitch').addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-salary-range]');
+    if (!btn) return;
+    salaryRange = btn.dataset.salaryRange === 'month' ? 'month' : 'day';
+    [...$('salaryRangeSwitch').querySelectorAll('button')].forEach((b) => b.classList.toggle('active', b === btn));
+    show($('salaryDateWrap'), salaryRange === 'day');
+    show($('salaryMonthWrap'), salaryRange === 'month');
+    show($('salaryEntriesTitle'), salaryRange === 'day');
+    show($('salaryEntries'), salaryRange === 'day');
+    show($('salaryMonthTitle'), salaryRange === 'month');
+    show($('salaryMonthDays'), salaryRange === 'month');
+    loadSalary().catch(() => {});
+  });
+  $('salaryMonth').addEventListener('change', () => loadSalary().catch(() => {}));
   bindSalaryBreakdown();
   $('salaryDate').addEventListener('change', () => loadSalary().catch(() => {}));
   $('revokeCancel').addEventListener('click', closeRevoke);
@@ -1386,6 +1488,15 @@ function variantDisplay(processName, value) {
     if (event.target.closest('#variantModalCustomConfirm')) { applyCustomVariant($('variantModalCustomValue')?.value || '', 'modal'); }
   });
   $('requestVariantValue').addEventListener('change', () => {
+    const isCustom = $('requestVariantValue').value === 'custom';
+    const config = requestVariantConfig(currentRequestProcess());
+    if ($('requestVariantCustomLabel') && config) $('requestVariantCustomLabel').textContent = `自己填写${config.label.replace(/^(攻丝|折弯|弯管)/, '')}`;
+    show($('requestVariantCustomWrap'), isCustom);
+    if (isCustom) $('requestVariantCustom')?.focus();
+    updateRequestSuggestedPrice(false);
+    loadCatalogPriceForRequest();
+  });
+  $('requestVariantCustom')?.addEventListener('input', () => {
     updateRequestSuggestedPrice(false);
     loadCatalogPriceForRequest();
   });
