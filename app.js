@@ -3862,6 +3862,7 @@ let labelPrintSearch = '';            // 弹窗里的补打搜索词
 let labelPrintedRecords = {};         // 本机永久打印记录：key -> { at, day, mode, count }
 const LABEL_PRINTED_KEY = 'shipmentLabelPrinted';
 const LABEL_STATS_KEY = 'shipmentLabelStats';
+const LABEL_ASSIGN_KEY = 'shipmentLabelAssign';
 
 // 固定一框数量的产品：编号里包含这些数字就按整框折算
 const LABEL_BOX_RULES = [
@@ -3909,7 +3910,35 @@ function labelMaterialCount(material, mode) {
   return row ? Number(row[mode] || 0) : 0;
 }
 
-// 打印习惯：这个料号平时用哪种标签打（用来默认勾选、自动归类）
+function readLabelAssign() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LABEL_ASSIGN_KEY) || '{}');
+    return saved && typeof saved === 'object' ? saved : {};
+  } catch { return {}; }
+}
+
+function writeLabelAssign(assign) {
+  try { localStorage.setItem(LABEL_ASSIGN_KEY, JSON.stringify(assign)); } catch { }
+}
+
+// 这个料号归哪种标签打：手动指定优先 → 再按打印习惯 → 都没记录就两边都出现
+function labelAssignOf(material) {
+  const key = String(material || '').trim();
+  if (!key) return '';
+  const explicit = readLabelAssign()[key];
+  if (explicit === 'big' || explicit === 'small') return explicit;
+  return labelHabit(key);
+}
+
+function setLabelAssign(material, mode) {
+  const key = String(material || '').trim();
+  if (!key) return;
+  const assign = readLabelAssign();
+  assign[key] = mode === 'small' ? 'small' : 'big';
+  writeLabelAssign(assign);
+}
+
+// 打印习惯：这个料号平时用哪种标签打（用来默认归类）
 function labelHabit(material) {
   const big = labelMaterialCount(material, 'big');
   const small = labelMaterialCount(material, 'small');
@@ -3984,17 +4013,22 @@ function labelModeText(mode = labelPrintMode) {
 }
 
 function labelPool() {
-  const showPrinted = Boolean(els.labelPrintShowPrinted && els.labelPrintShowPrinted.checked);
+  const onlyPrinted = Boolean(els.labelPrintShowPrinted && els.labelPrintShowPrinted.checked);
   const mode = labelPrintMode;
   const query = labelPrintSearch.trim().toLowerCase();
   // 只要在搜索，就把已打印的一起带出来，方便找出来补打
-  const keepPrinted = showPrinted || Boolean(query) || Boolean(String(desktopRemainingSearch || '').trim());
+  const keepPrinted = Boolean(query) || Boolean(String(desktopRemainingSearch || '').trim());
   return remainingGroups(desktopRemainingSearch)
     .map((group) => {
       const key = labelSourceKey(group);
       return { group, key, record: labelPrintedRecords[key] || null };
     })
-    .filter((item) => keepPrinted || !item.record)
+    // 归类：手动转过、或按打印习惯属于另一种标签的，不在这边显示
+    .filter((item) => {
+      const assign = labelAssignOf(item.group.material);
+      return !assign || assign === mode;
+    })
+    .filter((item) => (onlyPrinted ? Boolean(item.record) : (!item.record || keepPrinted)))
     .filter((item) => !query || [item.group.material, item.group.name, (item.group.specs || []).join(' ')]
       .some((value) => String(value || '').toLowerCase().includes(query)))
     // 打印习惯记忆：经常用这种标签的排前面
@@ -4078,9 +4112,8 @@ function labelRowHtml(row, index) {
   const printedTag = row.printedAt
     ? `<span class="label-printed-tag" title="最近一次打印：${escapeHtml(row.printedAt)}${modeText ? '（' + modeText + '标签）' : ''}，累计 ${row.printedCount} 次；要补打就打勾后确认">已打印 ${escapeHtml(row.printedDay)}${modeText ? ' ' + modeText : ''}</span>`
     : '';
-  const habitTag = row.habit
-    ? `<span class="label-habit ${row.habit}" title="打印习惯：大标签 ${row.bigCount} 次、小标签 ${row.smallCount} 次">习惯${row.habit === 'small' ? '小' : '大'}·${row.habit === 'small' ? row.smallCount : row.bigCount}</span>`
-    : '';
+  const moveTarget = labelPrintMode === 'big' ? 'small' : 'big';
+  const moveText = moveTarget === 'small' ? '转小标签' : '转大标签';
   return `<div class="label-print-row${row.printed ? ' printed' : ''}" data-label-row="${index}">
     <label class="label-print-check"><input type="checkbox" data-label-field="selected"${row.selected ? ' checked' : ''}></label>
     <input class="label-print-input mono" data-label-field="material" value="${escapeHtml(row.material)}" placeholder="物料编码">
@@ -4092,10 +4125,10 @@ function labelRowHtml(row, index) {
     <span class="label-remaining" data-label-remaining="${index}">${fmt(labelRowRemaining(row))}</span>
     <input class="label-print-input" type="date" data-label-field="date" value="${escapeHtml(row.date)}">
     <div class="label-print-row-actions">
-      ${habitTag}
       ${printedTag}
       <button type="button" class="label-row-btn" data-label-copy="${index}">复制</button>
       <button type="button" class="label-row-btn danger" data-label-remove="${index}">删除</button>
+      <button type="button" class="label-row-btn move" data-label-move="${index}" title="把这一项固定到${moveText.slice(1)}打印（以后这个料号也按这个走）">${moveText}</button>
       <button type="button" class="label-row-btn done" data-label-mark="${index}" title="标记为已打印，从待打印列表里移走">已打印</button>
     </div>
     <div class="label-box-warn" data-label-box-warn="${index}" hidden></div>
@@ -4329,6 +4362,19 @@ function handleLabelPrintClick(event) {
     }
     return;
   }
+  const moveButton = event.target.closest('[data-label-move]');
+  if (moveButton) {
+    const index = Number(moveButton.dataset.labelMove);
+    const row = labelRows[index];
+    if (row) {
+      const target = labelPrintMode === 'big' ? 'small' : 'big';
+      setLabelAssign(row.material, target);
+      showToast(`${row.material} 已归到${labelModeText(target)}打印`);
+      labelRows = buildLabelRows();
+      renderLabelRows();
+    }
+    return;
+  }
   const markButton = event.target.closest('[data-label-mark]');
   if (markButton) {
     const index = Number(markButton.dataset.labelMark);
@@ -4399,7 +4445,9 @@ async function confirmLabelPrint() {
       showToast(`小标签已写入 ${written} 行并发送打印，今天的标签任务完成${errors}`);
     }
   } catch (error) {
-    showLabelPrintError('打印助手没响应或写入失败：' + (error.message || error) + '。请确认打印助手窗口正在运行。');
+    const detail = String(error.message || error || '');
+    showLabelPrintError('打印没有完成：' + detail + '（如果是“Failed to fetch”，说明打印助手没在运行）');
+    showToast('打印没有完成，看弹窗里的提示');
   } finally {
     if (els.labelPrintConfirm) {
       els.labelPrintConfirm.disabled = false;

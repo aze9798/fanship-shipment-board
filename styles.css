@@ -2864,7 +2864,7 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .label-print-head,
 .label-print-row {
   display: grid;
-  grid-template-columns: 34px 124px minmax(150px, 1.4fr) minmax(104px, 1fr) 92px 100px 118px 168px;
+  grid-template-columns: 34px 124px minmax(150px, 1.4fr) minmax(104px, 1fr) 92px 100px 118px 226px;
   gap: 8px;
   align-items: center;
   padding: 8px 10px;
@@ -3023,6 +3023,13 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
   font-size: 11px;
   white-space: nowrap;
 }
+/* 「转小标签 / 转大标签」：把这一项固定到另一种标签打印 */
+.label-row-btn.move {
+  border-color: #ecd9bd;
+  background: #fdf7ee;
+  color: #8a5a12;
+}
+.label-row-btn.move:hover { background: #f8eddc; }
 
 /* ===== 整框产品超量提示 + 两种处理选项 ===== */
 .label-qty-cell { min-width: 0; }
