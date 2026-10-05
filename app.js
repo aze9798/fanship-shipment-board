@@ -597,6 +597,7 @@ const els = {
   labelPrintRows: $('#labelPrintRows'),
   labelPrintSummary: $('#labelPrintSummary'),
   labelPrintSelectAll: $('#labelPrintSelectAll'),
+  labelPrintSearch: $('#labelPrintSearch'),
   labelPrintModes: $('#labelPrintModes'),
   labelPrintTip: $('#labelPrintTip'),
   labelPrintShowPrinted: $('#labelPrintShowPrinted'),
@@ -3857,7 +3858,8 @@ function renderMobileRemaining() {
 let labelRows = [];
 let labelRowSeq = 0;
 let labelPrintMode = 'big';           // big=大标签，small=小标签
-let labelPrintedKeys = new Set();     // 已经打印过的产品（本机当天记录）
+let labelPrintSearch = '';            // 弹窗里的补打搜索词
+let labelPrintedRecords = {};         // 本机永久打印记录：key -> { at, day, mode, count }
 const LABEL_PRINTED_KEY = 'shipmentLabelPrinted';
 const LABEL_STATS_KEY = 'shipmentLabelStats';
 
@@ -3907,6 +3909,14 @@ function labelMaterialCount(material, mode) {
   return row ? Number(row[mode] || 0) : 0;
 }
 
+// 打印习惯：这个料号平时用哪种标签打（用来默认勾选、自动归类）
+function labelHabit(material) {
+  const big = labelMaterialCount(material, 'big');
+  const small = labelMaterialCount(material, 'small');
+  if (!big && !small) return '';
+  return big >= small ? 'big' : 'small';
+}
+
 function nextLabelRowId() {
   labelRowSeq += 1;
   return 'lb' + labelRowSeq;
@@ -3916,18 +3926,53 @@ function labelToday() {
   return String((snapshot && snapshot.today) || TODAY || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
 }
 
-function readPrintedKeys() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(LABEL_PRINTED_KEY) || '{}');
-    if (saved && saved.day === labelToday() && Array.isArray(saved.keys)) return new Set(saved.keys);
-  } catch { }
-  return new Set();
+function labelShortDay(day) {
+  const matched = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day || ''));
+  return matched ? `${matched[2]}-${matched[3]}` : String(day || '');
 }
 
-function writePrintedKeys() {
+function labelNowStamp() {
+  const now = new Date();
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+// 打印记录永久保存在本机（不再按天清零），所以第二天还能看出哪一项什么时候打过、能补打
+function readPrintedRecords() {
   try {
-    localStorage.setItem(LABEL_PRINTED_KEY, JSON.stringify({ day: labelToday(), keys: [...labelPrintedKeys] }));
+    const saved = JSON.parse(localStorage.getItem(LABEL_PRINTED_KEY) || '{}');
+    if (saved && Array.isArray(saved.keys)) {
+      const migrated = {};
+      for (const key of saved.keys) {
+        migrated[String(key)] = { at: `${saved.day || ''} 00:00`, day: String(saved.day || ''), mode: '', count: 1 };
+      }
+      writePrintedRecords(migrated);
+      return migrated;
+    }
+    if (saved && saved.records && typeof saved.records === 'object') return saved.records;
+    if (saved && typeof saved === 'object') return saved;
   } catch { }
+  return {};
+}
+
+function writePrintedRecords(records) {
+  try { localStorage.setItem(LABEL_PRINTED_KEY, JSON.stringify({ records })); } catch { }
+}
+
+function markLabelPrinted(keys, mode) {
+  const list = [...new Set((keys || []).filter(Boolean))];
+  if (!list.length) return;
+  const at = labelNowStamp();
+  for (const key of list) {
+    const previous = labelPrintedRecords[key] || {};
+    labelPrintedRecords[key] = {
+      at,
+      day: at.slice(0, 10),
+      mode: mode || previous.mode || '',
+      count: Number(previous.count || 0) + 1,
+    };
+  }
+  writePrintedRecords(labelPrintedRecords);
 }
 
 function labelSourceKey(group) {
@@ -3941,9 +3986,17 @@ function labelModeText(mode = labelPrintMode) {
 function labelPool() {
   const showPrinted = Boolean(els.labelPrintShowPrinted && els.labelPrintShowPrinted.checked);
   const mode = labelPrintMode;
+  const query = labelPrintSearch.trim().toLowerCase();
+  // 只要在搜索，就把已打印的一起带出来，方便找出来补打
+  const keepPrinted = showPrinted || Boolean(query) || Boolean(String(desktopRemainingSearch || '').trim());
   return remainingGroups(desktopRemainingSearch)
-    .map((group) => ({ group, key: labelSourceKey(group), printed: labelPrintedKeys.has(labelSourceKey(group)) }))
-    .filter((item) => showPrinted || !item.printed)
+    .map((group) => {
+      const key = labelSourceKey(group);
+      return { group, key, record: labelPrintedRecords[key] || null };
+    })
+    .filter((item) => keepPrinted || !item.record)
+    .filter((item) => !query || [item.group.material, item.group.name, (item.group.specs || []).join(' ')]
+      .some((value) => String(value || '').toLowerCase().includes(query)))
     // 打印习惯记忆：经常用这种标签的排前面
     .sort((a, b) => labelMaterialCount(b.group.material, mode) - labelMaterialCount(a.group.material, mode)
       || String(a.group.material || '').localeCompare(String(b.group.material || '')));
@@ -3964,32 +4017,44 @@ function labelRemainingAllDates() {
 
 function buildLabelRows() {
   const remainingAll = labelRemainingAllDates();
-  return labelPool().map((item) => ({
-    id: nextLabelRowId(),
-    sourceKey: item.key,
-    printed: item.printed,
-    selected: !item.printed,
-    material: String(item.group.material || ''),
-    name: String(item.group.name || ''),
-    spec: (item.group.specs || []).join('、'),
-    quantity: (() => {
-      const rule = labelBoxRule(item.group.material, item.group.name);
-      if (!rule) return Number(item.group.total) || 0;
-      return labelBoxQuantityText(item.group.total, rule.perBox);
-    })(),
-    remaining: remainingAll.has(String(item.group.material || '').trim())
-      ? Number(remainingAll.get(String(item.group.material || '').trim()))
-      : Number(item.group.total) || 0,
-    perBox: (labelBoxRule(item.group.material, item.group.name) || {}).perBox || 0,
-    bigCount: labelMaterialCount(item.group.material, 'big'),
-    smallCount: labelMaterialCount(item.group.material, 'small'),
-    date: (item.group.dates || [])[0] || String((snapshot && snapshot.today) || '').slice(0, 10),
-  }));
+  return labelPool().map((item) => {
+    const material = String(item.group.material || '');
+    const record = item.record;
+    const habit = labelHabit(material);
+    const rule = labelBoxRule(material, item.group.name);
+    return {
+      id: nextLabelRowId(),
+      sourceKey: item.key,
+      printed: Boolean(record),
+      printedAt: record ? String(record.at || '') : '',
+      printedDay: record ? labelShortDay(record.day) : '',
+      printedMode: record ? String(record.mode || '') : '',
+      printedCount: record ? Number(record.count || 1) : 0,
+      // 已打印的默认不勾（要补打自己勾上）；打印习惯是另一种标签的也不默认勾
+      selected: !record && (!habit || habit === labelPrintMode),
+      material,
+      name: String(item.group.name || ''),
+      spec: (item.group.specs || []).join('、'),
+      quantity: rule
+        ? labelBoxQuantityText(item.group.total, rule.perBox)
+        : Number(item.group.total) || 0,
+      remaining: remainingAll.has(material.trim())
+        ? Number(remainingAll.get(material.trim()))
+        : Number(item.group.total) || 0,
+      perBox: rule ? rule.perBox : 0,
+      habit,
+      bigCount: labelMaterialCount(material, 'big'),
+      smallCount: labelMaterialCount(material, 'small'),
+      date: (item.group.dates || [])[0] || String((snapshot && snapshot.today) || '').slice(0, 10),
+    };
+  });
 }
 
 function openLabelPrintModal(mode = 'big') {
   if (!snapshot) return;
-  labelPrintedKeys = readPrintedKeys();
+  labelPrintedRecords = readPrintedRecords();
+  labelPrintSearch = '';
+  if (els.labelPrintSearch) els.labelPrintSearch.value = '';
   labelPrintMode = mode === 'small' ? 'small' : 'big';
   labelRows = buildLabelRows();
   renderLabelRows();
@@ -4009,9 +4074,15 @@ function switchLabelPrintMode(mode) {
 }
 
 function labelRowHtml(row, index) {
-  const printedTag = row.printed ? '<span class="label-printed-tag">已打印</span>' : '';
+  const modeText = row.printedMode === 'small' ? '小' : (row.printedMode === 'big' ? '大' : '');
+  const printedTag = row.printedAt
+    ? `<span class="label-printed-tag" title="最近一次打印：${escapeHtml(row.printedAt)}${modeText ? '（' + modeText + '标签）' : ''}，累计 ${row.printedCount} 次；要补打就打勾后确认">已打印 ${escapeHtml(row.printedDay)}${modeText ? ' ' + modeText : ''}</span>`
+    : '';
+  const habitTag = row.habit
+    ? `<span class="label-habit ${row.habit}" title="打印习惯：大标签 ${row.bigCount} 次、小标签 ${row.smallCount} 次">习惯${row.habit === 'small' ? '小' : '大'}·${row.habit === 'small' ? row.smallCount : row.bigCount}</span>`
+    : '';
   return `<div class="label-print-row${row.printed ? ' printed' : ''}" data-label-row="${index}">
-    <label class="label-print-check"><input type="checkbox" data-label-field="selected"${row.selected ? ' checked' : ''}${row.printed ? ' disabled' : ''}></label>
+    <label class="label-print-check"><input type="checkbox" data-label-field="selected"${row.selected ? ' checked' : ''}></label>
     <input class="label-print-input mono" data-label-field="material" value="${escapeHtml(row.material)}" placeholder="物料编码">
     <input class="label-print-input" data-label-field="name" value="${escapeHtml(row.name)}" placeholder="物料名称">
     <input class="label-print-input" data-label-field="spec" value="${escapeHtml(row.spec)}" placeholder="规格">
@@ -4021,8 +4092,7 @@ function labelRowHtml(row, index) {
     <span class="label-remaining" data-label-remaining="${index}">${fmt(labelRowRemaining(row))}</span>
     <input class="label-print-input" type="date" data-label-field="date" value="${escapeHtml(row.date)}">
     <div class="label-print-row-actions">
-      ${row.bigCount ? `<span class="label-habit" title="用大标签打印过 ${row.bigCount} 次">大${row.bigCount}</span>` : ''}
-      ${row.smallCount ? `<span class="label-habit" title="用小标签打印过 ${row.smallCount} 次">小${row.smallCount}</span>` : ''}
+      ${habitTag}
       ${printedTag}
       <button type="button" class="label-row-btn" data-label-copy="${index}">复制</button>
       <button type="button" class="label-row-btn danger" data-label-remove="${index}">删除</button>
@@ -4036,7 +4106,7 @@ function renderLabelRows() {
   if (!els.labelPrintRows) return;
   els.labelPrintRows.innerHTML = labelRows.length
     ? labelRows.map((row, index) => labelRowHtml(row, index)).join('')
-    : '<div class="label-print-empty">这类标签没有待打印的产品了。可以切到另一种标签，或先在未交清单里按交期筛选。</div>';
+    : '<div class="label-print-empty">这类标签没有待打印的产品了。<br>已经打印过的：勾上上面「显示已打印的（补打）」，或者直接在上面搜索料号，就能找出来补打；也可以切到另一种标签。</div>';
   if (els.labelPrintModes) {
     els.labelPrintModes.querySelectorAll('[data-label-mode]').forEach((button) => {
       button.classList.toggle('active', button.dataset.labelMode === labelPrintMode);
@@ -4051,7 +4121,8 @@ function renderLabelRows() {
     els.labelPrintConfirm.textContent = labelPrintMode === 'big' ? '确认并打印大标签' : '确认并打印小标签';
   }
   if (els.labelPrintPrintedInfo) {
-    els.labelPrintPrintedInfo.textContent = labelPrintedKeys.size ? `今天已打印 ${labelPrintedKeys.size} 项` : '';
+    const printedCount = Object.keys(labelPrintedRecords).length;
+    els.labelPrintPrintedInfo.textContent = printedCount ? `本机已打印 ${printedCount} 项（可补打）` : '';
   }
   updateLabelSummary();
 }
@@ -4102,8 +4173,9 @@ function refreshLabelRemaining() {
 function updateLabelSummary() {
   refreshLabelRemaining();
   if (!els.labelPrintSummary) return;
-  const valid = labelRows.filter((row) => labelRowIsValid(row) && !row.printed);
+  const valid = labelRows.filter(labelRowIsValid);
   const picked = valid.filter((row) => row.selected);
+  const reprinted = picked.filter((row) => row.printed).length;
   const total = picked.reduce((sum, row) => sum + labelRowQuantity(row), 0);
   const blank = picked.filter((row) => labelRowQuantity(row) === 0).length;
   const overMaterials = [...new Set(labelRows
@@ -4116,13 +4188,14 @@ function updateLabelSummary() {
     })
     .map((row) => String(row.material || '').trim()))];
   els.labelPrintSummary.textContent = `${labelModeText()}：已勾选 ${picked.length} 行 / ${fmt(total)} 件`
+    + (reprinted ? `（含补打 ${reprinted} 行）` : '')
     + (blank ? `（其中 ${blank} 行数量留空）` : '')
-    + `，待打印 ${valid.length} 行`
+    + `，共 ${valid.length} 行`
     + (overMaterials.length ? `；⚠ ${overMaterials.join('、')} 已填数量超过订单未交` : '');
   if (els.labelPrintSelectAll) {
     els.labelPrintSelectAll.checked = valid.length > 0 && valid.every((row) => row.selected);
   }
-  if (els.labelPrintConfirm) els.labelPrintConfirm.disabled = picked.length === 0;
+  // 没勾选时不把按钮置灰：否则点了没反应，用户不知道问题在哪（点击时给提示）
 }
 
 function labelQuantityNumber(value) {
@@ -4261,7 +4334,7 @@ function handleLabelPrintClick(event) {
     const index = Number(markButton.dataset.labelMark);
     const row = labelRows[index];
     if (row) {
-      if (row.sourceKey) { labelPrintedKeys.add(row.sourceKey); writePrintedKeys(); }
+      if (row.sourceKey) markLabelPrinted([row.sourceKey], labelPrintMode);
       labelRows.splice(index, 1);
       renderLabelRows();
       showToast(`${row.material} 已标记为已打印`);
@@ -4297,9 +4370,13 @@ function labelPayload(rows) {
 
 async function confirmLabelPrint() {
   const mode = labelPrintMode;
-  const valid = labelRows.filter((row) => labelRowIsValid(row) && !row.printed);
+  const valid = labelRows.filter(labelRowIsValid);
   const picked = valid.filter((row) => row.selected);
-  if (!picked.length) { showLabelPrintError('请先勾选要打印的行（没勾选的不打印）。'); return; }
+  if (!picked.length) {
+    showLabelPrintError('还没有勾选要打印的行：在左边打勾后再点这个按钮（已打印的也可以勾上补打）。');
+    showToast('还没有勾选要打印的行');
+    return;
+  }
   const payload = labelPayload(picked);
   const sourceKeys = [...new Set(picked.map((row) => row.sourceKey).filter(Boolean))];
   if (els.labelPrintError) els.labelPrintError.hidden = true;
@@ -4310,14 +4387,13 @@ async function confirmLabelPrint() {
   try {
     const body = mode === 'big' ? { big: payload, small: [] } : { big: [], small: payload };
     const result = await deliveryHelper('/labels', body);
-    sourceKeys.forEach((key) => labelPrintedKeys.add(key));
-    writePrintedKeys();
+    markLabelPrinted(sourceKeys, mode);
     bumpLabelStats(picked.map((row) => row.material), mode);
     const written = mode === 'big' ? result.bigRows : result.smallRows;
     const errors = Array.isArray(result.errors) && result.errors.length ? '；' + result.errors.join('；') : '';
     if (mode === 'big') {
       switchLabelPrintMode('small');
-      showToast(`大标签已写入 ${written} 行并发送打印，已自动切到小标签：刚打过的 ${sourceKeys.length} 项已剔除，剩下的改好再确认${errors}`);
+      showToast(`大标签已写入 ${written} 行并发送打印，已自动切到小标签：刚打过的 ${sourceKeys.length} 项已标为已打印，剩下的改好再确认${errors}`);
     } else {
       closeLabelPrintModal();
       showToast(`小标签已写入 ${written} 行并发送打印，今天的标签任务完成${errors}`);
@@ -5692,6 +5768,13 @@ if (els.labelPrintModes) {
 }
 if (els.labelPrintShowPrinted) {
   els.labelPrintShowPrinted.addEventListener('change', () => {
+    labelRows = buildLabelRows();
+    renderLabelRows();
+  });
+}
+if (els.labelPrintSearch) {
+  els.labelPrintSearch.addEventListener('input', (event) => {
+    labelPrintSearch = event.target.value;
     labelRows = buildLabelRows();
     renderLabelRows();
   });

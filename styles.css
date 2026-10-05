@@ -2835,9 +2835,23 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   margin-bottom: 8px;
 }
+.label-print-search { flex: 1 1 240px; min-width: 180px; }
+.label-print-search input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d9e5e4;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 12px;
+  outline: none;
+}
+.label-print-search input:focus { border-color: #75bdb3; box-shadow: 0 0 0 3px rgba(13, 113, 104, .08); }
 .label-print-all { display: inline-flex; align-items: center; gap: 6px; color: #47636b; font-size: 12px; font-weight: 700; }
 .label-print-summary { color: #0f766e; font-size: 12px; font-weight: 800; }
 .label-print-table-wrap {
@@ -2972,7 +2986,8 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
   font-weight: 700;
   white-space: nowrap;
 }
-.label-print-row.printed { opacity: .62; }
+.label-print-row.printed { opacity: .8; }
+.label-print-row.printed .label-print-input { background: #f4f8f7; }
 .label-print-actions { align-items: center; }
 
 /* ===== 标签弹窗：已打印按钮 + 打印习惯小标签 ===== */
@@ -2992,6 +3007,8 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
   font-weight: 800;
   white-space: nowrap;
 }
+.label-habit.big { background: #e8f1ff; color: #2b5c9b; }
+.label-habit.small { background: #fdf1e3; color: #8a5a12; }
 
 /* 操作列三个按钮要放得下：缩小内边距、不换行、允许横向排列 */
 .label-print-row-actions {
