@@ -3424,6 +3424,7 @@ function buildDeliveryGroups(shipments, queryText = '') {
         remaining: Number(meta.remaining || 0),
         hasOrder: Boolean(meta.po || meta.orderQty || meta.seq),
         remark: '',
+        billed: Boolean(batch) || isBilledShipment(shipment.id),
       });
     }
   }
@@ -3450,6 +3451,7 @@ function buildDeliveryGroups(shipments, queryText = '') {
       remaining: 0,
       hasOrder: false,
       remark: row.remark || row.note || '',
+      billed: true,
     });
   }
   return [...map.values()].map((group) => {
@@ -3464,7 +3466,13 @@ function buildDeliveryGroups(shipments, queryText = '') {
     group.total = group.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
     return group;
   }).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
-}function renderDeliveryGroups(groups) {
+}
+function qtyEditButtonHtml(item, billed) {
+  if (boardRole !== 'admin' || !item || !item.itemId) return '';
+  if (billed) return '<button type="button" class="qty-edit-btn" disabled title="已开单，不能修改发货数量">改</button>';
+  return `<button type="button" class="qty-edit-btn" data-edit-qty="${escapeHtml(String(item.itemId))}" data-edit-value="${Number(item.quantity) || 0}" title="修改发货数量">改</button>`;
+}
+function renderDeliveryGroups(groups) {
   if (!groups.length) return '<div class="empty-state"><strong>没有符合条件的发货记录</strong><span>可以搜索送货单号、采购单号、料件编号或品名。</span></div>';
   return groups.map((group) => {
     const expanded = expandedShipments.has(group.key);
@@ -3480,7 +3488,7 @@ function buildDeliveryGroups(shipments, queryText = '') {
           <span data-label="采购单号">${escapeHtml(item.po)}${item.typeLabel ? ` <em>${escapeHtml(item.typeLabel)}</em>` : ''}</span>
           <span data-label="料件编号">${escapeHtml(item.material)}</span>
           <span data-label="品名">${escapeHtml(item.name)}${item.spec ? ` · ${escapeHtml(item.spec)}` : ''}${item.remark ? `<small>备注：${escapeHtml(item.remark)}</small>` : ''}</span>
-          <strong data-label="发货数量" class="number">${fmt(item.quantity)} 件${boardRole === 'admin' && item.itemId ? `<button type="button" class="qty-edit-btn" data-edit-qty="${escapeHtml(String(item.itemId))}" data-edit-value="${Number(item.quantity) || 0}" title="修改发货数量">改</button>` : ''}</strong>
+          <strong data-label="发货数量" class="number"><span class="qty-value-with-edit">${fmt(item.quantity)} 件${qtyEditButtonHtml(item, item.billed)}</span></strong>
           <span data-label="项次" class="number">${escapeHtml(item.seq)}</span>
           <span data-label="未交" class="number">${escapeHtml(deliveryRemainingText(item.remaining, item.hasOrder))}</span>
         </div>`).join('')}
@@ -3503,7 +3511,7 @@ function deliveryStampText(value) {
 function renderMergedDeliveryRows(groups) {
   const rows = [];
   for (const group of groups) {
-    for (const item of group.items) rows.push({ ...item, batch: group.batch || '', shippedAt: group.createdAt || '' });
+    for (const item of group.items) rows.push({ ...item, batch: group.batch || '', shippedAt: group.createdAt || '', billed: item.billed });
   }
   if (!rows.length) return '<div class="empty-state"><strong>没有符合条件的发货记录</strong><span>可以搜索送货单号、采购单号、料件编号或品名。</span></div>';
   rows.sort((a, b) => String(b.shippedAt || '').localeCompare(String(a.shippedAt || '')));
@@ -3514,7 +3522,7 @@ function renderMergedDeliveryRows(groups) {
           <span data-label="采购单号">${escapeHtml(item.po)}${item.typeLabel ? ` <em>${escapeHtml(item.typeLabel)}</em>` : ''}</span>
           <span data-label="料件编号">${escapeHtml(item.material)}</span>
           <span data-label="品名">${escapeHtml(item.name)}${item.spec ? ` · ${escapeHtml(item.spec)}` : ''}${item.remark ? `<small>备注：${escapeHtml(item.remark)}</small>` : ''}</span>
-          <strong data-label="发货数量" class="number">${fmt(item.quantity)} 件${boardRole === 'admin' && item.itemId ? `<button type="button" class="qty-edit-btn" data-edit-qty="${escapeHtml(String(item.itemId))}" data-edit-value="${Number(item.quantity) || 0}" title="修改发货数量">改</button>` : ''}</strong>
+          <strong data-label="发货数量" class="number"><span class="qty-value-with-edit">${fmt(item.quantity)} 件${qtyEditButtonHtml(item, item.billed)}</span></strong>
           <span data-label="项次" class="number">${escapeHtml(item.seq)}</span>
           <span data-label="未交" class="number">${escapeHtml(deliveryRemainingText(item.remaining, item.hasOrder))}</span>
           <span data-label="送货单编号" class="ship-batch">${escapeHtml(item.batch || '未开单')}</span>
