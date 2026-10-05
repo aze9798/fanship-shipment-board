@@ -28,6 +28,7 @@
             <button type="button" data-desktop-module="shipment" style="--i:1"><b>装车登记</b><small>总览 · 未交 · 装车 · 查询 · 图纸库</small></button>
             <button type="button" data-desktop-module="workReport" style="--i:2"><b>报工情况</b><small>查看员工当天报工明细</small></button>
             <button type="button" data-desktop-module="workReview" style="--i:3"><b>报工审核</b><small>审核自主申报与单价</small></button>
+            <button type="button" data-desktop-module="attendance" style="--i:4"><b>考勤管理</b><small>全员考勤 · 补卡审核</small></button>
           </div>
         </div>
         </div>
@@ -69,7 +70,7 @@
           <span class="nav-dot"></span>
           报工审核
         </a>
-        <a id="desktopAttendanceLink" class="side-link" href="attendance-admin.html">
+        <a id="desktopAttendanceLink" class="side-link" href="#attendance" data-desktop-view="attendance" data-module="attendance" hidden>
           <span class="nav-dot"></span>
           考勤管理
         </a>
@@ -450,6 +451,59 @@
         </section>
       </section>
 
+      <section id="desktopAttendanceView" class="desktop-view desktop-only" hidden>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">全员考勤</p>
+            <h1>考勤管理</h1>
+            <p class="subhead">按月查看全员考勤、加班和补卡审核。</p>
+          </div>
+          <div class="topbar-actions">
+            <button id="desktopAttendancePrev" class="button ghost" type="button">上个月</button>
+            <input id="desktopAttendanceMonth" type="month">
+            <button id="desktopAttendanceNext" class="button ghost" type="button">下个月</button>
+            <button id="desktopAttendanceRefresh" class="button primary" type="button">刷新</button>
+          </div>
+        </header>
+        <section class="work-report-filters panel">
+          <label><span>查看内容</span><select id="desktopAttendanceTab">
+            <option value="summary">考勤汇总</option>
+            <option value="reissue">补卡审核</option>
+          </select></label>
+        </section>
+        <section id="desktopAttendanceStats" class="work-review-stats">
+          <article><span>在职员工</span><strong id="desktopAttendanceCount">0</strong></article>
+          <article><span>出勤合计</span><strong id="desktopAttendanceDays">0</strong></article>
+          <article><span>没上班合计</span><strong id="desktopAttendanceAbsent">0</strong></article>
+          <article><span>加班费合计</span><strong id="desktopAttendanceOvertime">0.00</strong></article>
+        </section>
+        <section id="desktopAttendanceSummaryPanel" class="panel">
+          <div class="table-wrap">
+            <table class="orders-table work-report-table">
+              <thead><tr><th>工号</th><th>姓名</th><th>类型</th><th class="number">出勤</th><th class="number">没上班</th><th class="number">迟到</th><th class="number">早退</th><th class="number">漏刷1次</th><th class="number">加班</th><th class="number">加班费</th><th>操作</th></tr></thead>
+              <tbody id="desktopAttendanceBody"></tbody>
+            </table>
+            <div id="desktopAttendanceEmpty" class="empty-state" hidden><strong>这个月没有考勤数据</strong><span>可以切换月份。</span></div>
+          </div>
+        </section>
+        <section id="desktopAttendanceDetailPanel" class="panel" hidden>
+          <div class="section-head">
+            <div><h2 id="desktopAttendanceDetailTitle">每日明细</h2><p id="desktopAttendanceDetailHint"></p></div>
+            <button id="desktopAttendanceDetailClose" class="button ghost" type="button">关闭</button>
+          </div>
+          <div class="table-wrap">
+            <table class="orders-table work-report-table">
+              <thead><tr><th>日期</th><th>签到</th><th>签退</th><th>状态</th><th class="number">加班</th><th>备注</th></tr></thead>
+              <tbody id="desktopAttendanceDetailBody"></tbody>
+            </table>
+          </div>
+        </section>
+        <section id="desktopAttendanceReissuePanel" class="panel" hidden>
+          <div id="desktopAttendanceReissueList" class="work-review-list"></div>
+          <div id="desktopAttendanceReissueEmpty" class="empty-state" hidden><strong>没有待审核的补卡申请</strong></div>
+        </section>
+      </section>
+
       <section id="mobileView" class="mobile-view mobile-only">
         <header class="mobile-head">
           <div class="mobile-fab-slot">
@@ -459,7 +513,7 @@
               <p class="mobile-fab-title">切换模块</p>
               <button type="button" data-mobile-module="entry" style="--i:1"><b>装车登记</b><small>搜索物料、登记装车</small></button>
               <button type="button" data-mobile-module="workReview" style="--i:2"><b>报工审核</b><small>查看报工并审核</small></button>
-              <button type="button" onclick="location.href='attendance-admin.html'" style="--i:3"><b>考勤管理</b><small>考勤汇总 · 补卡审核</small></button>
+              <button type="button" data-mobile-module="attendance" style="--i:3"><b>考勤管理</b><small>考勤汇总 · 补卡审核</small></button>
             </div>
           </div>
           </div>
@@ -636,6 +690,25 @@
               <button id="mobileWorkReviewRefresh" class="button primary" type="button">刷新</button>
             </div>
             <div id="mobileWorkReviewList" class="mobile-work-review-list"></div>
+          </section>
+        </section>
+
+        <section id="mobileAttendanceModule" class="mobile-work-module" hidden>
+          <div class="mobile-work-review-tools">
+            <label><span>月份</span><input id="mobileAttendanceMonth" type="month"></label>
+            <button id="mobileAttendancePrev" class="button ghost" type="button">上月</button>
+            <button id="mobileAttendanceNext" class="button ghost" type="button">下月</button>
+            <button id="mobileAttendanceRefresh" class="button primary" type="button">刷新</button>
+          </div>
+          <nav class="mobile-work-tabs">
+            <button class="active" data-mobile-attendance-tab="summary" type="button">考勤汇总</button>
+            <button data-mobile-attendance-tab="reissue" type="button">补卡审核</button>
+          </nav>
+          <section id="mobileAttendanceSummaryPanel" class="mobile-panel">
+            <div id="mobileAttendanceList" class="mobile-work-review-list"></div>
+          </section>
+          <section id="mobileAttendanceReissuePanel" class="mobile-panel" hidden>
+            <div id="mobileAttendanceReissueList" class="mobile-work-review-list"></div>
           </section>
         </section>
       </section>

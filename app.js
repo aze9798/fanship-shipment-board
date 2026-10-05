@@ -39,6 +39,10 @@ let workReviewEditing = null;
 let mobileModule = 'entry';
 let desktopModule = 'shipment';
 let desktopView = 'overview';
+let attendanceMonth = '';
+let attendanceData = null;
+let attendanceReissueData = null;
+let mobileAttendanceTab = 'summary';
 let mobileWorkTab = 'report';
 let workReportRows = [];
 let workReportDate = '';
@@ -520,6 +524,37 @@ const els = {
   desktopWorkReviewCount: $('#desktopWorkReviewCount'),
   desktopWorkReviewList: $('#desktopWorkReviewList'),
   desktopWorkReviewEmpty: $('#desktopWorkReviewEmpty'),
+  desktopAttendanceView: $('#desktopAttendanceView'),
+  desktopAttendanceMonth: $('#desktopAttendanceMonth'),
+  desktopAttendancePrev: $('#desktopAttendancePrev'),
+  desktopAttendanceNext: $('#desktopAttendanceNext'),
+  desktopAttendanceRefresh: $('#desktopAttendanceRefresh'),
+  desktopAttendanceTab: $('#desktopAttendanceTab'),
+  desktopAttendanceStats: $('#desktopAttendanceStats'),
+  desktopAttendanceCount: $('#desktopAttendanceCount'),
+  desktopAttendanceDays: $('#desktopAttendanceDays'),
+  desktopAttendanceAbsent: $('#desktopAttendanceAbsent'),
+  desktopAttendanceOvertime: $('#desktopAttendanceOvertime'),
+  desktopAttendanceSummaryPanel: $('#desktopAttendanceSummaryPanel'),
+  desktopAttendanceBody: $('#desktopAttendanceBody'),
+  desktopAttendanceEmpty: $('#desktopAttendanceEmpty'),
+  desktopAttendanceDetailPanel: $('#desktopAttendanceDetailPanel'),
+  desktopAttendanceDetailTitle: $('#desktopAttendanceDetailTitle'),
+  desktopAttendanceDetailHint: $('#desktopAttendanceDetailHint'),
+  desktopAttendanceDetailClose: $('#desktopAttendanceDetailClose'),
+  desktopAttendanceDetailBody: $('#desktopAttendanceDetailBody'),
+  desktopAttendanceReissuePanel: $('#desktopAttendanceReissuePanel'),
+  desktopAttendanceReissueList: $('#desktopAttendanceReissueList'),
+  desktopAttendanceReissueEmpty: $('#desktopAttendanceReissueEmpty'),
+  mobileAttendanceModule: $('#mobileAttendanceModule'),
+  mobileAttendanceMonth: $('#mobileAttendanceMonth'),
+  mobileAttendancePrev: $('#mobileAttendancePrev'),
+  mobileAttendanceNext: $('#mobileAttendanceNext'),
+  mobileAttendanceRefresh: $('#mobileAttendanceRefresh'),
+  mobileAttendanceSummaryPanel: $('#mobileAttendanceSummaryPanel'),
+  mobileAttendanceList: $('#mobileAttendanceList'),
+  mobileAttendanceReissuePanel: $('#mobileAttendanceReissuePanel'),
+  mobileAttendanceReissueList: $('#mobileAttendanceReissueList'),
   desktopLoadingView: $('#desktopLoadingView'),
   desktopLoadingSearch: $('#desktopLoadingSearch'),
   desktopLoadingDue: $('#desktopLoadingDue'),
@@ -2338,9 +2373,13 @@ function switchMobileWorkTab(tab) {
   else loadWorkReviews().catch(() => {});
 }
 function setDesktopModule(module, view = '') {
-  desktopModule = boardRole === 'admin' && module === 'work' ? 'work' : 'shipment';
+  desktopModule = boardRole === 'admin' && (module === 'work' || module === 'attendance') ? module : 'shipment';
   document.querySelectorAll('[data-module]').forEach((link) => {
-    const allowed = desktopModule === 'shipment' ? link.dataset.module === 'shipment' : link.dataset.module === 'work';
+    const allowed = desktopModule === 'shipment'
+      ? link.dataset.module === 'shipment'
+      : desktopModule === 'attendance'
+        ? link.dataset.module === 'attendance'
+        : link.dataset.module === 'work';
     link.hidden = !allowed;
   });
   if (els.moduleSwitchButton) {
@@ -2350,12 +2389,15 @@ function setDesktopModule(module, view = '') {
     els.moduleSwitchButton.setAttribute('aria-label', boardRole === 'admin' ? '切换模块' : '帆顺科技');
   }
   if (els.moduleSwitchLabel) {
-    els.moduleSwitchLabel.textContent = desktopModule === 'work'
-      ? (String(view || '').includes('Review') || (!view && String(desktopView).includes('Review')) ? '报工审核' : '报工情况')
-      : '装车登记';
+    els.moduleSwitchLabel.textContent = desktopModule === 'attendance'
+      ? '考勤管理'
+      : desktopModule === 'work'
+        ? (String(view || '').includes('Review') || (!view && String(desktopView).includes('Review')) ? '报工审核' : '报工情况')
+        : '装车登记';
   }
-  if (desktopModule === 'work') showDesktopView(view || 'workReport');
-  else showDesktopView(view || (desktopView && !String(desktopView).startsWith('work') ? desktopView : 'overview'));
+  if (desktopModule === 'attendance') showDesktopView(view || 'attendance');
+  else if (desktopModule === 'work') showDesktopView(view || 'workReport');
+  else showDesktopView(view || (desktopView && !String(desktopView).startsWith('work') && desktopView !== 'attendance' ? desktopView : 'overview'));
   refreshElasticTabs();
 }
 // 报工审核：电脑端和手机端共用同一套数据和接口
@@ -2485,9 +2527,109 @@ async function submitWorkReview(action) {
     buttons.forEach((button) => { button.disabled = false; });
   }
 }
+// 考勤管理：电脑端和手机端共用
+const ATTENDANCE_STATUS_TEXT = { normal:'正常', late:'迟到', early_leave:'早退', missing_once:'漏刷1次', absent:'没上班', manual:'人工判定', leave:'请假', reissued:'已补卡' };
+const ATTENDANCE_TYPE_TEXT = { hourly_piece:'计时计件', daily:'固定日薪', monthly:'固定月薪', management:'管理' };
+function attendancePrevMonth() { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+function attendanceBounds(m) { const [y, mm] = String(m).split('-').map(Number); const last = new Date(y, mm, 0).getDate(); return { from: `${m}-01`, to: `${m}-${String(last).padStart(2,'0')}` }; }
+function attendanceMoney(v) { return Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits:2, maximumFractionDigits:2 }); }
+function attendanceHours(minutes) { return Math.round(Number(minutes || 0) / 60 * 10) / 10; }
+async function attendanceRpc(name, payload) {
+  const result = await callRpc(name, payload);
+  if (!result.response.ok) throw new Error(result.data?.error || '请求失败');
+  return result.data;
+}
+function applyAttendanceTab() {
+  const reissue = els.desktopAttendanceTab && els.desktopAttendanceTab.value === 'reissue';
+  if (els.desktopAttendanceStats) els.desktopAttendanceStats.hidden = reissue;
+  if (els.desktopAttendanceSummaryPanel) els.desktopAttendanceSummaryPanel.hidden = reissue;
+  if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = true;
+  if (els.desktopAttendanceReissuePanel) els.desktopAttendanceReissuePanel.hidden = !reissue;
+}
+async function loadAttendance() {
+  if (boardRole !== 'admin' || !RPC_BASE) return;
+  if (!attendanceMonth) {
+    attendanceMonth = attendancePrevMonth();
+    if (els.desktopAttendanceMonth) els.desktopAttendanceMonth.value = attendanceMonth;
+    if (els.mobileAttendanceMonth) els.mobileAttendanceMonth.value = attendanceMonth;
+  }
+  await Promise.all([loadAttendanceSummary(), loadAttendanceReissues()]);
+  applyAttendanceTab();
+}
+function attendanceShiftMonth(delta) {
+  const [y, m] = (attendanceMonth || attendancePrevMonth()).split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  attendanceMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  if (els.desktopAttendanceMonth) els.desktopAttendanceMonth.value = attendanceMonth;
+  if (els.mobileAttendanceMonth) els.mobileAttendanceMonth.value = attendanceMonth;
+  loadAttendance().catch(() => {});
+}
+async function loadAttendanceSummary() {
+  const { from, to } = attendanceBounds(attendanceMonth);
+  const data = await attendanceRpc('board_attendance_summary', { p_code:getAccessCode(), p_from:from, p_to:to });
+  attendanceData = data.summary || [];
+  renderAttendanceSummary();
+}
+function renderAttendanceSummary() {
+  const rows = attendanceData || [];
+  const sum = (key) => rows.reduce((s, r) => s + Number(r[key] || 0), 0);
+  if (els.desktopAttendanceCount) els.desktopAttendanceCount.textContent = rows.length;
+  if (els.desktopAttendanceDays) els.desktopAttendanceDays.textContent = sum('attendanceDays');
+  if (els.desktopAttendanceAbsent) els.desktopAttendanceAbsent.textContent = sum('absentDays');
+  if (els.desktopAttendanceOvertime) els.desktopAttendanceOvertime.textContent = attendanceMoney(sum('overtimeAmount'));
+  if (els.desktopAttendanceBody) {
+    els.desktopAttendanceBody.innerHTML = rows.map((r) => `<tr><td>${escapeHtml(r.employeeNo)}</td><td><strong>${escapeHtml(r.employeeName)}</strong></td><td>${escapeHtml(ATTENDANCE_TYPE_TEXT[r.salaryType] || r.salaryType)}</td><td class="number">${fmt(r.attendanceDays)}</td><td class="number">${fmt(r.absentDays)}</td><td class="number">${fmt(r.lateDays)}</td><td class="number">${fmt(r.earlyDays)}</td><td class="number">${fmt(r.missingOnceDays)}</td><td class="number">${fmt(r.overtimeDays)} 天</td><td class="number">${attendanceMoney(r.overtimeAmount)}</td><td><button type="button" class="button ghost" data-att-detail="${escapeHtml(r.employeeNo)}">明细</button></td></tr>`).join('');
+    els.desktopAttendanceBody.querySelectorAll('[data-att-detail]').forEach((b) => b.addEventListener('click', () => loadAttendanceDetail(b.dataset.attDetail).catch(() => {})));
+  }
+  if (els.desktopAttendanceEmpty) els.desktopAttendanceEmpty.hidden = rows.length > 0;
+  if (els.mobileAttendanceList) {
+    els.mobileAttendanceList.innerHTML = rows.length ? rows.map((r) => `<article class="mobile-review-card"><div><span class="work-review-badge">${escapeHtml(ATTENDANCE_TYPE_TEXT[r.salaryType] || r.salaryType)}</span></div><h3>${escapeHtml(r.employeeNo)} ${escapeHtml(r.employeeName)}</h3><p>出勤 ${fmt(r.attendanceDays)} 天 · 没上班 ${fmt(r.absentDays)} 天</p><p>迟到 ${fmt(r.lateDays)} · 早退 ${fmt(r.earlyDays)} · 漏刷1次 ${fmt(r.missingOnceDays)}</p><p class="review-money">加班 ${fmt(r.overtimeDays)} 天 · 加班费 ${attendanceMoney(r.overtimeAmount)} 元</p></article>`).join('') : '<div class="empty-state"><strong>这个月没有考勤数据</strong></div>';
+  }
+}
+async function loadAttendanceDetail(empNo) {
+  const { from, to } = attendanceBounds(attendanceMonth);
+  const data = await attendanceRpc('board_attendance_days', { p_code:getAccessCode(), p_from:from, p_to:to, p_employee_no:empNo });
+  const days = data.days || [];
+  if (els.desktopAttendanceDetailTitle) els.desktopAttendanceDetailTitle.textContent = `${empNo} ${days[0]?.employeeName || ''} · ${attendanceMonth} 每日明细`;
+  if (els.desktopAttendanceDetailHint) els.desktopAttendanceDetailHint.textContent = `共 ${days.length} 天`;
+  if (els.desktopAttendanceDetailBody) els.desktopAttendanceDetailBody.innerHTML = days.map((d) => `<tr><td>${escapeHtml(d.workDate)}</td><td>${escapeHtml(d.checkInRaw || d.checkIn || '')}</td><td>${escapeHtml(d.checkOutRaw || d.checkOut || '')}</td><td><span class="review-status ${escapeHtml(d.status)}">${escapeHtml(ATTENDANCE_STATUS_TEXT[d.status] || d.status)}</span></td><td class="number">${Number(d.overtimeMinutes || 0) > 0 ? attendanceHours(d.overtimeMinutes) + ' h' : ''}</td><td>${escapeHtml(d.note || '')}</td></tr>`).join('');
+  if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = false;
+}
+async function loadAttendanceReissues() {
+  const data = await attendanceRpc('board_reissue_requests', { p_code:getAccessCode(), p_status:'submitted' });
+  const rows = data.requests || [];
+  attendanceReissueData = rows;
+  if (els.desktopAttendanceReissueList) {
+    els.desktopAttendanceReissueList.innerHTML = rows.map((r) => `<article class="work-review-card"><div><span class="work-review-badge">补卡</span><span class="review-status submitted">待审核</span><h3>${escapeHtml(r.employeeNo)} ${escapeHtml(r.employeeName)} · ${escapeHtml(r.workDate)}</h3><p>${r.slot === 'check_in' ? '签到' : '签退'} · ${escapeHtml(String(r.reissueTime || '').slice(0,5))}</p><p>原因：${escapeHtml(r.reason || '')}</p></div><div><button type="button" class="button primary" data-reissue-approve="${escapeHtml(r.id)}">通过</button> <button type="button" class="button ghost" data-reissue-reject="${escapeHtml(r.id)}">退回</button></div></article>`).join('');
+    els.desktopAttendanceReissueList.querySelectorAll('[data-reissue-approve]').forEach((b) => b.addEventListener('click', () => reviewAttendanceReissue(b.dataset.reissueApprove, true)));
+    els.desktopAttendanceReissueList.querySelectorAll('[data-reissue-reject]').forEach((b) => b.addEventListener('click', () => reviewAttendanceReissue(b.dataset.reissueReject, false)));
+  }
+  if (els.desktopAttendanceReissueEmpty) els.desktopAttendanceReissueEmpty.hidden = rows.length > 0;
+  if (els.mobileAttendanceReissueList) {
+    els.mobileAttendanceReissueList.innerHTML = rows.length ? rows.map((r) => `<article class="mobile-review-card"><div><span class="review-status submitted">待审核</span></div><h3>${escapeHtml(r.employeeNo)} ${escapeHtml(r.employeeName)} · ${escapeHtml(r.workDate)}</h3><p>${r.slot === 'check_in' ? '签到' : '签退'} · ${escapeHtml(String(r.reissueTime || '').slice(0,5))}</p><p>原因：${escapeHtml(r.reason || '')}</p><div class="mobile-reissue-actions"><button type="button" class="button primary" data-mobi-approve="${escapeHtml(r.id)}">通过</button><button type="button" class="button ghost" data-mobi-reject="${escapeHtml(r.id)}">退回</button></div></article>`).join('') : '<div class="empty-state"><strong>没有待审核的补卡申请</strong></div>';
+    els.mobileAttendanceReissueList.querySelectorAll('[data-mobi-approve]').forEach((b) => b.addEventListener('click', () => reviewAttendanceReissue(b.dataset.mobiApprove, true)));
+    els.mobileAttendanceReissueList.querySelectorAll('[data-mobi-reject]').forEach((b) => b.addEventListener('click', () => reviewAttendanceReissue(b.dataset.mobiReject, false)));
+  }
+}
+async function reviewAttendanceReissue(id, approve) {
+  let note = '';
+  if (!approve) { note = prompt('退回原因：') || ''; if (!note) return; }
+  try {
+    await attendanceRpc('board_review_reissue', { p_code:getAccessCode(), p_id:id, p_approve:approve, p_note:note });
+    showToast(approve ? '补卡已通过' : '补卡已退回');
+    await loadAttendance();
+  } catch (error) { showToast(error.message || '操作失败'); }
+}
+function switchMobileAttendanceTab(tab) {
+  mobileAttendanceTab = tab === 'reissue' ? 'reissue' : 'summary';
+  document.querySelectorAll('[data-mobile-attendance-tab]').forEach((b) => b.classList.toggle('active', b.dataset.mobileAttendanceTab === mobileAttendanceTab));
+  if (els.mobileAttendanceSummaryPanel) els.mobileAttendanceSummaryPanel.hidden = mobileAttendanceTab !== 'summary';
+  if (els.mobileAttendanceReissuePanel) els.mobileAttendanceReissuePanel.hidden = mobileAttendanceTab !== 'reissue';
+}
 function renderMobileModule() {
   const isAdmin = boardRole === 'admin';
   const workMode = isAdmin && mobileModule === 'workReview';
+  const attendanceMode = isAdmin && mobileModule === 'attendance';
   if (els.mobileModuleSwitch) {
     els.mobileModuleSwitch.classList.toggle('disabled', !isAdmin);
     els.mobileModuleSwitch.setAttribute('aria-disabled', String(!isAdmin));
@@ -2495,14 +2637,18 @@ function renderMobileModule() {
   const title = document.getElementById('mobileBrandTitle');
   if (title) title.textContent = `帆顺科技${isAdmin ? '（管理员）' : ''}`;
   const moduleLabel = document.getElementById('mobileBrandModule');
-  if (moduleLabel) moduleLabel.textContent = workMode ? '报工审核' : '装车登记';
+  if (moduleLabel) moduleLabel.textContent = attendanceMode ? '考勤管理' : (workMode ? '报工审核' : '装车登记');
   const summary = document.querySelector('.mobile-summary');
   const tabs = document.querySelector('.mobile-tabs');
-  if (summary) summary.hidden = workMode;
-  if (tabs) tabs.hidden = workMode;
+  if (summary) summary.hidden = workMode || attendanceMode;
+  if (tabs) tabs.hidden = workMode || attendanceMode;
   if (els.mobileWorkModule) els.mobileWorkModule.hidden = !workMode;
-  if (els.mobileCartBar) els.mobileCartBar.hidden = workMode || ![...selected.values()].some((value) => Number(value) > 0);
-  if (workMode) {
+  if (els.mobileAttendanceModule) els.mobileAttendanceModule.hidden = !attendanceMode;
+  if (els.mobileCartBar) els.mobileCartBar.hidden = workMode || attendanceMode || ![...selected.values()].some((value) => Number(value) > 0);
+  if (attendanceMode) {
+    [els.mobileEntryPanel, els.mobileRemainingPanel, els.mobileRecordsPanel, els.mobileFilesPanel].forEach((panel) => { if (panel) panel.hidden = true; });
+    switchMobileAttendanceTab(mobileAttendanceTab);
+  } else if (workMode) {
     [els.mobileEntryPanel, els.mobileRemainingPanel, els.mobileRecordsPanel, els.mobileFilesPanel].forEach((panel) => { if (panel) panel.hidden = true; });
     switchMobileWorkTab(mobileWorkTab);
   } else {
@@ -2511,21 +2657,24 @@ function renderMobileModule() {
   }
 }
 function switchMobileModule(module) {
-  if (module === 'workReview' && boardRole !== 'admin') { showToast('报工审核只对管理员开放'); return; }
-  mobileModule = module === 'workReview' ? 'workReview' : 'entry';
+  if ((module === 'workReview' || module === 'attendance') && boardRole !== 'admin') { showToast('只对管理员开放'); return; }
+  mobileModule = (module === 'workReview' || module === 'attendance') ? module : 'entry';
   closeMobileModuleSheet();
   if (mobileModule === 'workReview') {
     renderMobileModule();
+  } else if (mobileModule === 'attendance') {
+    renderMobileModule();
   } else {
     if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = true;
+    if (els.mobileAttendanceModule) els.mobileAttendanceModule.hidden = true;
     switchMobileTab('entry');
   }
   renderMobileModule();
 }
 // 电脑端两个页面：实时总览 / 发货记录
 function showDesktopView(name) {
-  if (name === 'workReview' && boardRole !== 'admin') {
-    showToast('报工审核只对管理员开放');
+  if ((name === 'workReview' || name === 'attendance') && boardRole !== 'admin') {
+    showToast('只对管理员开放');
     name = 'overview';
   }
   const pages = {
@@ -2537,6 +2686,7 @@ function showDesktopView(name) {
     loading: document.getElementById('desktopLoadingView'),
     workReport: document.getElementById('desktopWorkReportView'),
     workReview: document.getElementById('desktopWorkReviewView'),
+    attendance: document.getElementById('desktopAttendanceView'),
   };
   if (!pages.overview || !pages.shipments) return;
   const target = pages[name] ? name : 'overview';
@@ -2554,6 +2704,7 @@ function showDesktopView(name) {
   if (target === 'loading') renderDesktopLoading();
   if (target === 'workReport') loadWorkReport().catch(() => {});
   if (target === 'workReview') loadWorkReviews().catch(() => {});
+  if (target === 'attendance') loadAttendance().catch(() => {});
   window.scrollTo({ top: 0 });
   refreshElasticTabs();
 }
@@ -5530,6 +5681,7 @@ if (els.moduleSwitchSheet) {
     const target = button.dataset.desktopModule;
     closeDesktopModuleSheet();
     if (target === 'shipment') setDesktopModule('shipment', 'overview');
+    else if (target === 'attendance') setDesktopModule('attendance', 'attendance');
     else setDesktopModule('work', target === 'workReview' ? 'workReview' : 'workReport');
   });
 }
@@ -5544,6 +5696,18 @@ document.addEventListener('keydown', (event) => {
   closeMobileModuleSheet();
 });
 if (els.desktopWorkReportDate) els.desktopWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReport(); });
+if (els.desktopAttendanceRefresh) els.desktopAttendanceRefresh.addEventListener('click', () => loadAttendance().catch(() => {}));
+if (els.mobileAttendanceRefresh) els.mobileAttendanceRefresh.addEventListener('click', () => loadAttendance().catch(() => {}));
+if (els.desktopAttendanceMonth) els.desktopAttendanceMonth.addEventListener('change', () => { attendanceMonth = els.desktopAttendanceMonth.value || attendancePrevMonth(); loadAttendance().catch(() => {}); });
+if (els.mobileAttendanceMonth) els.mobileAttendanceMonth.addEventListener('change', () => { attendanceMonth = els.mobileAttendanceMonth.value || attendancePrevMonth(); loadAttendance().catch(() => {}); });
+if (els.desktopAttendancePrev) els.desktopAttendancePrev.addEventListener('click', () => attendanceShiftMonth(-1));
+if (els.desktopAttendanceNext) els.desktopAttendanceNext.addEventListener('click', () => attendanceShiftMonth(1));
+if (els.mobileAttendancePrev) els.mobileAttendancePrev.addEventListener('click', () => attendanceShiftMonth(-1));
+if (els.mobileAttendanceNext) els.mobileAttendanceNext.addEventListener('click', () => attendanceShiftMonth(1));
+if (els.desktopAttendanceDetailClose) els.desktopAttendanceDetailClose.addEventListener('click', () => { if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = true; });
+if (els.desktopAttendanceTab) els.desktopAttendanceTab.addEventListener('change', applyAttendanceTab);
+document.querySelectorAll('[data-mobile-attendance-tab]').forEach((b) => b.addEventListener('click', () => { switchMobileAttendanceTab(b.dataset.mobileAttendanceTab); if (mobileAttendanceTab === 'reissue') loadAttendanceReissues().catch(() => {}); }));
+
 if (els.mobileWorkReportDate) els.mobileWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReport(); });
 if (els.desktopWorkReportEmployee) els.desktopWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; loadWorkReport(); });
 if (els.mobileWorkReportEmployee) els.mobileWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; loadWorkReport(); });

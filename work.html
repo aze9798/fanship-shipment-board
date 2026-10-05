@@ -1006,7 +1006,7 @@ function renderPiece() {
     const isPiece = !profile || profile.salaryType === 'hourly_piece';
     document.querySelectorAll('[data-piece-tab]').forEach((el) => el.classList.toggle('hidden', !isPiece));
     const monthInput = $('attendanceMonth');
-    if (monthInput && !monthInput.value) monthInput.value = currentMonth();
+    if (monthInput && !monthInput.value) monthInput.value = previousMonth();
     const payrollInput = $('payrollMonth');
     if (payrollInput && !payrollInput.value) payrollInput.value = previousMonth();
     if (!isPiece) {
