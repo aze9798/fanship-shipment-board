@@ -5241,6 +5241,9 @@ if (els.desktopLoadingSearch) els.desktopLoadingSearch.addEventListener('input',
 if (els.desktopLoadingDue) els.desktopLoadingDue.addEventListener('change', (event) => {
   desktopLoadingDue = event.target.value;
   if (els.desktopLoadingDueRow) els.desktopLoadingDueRow.hidden = desktopLoadingDue !== 'custom';
+  // 选了「指定日期…」时筛选行多一列放日期框，避免日期框溢出到下面被卡片挡住
+  const loadingTools = els.desktopLoadingDue.closest('.desktop-loading-tools');
+  if (loadingTools) loadingTools.classList.toggle('has-due-date', desktopLoadingDue === 'custom');
   renderDesktopLoading();
 });
 if (els.desktopLoadingDueDate) els.desktopLoadingDueDate.addEventListener('change', (event) => { desktopLoadingDueDate = event.target.value; renderDesktopLoading(); });
