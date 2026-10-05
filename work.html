@@ -589,6 +589,12 @@ async function loadProductProcesses(productId) {
     if (token !== productProcessToken) return;
     toast(e.message || '工序匹配失败');
   }
+  // 折弯工：只要本人有折弯权限，搜索任何产品都自动补上折弯；1-4刀和自填仍由前端规格弹窗提供
+  const bendingProcess = (state?.processes || []).find((process) => process.name === '折弯' && process.id);
+  if (bendingProcess && !productProcessMap.has(bendingProcess.id)) {
+    productProcessMap.set(bendingProcess.id, { id:bendingProcess.id, name:'折弯', variants:[] });
+    matchedVariantMap.set(bendingProcess.id, []);
+  }
   const allowed = (state?.processes || []).filter((process) => productProcessMap.has(process.id));
   selectedProcessId = '';
   selectedVariant = null;
