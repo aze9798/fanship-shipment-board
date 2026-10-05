@@ -171,6 +171,8 @@
     .att-tag.missing_once{background:#fff8e1;color:#8a6b22}
     .att-tag.absent{background:#fff1f0;color:#b42318}
     .att-tag.manual{background:#e8f0ff;color:#3b5bdb}
+    .att-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+    .att-reissue{border:1px solid #b9ddd7;background:#fff;color:var(--primary);border-radius:9px;padding:5px 10px;font-size:11px;font-weight:800}
   </style>
 </head><body>
 <div class="page">
@@ -281,6 +283,16 @@
   <div class="modal-actions"><button id="qtyModalCancel" type="button">取消</button><button id="qtyModalSave" class="primary" type="button">保存</button></div>
 </div></div>
 <div id="revokeModal" class="modal-backdrop hidden"><div class="modal-card"><h3>确定撤回这条计件吗？</h3><p>撤回后不会参与工资统计，记录会保留为“已撤回”。</p><div class="modal-actions"><button id="revokeCancel" type="button">取消</button><button id="revokeConfirm" class="danger" type="button">确认撤回</button></div></div></div>
+<div id="reissueModal" class="modal-backdrop hidden">
+  <div class="modal-card">
+    <div class="modal-head"><h3>补卡申请</h3><button id="reissueClose" class="icon-button" type="button" aria-label="关闭">×</button></div>
+    <p id="reissueInfo" class="qty-info"></p>
+    <label class="field"><span>补卡时间</span><input id="reissueTime" type="time"></label>
+    <label class="field"><span>补卡原因</span><input id="reissueReason" type="text" placeholder="请说明为什么漏刷"></label>
+    <div id="reissueError" class="error hidden"></div>
+    <div class="modal-actions"><button id="reissueCancel" type="button">取消</button><button id="reissueSubmit" class="primary" type="button">提交补卡</button></div>
+  </div>
+</div>
 <div id="variantModal" class="modal-backdrop hidden">
   <div class="modal-card variant-modal-card">
     <div class="modal-head"><div><p class="eyebrow">请选择规格</p><h3 id="variantModalTitle">选择规格</h3></div><button id="variantModalClose" class="icon-button" type="button" aria-label="关闭">×</button></div>
@@ -1009,8 +1021,45 @@ function renderPiece() {
       const tag = ATT_STATUS[d.status] || d.status || '--';
       const times = [d.checkInRaw || d.checkIn || '', d.checkOutRaw || d.checkOut || ''].filter(Boolean).join(' / ') || '无打卡';
       const extra = n(d.overtimeMinutes) > 0 ? ` · 加班 ${Math.round(n(d.overtimeMinutes) / 60 * 10) / 10}h` : '';
-      return `<div class="att-row"><div><div class="att-date">${esc(String(d.workDate || '').slice(5))}</div><div class="att-times">${esc(times)}${esc(extra)}</div></div><span class="att-tag ${esc(d.status || '')}">${esc(tag)}</span></div>`;
+      let action = '';
+      if (n(d.missingCount) === 1) {
+        if (d.reissueStatus === 'submitted') action = '<span class="att-tag manual">补卡待审核</span>';
+        else if (d.reissueStatus === 'approved' || d.status === 'reissued') action = '<span class="att-tag normal">已补卡</span>';
+        else if (d.reissueStatus === 'rejected') action = `<button class="att-reissue" type="button" data-reissue="${esc(d.workDate)}">重新补卡</button>`;
+        else action = `<button class="att-reissue" type="button" data-reissue="${esc(d.workDate)}">补卡申请</button>`;
+      }
+      return `<div class="att-row"><div><div class="att-date">${esc(String(d.workDate || '').slice(5))}</div><div class="att-times">${esc(times)}${esc(extra)}</div></div><div class="att-right"><span class="att-tag ${esc(d.status || '')}">${esc(tag)}</span>${action}</div></div>`;
     }).join('') : '<div class="d-empty">这个月还没有考勤记录</div>';
+  }
+  let reissueDay = null;
+  function openReissueModal(workDate) {
+    const day = (attendanceData?.days || []).find((d) => d.workDate === workDate);
+    if (!day) return;
+    reissueDay = day;
+    const slot = !day.checkIn ? 'check_in' : 'check_out';
+    const slotText = slot === 'check_in' ? '签到' : '签退';
+    $('reissueInfo').textContent = `${workDate} · 漏刷${slotText}，请填写补卡时间和原因`;
+    $('reissueTime').value = slot === 'check_in' ? '07:30' : '17:00';
+    $('reissueReason').value = '';
+    show($('reissueError'), false);
+    show($('reissueModal'), true);
+  }
+  function closeReissueModal() { show($('reissueModal'), false); reissueDay = null; }
+  async function submitReissue() {
+    if (!reissueDay) return;
+    const slot = !reissueDay.checkIn ? 'check_in' : 'check_out';
+    const time = $('reissueTime').value;
+    const reason = $('reissueReason').value.trim();
+    if (!time) { show($('reissueError'), true); $('reissueError').textContent = '请填写补卡时间'; return; }
+    if (!reason) { show($('reissueError'), true); $('reissueError').textContent = '请填写补卡原因'; return; }
+    const btn = $('reissueSubmit'); btn.disabled = true;
+    try {
+      await rpc('work_submit_reissue', { p_code:code, p_date:reissueDay.workDate, p_slot:slot, p_time:time, p_reason:reason });
+      closeReissueModal();
+      toast('补卡申请已提交，等待管理员审核');
+      await loadMyAttendance();
+    } catch (e) { show($('reissueError'), true); $('reissueError').textContent = e.message || '提交失败'; }
+    finally { btn.disabled = false; }
   }
   let pendingSpecialEntry = '';
   let specialPreviewReady = false;
@@ -1621,6 +1670,13 @@ function variantDisplay(processName, value) {
   $('clockAction').addEventListener('click', clockAction);
   if ($('attendanceRefresh')) $('attendanceRefresh').addEventListener('click', () => loadMyAttendance().catch(() => {}));
   if ($('attendanceMonth')) $('attendanceMonth').addEventListener('change', () => loadMyAttendance().catch(() => {}));
+  if ($('reissueClose')) $('reissueClose').addEventListener('click', closeReissueModal);
+  if ($('reissueCancel')) $('reissueCancel').addEventListener('click', closeReissueModal);
+  if ($('reissueSubmit')) $('reissueSubmit').addEventListener('click', submitReissue);
+  if ($('attendanceList')) $('attendanceList').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-reissue]');
+    if (btn) openReissueModal(btn.dataset.reissue);
+  });
   if ($('specialTimeConfirm')) $('specialTimeConfirm').addEventListener('click', confirmSpecialTime);
   if ($('specialTimeOvertime')) $('specialTimeOvertime').addEventListener('change', () => { specialPreviewReady = false; show($('specialTimePreview'), false); updateSpecialConfirmAction(); });
   document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
