@@ -190,7 +190,8 @@ window.ATT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
     if (pane === 'reissue') loadReissue().catch(() => {});
   }));
   let stored = ''; try { stored = localStorage.getItem(STORAGE) || ''; } catch {}
-  if (stored) login(stored); else show($('loginView'), true);
+  const urlCode = new URLSearchParams(location.search).get('code') || '';
+  if (urlCode || stored) login(urlCode || stored); else show($('loginView'), true);
 })();
 </script>
 </body>
