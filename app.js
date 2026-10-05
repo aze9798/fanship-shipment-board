@@ -3566,12 +3566,14 @@ function orderCard(order) {
           <strong>${escapeHtml(order.name)}</strong>${(() => { const t = ({ trial: '试制', sample: '承样', tooling: '工装' })[order.orderType]; return t ? `<span class="order-type-tag">${t}</span>` : ''; })()}
           <span class="mono">${escapeHtml(order.material)} · ${escapeHtml(order.spec)}${(() => { const d = drawingFor(order); return d ? ' ' + drawingLinkHtml(d) : ''; })()}</span>
           <span>${escapeHtml(order.po)} · 项次 ${escapeHtml(order.seq)}</span>
-          ${boardRole === 'admin' ? `<button type="button" class="order-edit-link mobile" data-edit-order="${escapeHtml(order.id)}">变更数量 / 交期</button>` : ''}
         </div>
         <span class="due-badge ${badge.className}">${escapeHtml(badge.text)}</span>
       </div>
-      ${(() => { const info = materialSummary(order); return info.count > 1
-        ? `<div class="material-total">同料号共 ${info.count} 单 · 未交合计 <b>${fmt(info.total)}</b></div>` : ''; })()}
+      <div class="card-actions">
+        ${boardRole === 'admin' ? `<button type="button" class="order-edit-link mobile" data-edit-order="${escapeHtml(order.id)}">变更数量 / 交期</button>` : ''}
+        ${(() => { const info = materialSummary(order); return info.count > 1
+          ? `<div class="material-total">同料号共 ${info.count} 单 · 未交合计 <b>${fmt(info.total)}</b></div>` : ''; })()}
+      </div>
       ${overDeliveryFor(order.material).length ? `<div class="material-total over">该料号已有无订单发货 <b>${fmt(overDeliveryFor(order.material).reduce((sum, row) => sum + Number(row.remaining || 0), 0))}</b> 件待冲抵</div>` : ''}
       <div class="order-numbers">
         <div class="order-number"><span>计划未交</span><strong>${fmt(order.openingRemaining)}</strong></div>

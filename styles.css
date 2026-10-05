@@ -214,8 +214,7 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 .empty-state span { font-size: 11px; }
 .activity-panel { position: sticky; top: 17px; max-height: calc(100vh - 60px); overflow: hidden; }
 .shipment-history { max-height: calc(100vh - 235px); overflow-y: auto; padding: 0 15px 16px; }
-/* 装车登记卡片：「同料号共 N 单」跟在「变更数量 / 交期」下面（留一点间距，不贴在一起），
-   字号和「变更数量 / 交期」按钮保持一致，避免同一行里数字比文字大一号 */
+/* 「同料号共 N 单」条（默认样式：单独一行时用，无订单发货提示也复用它） */
 .material-total {
   margin: 8px 0 0;
   padding: 5px 8px;
@@ -227,6 +226,33 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 }
 
 .material-total b { font-size: 11px; }
+
+/* 装车登记卡片：「变更数量 / 交期」和「同料号共 N 单」并排一行，
+   两个框的尺寸和样式（内边距/圆角/描边/底色/字号/字重）完全一致 */
+.card-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.card-actions .order-edit-link.mobile {
+  margin: 0;
+  line-height: 1.25;
+}
+.card-actions .material-total {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 5px 10px;
+  border: 1px solid #b9dcd6;
+  border-radius: 7px;
+  background: #eefaf8;
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+}
 
 .material-total-tag {
   display: block;
@@ -632,9 +658,9 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .order-title span { display: block; margin-top: 4px; color: #7f9096; font-size: 10px; line-height: 1.45; }
 .order-numbers { margin-top: 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .order-number { min-width: 0; padding: 9px 8px; border-radius: 10px; background: #f6f8f8; }
-.order-number span { display: block; color: #8b999e; font-size: 9px; }
-.order-number strong { display: block; margin-top: 4px; font-size: 14px; font-variant-numeric: tabular-nums; }
-.order-number.remaining strong { color: var(--primary); }
+.order-number span { display: block; color: #000; font-size: 11px; font-weight: 700; }
+.order-number strong { display: block; margin-top: 4px; color: #000; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.order-number.remaining strong { color: #000; }
 .entry-row { margin-top: 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
 .qty-stepper { height: 42px; display: grid; grid-template-columns: 42px minmax(0, 1fr) 42px; border: 1px solid #dbe5e6; border-radius: 11px; overflow: hidden; background: #fff; }
 .qty-stepper button { border: 0; color: #465d64; background: #f5f8f8; font-size: 19px; }
@@ -1886,8 +1912,6 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .desktop-loading-card-list .order-card{padding:15px;box-shadow:0 5px 16px rgba(36,56,62,.055)}
 .desktop-loading-card-list .order-title strong{font-size:15px}
 .desktop-loading-card-list .order-title span{font-size:11px}
-.desktop-loading-card-list .order-edit-link.mobile{margin:8px 0 0}
-.desktop-loading-card-list .material-total{margin-top:8px}
 .desktop-loading-more{grid-column:1/-1}
 .desktop-loading-cart{display:grid;gap:8px;max-height:390px;overflow:auto;margin:10px 0 12px}
 .loading-cart-line{display:grid;grid-template-columns:1fr auto;gap:8px;padding:9px 10px;border-radius:10px;background:#f6faf9;border:1px solid #e4efed}
