@@ -3610,9 +3610,9 @@ function orderCard(order) {
       </div>
       ${overDeliveryFor(order.material).length ? `<div class="material-total over">该料号已有无订单发货 <b>${fmt(overDeliveryFor(order.material).reduce((sum, row) => sum + Number(row.remaining || 0), 0))}</b> 件待冲抵</div>` : ''}
       <div class="order-numbers">
-        <div class="order-number"><span>计划未交</span><strong>${fmt(order.openingRemaining)}</strong></div>
-        <div class="order-number"><span>已录发货</span><strong>${fmt(order.shipped)}</strong></div>
-        <div class="order-number remaining"><span>当前剩余</span><strong>${fmt(order.remaining)}</strong></div>
+        <div class="order-number"><span>订单总数</span><strong>${fmt(order.openingRemaining)}</strong></div>
+        <div class="order-number"><span>已发货</span><strong>${fmt(order.shipped)}</strong></div>
+        <div class="order-number remaining"><span>剩余未交</span><strong>${fmt(order.remaining)}</strong></div>
       </div>
       <div class="entry-row">
         <div class="qty-stepper">
