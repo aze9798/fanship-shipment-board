@@ -706,7 +706,6 @@ function renderPiece() {
       <div class="salary-line"><div class="salary-line-main"><span>本月计时工时</span><strong>${Number(data.timerHours || 0).toFixed(2)} 小时</strong></div></div>
       <div class="salary-line"><div class="salary-line-main"><span>计时时薪</span><strong>${rateText}元/小时</strong></div></div>
       <div class="salary-line"><div class="salary-line-main"><span>本月计时工资</span><strong>${fmtMoney(data.timerPay)} 元</strong></div></div>
-      <div class="salary-line"><div class="salary-line-main"><span>本月计件工时（核对用）</span><strong>${Number(data.pieceHours || 0).toFixed(2)} 小时</strong></div></div>
       <div class="salary-line"><div class="salary-line-main"><span>本月已审核计件</span><strong>${monthApprovedCount} 笔 · ${monthApprovedQty} 件</strong></div></div>
       <div class="salary-line"><div class="salary-line-main"><span>本月计件工资</span><strong>${fmtMoney(data.piecePay)} 元</strong></div></div>
       <div class="salary-line"><div class="salary-line-main"><span>本月工资合计</span><strong>${fmtMoney(data.totalPay)} 元</strong></div></div>
