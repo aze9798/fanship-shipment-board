@@ -798,8 +798,9 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .meta-line .quantity-value { color: var(--primary); font-size: 14px; font-weight: 800; }
 .meta-cell { gap: 4px; }
 .total-line { padding-top: 2px; border-top: 1px dashed #e2ecea; }
-.total-line span { color: #87979d; font-size: 8px; }
-.meta-line .total-value { color: #0f766e; font-size: 10px; font-weight: 800; }
+.total-line span { color: #87979d; font-size: 8px; font-weight: 700; }
+/* 「总数」和上面的「未交」保持完全一致：同字体、同字号、同粗细、同颜色 */
+.meta-line .total-value { color: var(--primary); font-size: 14px; font-weight: 800; }
 .due-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
 .due-cell > strong { color: #24383f; font-size: 10px; line-height: 1.2; }
 .due-cell .due-badge { padding: 2px 5px; font-size: 8px; }
@@ -814,7 +815,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
   .due-cell > strong { font-size: 8px; }
   .detail-line { grid-template-columns: 16px minmax(0, 1fr); gap: 2px; }
   .meta-line .quantity-value { font-size: 12px; }
-  .meta-line .total-value { font-size: 9px; }
+  .meta-line .total-value { font-size: 12px; }
   .total-line { padding-top: 1px; }
   .due-cell .due-badge { padding: 1px 4px; font-size: 7px; }
 }
