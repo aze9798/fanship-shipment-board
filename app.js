@@ -3819,6 +3819,8 @@ function renderMobileRemaining() {
     ? selectedRemainingDates().map((dueDate) => formatDate(dueDate)).join('、')
     : '全部交期';
   const rows = groups.slice(0, 150);
+  // 每个料号“所有交期”的未交合计（不受当前交期筛选影响），显示在「未交」下面
+  const materialTotals = labelRemainingAllDates();
   els.remainingList.innerHTML = `
     <div class="remaining-list-summary">
       <div><strong>${fmt(groups.length)} 项物料</strong></div>
@@ -3845,6 +3847,7 @@ function renderMobileRemaining() {
           </div>
           <div class="remaining-cell meta-cell">
             <div class="meta-line"><span>未交</span><strong class="quantity-value">${escapeHtml(qtyText(group.total))}</strong></div>
+            <div class="meta-line total-line" title="该料号所有交期的未交合计"><span>总数</span><strong class="total-value">${escapeHtml(qtyText(materialTotals.get(String(group.material || '').trim()) ?? group.total))}</strong></div>
           </div>
           <div class="remaining-cell due-cell">
             <span>交期</span>
