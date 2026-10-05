@@ -4430,16 +4430,30 @@ async function confirmLabelPrint() {
   try {
     const body = mode === 'big' ? { big: payload, small: [] } : { big: [], small: payload };
     const result = await deliveryHelper('/labels', body);
+    // 打印助手现在只负责：写数据 → 打开汉码 → 点开打印预览，最后一步「打印」是用户自己点的。
+    // 所以这里问一下到底打完没有：确认了才记「已打印」并记打印习惯，没打完就不记（还能补打）。
+    const manual = Boolean(result && result.manualPrint);
+    if (manual) {
+      const done = window.confirm('汉码已经打开并停在打印预览页面（数据已写好、模板正确）。\n\n打印完成了吗？\n\n【确定】= 已完成 → 记入「已打印」，并记住这些料号的打印习惯\n【取消】= 还没打完 → 先不记，之后还能找到它补打');
+      if (!done) {
+        showToast('这次先不记「已打印」，需要补打时还能找到它');
+        return;
+      }
+    }
     markLabelPrinted(sourceKeys, mode);
     bumpLabelStats(picked.map((row) => row.material), mode);
     const written = mode === 'big' ? result.bigRows : result.smallRows;
     const errors = Array.isArray(result.errors) && result.errors.length ? '；' + result.errors.join('；') : '';
     if (mode === 'big') {
       switchLabelPrintMode('small');
-      showToast(`大标签已写入 ${written} 行并发送打印，已自动切到小标签：刚打过的 ${sourceKeys.length} 项已标为已打印，剩下的改好再确认${errors}`);
+      showToast(manual
+        ? `大标签已记为已打印（${sourceKeys.length} 项），已切到小标签：刚打过的不会重复出现，剩下的改好再确认${errors}`
+        : `大标签已写入 ${written} 行并发送打印，已自动切到小标签：刚打过的 ${sourceKeys.length} 项已标为已打印，剩下的改好再确认${errors}`);
     } else {
       closeLabelPrintModal();
-      showToast(`小标签已写入 ${written} 行并发送打印，今天的标签任务完成${errors}`);
+      showToast(manual
+        ? `小标签已记为已打印（${sourceKeys.length} 项），打印习惯也记下了${errors}`
+        : `小标签已写入 ${written} 行并发送打印，今天的标签任务完成${errors}`);
     }
   } catch (error) {
     const detail = String(error.message || error || '');
