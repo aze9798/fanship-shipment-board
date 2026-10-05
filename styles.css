@@ -3059,3 +3059,19 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 }
 .mobile-cart-bar .button.primary:hover { background: #f1fbf9 !important; }
 .mobile-cart-bar .cart-summary { cursor: pointer; }
+
+/* 发货数量“改”按钮 */
+.qty-edit-btn {
+  margin-left: 4px;
+  padding: 0 5px;
+  min-height: 20px;
+  border: 1px solid #cfe0dd;
+  border-radius: 6px;
+  background: #f2f9f7;
+  color: #0f766e;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.qty-edit-btn:hover { background: #e3f4f0; }

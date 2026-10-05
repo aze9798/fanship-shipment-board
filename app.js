@@ -3343,6 +3343,8 @@ function buildDeliveryGroups(shipments, queryText = '') {
         items.push({
           key: ['search', meta.po, meta.seq, line.material, line.name, line.spec].map((v) => String(v || '')).join('|'),
           source: 'shipment',
+          shipmentId: String(shipment.id),
+          itemId: line.id,
           typeLabel: '',
           po: deliveryLineLabel(meta.po, '无'),
           seq: deliveryLineLabel(meta.seq, '无'),
@@ -3410,6 +3412,8 @@ function buildDeliveryGroups(shipments, queryText = '') {
       group.items.push({
         key: ['shipment', meta.po, meta.seq, line.material, line.name, line.spec].map((v) => String(v || '')).join('|'),
         source: 'shipment',
+        shipmentId: String(shipment.id),
+        itemId: line.id,
         typeLabel: '',
         po: deliveryLineLabel(meta.po, '无'),
         seq: deliveryLineLabel(meta.seq, '无'),
@@ -3476,7 +3480,7 @@ function buildDeliveryGroups(shipments, queryText = '') {
           <span data-label="采购单号">${escapeHtml(item.po)}${item.typeLabel ? ` <em>${escapeHtml(item.typeLabel)}</em>` : ''}</span>
           <span data-label="料件编号">${escapeHtml(item.material)}</span>
           <span data-label="品名">${escapeHtml(item.name)}${item.spec ? ` · ${escapeHtml(item.spec)}` : ''}${item.remark ? `<small>备注：${escapeHtml(item.remark)}</small>` : ''}</span>
-          <strong data-label="发货数量" class="number">${fmt(item.quantity)} 件</strong>
+          <strong data-label="发货数量" class="number">${fmt(item.quantity)} 件${boardRole === 'admin' && item.itemId ? `<button type="button" class="qty-edit-btn" data-edit-qty="${escapeHtml(String(item.itemId))}" data-edit-value="${Number(item.quantity) || 0}" title="修改发货数量">改</button>` : ''}</strong>
           <span data-label="项次" class="number">${escapeHtml(item.seq)}</span>
           <span data-label="未交" class="number">${escapeHtml(deliveryRemainingText(item.remaining, item.hasOrder))}</span>
         </div>`).join('')}
@@ -3510,7 +3514,7 @@ function renderMergedDeliveryRows(groups) {
           <span data-label="采购单号">${escapeHtml(item.po)}${item.typeLabel ? ` <em>${escapeHtml(item.typeLabel)}</em>` : ''}</span>
           <span data-label="料件编号">${escapeHtml(item.material)}</span>
           <span data-label="品名">${escapeHtml(item.name)}${item.spec ? ` · ${escapeHtml(item.spec)}` : ''}${item.remark ? `<small>备注：${escapeHtml(item.remark)}</small>` : ''}</span>
-          <strong data-label="发货数量" class="number">${fmt(item.quantity)} 件</strong>
+          <strong data-label="发货数量" class="number">${fmt(item.quantity)} 件${boardRole === 'admin' && item.itemId ? `<button type="button" class="qty-edit-btn" data-edit-qty="${escapeHtml(String(item.itemId))}" data-edit-value="${Number(item.quantity) || 0}" title="修改发货数量">改</button>` : ''}</strong>
           <span data-label="项次" class="number">${escapeHtml(item.seq)}</span>
           <span data-label="未交" class="number">${escapeHtml(deliveryRemainingText(item.remaining, item.hasOrder))}</span>
           <span data-label="送货单编号" class="ship-batch">${escapeHtml(item.batch || '未开单')}</span>
@@ -4943,6 +4947,32 @@ applyRoleUI();
   }
 }
 
+async function editShipmentQuantity(itemId, current) {
+  if (boardRole !== 'admin') { showToast('只有管理员模式可以改数量'); return; }
+  const input = window.prompt('修改发货数量（件）：', String(current));
+  if (input === null) return;
+  const quantity = Number(String(input).trim());
+  if (!Number.isFinite(quantity) || quantity <= 0) { showToast('数量必须是大于 0 的数字'); return; }
+  if (quantity === Number(current)) return;
+  try {
+    const result = await callRpc('board_update_shipment_item', {
+      p_code: getAccessCode(),
+      p_item_id: Number(itemId),
+      p_quantity: quantity,
+    });
+    if (!result.response.ok) throw new Error(result.data?.message || result.data?.error || '修改失败');
+    showToast('发货数量已改为 ' + quantity + ' 件');
+    await loadState();
+  } catch (error) {
+    const message = String(error.message || error || '');
+    if (/board_update_shipment_item|Could not find the function|schema cache|不存在/.test(message)) {
+      showToast('还差一步：请在 Supabase SQL Editor 里运行 cloud/fix-shipment-item-edit.sql');
+      return;
+    }
+    showToast(message || '修改失败');
+  }
+}
+
 async function undoShipment(id) {
   const shipmentRow = snapshot && snapshot.shipments.find((row) => String(row.id) === String(id));
   if (isBilledShipment(id)) { showToast('这笔发货已经开送货单并上传云端，不能撤回'); return; }
@@ -5975,11 +6005,15 @@ if (els.cancelImport) els.cancelImport.addEventListener('click', closeImportDial
 els.submitModal.addEventListener('click', (event) => { if (event.target === els.submitModal) closeSubmitModal(); });
 els.deliveryModal.addEventListener('click', (event) => { if (event.target === els.deliveryModal) closeDeliveryModal(); });
 els.shipmentHistory.addEventListener('click', (event) => {
+  const editButton = event.target.closest('[data-edit-qty]');
+  if (editButton) { editShipmentQuantity(editButton.dataset.editQty, Number(editButton.dataset.editValue) || 0); return; }
   const button = event.target.closest('[data-undo]');
   if (button) undoShipment(button.dataset.undo);
   else handleQueryActionClick(event);
 });
 els.mobileRecordsPanel.addEventListener('click', (event) => {
+  const editButton = event.target.closest('[data-edit-qty]');
+  if (editButton) { editShipmentQuantity(editButton.dataset.editQty, Number(editButton.dataset.editValue) || 0); return; }
   const button = event.target.closest('[data-undo]');
   if (button) undoShipment(button.dataset.undo);
 });
