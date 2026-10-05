@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d2a33">
+<title>帆顺考勤管理</title>
+<style>
+:root{--bg:#eef3f3;--ink:#15363f;--muted:#70858a;--line:#d9e5e4;--card:#fff;--primary:#0f766e;--danger:#b42318;--shadow:0 10px 30px rgba(19,67,67,.08)}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#e9f2f0 0,#f7faf9 220px,#f2f5f6 100%);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+button,input{font:inherit}button{cursor:pointer}.hidden{display:none!important}.muted{color:var(--muted)}
+.card{background:var(--card);border:1px solid rgba(217,229,228,.9);border-radius:16px;box-shadow:var(--shadow);padding:16px;margin-bottom:12px}
+.login-wrap{max-width:420px;margin:0 auto;padding:60px 16px}.login-wrap h1{margin:0 0 6px;font-size:22px}
+.field{display:grid;gap:7px;color:#526b71;font-size:12px}.field input{width:100%;height:46px;border:1px solid var(--line);border-radius:12px;padding:0 13px;background:#fbfdfd;color:var(--ink);outline:none}
+.primary,.ghost{border-radius:12px;min-height:42px;border:1px solid transparent;font-weight:800}.primary{background:var(--primary);color:#fff}.ghost{background:#fff;color:var(--primary);border-color:#b9ddd7}.wide{width:100%;margin-top:12px}
+.error{margin-top:10px;padding:10px 12px;border-radius:10px;background:#fff1f0;color:var(--danger);font-size:12px}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;background:#0d2a33;color:#fff;position:sticky;top:0;z-index:20}
+.topbar strong{font-size:16px}.topbar .muted{color:#a9c1c6;font-size:12px;margin-left:8px}
+.wrap{max-width:1180px;margin:0 auto;padding:16px 14px 40px}
+.tabs{display:flex;gap:8px;padding:5px;background:#e3eeec;border-radius:14px;margin-bottom:12px}
+.tabs button{flex:1;border:0;border-radius:10px;background:transparent;color:#5e747a;min-height:42px;font-weight:800}
+.tabs button.active{background:#fff;color:var(--primary);box-shadow:0 4px 12px rgba(36,92,88,.1)}
+.badge{display:inline-block;margin-left:6px;min-width:20px;padding:0 6px;border-radius:999px;background:#b42318;color:#fff;font-size:11px;line-height:20px}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.toolbar input[type=month]{height:42px;border:1px solid var(--line);border-radius:12px;padding:0 10px;background:#fff}
+.toolbar .spacer{flex:1}
+.summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.stat{border:1px solid var(--line);border-radius:12px;padding:10px;background:#fbfdfd}
+.stat span{display:block;color:var(--muted);font-size:11px}.stat strong{font-size:18px}
+table.tbl{width:100%;border-collapse:collapse;background:#fff;border-radius:14px;overflow:hidden}
+table.tbl th,table.tbl td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:13px;white-space:nowrap}
+table.tbl th{background:#f2f7f6;color:#526b71;font-size:12px}
+table.tbl tr:last-child td{border-bottom:0}
+table.tbl td.num{text-align:right}
+.rowlink{cursor:pointer}
+.rowlink:hover{background:#f5fbfa}
+.tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:800;background:#eef3f3;color:#526b71;white-space:nowrap}
+.tag.normal{background:#e8f6f3;color:#0f766e}.tag.late,.tag.early_leave{background:#fff4e5;color:#b54708}
+.tag.missing_once,.tag.pending{background:#fff8e1;color:#8a6b22}.tag.absent{background:#fff1f0;color:#b42318}
+.tag.manual{background:#e8f0ff;color:#3b5bdb}.tag.reissued{background:#e8f6f3;color:#0f766e}
+.mobile-only{display:none}
+.req-card{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;background:#fff}
+.req-card h3{margin:0 0 6px;font-size:15px}.req-card p{margin:2px 0;color:var(--muted);font-size:12px}
+.req-actions{display:flex;gap:8px;margin-top:10px}.req-actions button{flex:1;min-height:40px;border-radius:10px;font-weight:800}
+.detail-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.day-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.day-row:last-child{border-bottom:0}.day-date{font-weight:800}.day-times{color:var(--muted);font-size:12px}
+@media(max-width:760px){
+  .desktop-only{display:none!important}.mobile-only{display:block}
+  .wrap{padding:12px 10px 40px}.summary-grid{grid-template-columns:repeat(2,1fr)}
+  .toolbar input[type=month]{flex:1;min-width:130px}
+}
+</style>
+</head>
+<body>
+<div id="loginView" class="login-wrap">
+  <div class="card">
+    <h1>帆顺考勤管理</h1>
+    <p class="muted" style="margin:0 0 14px">请输入管理码（老板管理码）</p>
+    <label class="field"><span>管理码</span><input id="codeInput" type="text" autocomplete="off" placeholder="FS-xxxx-xxxx"></label>
+    <button id="loginBtn" class="primary wide" type="button">进入</button>
+    <div id="loginError" class="error hidden"></div>
+  </div>
+</div>
+
+<div id="appView" class="hidden">
+  <div class="topbar">
+    <div><strong>帆顺考勤管理</strong><span id="whoami" class="muted"></span></div>
+    <button id="logoutBtn" class="ghost" type="button">退出</button>
+  </div>
+  <div class="wrap">
+    <div class="tabs">
+      <button class="active" data-pane="summary" type="button">考勤汇总</button>
+      <button data-pane="reissue" type="button">补卡审核<span id="reissueBadge" class="badge hidden">0</span></button>
+    </div>
+
+    <section id="summaryPane">
+      <div class="toolbar">
+        <button id="prevMonth" class="ghost" type="button">上个月</button>
+        <input id="monthInput" type="month">
+        <button id="nextMonth" class="ghost" type="button">下个月</button>
+        <button id="refreshBtn" class="primary" type="button">刷新</button>
+        <span id="summaryHint" class="muted"></span>
+      </div>
+      <div id="summaryBox"></div>
+      <div id="detailBox" class="hidden"></div>
+    </section>
+
+    <section id="reissuePane" class="hidden">
+      <div id="reissueBox"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+window.ATT_RPC_BASE = 'https://dkbeigqtiilgxthwkixg.supabase.co/rest/v1/rpc';
+window.ATT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s';
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  const STORAGE = 'fanshipAttendanceAdminCode';
+  let code = '', month = '';
+  const STATUS = { normal:'正常', late:'迟到', early_leave:'早退', missing_once:'漏刷1次', absent:'没上班', manual:'人工判定', leave:'请假', reissued:'已补卡' };
+  const TYPE = { hourly_piece:'计时计件', daily:'固定日薪', monthly:'固定月薪', management:'管理' };
+  const show = (el, on) => el && el.classList.toggle('hidden', !on);
+  const n = (v) => Number(v || 0);
+  const money = (v) => Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits:2, maximumFractionDigits:2 });
+
+  function prevMonth() { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+  function shiftMonth(delta) { const [y,m] = (month || prevMonth()).split('-').map(Number); const d = new Date(y, m-1+delta, 1); month = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; $('monthInput').value = month; loadSummary(); }
+  function bounds(m) { const [y,mm] = m.split('-').map(Number); const last = new Date(y, mm, 0).getDate(); return { from: `${m}-01`, to: `${m}-${String(last).padStart(2,'0')}` }; }
+
+  async function rpc(name, body) {
+    const r = await fetch(`${window.ATT_RPC_BASE}/${name}`, { method:'POST', headers:{ apikey:window.ATT_ANON_KEY, Authorization:`Bearer ${window.ATT_ANON_KEY}`, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+    const data = await r.json().catch(() => null);
+    if (!r.ok) throw new Error(data?.message || '请求失败');
+    return data;
+  }
+
+  async function login(next) {
+    const value = String(next || '').trim();
+    if (!value) return;
+    try {
+      const res = await rpc('board_attendance_summary', { p_code:value, p_from:'2000-01-01', p_to:'2000-01-31' });
+      if (!res || res.ok !== true) throw new Error('管理码无效');
+      code = value; try { localStorage.setItem(STORAGE, value); } catch {}
+      show($('loginView'), false); show($('appView'), true);
+      $('whoami').textContent = '管理员';
+      month = prevMonth(); $('monthInput').value = month;
+      await Promise.all([loadSummary(), loadReissue()]);
+    } catch (e) { show($('loginError'), true); $('loginError').textContent = e.message || '登录失败'; }
+  }
+
+  async function loadSummary() {
+    if (!code) return;
+    const { from, to } = bounds(month);
+    const res = await rpc('board_attendance_summary', { p_code:code, p_from:from, p_to:to });
+    const rows = res.summary || [];
+    $('summaryHint').textContent = `${month} · ${rows.length} 人`;
+    if (!rows.length) { $('summaryBox').innerHTML = '<div class="card">这个月没有考勤数据</div>'; return; }
+    const desktop = `<table class="tbl desktop-only"><thead><tr><th>工号</th><th>姓名</th><th>类型</th><th class="num">出勤</th><th class="num">没上班</th><th class="num">迟到</th><th class="num">早退</th><th class="num">漏刷1次</th><th class="num">加班</th><th class="num">加班费</th></tr></thead><tbody>` +
+      rows.map((r) => `<tr class="rowlink" data-emp="${esc(r.employeeNo)}"><td>${esc(r.employeeNo)}</td><td><strong>${esc(r.employeeName)}</strong></td><td>${esc(TYPE[r.salaryType] || r.salaryType)}</td><td class="num">${n(r.attendanceDays)}</td><td class="num">${n(r.absentDays)}</td><td class="num">${n(r.lateDays)}</td><td class="num">${n(r.earlyDays)}</td><td class="num">${n(r.missingOnceDays)}</td><td class="num">${n(r.overtimeDays)} 天</td><td class="num">${money(r.overtimeAmount)}</td></tr>`).join('') +
+      `</tbody></table>`;
+    const mobile = `<div class="mobile-only">` + rows.map((r) => `<div class="req-card rowlink" data-emp="${esc(r.employeeNo)}"><h3>${esc(r.employeeNo)} ${esc(r.employeeName)} <span class="tag">${esc(TYPE[r.salaryType] || r.salaryType)}</span></h3><p>出勤 ${n(r.attendanceDays)} 天 · 没上班 ${n(r.absentDays)} 天 · 迟到 ${n(r.lateDays)} · 早退 ${n(r.earlyDays)}</p><p>漏刷1次 ${n(r.missingOnceDays)} 天 · 加班 ${n(r.overtimeDays)} 天 · 加班费 ${money(r.overtimeAmount)} 元</p></div>`).join('') + `</div>`;
+    $('summaryBox').innerHTML = desktop + mobile;
+    $('summaryBox').querySelectorAll('[data-emp]').forEach((el) => el.addEventListener('click', () => loadDetail(el.dataset.emp)));
+    show($('detailBox'), false);
+  }
+
+  async function loadDetail(empNo) {
+    const { from, to } = bounds(month);
+    const res = await rpc('board_attendance_days', { p_code:code, p_from:from, p_to:to, p_employee_no:empNo });
+    const days = res.days || [];
+    const name = days[0]?.employeeName || empNo;
+    $('detailBox').innerHTML = `<div class="card"><div class="detail-head"><div><strong>${esc(empNo)} ${esc(name)}</strong><div class="muted">${month} 每日明细</div></div><button id="detailClose" class="ghost" type="button">关闭</button></div>` +
+      (days.length ? days.map((d) => `<div class="day-row"><div><div class="day-date">${esc(String(d.workDate).slice(5))}</div><div class="day-times">${esc([d.checkInRaw || d.checkIn || '', d.checkOutRaw || d.checkOut || ''].filter(Boolean).join(' / ') || '无打卡')}${n(d.overtimeMinutes) > 0 ? ' · 加班 ' + (Math.round(n(d.overtimeMinutes)/60*10)/10) + 'h' : ''}</div></div><span class="tag ${esc(d.status)}">${esc(STATUS[d.status] || d.status)}</span></div>`).join('') : '<div class="muted">没有记录</div>') + `</div>`;
+    show($('detailBox'), true);
+    $('detailClose').addEventListener('click', () => show($('detailBox'), false));
+  }
+
+  async function loadReissue() {
+    if (!code) return;
+    const res = await rpc('board_reissue_requests', { p_code:code, p_status:'submitted' });
+    const rows = res.requests || [];
+    show($('reissueBadge'), rows.length > 0);
+    $('reissueBadge').textContent = rows.length;
+    $('reissueBox').innerHTML = rows.length ? rows.map((r) => `<div class="req-card"><h3>${esc(r.employeeNo)} ${esc(r.employeeName)} · ${esc(r.workDate)}</h3><p>补卡时段：${r.slot === 'check_in' ? '签到' : '签退'} · 补卡时间：${esc(String(r.reissueTime || '').slice(0,5))}</p><p>原因：${esc(r.reason || '')}</p><div class="req-actions"><button class="primary" data-approve="${esc(r.id)}">通过</button><button class="ghost" data-reject="${esc(r.id)}">退回</button></div></div>`).join('') : '<div class="card">没有待审核的补卡申请</div>';
+    $('reissueBox').querySelectorAll('[data-approve]').forEach((b) => b.addEventListener('click', () => review(b.dataset.approve, true)));
+    $('reissueBox').querySelectorAll('[data-reject]').forEach((b) => b.addEventListener('click', () => review(b.dataset.reject, false)));
+  }
+
+  async function review(id, approve) {
+    let note = '';
+    if (!approve) { note = prompt('退回原因：') || ''; if (!note) return; }
+    await rpc('board_review_reissue', { p_code:code, p_id:id, p_approve:approve, p_note:note });
+    await Promise.all([loadReissue(), loadSummary()]);
+  }
+
+  $('loginBtn').addEventListener('click', () => login($('codeInput').value));
+  $('codeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') login($('codeInput').value); });
+  $('logoutBtn').addEventListener('click', () => { code = ''; try { localStorage.removeItem(STORAGE); } catch {} show($('appView'), false); show($('loginView'), true); });
+  $('prevMonth').addEventListener('click', () => shiftMonth(-1));
+  $('nextMonth').addEventListener('click', () => shiftMonth(1));
+  $('refreshBtn').addEventListener('click', () => { month = $('monthInput').value || prevMonth(); loadSummary(); });
+  $('monthInput').addEventListener('change', () => { month = $('monthInput').value || prevMonth(); loadSummary(); });
+  document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x === b));
+    const pane = b.dataset.pane;
+    show($('summaryPane'), pane === 'summary'); show($('reissuePane'), pane === 'reissue');
+    if (pane === 'reissue') loadReissue().catch(() => {});
+  }));
+  let stored = ''; try { stored = localStorage.getItem(STORAGE) || ''; } catch {}
+  if (stored) login(stored); else show($('loginView'), true);
+})();
+</script>
+</body>
+</html>
