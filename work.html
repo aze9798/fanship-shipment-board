@@ -67,7 +67,7 @@
     .list-title{display:flex;justify-content:space-between;align-items:center;margin:14px 1px 8px}.list-title strong{font-size:13px}.list-title span{font-size:11px;color:var(--muted)}
     .record{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;border-top:1px solid #edf2f2}.record:first-child{border-top:0}.record small{display:block;color:var(--muted);font-size:10px;margin-top:3px}.record strong{font-size:13px}.empty{padding:24px 10px;text-align:center;color:var(--muted);font-size:12px}
     .search-wrap{position:relative}.search-wrap input{width:100%;height:46px;border:1px solid var(--line);border-radius:12px;padding:0 13px 0 40px;background:#fbfdfd;outline:none}.search-wrap::before{content:"⌕";position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#6c908b;font-size:20px;font-weight:800}
-    .suggest{margin-top:7px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}.suggest button{display:block;width:100%;padding:11px 12px;border:0;border-top:1px solid #edf2f2;background:#fff;text-align:left}.suggest button:first-child{border-top:0}.suggest strong{font-size:12px}.suggest span{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+    .suggest{margin-top:7px;border:1px solid #cddedb;border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 8px 20px rgba(18,78,75,.06)}.suggest button{position:relative;display:block;width:100%;padding:15px 14px 15px 19px;border:0;border-top:1px solid #e5eeec;background:#fff;text-align:left;transition:background .16s ease}.suggest button:first-child{border-top:0}.suggest button::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:4px;border-radius:0 5px 5px 0;background:var(--primary);opacity:.78}.suggest button:hover,.suggest button:focus{background:#edf8f5}.suggest button:active{background:#e2f3ef}.suggest strong{display:block;font-size:16px;line-height:1.45;font-weight:900;color:var(--ink);word-break:break-word}.suggest span{display:block;color:#5f777d;font-size:13px;line-height:1.45;margin-top:4px;font-weight:700;word-break:break-word}
     .picked{padding:12px;border-radius:12px;background:#eef8f6;margin-top:10px}.picked strong{display:block;font-size:13px}.picked span{display:block;color:var(--muted);font-size:10px;margin-top:3px}
     .process-grid{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.process{border:1px solid var(--line);border-radius:10px;background:#fff;padding:8px 11px;color:#536b72}.process.active{border-color:var(--primary);background:var(--primary);color:#fff}
     .piece-form{display:grid;gap:11px;margin-top:12px}.piece-form .row{display:grid;grid-template-columns:1fr;gap:9px;min-width:0}.piece-form .row>*{min-width:0}.piece-form input{width:100%;min-width:0;height:46px;border:1px solid var(--line);border-radius:11px;padding:0 11px;background:#fbfdfd;outline:none}.variant-box{margin-top:12px;padding:14px;border-radius:12px;background:#f7fbfa;border:1px solid #e2edeb;scroll-margin-top:18px}.variant-box.variant-attention{border-color:#0f766e;box-shadow:0 0 0 4px rgba(15,118,110,.12);transform:scale(1.01);transition:.25s}.variant-label{margin-bottom:8px;color:#587178;font-size:12px;font-weight:700}.variant-options{display:flex;flex-wrap:wrap;gap:7px}.variant-options button{min-height:36px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#536b72}.variant-options button.active{border-color:var(--primary);background:var(--primary);color:#fff}.variant-box input{width:100%;height:40px;border:1px solid var(--line);border-radius:10px;padding:0 11px;background:#fff;outline:none}
@@ -115,7 +115,7 @@
     button{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease,background-color .18s ease,color .18s ease}button:active{transform:scale(.985)}
     .page{max-width:520px;padding:18px 16px 42px}.brand{margin:2px 2px 20px}.brand strong{font-size:28px;letter-spacing:-.03em}.logo{border-radius:13px;background:linear-gradient(145deg,#189184,#0a635d);box-shadow:0 10px 24px rgba(13,113,104,.24)}
     .card{border-color:rgba(216,227,225,.95);border-radius:18px;box-shadow:0 12px 34px rgba(12,45,50,.085);padding:18px}.login-title{font-size:24px;letter-spacing:-.04em}.login-sub{line-height:1.65}
-    .field input,.search-wrap input,.piece-form input,.request-fields input,.request-fields select,.variant-custom input{background:#fbfdfd;border-color:#d6e2e0;transition:border-color .18s ease,box-shadow .18s ease,background-color .18s ease}.field input:hover,.search-wrap input:hover,.piece-form input:hover{border-color:#bdd3d0}.field input:focus,.search-wrap input:focus,.piece-form input:focus,.request-fields input:focus,.request-fields select:focus{background:#fff;border-color:#75bdb3;box-shadow:0 0 0 4px rgba(13,113,104,.09)}
+    .field input,.search-wrap input,.piece-form input,.request-fields input,.request-fields select,.variant-custom input{background:#fbfdfd;border-color:#d6e2e0;transition:border-color .18s ease,box-shadow .18s ease,background-color .18s ease}.field input:hover,.search-wrap input:hover,.piece-form input:hover{border-color:#bdd3d0}.field input:focus,.search-wrap input:focus,.piece-form input:focus,.request-fields input:focus,.request-fields select:focus{background:#fff;border-color:#75bdb3;box-shadow:0 0 0 4px rgba(13,113,104,.09)}.search-wrap input.has-selection{background:#edf8f5;border-color:#8fcfc3;color:var(--ink);font-weight:800;box-shadow:0 0 0 3px rgba(15,118,110,.06)}
     .primary,.ghost{border-radius:13px;min-height:48px;transition:transform .18s ease,box-shadow .18s ease,filter .18s ease}.primary{background:linear-gradient(180deg,#117d73,var(--primary));box-shadow:0 10px 22px rgba(13,113,104,.18)}.primary:hover{filter:brightness(1.04);box-shadow:0 14px 28px rgba(13,113,104,.24)}.ghost{background:rgba(255,255,255,.94)}
     .top{margin-bottom:15px}.top h1{letter-spacing:-.04em}.tabs{padding:5px;background:rgba(224,235,232,.9);border-radius:15px;box-shadow:inset 0 1px 3px rgba(23,57,61,.05)}.tabs button{min-height:44px;font-size:15px}.tabs button.active{box-shadow:0 6px 17px rgba(28,57,62,.11)}
     .clock-card{position:relative;overflow:hidden;background:radial-gradient(circle at 88% 16%,rgba(255,255,255,.14),transparent 28%),linear-gradient(145deg,#0b6f68,#09514e);box-shadow:0 18px 38px rgba(7,80,77,.20)}.clock-card::after{content:"";position:absolute;right:-42px;bottom:-58px;width:150px;height:150px;border:1px solid rgba(255,255,255,.14);border-radius:50%}.clock-time{font-variant-numeric:tabular-nums;letter-spacing:.035em}.clock-actions,.stats{position:relative;z-index:1}
@@ -259,7 +259,7 @@
       <label id="requestMaterialWrap" class="field"><span>料件编号</span><input id="requestMaterial" type="text" autocomplete="off" placeholder="请填写完整料件编号或后四位 不清楚请询问现场管理人员。"><small id="requestMaterialHint" class="request-tip" hidden></small></label>
       <div id="requestMaterialMatches" class="suggest hidden"></div>
       <!-- 规格 / 图号字段按需求移除 -->
-      <label id="requestProcessWrap" class="field"><span>工序</span><select id="requestProcess"></select></label>
+      <label id="requestProcessWrap" class="field"><span>工序</span><input id="requestProcess" type="text" list="requestProcessList" autocomplete="off" placeholder="输入或选择工序；没有就自填"><datalist id="requestProcessList"></datalist></label>
       <label id="requestOtherProcessWrap" class="field hidden"><span>手工工序名称</span><input id="requestOtherProcess" type="text" placeholder="例如：激光切割"></label>
       <label id="requestVariantWrap" class="field hidden"><span id="requestVariantLabel">规格</span><select id="requestVariantValue"></select></label>
           <label id="requestVariantCustomWrap" class="field hidden"><span id="requestVariantCustomLabel">自己填写</span><input id="requestVariantCustom" type="number" min="1" step="1" inputmode="numeric" placeholder=""></label>
@@ -447,7 +447,15 @@ function preferredVariantForProcess(processId) {
   const rows = (matchedVariantMap.get(processId) || [])
     .filter((item) => item.variantKey && Number(item.variantValue) > 0)
     .sort((a, b) => new Date(b.lastUsedAt || 0) - new Date(a.lastUsedAt || 0));
-  return rows.find((item) => item.lastUsedAt) || (rows.length === 1 ? rows[0] : null);
+  const priced = rows.find((item) => item.lastUsedAt) || (rows.length === 1 ? rows[0] : null);
+  if (priced) return priced;
+  const recent = (state?.pieceEntries || [])
+    .filter((item) => String(item.productId) === String(selectedProduct?.id)
+      && String(item.processId) === String(processId)
+      && item.variantKey && Number(item.variantValue) > 0
+      && (item.status === 'submitted' || item.status === 'approved'))
+    .sort((a, b) => new Date(b.createdAt || b.submittedAt || 0) - new Date(a.createdAt || a.submittedAt || 0));
+  return recent.length ? { variantValue:Number(recent[0].variantValue), variantLabel:recent[0].variantLabel || String(recent[0].variantValue) } : null;
 }
 function setGenericVariantPrice() {
   const process = currentProcess();
@@ -604,7 +612,7 @@ async function loadProductProcesses(productId) {
     if (preferred) selectedVariant = { value:Number(preferred.variantValue), label:preferred.variantLabel || String(preferred.variantValue), custom:Number(preferred.variantValue) > 4 };
   }
   renderPiece();
-  if (selectedProcessId && PROCESS_VARIANTS[allowed[0]?.name]) openVariantModal();
+  if (selectedProcessId && PROCESS_VARIANTS[allowed[0]?.name] && !selectedVariant) openVariantModal();
 }
 function renderPiece() {
   const rows = state?.pieceEntries || [];
@@ -1083,11 +1091,12 @@ function renderPiece() {
   }
   async function searchProducts() {
     const q = $('productSearch').value.trim(); const box = $('productSuggest');
-    if (!q) { show(box,false); return; }
+    if (!q) { show(box,false); show($('newPieceButton'), true); return; }
     try {
       const rows = await rpc('work_search_products', { p_code:code, p_query:q });
       box.innerHTML = rows.length ? rows.map((p) => `<button type="button" data-product="${esc(p.id)}" data-material="${esc(p.material)}" data-name="${esc(p.name)}" data-spec="${esc(p.spec)}"><strong>${esc(p.material)} · ${esc(p.name)}</strong><span>${esc(p.spec || '无图号')}</span></button>`).join('') : '<button type="button" data-open-custom="1"><strong>没有找到产品</strong><span>点这里自主申报新产品</span></button>';
       show(box,true);
+      show($('newPieceButton'), rows.length === 0);
     } catch (e) { toast(e.message || '搜索失败'); }
   }
 function variantDisplay(processName, value) {
@@ -1143,20 +1152,24 @@ function variantDisplay(processName, value) {
     show(box, Boolean(message));
   }
   function currentRequestProcess() {
-    const id = $('requestProcess').value;
-    if (id.startsWith('custom:')) return { id:null, name:id.slice(7) };
-    return (state?.processes || []).find((p) => p.id === id) || null;
+    const raw = String($('requestProcess').value || '').trim();
+    if (!raw) return null;
+    if (raw.startsWith('custom:')) return { id:null, name:raw.slice(7), custom:true };
+    const rows = state?.processes || [];
+    return rows.find((p) => p.id === raw)
+      || rows.find((p) => p.name === raw)
+      || { id:null, name:raw, custom:true };
   }
   function requestVariantConfig(process) {
     return process ? PROCESS_VARIANTS[process.name] : null;
   }
   function populateRequestProcesses(selectedId = '', fallbackName = '') {
     const rows = state?.processes || [];
-    let html = rows.map((p) => `<option value="${esc(p.id)}" ${p.id === selectedId ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
-    if (fallbackName && !rows.some((p) => p.name === fallbackName)) {
-      html = `<option value="custom:${esc(fallbackName)}" selected>${esc(fallbackName)}</option>` + html;
-    }
-    $('requestProcess').innerHTML = html;
+    const selected = rows.find((p) => p.id === selectedId) || rows.find((p) => p.name === fallbackName);
+    const input = $('requestProcess');
+    input.value = selected ? selected.name : (fallbackName || '');
+    const list = $('requestProcessList');
+    if (list) list.innerHTML = rows.map((p) => `<option value="${esc(p.name)}" data-id="${esc(p.id)}"></option>`).join('');
   }
   function requestVariant() {
     const process = currentRequestProcess();
@@ -1342,7 +1355,7 @@ function variantDisplay(processName, value) {
     show($('requestProductSummary'), true);
     $('requestProductSummary').innerHTML = `<strong>${esc(selectedProduct.material)} · ${esc(selectedProduct.name)}</strong><br>${esc(selectedProduct.spec || '无图号')}`;
     populateRequestProcesses(selectedProcessId);
-    $('requestProcess').disabled = true;
+    $('requestProcess').disabled = false;
     $('requestOtherProcess').value = '';
     $('requestQty').value = '';
     $('requestPrice').value = '';
@@ -1441,7 +1454,7 @@ function variantDisplay(processName, value) {
           p_name:name,
           p_material:material,
           p_spec:$('requestSpec') ? $('requestSpec').value.trim() : '',
-          p_process_id:process.name === '其他' ? null : process.id,
+          p_process_id:(process.name === '其他' || process.custom) ? null : process.id,
           p_process_name:manualProcess || process.name,
           p_quantity:qty,
           p_variant_key:variant.key,
@@ -1452,17 +1465,26 @@ function variantDisplay(processName, value) {
         });
       } else {
         if (!requestProduct) throw new Error('产品信息已失效，请重新选择产品');
-        await rpc('work_submit_price_change', {
+        const priceChangePayload = {
           p_code:code,
           p_product_id:requestProduct.id,
-          p_process_id:process.id,
+          p_process_id:process.id || null,
+          p_process_name:manualProcess || process.name,
           p_quantity:qty,
           p_variant_key:variant.key,
           p_variant_value:variant.value,
           p_variant_label:variant.label,
           p_unit_price:price,
           p_note:$('requestNote').value.trim(),
-        });
+        };
+        try {
+          await rpc('work_submit_price_change', priceChangePayload);
+        } catch (changeError) {
+          if (!/p_process_name|function.*not found|does not exist|schema cache/i.test(changeError.message || '')) throw changeError;
+          const legacyPayload = { ...priceChangePayload };
+          delete legacyPayload.p_process_name;
+          await rpc('work_submit_price_change', legacyPayload);
+        }
       }
       closeRequestModal();
       await loadState();
@@ -1498,14 +1520,25 @@ function variantDisplay(processName, value) {
     show($('timePanel'), tab === 'time'); show($('piecePanel'), tab === 'piece'); show($('salaryPanel'), tab === 'salary');
     if (tab === 'salary') loadSalary().catch(() => {});
   }));
-  $('productSearch').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(searchProducts, 220); });
+  $('productSearch').addEventListener('input', () => {
+    if (selectedProduct) {
+      selectedProduct = null; selectedProcessId = ''; selectedVariant = null;
+      $('productSearch').classList.remove('has-selection');
+      $('productSearch').title = '';
+      show($('newPieceButton'), true);
+      renderPiece();
+    }
+    clearTimeout(searchTimer); searchTimer = setTimeout(searchProducts, 220);
+  });
   $('productSuggest').addEventListener('click', (e) => {
     if (e.target.closest('[data-open-custom]')) { show($('productSuggest'), false); show($('newPieceButton'), true); openCustomRequest(); return; }
     const b = e.target.closest('[data-product]'); if (!b) return;
     selectedProduct = { id:b.dataset.product, material:b.dataset.material, name:b.dataset.name, spec:b.dataset.spec };
     selectedProcessId = ''; selectedVariant = null;
-    $('pickedProduct').innerHTML = `<strong>${esc(selectedProduct.material)} · ${esc(selectedProduct.name)}</strong><span>${esc(selectedProduct.spec || '无图号')}</span>`;
-    show($('pickedProduct'), true); show($('productSuggest'), false); $('productSearch').value = ''; loadProductProcesses(selectedProduct.id);
+    $('productSearch').value = `${selectedProduct.material} · ${selectedProduct.name}`;
+    $('productSearch').title = [selectedProduct.material, selectedProduct.name, selectedProduct.spec].filter(Boolean).join(' · ');
+    $('productSearch').classList.add('has-selection');
+    show($('pickedProduct'), false); show($('productSuggest'), false); show($('newPieceButton'), false); loadProductProcesses(selectedProduct.id);
   });
   $('processGrid').addEventListener('click', (e) => {
     const b = e.target.closest('[data-process]'); if (!b) return;
@@ -1513,15 +1546,17 @@ function variantDisplay(processName, value) {
     if (process?.name === '其他') {
       if (!selectedProduct) return toast('请先搜索并选择产品');
       openCustomRequest(true);
-      $('requestProcess').value = process.id;
+      $('requestProcess').value = process.name;
       $('requestProcess').dispatchEvent(new Event('change'));
       return;
     }
     selectedProcessId = b.dataset.process;
     selectedVariant = null;
-    renderPiece();
     const config = PROCESS_VARIANTS[process?.name];
-    if (config) openVariantModal();
+    const preferred = config ? preferredVariantForProcess(selectedProcessId) : null;
+    if (preferred) selectedVariant = { value:Number(preferred.variantValue), label:preferred.variantLabel || variantDisplay(process.name, Number(preferred.variantValue)), custom:Number(preferred.variantValue) > 4 };
+    renderPiece();
+    if (config && !selectedVariant) openVariantModal();
   });
   $('variantBox').addEventListener('click', (e) => {
     if (e.target.closest('[data-variant-custom]')) { show($('variantCustomWrap'), true); $('variantCustomValue')?.focus(); return; }
@@ -1572,7 +1607,7 @@ function variantDisplay(processName, value) {
     openCustomRequest(true);
     const other = (state?.processes || []).find((p) => p.name === '其他');
     if (other) {
-      $('requestProcess').value = other.id;
+      $('requestProcess').value = other.name;
       $('requestProcess').dispatchEvent(new Event('change'));
     }
   });
@@ -1582,6 +1617,11 @@ function variantDisplay(processName, value) {
   });
   $('newPieceButton').addEventListener('click', openCustomRequest);
   $('priceChangeButton').addEventListener('click', openPriceChangeRequest);
+  $('requestProcess').addEventListener('input', () => {
+    const process = currentRequestProcess();
+    show($('requestOtherProcessWrap'), process?.name === '其他');
+    renderRequestVariant(false);
+  });
   $('requestProcess').addEventListener('change', () => {
     const process = currentRequestProcess();
     show($('requestOtherProcessWrap'), process?.name === '其他');
