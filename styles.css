@@ -808,15 +808,18 @@ body[data-view="mobile"] { background: #dfe7e9; }
 @media (max-width: 620px) {
   .mobile-remaining-panel { gap: 6px; }
   .mobile-remaining-card { border-radius: 9px; }
-  .mobile-remaining-row { grid-template-columns: 76px minmax(96px, 1fr) 48px 56px; }
+  .mobile-remaining-row { grid-template-columns: 86px minmax(96px, 1fr) 54px 60px; }
   .remaining-cell { padding: 5px 5px; }
   .order-cell > strong,
   .detail-line strong,
   .meta-line strong,
-  .due-cell > strong { font-size: 12px; }
+  .due-cell > strong { font-size: 11px; }
+  .order-cell > strong,
+  .due-cell > strong { font-size: 12px; white-space: nowrap; }
   .detail-line { grid-template-columns: auto minmax(0, 1fr); gap: 4px; }
   .meta-line .quantity-value { font-size: 18px; }
   .meta-line .total-value { font-size: 18px; }
+  .meta-line span, .total-line span { font-size: 9px; }
   .remaining-cell > span,
   .detail-line span,
   .meta-line span { font-size: 9px; }
