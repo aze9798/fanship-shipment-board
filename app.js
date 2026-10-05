@@ -3740,8 +3740,10 @@ function groupRemainingRows(rows) {
     const material = String(order.material || '').trim();
     const name = String(order.name || '').trim();
     const spec = String(order.spec || '').trim();
-    // 打印/导出只按物料编号合并；名称和图号仅用于展示。
-    const key = material || `${name}\u0000${spec}`;
+    const dueDate = String(order.dueDate || '').trim();
+    // 按「物料编号 + 交期」合并：同料号同交期才合并；不同交期另起一行，
+    // 各自显示自己的未交数量，避免出现“交期写 10月10日、数量却是所有交期合计”的误解。
+    const key = `${material || `${name}\u0000${spec}`}\u0000${dueDate}`;
     let group = groups.get(key);
     if (!group) {
       group = {
@@ -3762,7 +3764,6 @@ function groupRemainingRows(rows) {
       const drawing = drawingFor(order);
       if (drawing) group.drawing = drawing;
     }
-    const dueDate = String(order.dueDate || '').trim();
     const company = String(order.customer || '').trim();
     if (name) group.names.add(name);
     if (spec) group.specs.add(spec);
