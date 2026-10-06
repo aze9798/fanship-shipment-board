@@ -2531,6 +2531,7 @@ async function submitWorkReview(action) {
 const ATTENDANCE_STATUS_TEXT = { normal:'正常', late:'迟到', early_leave:'早退', missing_once:'漏刷1次', absent:'没上班', manual:'人工判定', leave:'请假', reissued:'已补卡' };
 const ATTENDANCE_TYPE_TEXT = { hourly_piece:'计时计件', daily:'固定日薪', monthly:'固定月薪', management:'管理' };
 function attendancePrevMonth() { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+function attendanceCurrentMonth() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function attendanceBounds(m) { const [y, mm] = String(m).split('-').map(Number); const last = new Date(y, mm, 0).getDate(); return { from: `${m}-01`, to: `${m}-${String(last).padStart(2,'0')}` }; }
 function attendanceMoney(v) { return Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits:2, maximumFractionDigits:2 }); }
 function attendanceHours(minutes) { return Math.round(Number(minutes || 0) / 60 * 10) / 10; }
@@ -2549,7 +2550,7 @@ function applyAttendanceTab() {
 async function loadAttendance() {
   if (boardRole !== 'admin' || !RPC_BASE) return;
   if (!attendanceMonth) {
-    attendanceMonth = attendancePrevMonth();
+    attendanceMonth = attendanceCurrentMonth();
     if (els.desktopAttendanceMonth) els.desktopAttendanceMonth.value = attendanceMonth;
     if (els.mobileAttendanceMonth) els.mobileAttendanceMonth.value = attendanceMonth;
   }

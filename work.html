@@ -1072,9 +1072,9 @@ function renderPiece() {
     const isPiece = !profile || profile.salaryType === 'hourly_piece';
     document.querySelectorAll('[data-piece-tab]').forEach((el) => el.classList.toggle('hidden', !isPiece));
     const monthInput = $('attendanceMonth');
-    if (monthInput && !monthInput.value) monthInput.value = previousMonth();
+    if (monthInput && !monthInput.value) monthInput.value = currentMonth();
     const payrollInput = $('payrollMonth');
-    if (payrollInput && !payrollInput.value) payrollInput.value = previousMonth();
+    if (payrollInput && !payrollInput.value) payrollInput.value = currentMonth();
     if (!isPiece) {
       const att = document.querySelector('.tabs button[data-tab="attendance"]');
       if (att && !att.classList.contains('active')) att.click();
