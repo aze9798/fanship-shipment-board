@@ -154,6 +154,7 @@
     .salary-detail h4{font-size:14px;font-weight:900}.salary-detail .d-row{font-size:14px;font-weight:700;color:#38565c}.salary-detail .d-tag{font-size:12px;font-weight:900}
     .selected-price-card span,.request-product{font-size:14px;font-weight:700;line-height:1.55}
     .empty{font-size:14px;font-weight:700;color:#5b7378}.modal-card h3{font-size:20px;font-weight:900}.modal-card p{font-size:14px;font-weight:700;color:#526b71;line-height:1.6}
+    #networkCheckButton{background:#fff4d6;border:1px solid #efcf86;color:#8a5707;border-radius:13px;min-height:48px;font-weight:900}
     .request-tip{font-size:13px;font-weight:700;color:#5d7479}.action-stack button{font-size:16px;font-weight:900}
   .tabs{display:flex}.tabs button{flex:1 1 0;min-width:0}
     .att-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -185,7 +186,7 @@
     <label class="field"><span>个人访问码</span><input id="codeInput" type="password" autocomplete="current-password" placeholder="例如 FS-03-XXXXX"></label>
     <button id="loginButton" class="primary wide">进入</button>
     <div id="loginError" class="error hidden"></div>
-    <button id="networkCheckButton" class="ghost wide hidden" type="button">登录不上？检测网络</button>
+    <button id="networkCheckButton" class="wide hidden" type="button">登录不上，请切换至WiFi连接</button>
     <div id="networkCheckResult" class="request-tip hidden"></div>
   </section>
   <section id="mainView" class="hidden">
@@ -1019,7 +1020,8 @@ function renderPiece() {
     } catch (e) {
       show($('loginError'), true);
       $('loginError').textContent = e.message || '登录失败';
-      show($('networkCheckButton'), true);
+      show($('networkCheckButton'), !e.noRetry);
+      if ($('networkCheckResult')) $('networkCheckResult').classList.add('hidden');
     }
   }
   async function probeEndpoint(url, label, timeoutMs = 8000) {
@@ -1046,13 +1048,13 @@ function renderPiece() {
       probeEndpoint(apiOrigin + '/auth/v1/health', '数据接口'),
     ]);
     if (pageProbe.ok && apiProbe.ok) {
-      result.textContent = '页面和数据接口都正常；如果仍登录失败，请检查访问码。';
+      result.textContent = '当前网络检测正常，请再试一次；如果仍然登录不上，请切换到WiFi后重试。';
     } else if (pageProbe.ok && !apiProbe.ok) {
-      result.textContent = '页面能打开，但当前手机网络连不上数据服务器（Supabase）。请关闭 VPN/私人中继，切换 Wi-Fi 或换一张卡后重试。';
+      result.textContent = '当前4G/5G网络连接不到服务器，请切换到WiFi后重新登录。';
     } else if (!pageProbe.ok && apiProbe.ok) {
-      result.textContent = '数据服务器正常，但当前页面网络不稳定；请刷新页面后再试。';
+      result.textContent = '当前页面网络不稳定，请切换到WiFi后刷新页面重试。';
     } else {
-      result.textContent = '当前手机网络无法访问系统服务，请切换到 Wi-Fi 或检查 4G/5G 网络。';
+      result.textContent = '当前手机网络无法连接系统，请切换到WiFi后重新登录。';
     }
     button.disabled = false;
   }
