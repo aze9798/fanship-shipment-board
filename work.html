@@ -681,11 +681,18 @@ async function loadProductProcesses(productId) {
     if (token !== productProcessToken) return;
     toast(e.message || '工序匹配失败');
   }
-  // 折弯工：只要本人有折弯权限，搜索任何产品都自动补上折弯；1-4刀和自填仍由前端规格弹窗提供
-  const bendingProcess = (state?.processes || []).find((process) => process.name === '折弯' && process.id);
-  if (bendingProcess && !productProcessMap.has(bendingProcess.id)) {
-    productProcessMap.set(bendingProcess.id, { id:bendingProcess.id, name:'折弯', variants:[] });
-    matchedVariantMap.set(bendingProcess.id, []);
+  // 折弯工：护栏类自动走弯管，其余产品自动走折弯；规格选项仍由前端规格弹窗提供
+  const isGuardrail = /护栏/.test(String(selectedProduct?.name || ''));
+  const foldProcess = (state?.processes || []).find((process) => process.name === '折弯' && process.id);
+  if (isGuardrail && foldProcess) {
+    productProcessMap.delete(foldProcess.id);
+    matchedVariantMap.delete(foldProcess.id);
+  }
+  const extraProcessName = isGuardrail ? '弯管' : '折弯';
+  const extraProcess = (state?.processes || []).find((process) => process.name === extraProcessName && process.id);
+  if (extraProcess && !productProcessMap.has(extraProcess.id)) {
+    productProcessMap.set(extraProcess.id, { id:extraProcess.id, name:extraProcessName, variants:[] });
+    matchedVariantMap.set(extraProcess.id, []);
   }
   const allowed = (state?.processes || []).filter((process) => productProcessMap.has(process.id));
   selectedProcessId = '';
