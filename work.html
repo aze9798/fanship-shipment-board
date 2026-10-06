@@ -185,6 +185,8 @@
     <label class="field"><span>个人访问码</span><input id="codeInput" type="password" autocomplete="current-password" placeholder="例如 FS-03-XXXXX"></label>
     <button id="loginButton" class="primary wide">进入</button>
     <div id="loginError" class="error hidden"></div>
+    <button id="networkCheckButton" class="ghost wide hidden" type="button">登录不上？检测网络</button>
+    <div id="networkCheckResult" class="request-tip hidden"></div>
   </section>
   <section id="mainView" class="hidden">
     <div class="top"><div><h1 id="employeeName">员工</h1><p id="employeeMeta"></p></div></div>
@@ -420,10 +422,27 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
     return readCookie(COOKIE_KEY) || '';
   }
   async function rpc(name, body) {
-    const r = await fetch(`${window.WORK_RPC_BASE}/${name}`, { method:'POST', headers:{ apikey:window.WORK_ANON_KEY, Authorization:`Bearer ${window.WORK_ANON_KEY}`, 'Content-Type':'application/json' }, body:JSON.stringify(body) });
-    const data = await r.json().catch(() => null);
-    if (!r.ok) throw new Error(data?.message || '请求失败');
-    return data;
+    const url = `${window.WORK_RPC_BASE}/${name}`;
+    let lastError = null;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000);
+      try {
+        const r = await fetch(url, { method:'POST', headers:{ apikey:window.WORK_ANON_KEY, Authorization:`Bearer ${window.WORK_ANON_KEY}`, 'Content-Type':'application/json' }, body:JSON.stringify(body), signal:controller.signal, cache:'no-store' });
+        const data = await r.json().catch(() => null);
+        if (!r.ok) { const httpError = new Error(data?.message || '请求失败'); httpError.noRetry = true; throw httpError; }
+        return data;
+      } catch (error) {
+        if (error.noRetry) throw error;
+        lastError = error;
+        if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 700));
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    if (!navigator.onLine) throw new Error('手机当前没有网络，请检查 4G/5G 或 Wi-Fi');
+    const reason = lastError?.name === 'AbortError' ? '连接超时' : (lastError?.message || '网络连接失败');
+    throw new Error(`${reason}（已自动重试 3 次，请关闭 VPN/私人中继或切换网络后重试）`);
   }
   function betaStorageKey(kind) { return `fanshipWorkBeta:${kind}:${code || 'none'}`; }
   function loadBetaSession() {
@@ -997,7 +1016,45 @@ function renderPiece() {
       profile = await rpc('work_get_my_profile', { p_code:code }).catch(() => null);
       await loadState();
       applyProfileTabs();
-    } catch (e) { show($('loginError'), true); $('loginError').textContent = e.message || '登录失败'; }
+    } catch (e) {
+      show($('loginError'), true);
+      $('loginError').textContent = e.message || '登录失败';
+      show($('networkCheckButton'), true);
+    }
+  }
+  async function probeEndpoint(url, label, timeoutMs = 8000) {
+    const started = Date.now();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      await fetch(url, { method:'GET', headers:{ apikey:window.WORK_ANON_KEY, Authorization:`Bearer ${window.WORK_ANON_KEY}` }, signal:controller.signal, cache:'no-store' });
+      return { label, ok:true, ms:Date.now()-started };
+    } catch (error) {
+      return { label, ok:false, ms:Date.now()-started, error:error?.name === 'AbortError' ? '超时' : (error?.message || '失败') };
+    } finally { clearTimeout(timer); }
+  }
+  async function checkNetworkConnectivity() {
+    const button = $('networkCheckButton');
+    const result = $('networkCheckResult');
+    if (!button || !result) return;
+    button.disabled = true;
+    result.classList.remove('hidden');
+    result.textContent = '正在检测页面服务和数据接口…';
+    const apiOrigin = new URL(window.WORK_RPC_BASE).origin;
+    const [pageProbe, apiProbe] = await Promise.all([
+      probeEndpoint(location.href, '页面服务'),
+      probeEndpoint(apiOrigin + '/auth/v1/health', '数据接口'),
+    ]);
+    if (pageProbe.ok && apiProbe.ok) {
+      result.textContent = '页面和数据接口都正常；如果仍登录失败，请检查访问码。';
+    } else if (pageProbe.ok && !apiProbe.ok) {
+      result.textContent = '页面能打开，但当前手机网络连不上数据服务器（Supabase）。请关闭 VPN/私人中继，切换 Wi-Fi 或换一张卡后重试。';
+    } else if (!pageProbe.ok && apiProbe.ok) {
+      result.textContent = '数据服务器正常，但当前页面网络不稳定；请刷新页面后再试。';
+    } else {
+      result.textContent = '当前手机网络无法访问系统服务，请切换到 Wi-Fi 或检查 4G/5G 网络。';
+    }
+    button.disabled = false;
   }
   function currentMonth() {
     const d = new Date();
@@ -1757,6 +1814,7 @@ function variantDisplay(processName, value) {
     } catch (e) { toast(e.message || '撤回失败'); } finally { btn.disabled = false; }
   }
   $('loginButton').addEventListener('click', () => login($('codeInput').value));
+  if ($('networkCheckButton')) $('networkCheckButton').addEventListener('click', () => checkNetworkConnectivity().catch(() => {}));
   $('codeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') login($('codeInput').value); });
   const logoutButton = $('logoutButton');
   if (logoutButton) logoutButton.addEventListener('click', () => { state = null; salaryData = null; editEntry = null; code = ''; clearStoredCode(); render(); });
