@@ -793,7 +793,7 @@ function renderPiece() {
     if (button) button.disabled = true;
     try {
       if (salaryRange === 'month') {
-        if (!$('salaryMonth').value) $('salaryMonth').value = previousMonth();
+        if (!$('salaryMonth').value) $('salaryMonth').value = currentMonth();
         salaryMonthValue = $('salaryMonth').value;
         salaryMonthData = await rpc('work_get_my_salary_month', { p_code:code, p_month: salaryMonthValue + '-01' });
         renderSalaryMonth();
@@ -1401,10 +1401,10 @@ function renderPiece() {
     const q = $('productSearch').value.trim(); const box = $('productSuggest');
     if (!q) { show(box,false); show($('newPieceButton'), true); return; }
     try {
-      const rows = await rpc('work_search_products', { p_code:code, p_query:q });
-      box.innerHTML = rows.length ? rows.map((p) => `<button type="button" data-product="${esc(p.id)}" data-material="${esc(p.material)}" data-name="${esc(p.name)}" data-spec="${esc(p.spec)}"><strong>${esc(p.material)} · ${esc(p.name)}</strong><span>${esc(p.spec || '无图号')}</span></button>`).join('') : '<button type="button" data-open-custom="1"><strong>没有找到产品</strong><span>点这里自主申报新产品</span></button>';
+      const rows = await rpc('work_search_products', { p_code:code, p_query:q }); const orderedRows = (Array.isArray(rows) ? rows.slice() : []).sort((a,b) => q.includes('包装架') && a.material !== b.material ? (a.material === 'PACK-RACK' ? -1 : b.material === 'PACK-RACK' ? 1 : 0) : 0);
+      box.innerHTML = orderedRows.length ? orderedRows.map((p) => `<button type="button" data-product="${esc(p.id)}" data-material="${esc(p.material)}" data-name="${esc(p.name)}" data-spec="${esc(p.spec)}"><strong>${esc(p.material)} · ${esc(p.name)}</strong><span>${esc(p.spec || '无图号')}</span></button>`).join('') : '<button type="button" data-open-custom="1"><strong>没有找到产品</strong><span>点这里自主申报新产品</span></button>';
       show(box,true);
-      show($('newPieceButton'), rows.length === 0);
+      show($('newPieceButton'), orderedRows.length === 0);
     } catch (e) { toast(e.message || '搜索失败'); }
   }
 function variantDisplay(processName, value) {
