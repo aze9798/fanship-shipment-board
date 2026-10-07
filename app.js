@@ -470,7 +470,7 @@ function selectReplacementPlan(planId) {
     material: plan.material || '',
     name: plan.name || '',
     spec: plan.spec || '',
-    customer: plan.customer || '',
+    customer: '4137',
     quantity: Number(plan.quantity || 0),
     dueDate: String(plan.deliveryDate || '').trim() || defaultReplacementDueDate(),
     remark: replacementPlanNote(plan),
@@ -536,7 +536,7 @@ async function addReplacement() {
       p_code: getAccessCode(),
       p_payload: {
         date: dueDate,
-        customer: replacementPick.customer || '',
+        customer: '4137',
         material: replacementPick.material,
         name: replacementPick.name || '',
         spec: replacementPick.spec || '',
@@ -4176,6 +4176,8 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
   const remark = replacementPlanNote(plan);
   const name = String(plan.name || '').trim();
   const planId = String(plan.id || plan.planId || '').trim();
+  const drawing = drawingFor(plan);
+  const drawingButton = drawing ? drawingLinkHtml(drawing) : '';
   const selectedAction = selected
     ? `<button type="button" class="cart-remove" data-unselect-replacement-plan="${escapeHtml(planId)}">取消装车</button>`
     : `<button type="button" class="button primary replacement-plan-load" data-select-replacement-plan="${escapeHtml(planId)}">装车</button>`;
@@ -4186,9 +4188,9 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
   return `<article class="order-card replacement-plan-card" data-loading-kind="replacement" data-loading-due-date="${escapeHtml(dueDate)}">
     <div class="card-top">
       <div class="order-title">
-        <div class="order-name-line"><strong>${escapeHtml(name || plan.material || '补发物料')}</strong><span class="replacement-plan-tag">补发计划</span></div>
+        <div class="order-name-line"><strong>${escapeHtml(name || plan.material || '补发物料')}</strong><span class="replacement-plan-tag">补发</span>${drawingButton}</div>
         <span class="mono">${escapeHtml(plan.material || '')}${plan.spec ? ' · ' + escapeHtml(plan.spec) : ''}</span>
-        <span>补发交期 ${escapeHtml(formatDate(dueDate))}${plan.customer ? ' · ' + escapeHtml(plan.customer) : ''}</span>
+        <span>补发交期 ${escapeHtml(formatDate(dueDate))} · 4137</span>
       </div>
       <span class="replacement-plan-state">${selected ? '已加入本次装车' : '待装车'}</span>
     </div>
@@ -5708,7 +5710,7 @@ async function submitShipment() {
           p_code: getAccessCode(),
           p_payload: {
             date: item.dueDate || defaultReplacementDueDate(),
-            customer: item.customer,
+            customer: '4137',
             material: item.material,
             name: item.name,
             spec: item.spec,
