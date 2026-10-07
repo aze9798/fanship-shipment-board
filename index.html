@@ -568,9 +568,10 @@
               <div id="replacementSuggest" class="suggest-list" hidden></div>
               <div id="replacementPicked" class="replacement-picked" hidden></div>
               <div class="replacement-form">
-                <input id="replacementQty" type="number" min="1" step="1" inputmode="numeric" placeholder="补发数量">
-                <input id="replacementRemark" type="text" placeholder="备注（写到送货单备注栏）">
-                <button id="replacementAdd" class="button primary" type="button">加入补发</button>
+                <input id="replacementQty" type="number" min="1" step="1" inputmode="numeric" placeholder="补发数量" aria-label="补发数量">
+                <input id="replacementDueDate" type="date" title="补发交期（默认最近的未交交期）" aria-label="补发交期">
+                <input id="replacementRemark" type="text" placeholder="备注（补货原因，写到送货单备注栏）">
+                <button id="replacementAdd" class="button primary" type="button">加入补发计划</button>
               </div>
             </div>
             <div id="mobileFilters" class="filter-chips">
