@@ -298,6 +298,7 @@ const sessionOver = new Map();
 // 本次装车里的补发（不良补货）：不扣未交，直接进送货单
 const REPLACEMENT_PLAN_MARK = '【补发计划待装车】';
 const PHOTO_FILE_KIND = 'SHIPMENT_PHOTO';
+const UNIT_FILE_KIND = 'SHIPMENT_UNIT';
 const sessionReplacements = [];
 const sessionPhotos = [];
 let replacementPick = null;
@@ -305,10 +306,15 @@ let photoCaptureTarget = null;
 let photoPendingDataUrl = '';
 let photoCandidateRows = [];
 let photoSelectedMaterials = new Map();
+let sampleApprovalCandidates = [];
+let sampleApprovalSelectedIndex = -1;
+let sampleApprovalPreviewRows = [];
+let sampleApprovalPreviewObjectUrl = '';
 let photoViewerTarget = null;
 let photoViewerRow = null;
 let photoRetakeMode = false;
 let photoRetakeAllowedKeys = new Set();
+let photoUnitContext = null;
 let editingOrderId = '';
 
 // 手工撤回过的冲抵：这条多送记录不再自动冲抵（本地立刻生效，云端也会记一笔）
@@ -445,6 +451,16 @@ function loadingItems(orderRows, options = {}) {
       selected: true,
       legacyIndex,
     })) : [];
+  const unitItems = includeReplacements ? shipmentUnits().filter((unit) => String(unit.status || 'ready') !== 'shipped').map((unit, index) => ({
+    kind: 'unit',
+    dueDate: String(unit.deliveryDate || '').trim() || defaultReplacementDueDate(),
+    rank: 1.5,
+    material: String(unit.members?.[0]?.material || unit.unitId || ''),
+    name: String(unit.label || '装车单元'),
+    seq: index,
+    unit,
+    index,
+  })) : [];
   return [
     ...(orderRows || []).map((order) => ({
       kind: 'order',
@@ -456,6 +472,7 @@ function loadingItems(orderRows, options = {}) {
       order,
     })),
     ...planItems,
+    ...unitItems,
     ...legacyItems,
   ].sort((left, right) =>
     String(left.dueDate || '9999-12-31').localeCompare(String(right.dueDate || '9999-12-31'))
@@ -688,6 +705,7 @@ function openPhotoCapture(target, options = {}) {
   photoCaptureTarget = target;
   photoPendingDataUrl = '';
   photoRetakeMode = Boolean(options.retake);
+  photoUnitContext = options.unit || null;
   if (photoRetakeMode && options.existingPhoto?.materials?.length) {
     photoSelectedMaterials = new Map(options.existingPhoto.materials.map((row) => [photoMaterialKey(row), row]));
     photoRetakeAllowedKeys = new Set(photoSelectedMaterials.keys());
@@ -704,7 +722,7 @@ function openPhotoCapture(target, options = {}) {
   els.photoCaptureModal.hidden = false;
 }
 
-function closePhotoCapture() { if (els.photoCaptureModal) els.photoCaptureModal.hidden = true; photoRetakeMode = false; photoRetakeAllowedKeys = new Set(); }
+function closePhotoCapture() { if (els.photoCaptureModal) els.photoCaptureModal.hidden = true; photoRetakeMode = false; photoRetakeAllowedKeys = new Set(); photoUnitContext = null; }
 
 function compressPhotoFile(file) {
   return new Promise((resolve, reject) => {
@@ -733,6 +751,7 @@ function compressPhotoFile(file) {
 async function savePhotoCapture() {
   if (!photoPendingDataUrl) { showToast('请先拍照或选择照片'); return; }
   const materials = [...photoSelectedMaterials.values()];
+  const unitContext = photoUnitContext;
   if (!materials.length) { showToast('请至少关联一个物料'); return; }
   const photoId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2)).replace(/-/g, '');
   const fileName = `photo-${currentDeliveryDate().replace(/-/g, '')}-${photoId}.jpg`;
@@ -744,10 +763,24 @@ async function savePhotoCapture() {
     const result = await callRpc('board_save_delivery_file', { p_code: getAccessCode(), p_payload: payload });
     const uploaded = result.response.ok;
     sessionPhotos.push({ id: result.data?.id || '', fileName, dataUrl: photoPendingDataUrl, materials, note, meta, capturedAt: meta.capturedAt, uploaded });
+    let unitUpdated = false;
+    if (uploaded && unitContext) {
+      await persistUnit({ ...unitContext, photoFileNames: [...(unitContext.photoFileNames || []), fileName], status: 'ready' });
+      unitUpdated = true;
+    } else if (uploaded && materials.length > 1) {
+      await createUnitFromPhoto(photoId, materials, fileName);
+      unitUpdated = true;
+    }
     closePhotoCapture();
-    renderPhotoArchive();
-    renderMobileList();
-    renderDesktopLoading();
+    if (unitUpdated) {
+      await waitForStateIdle();
+      await loadState({ quiet: true });
+      renderAll();
+    } else {
+      renderPhotoArchive();
+      renderMobileList();
+      renderDesktopLoading();
+    }
     showToast(uploaded ? '照片已保存到云端' : '照片已暂存在本机，确认装车时会重试上传');
   } finally {
     if (els.photoSave) els.photoSave.disabled = false;
@@ -788,6 +821,238 @@ function openLocalPhoto(row) {
   els.photoViewerImage.src = row.dataUrl;
   if (els.photoViewerMeta) els.photoViewerMeta.textContent = photoMaterialsText(row) + (row.note ? ' · ' + row.note : '');
   if (els.photoViewerModal) els.photoViewerModal.hidden = false;
+}
+function shipmentUnits() {
+  return Array.isArray(snapshot?.shipmentUnits) ? snapshot.shipmentUnits : [];
+}
+
+function normalizeUnitRow(row) {
+  let meta = {};
+  try { meta = JSON.parse(String(row?.batch || '{}')); } catch {}
+  const members = Array.isArray(meta.members) ? meta.members : [];
+  return {
+    ...row,
+    meta,
+    unitId: String(meta.unitId || row?.id || ''),
+    label: String(meta.label || '装车单元'),
+    status: String(meta.status || 'ready'),
+    deliveryDate: String(meta.deliveryDate || row?.deliveryDate || ''),
+    members,
+    photoFileNames: Array.isArray(meta.photoFileNames) ? meta.photoFileNames : [],
+    note: String(meta.note || ''),
+    createdAt: String(meta.createdAt || row?.createdAt || ''),
+    updatedAt: String(meta.updatedAt || meta.createdAt || row?.createdAt || ''),
+    shipmentId: String(meta.shipmentId || ''),
+  };
+}
+
+async function loadShipmentUnits() {
+  if (!RPC_BASE) return [];
+  const accessCode = getAccessCode();
+  if (!accessCode) return [];
+  try {
+    const result = await callRpc('board_get_delivery_files', { p_code: accessCode, p_limit: 300 });
+    if (!result.response.ok) return [];
+    return Array.isArray(result.data)
+      ? result.data.filter((row) => String(row.kind || '') === UNIT_FILE_KIND).map(normalizeUnitRow)
+      : [];
+  } catch { return []; }
+}
+
+function unitStatusText(unit) {
+  return ({ ready: '待装车', loaded: '已装入', needs_rephoto: '需重新拍照', shipped: '已发货' })[unit.status] || '待装车';
+}
+
+function unitPhoto(unit) {
+  const fileName = String((unit.photoFileNames || []).slice(-1)[0] || '');
+  if (!fileName) return null;
+  return photoArchiveRows().find((row) => String(row.fileName || '') === fileName) || null;
+}
+
+function unitMembersText(unit) {
+  return (unit.members || []).map((member) => member.material).filter(Boolean).join('、') || '未填写物料';
+}
+
+function base64Text(value) {
+  return btoa(unescape(encodeURIComponent(String(value || ''))));
+}
+
+function unitMetaForSave(unit) {
+  return {
+    type: 'shipment_unit',
+    unitId: unit.unitId,
+    label: unit.label || '装车单元',
+    status: unit.status || 'ready',
+    deliveryDate: unit.deliveryDate || currentDeliveryDate(),
+    members: unit.members || [],
+    photoFileNames: unit.photoFileNames || [],
+    note: unit.note || '',
+    createdAt: unit.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    shipmentId: unit.shipmentId || '',
+  };
+}
+
+async function persistUnit(unit) {
+  const meta = unitMetaForSave(unit);
+  const fileName = String(unit.fileName || ('unit-' + String(meta.deliveryDate).replace(/-/g, '') + '-' + meta.unitId + '.json'));
+  const result = await callRpc('board_save_delivery_file', {
+    p_code: getAccessCode(),
+    p_payload: {
+      date: meta.deliveryDate,
+      batch: JSON.stringify(meta),
+      fileName,
+      kind: UNIT_FILE_KIND,
+      noteCount: meta.members.length,
+      contentBase64: base64Text(JSON.stringify(meta)),
+    },
+  });
+  if (!result.response.ok) throw new Error(result.data?.message || '装车单元保存失败');
+  return { ...unit, ...meta, fileName };
+}
+
+async function updateShipmentUnit(unit, patch = {}) {
+  const updated = await persistUnit({ ...unit, ...patch });
+  await waitForStateIdle();
+  await loadState({ quiet: true });
+  renderAll();
+  return updated;
+}
+
+function buildUnitMembers(materials) {
+  const wanted = new Set((materials || []).map((row) => String(row.material || '').trim()).filter(Boolean));
+  const members = [];
+  for (const order of (snapshot?.orders || [])) {
+    if (!(Number(order.remaining || 0) > 0)) continue;
+    if (!wanted.has(String(order.material || '').trim())) continue;
+    members.push({
+      orderId: String(order.id || ''),
+      po: order.po || '',
+      seq: order.seq || '',
+      material: order.material || '',
+      name: order.name || '',
+      spec: order.spec || '',
+      dueDate: String(order.dueDate || ''),
+      quantity: Number(order.remaining || 0),
+      unit: '件',
+    });
+  }
+  return members;
+}
+
+function buildUnitMeta(unitId, materials, photoFileName) {
+  const members = buildUnitMembers(materials);
+  return {
+    unitId,
+    label: '装车单元',
+    status: 'ready',
+    deliveryDate: currentDeliveryDate(),
+    members,
+    photoFileNames: [photoFileName].filter(Boolean),
+    note: '',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    shipmentId: '',
+  };
+}
+
+async function createUnitFromPhoto(unitId, materials, photoFileName) {
+  if (!materials || materials.length < 2) return null;
+  const unit = buildUnitMeta(unitId, materials, photoFileName);
+  const fileName = 'unit-' + currentDeliveryDate().replace(/-/g, '') + '-' + unitId + '.json';
+  return persistUnit({ ...unit, fileName });
+}
+function unitCardHtml(unit, index) {
+  const photo = unitPhoto(unit);
+  const status = unit.status || 'ready';
+  const members = unit.members || [];
+  const memberHtml = members.map((member, memberIndex) => `
+    <div class="unit-member-row">
+      <div class="unit-member-info">
+        <strong>${escapeHtml(member.material || '')} ${escapeHtml(member.name || '')}</strong>
+        <small>${escapeHtml(member.po || '')} 项次${escapeHtml(member.seq || '')} · ${escapeHtml(member.spec || '—')} · 交期 ${escapeHtml(formatDate(member.dueDate || unit.deliveryDate))}</small>
+      </div>
+      <input type="number" min="0" step="1" inputmode="numeric" value="${Number(member.quantity || 0) || ''}" placeholder="数量" data-unit-member-qty="${memberIndex}" data-unit-id="${escapeHtml(unit.unitId)}" aria-label="本次装车数量">
+      <button type="button" class="cart-remove" data-unit-member-remove="${memberIndex}">移除</button>
+    </div>`).join('');
+  const photoAction = photo ? `<button type="button" class="cart-remove" data-unit-view-photo="${escapeHtml(unit.unitId)}">查看照片</button>` : '';
+  const retakeAction = status === 'needs_rephoto' ? `<button type="button" class="button primary" data-unit-retake="${escapeHtml(unit.unitId)}">重新拍照</button>` : '';
+  const loadAction = status === 'needs_rephoto' ? '' : `<button type="button" class="button primary" data-unit-load="${escapeHtml(unit.unitId)}">${status === 'loaded' ? '更新装车数量' : '整组装车'}</button>`;
+  return `<article class="order-card shipment-unit-card" data-unit-card="${escapeHtml(unit.unitId)}">
+    <div class="unit-card-head">
+      <div>
+        <div class="order-name-line"><strong>${escapeHtml(unit.label || '装车单元')}</strong><span class="unit-status ${escapeHtml(status)}">${escapeHtml(unitStatusText(unit))}</span></div>
+        <span class="mono">交期 ${escapeHtml(formatDate(unit.deliveryDate || ''))} · ${members.length} 项物料</span>
+      </div>
+      ${photo ? `<button type="button" class="unit-photo-button" data-unit-view-photo="${escapeHtml(unit.unitId)}">现场照片</button>` : '<span class="unit-photo-button empty">无照片</span>'}
+    </div>
+    <div class="unit-member-list">${memberHtml || '<div class="unit-member-empty">没有匹配到待发货订单</div>'}</div>
+    <div class="unit-card-actions">${loadAction}${retakeAction}${photoAction}</div>
+  </article>`;
+}
+
+async function loadUnitToCart(unitId) {
+  const unit = shipmentUnits().find((row) => String(row.unitId) === String(unitId));
+  if (!unit) { showToast('装车单元不存在或已更新'); return; }
+  if (unit.status === 'needs_rephoto') { showToast('请先重新拍照，再整组装车'); return; }
+  let loaded = 0;
+  for (const member of unit.members || []) {
+    const quantity = Number(member.quantity || 0);
+    if (!member.orderId || quantity <= 0) continue;
+    selected.set(String(member.orderId), quantity);
+    clearPendingOver(member.material);
+    loaded += 1;
+  }
+  if (!loaded) { showToast('请先填写至少一项装车数量'); return; }
+  await updateShipmentUnit(unit, { status: 'loaded' });
+  showToast(`已装入 ${loaded} 项物料，确认装车后一起发货`);
+}
+
+async function removeUnitMember(unitId, memberIndex) {
+  const unit = shipmentUnits().find((row) => String(row.unitId) === String(unitId));
+  if (!unit) { showToast('装车单元不存在或已更新'); return; }
+  const index = Number(memberIndex);
+  const member = (unit.members || [])[index];
+  if (!member) return;
+  if (!window.confirm(`要把 ${member.material} 从装车单元中移除吗？\n移除后需要重新拍照。`)) return;
+  if (member.orderId) selected.delete(String(member.orderId));
+  const members = (unit.members || []).filter((_, i) => i !== index);
+  await updateShipmentUnit(unit, { members, status: 'needs_rephoto' });
+  showToast('已移除物料，请重新拍照后再确认整组装车');
+}
+
+async function updateUnitMemberQuantity(unitId, memberIndex, value) {
+  const unit = shipmentUnits().find((row) => String(row.unitId) === String(unitId));
+  if (!unit) return;
+  const index = Number(memberIndex);
+  const quantity = Number(value);
+  const members = (unit.members || []).map((member, i) => i === index ? { ...member, quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 0 } : member);
+  await updateShipmentUnit(unit, { members });
+}
+
+function viewUnitPhoto(unitId) {
+  const unit = shipmentUnits().find((row) => String(row.unitId) === String(unitId));
+  if (!unit) return;
+  const photo = unitPhoto(unit);
+  if (!photo) { showToast('这个装车单元还没有照片'); return; }
+  photoViewerTarget = unit.members?.[0] || unit;
+  photoViewerRow = photo;
+  if (photo.dataUrl) openLocalPhoto(photo);
+  else if (photo.id) openCloudPhoto(photo.id, photo);
+}
+
+function retakeUnit(unitId) {
+  const unit = shipmentUnits().find((row) => String(row.unitId) === String(unitId));
+  if (!unit) return;
+  const target = unit.members?.[0] || { material: unitMembersText(unit) };
+  photoUnitContext = unit;
+  openPhotoCapture(target, { retake: true, existingPhoto: { ...unit, materials: unit.members || [] }, unit });
+}
+
+async function markLoadedUnitsShipped(shipmentId) {
+  for (const unit of shipmentUnits().filter((row) => row.status === 'loaded')) {
+    try { await persistUnit({ ...unit, status: 'shipped', shipmentId: String(shipmentId || '') }); } catch {}
+  }
 }
 function renderReplacementSuggest() {
   if (!els.replacementSuggest || !els.replacementSearch) return;
@@ -1093,6 +1358,17 @@ const els = {
   photoViewerRetake: $('#photoViewerRetake'),
   photoViewerMeta: $('#photoViewerMeta'),
   photoViewerImage: $('#photoViewerImage'),
+  sampleApprovalSelectModal: $('#sampleApprovalSelectModal'),
+  sampleApprovalSelectList: $('#sampleApprovalSelectList'),
+  sampleApprovalSelectClose: $('#sampleApprovalSelectClose'),
+  sampleApprovalSelectCancel: $('#sampleApprovalSelectCancel'),
+  sampleApprovalSelectConfirm: $('#sampleApprovalSelectConfirm'),
+  sampleApprovalPreviewModal: $('#sampleApprovalPreviewModal'),
+  sampleApprovalPreviewMeta: $('#sampleApprovalPreviewMeta'),
+  sampleApprovalPreviewFrame: $('#sampleApprovalPreviewFrame'),
+  sampleApprovalPreviewClose: $('#sampleApprovalPreviewClose'),
+  sampleApprovalPreviewCancel: $('#sampleApprovalPreviewCancel'),
+  sampleApprovalPreviewPrint: $('#sampleApprovalPreviewPrint'),
   mobileOffsetBox: $('#mobileOffsetBox'),
   mobileEmpty: $('#mobileEmpty'),
   mobileEntryPanel: $('#mobileEntryPanel'),
@@ -1399,12 +1675,13 @@ async function loadState({ quiet = false } = {}) {
     if (!response.ok) throw new Error('数据加载失败');
     const nextSnapshot = await response.json();
     // 并行拉取，避免一个个排队等（页面卡顿的主因）
-    const [amounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, replacements, drawings] = await Promise.all([
+    const [amounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings] = await Promise.all([
       boardRole === 'admin' ? loadAmounts() : Promise.resolve([]),
       loadOverDeliveries(),
       loadOverOffsets(),
       loadDeliveryFiles(),
       loadShipmentPhotos(),
+      loadShipmentUnits(),
       loadReplacements(),
       loadBilledStatus().then(() => loadDrawings()),
     ]);
@@ -1413,6 +1690,7 @@ async function loadState({ quiet = false } = {}) {
     nextSnapshot.overOffsets = overOffsets;
     nextSnapshot.deliveryFiles = deliveryFiles;
     nextSnapshot.shipmentPhotos = shipmentPhotos;
+    nextSnapshot.shipmentUnits = shipmentUnits;
     nextSnapshot.replacements = replacements;
     nextSnapshot.drawings = drawings;
     const changed = !snapshot || nextSnapshot.revision !== snapshot.revision;
@@ -1668,6 +1946,79 @@ function renderPdfPreview(docs) {
   if (bad.length) showToast(`总金额核对未通过：${bad.length} 个 PDF 有问题，已禁止导入`, 7000);
 }
 
+function sampleApprovalCandidateList(rows) {
+  const map = new Map();
+  for (const row of rows || []) {
+    if (!row?.material) continue;
+    if (row.orderType && row.orderType !== 'sample') continue;
+    const key = [row.po, row.seq, row.material, row.spec].map((value) => String(value || '').trim()).join('|');
+    if (!map.has(key)) map.set(key, row);
+  }
+  return [...map.values()].sort((left, right) => String(left.material || '').localeCompare(String(right.material || ''), 'zh-CN'));
+}
+
+function renderSampleApprovalSelectList() {
+  if (!els.sampleApprovalSelectList) return;
+  if (!sampleApprovalCandidates.length) {
+    els.sampleApprovalSelectList.innerHTML = '<div class="empty-state"><strong>没有可选承样订单</strong><span>当前范围里没有承样订单。</span></div>';
+    return;
+  }
+  els.sampleApprovalSelectList.innerHTML = sampleApprovalCandidates.map((row, index) => {
+    const quantity = Number(row.quantity ?? row.orderQty ?? row.openingRemaining ?? row.remaining ?? 0);
+    return `<label class="sample-approval-choice${index === sampleApprovalSelectedIndex ? ' selected' : ''}">
+      <input type="radio" name="sampleApprovalChoice" value="${index}"${index === sampleApprovalSelectedIndex ? ' checked' : ''}>
+      <span><strong>${escapeHtml(row.material || '')} · ${escapeHtml(row.name || '')}</strong><small>${escapeHtml(row.spec || '')} · 采购单 ${escapeHtml(row.po || '')} · 项次 ${escapeHtml(row.seq || '')}</small></span>
+      <em>${escapeHtml(fmt(quantity))} 件</em>
+    </label>`;
+  }).join('');
+}
+
+function openSampleApprovalSelector(rows) {
+  sampleApprovalCandidates = sampleApprovalCandidateList(rows);
+  if (!sampleApprovalCandidates.length) { showToast('当前未交清单里没有承样订单'); return; }
+  sampleApprovalSelectedIndex = 0;
+  renderSampleApprovalSelectList();
+  if (els.sampleApprovalSelectModal) els.sampleApprovalSelectModal.hidden = false;
+}
+
+function closeSampleApprovalSelector() { if (els.sampleApprovalSelectModal) els.sampleApprovalSelectModal.hidden = true; }
+
+function closeSampleApprovalPreview() {
+  if (els.sampleApprovalPreviewModal) els.sampleApprovalPreviewModal.hidden = true;
+  if (els.sampleApprovalPreviewFrame) els.sampleApprovalPreviewFrame.src = 'about:blank';
+  if (sampleApprovalPreviewObjectUrl) { URL.revokeObjectURL(sampleApprovalPreviewObjectUrl); sampleApprovalPreviewObjectUrl = ''; }
+}
+
+async function openSampleApprovalPreview(row) {
+  const result = await printSampleApprovals([row], { previewOnly: true });
+  const item = result?.results?.[0];
+  if (!item?.previewPdfBase64) { showToast('承认书预览生成失败'); return; }
+  const binary = atob(item.previewPdfBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  if (sampleApprovalPreviewObjectUrl) URL.revokeObjectURL(sampleApprovalPreviewObjectUrl);
+  sampleApprovalPreviewObjectUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+  sampleApprovalPreviewRows = [row];
+  if (els.sampleApprovalPreviewFrame) els.sampleApprovalPreviewFrame.src = sampleApprovalPreviewObjectUrl;
+  if (els.sampleApprovalPreviewMeta) {
+    const quantity = Number(row.quantity ?? row.orderQty ?? row.openingRemaining ?? row.remaining ?? 0);
+    els.sampleApprovalPreviewMeta.textContent = `${row.material || ''} · ${row.name || ''} · ${row.spec || ''} · ${fmt(quantity)} 件 · ${snapshot?.today || TODAY}`;
+  }
+  if (els.sampleApprovalPreviewModal) els.sampleApprovalPreviewModal.hidden = false;
+}
+
+function confirmSampleApprovalSelection() {
+  const row = sampleApprovalCandidates[sampleApprovalSelectedIndex];
+  if (!row) { showToast('请先选择一个承样订单'); return; }
+  closeSampleApprovalSelector();
+  void openSampleApprovalPreview(row);
+}
+
+async function printSampleApprovalPreview() {
+  if (!sampleApprovalPreviewRows.length) return;
+  const result = await printSampleApprovals(sampleApprovalPreviewRows);
+  if (result) closeSampleApprovalPreview();
+}
 async function printSampleApprovals(rows, options = {}) {
   const orders = (rows || []).map((row) => ({
     po: row.po || '',
@@ -1682,6 +2033,7 @@ async function printSampleApprovals(rows, options = {}) {
   })).filter((row) => row.material);
   if (!orders.length) return null;
   const generateOnly = Boolean(options.generateOnly);
+  const previewOnly = Boolean(options.previewOnly);
   try {
     const health = await fetch(`${PRINT_HELPER_BASE}/health`, { cache: 'no-store' });
     if (!health.ok) throw new Error('打印助手没有响应');
@@ -1690,9 +2042,10 @@ async function printSampleApprovals(rows, options = {}) {
     return null;
   }
   try {
-    const response = await fetch(`${PRINT_HELPER_BASE}/sample-approval`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orders, dryRun: generateOnly }) });
+    const response = await fetch(`${PRINT_HELPER_BASE}/sample-approval`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orders, dryRun: generateOnly || previewOnly, preview: previewOnly }) });
     const result = await response.json();
     if (!response.ok || result.ok === false) throw new Error(result.error || '样品承认书处理失败');
+    if (previewOnly) return result;
     if (generateOnly) {
       const generated = (result.results || []).filter((item) => item.approvalGenerated).length;
       showToast(`已生成 ${generated} 份样品承认书`, 5000);
@@ -1710,7 +2063,7 @@ async function printSampleApprovals(rows, options = {}) {
 async function printRemainingSampleApprovals(searchText) {
   const rows = remainingRows(searchText).filter((row) => String(row.orderType || '') === 'sample' && Number(row.remaining || 0) > 0);
   if (!rows.length) { showToast('当前未交清单里没有承样订单'); return; }
-  await generateAndPromptSampleApprovals(rows);
+  openSampleApprovalSelector(rows);
 }
 
 async function generateAndPromptSampleApprovals(rows) {
@@ -1777,7 +2130,7 @@ async function confirmPdfImport() {
     showToast(`已导入 ${count} 行新订单（未交已更新）`);
     await loadState({ quiet: true });
     renderAll();
-    void generateAndPromptSampleApprovals(typedRows.filter((row) => row.orderType === 'sample'));
+    openSampleApprovalSelector(typedRows.filter((row) => row.orderType === 'sample'));
   } catch (error) {
     showToast(error.message || '导入失败');
     els.confirmPdf.disabled = false;
@@ -2151,7 +2504,7 @@ async function loadDeliveryFiles() {
   try {
     const result = await callRpc('board_get_delivery_files', { p_code: accessCode, p_limit: 300 });
     if (!result.response.ok) return [];
-    return Array.isArray(result.data) ? result.data.filter((row) => String(row.kind || '') !== PHOTO_FILE_KIND) : [];
+    return Array.isArray(result.data) ? result.data.filter((row) => String(row.kind || '') !== PHOTO_FILE_KIND && String(row.kind || '') !== UNIT_FILE_KIND) : [];
   } catch { return []; }
 }
 
@@ -2817,7 +3170,9 @@ function renderDesktopLoading() {
   els.desktopLoadingEmpty.hidden = items.length > 0;
   els.desktopLoadingCardList.innerHTML = shown.map((item) => item.kind === 'replacement'
     ? replacementPlanCard(item.item, item.selected, item.legacyIndex)
-    : orderCard(item.order)).join('')
+    : item.kind === 'unit'
+      ? unitCardHtml(item.unit, item.index)
+      : orderCard(item.order)).join('')
     + (items.length > limit ? `<div class="empty-state desktop-loading-more"><strong>还有 ${fmt(items.length - limit)} 项未显示</strong><span>请用搜索快速定位物料。</span></div>` : '');
   renderDesktopLoadingSummary();
   renderDesktopLoadingCart();
@@ -4652,7 +5007,9 @@ function renderMobileList() {
   const shown = items.slice(0, limit);
   els.mobileOrderList.innerHTML = shown.map((item) => item.kind === 'replacement'
     ? replacementPlanCard(item.item, item.selected, item.legacyIndex)
-    : orderCard(item.order)).join('');
+    : item.kind === 'unit'
+      ? unitCardHtml(item.unit, item.index)
+      : orderCard(item.order)).join('');
   if (items.length > limit) {
     els.mobileOrderList.insertAdjacentHTML('beforeend', `<div class="empty-state mobile-empty"><strong>还有 ${items.length - limit} 项未显示</strong><span>请用搜索快速定位物料。</span></div>`);
   }
@@ -6136,6 +6493,7 @@ async function submitShipment() {
       }
     }
     const photoUploadFailed = await uploadSessionPhotos(shipmentId);
+    await markLoadedUnitsShipped(shipmentId);
     selected.clear();
     els.shipmentForm.reset();
     closeSubmitModal();
@@ -6457,10 +6815,18 @@ if (els.desktopLoadingCompany) els.desktopLoadingCompany.addEventListener('chang
 if (els.desktopLoadingRefresh) els.desktopLoadingRefresh.addEventListener('click', async () => { await loadState({ quiet:false }); renderAll(); renderDesktopLoading(); showToast('未交订单已刷新'); });
 if (els.desktopLoadingCardList) {
   els.desktopLoadingCardList.addEventListener('click', (event) => {
+    const unitLoad = event.target.closest('[data-unit-load]');
+    if (unitLoad) { loadUnitToCart(unitLoad.dataset.unitLoad); return; }
+    const unitRetake = event.target.closest('[data-unit-retake]');
+    if (unitRetake) { retakeUnit(unitRetake.dataset.unitRetake); return; }
+    const unitView = event.target.closest('[data-unit-view-photo]');
+    if (unitView) { viewUnitPhoto(unitView.dataset.unitViewPhoto); return; }
+    const unitRemove = event.target.closest('[data-unit-member-remove]');
+    if (unitRemove) { const card = unitRemove.closest('[data-unit-card]'); removeUnitMember(card?.dataset.unitCard, unitRemove.dataset.unitMemberRemove); return; }
     const photoButton = event.target.closest('[data-photo-order], [data-photo-plan]');
     if (photoButton) { openPhotoCaptureFromButton(photoButton); return; }
     const sampleButton = event.target.closest('[data-sample-approval]');
-    if (sampleButton) { const order = snapshot?.orders?.find((row) => String(row.id) === String(sampleButton.dataset.sampleApproval)); if (order) void printSampleApprovals([order]); return; }
+    if (sampleButton) { const order = snapshot?.orders?.find((row) => String(row.id) === String(sampleButton.dataset.sampleApproval)); if (order) openSampleApprovalSelector([order]); return; }
     const planSelect = event.target.closest('[data-select-replacement-plan]');
     if (planSelect) {
       selectReplacementPlan(planSelect.dataset.selectReplacementPlan);
@@ -6502,6 +6868,8 @@ if (els.desktopLoadingCardList) {
     setQuantity(input.dataset.id, input.value);
   });
   els.desktopLoadingCardList.addEventListener('change', (event) => {
+    const unitInput = event.target.closest('[data-unit-member-qty]');
+    if (unitInput) { updateUnitMemberQuantity(unitInput.dataset.unitId, unitInput.dataset.unitMemberQty, unitInput.value); return; }
     const input = event.target.closest('[data-action="input"]');
     if (!input) return;
     updateOrderCardSelection(input.dataset.id);
@@ -6871,6 +7239,18 @@ if (els.photoArchiveList) els.photoArchiveList.addEventListener('click', (event)
   else if (row.id) openCloudPhoto(row.id, row);
 });
 if (els.photoViewerClose) els.photoViewerClose.addEventListener('click', () => { if (els.photoViewerModal) els.photoViewerModal.hidden = true; });
+if (els.sampleApprovalSelectClose) els.sampleApprovalSelectClose.addEventListener('click', closeSampleApprovalSelector);
+if (els.sampleApprovalSelectCancel) els.sampleApprovalSelectCancel.addEventListener('click', closeSampleApprovalSelector);
+if (els.sampleApprovalSelectList) els.sampleApprovalSelectList.addEventListener('change', (event) => {
+  const input = event.target.closest('input[name="sampleApprovalChoice"]');
+  if (!input) return;
+  sampleApprovalSelectedIndex = Number(input.value);
+  renderSampleApprovalSelectList();
+});
+if (els.sampleApprovalSelectConfirm) els.sampleApprovalSelectConfirm.addEventListener('click', confirmSampleApprovalSelection);
+if (els.sampleApprovalPreviewClose) els.sampleApprovalPreviewClose.addEventListener('click', closeSampleApprovalPreview);
+if (els.sampleApprovalPreviewCancel) els.sampleApprovalPreviewCancel.addEventListener('click', closeSampleApprovalPreview);
+if (els.sampleApprovalPreviewPrint) els.sampleApprovalPreviewPrint.addEventListener('click', () => { void printSampleApprovalPreview(); });
 if (els.photoViewerRetake) els.photoViewerRetake.addEventListener('click', () => { if (els.photoViewerModal) els.photoViewerModal.hidden = true; if (photoViewerTarget) openPhotoCapture(photoViewerTarget, { retake: true, existingPhoto: photoViewerRow }); });
 
 if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', (event) => {
@@ -7164,10 +7544,18 @@ document.addEventListener('keydown', (event) => {
 });
 
 els.mobileOrderList.addEventListener('click', (event) => {
+  const unitLoad = event.target.closest('[data-unit-load]');
+  if (unitLoad) { loadUnitToCart(unitLoad.dataset.unitLoad); return; }
+  const unitRetake = event.target.closest('[data-unit-retake]');
+  if (unitRetake) { retakeUnit(unitRetake.dataset.unitRetake); return; }
+  const unitView = event.target.closest('[data-unit-view-photo]');
+  if (unitView) { viewUnitPhoto(unitView.dataset.unitViewPhoto); return; }
+  const unitRemove = event.target.closest('[data-unit-member-remove]');
+  if (unitRemove) { const card = unitRemove.closest('[data-unit-card]'); removeUnitMember(card?.dataset.unitCard, unitRemove.dataset.unitMemberRemove); return; }
   const photoButton = event.target.closest('[data-photo-order], [data-photo-plan]');
   if (photoButton) { openPhotoCaptureFromButton(photoButton); return; }
   const sampleButton = event.target.closest('[data-sample-approval]');
-  if (sampleButton) { const order = snapshot?.orders?.find((row) => String(row.id) === String(sampleButton.dataset.sampleApproval)); if (order) void printSampleApprovals([order]); return; }
+  if (sampleButton) { const order = snapshot?.orders?.find((row) => String(row.id) === String(sampleButton.dataset.sampleApproval)); if (order) openSampleApprovalSelector([order]); return; }
   const planSelect = event.target.closest('[data-select-replacement-plan]');
   if (planSelect) {
     selectReplacementPlan(planSelect.dataset.selectReplacementPlan);
@@ -7209,6 +7597,8 @@ els.mobileOrderList.addEventListener('input', (event) => {
   setQuantity(input.dataset.id, input.value);
 });
 els.mobileOrderList.addEventListener('change', (event) => {
+  const unitInput = event.target.closest('[data-unit-member-qty]');
+  if (unitInput) { updateUnitMemberQuantity(unitInput.dataset.unitId, unitInput.dataset.unitMemberQty, unitInput.value); return; }
   const input = event.target.closest('[data-action="input"]');
   if (!input) return;
   updateOrderCardSelection(input.dataset.id);

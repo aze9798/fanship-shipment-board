@@ -958,6 +958,21 @@
       <div id="drawingViewerPages" class="drawing-viewer-pages"></div>
     </section>
   </div>
+  <div id="sampleApprovalSelectModal" class="modal-backdrop" hidden>
+    <section class="modal-card sample-approval-select-card" role="dialog" aria-modal="true" aria-labelledby="sampleApprovalSelectTitle">
+      <div class="modal-head"><div><p class="eyebrow">承样订单</p><h2 id="sampleApprovalSelectTitle">选择要打印的承样订单</h2></div><button id="sampleApprovalSelectClose" class="icon-button" type="button" aria-label="关闭">×</button></div>
+      <div id="sampleApprovalSelectList" class="sample-approval-select-list"></div>
+      <div class="modal-actions"><button id="sampleApprovalSelectCancel" class="button ghost" type="button">取消</button><button id="sampleApprovalSelectConfirm" class="button primary" type="button">确定</button></div>
+    </section>
+  </div>
+  <div id="sampleApprovalPreviewModal" class="modal-backdrop" hidden>
+    <section class="modal-card sample-approval-preview-card" role="dialog" aria-modal="true" aria-labelledby="sampleApprovalPreviewTitle">
+      <div class="modal-head"><div><p class="eyebrow">打印预览</p><h2 id="sampleApprovalPreviewTitle">样品承认书</h2></div><button id="sampleApprovalPreviewClose" class="icon-button" type="button" aria-label="关闭">×</button></div>
+      <div id="sampleApprovalPreviewMeta" class="sample-approval-preview-meta"></div>
+      <iframe id="sampleApprovalPreviewFrame" class="sample-approval-preview-frame" title="样品承认书打印预览"></iframe>
+      <div class="modal-actions"><button id="sampleApprovalPreviewCancel" class="button ghost" type="button">取消</button><button id="sampleApprovalPreviewPrint" class="button primary" type="button">确认打印</button></div>
+    </section>
+  </div>
   <div id="photoCaptureModal" class="modal-backdrop photo-modal-backdrop" hidden>
     <section class="modal-card photo-capture-card" role="dialog" aria-modal="true" aria-labelledby="photoCaptureTitle">
       <div class="modal-head">
