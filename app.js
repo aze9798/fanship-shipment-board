@@ -659,11 +659,13 @@ function photoMaterialCandidates(queryText) {
 function currentPhotoMaterials(target) {
   const rows = photoPendingRows();
   const material = String(target?.material || '').trim();
+  const targetDate = String(target?.dueDate || target?.deliveryDate || '').trim();
   const selected = new Map();
   for (const row of rows) {
     if (String(row.material || '').trim() !== material) continue;
+    if (targetDate && Array.isArray(row.dueDates) && !row.dueDates.includes(targetDate)) continue;
     if (String(row.material || '').trim() !== String(target?.material || '').trim() && materialHasPhoto(row)) continue;
-    selected.set(photoMaterialKey(row), row);
+    selected.set(photoMaterialKey(row), { ...row, dueDate: targetDate || row.dueDates?.[0] || '' });
   }
   if (!selected.size) selected.set(photoMaterialKey(target), target);
   return selected;
@@ -920,11 +922,17 @@ async function updateShipmentUnit(unit, patch = {}) {
 }
 
 function buildUnitMembers(materials) {
-  const wanted = new Set((materials || []).map((row) => String(row.material || '').trim()).filter(Boolean));
+  const wanted = (materials || []).map((row) => {
+    const dates = new Set([row.dueDate, row.deliveryDate, ...(Array.isArray(row.dueDates) ? row.dueDates : [])].map((value) => String(value || '').trim()).filter(Boolean));
+    return { material: String(row.material || '').trim(), dates };
+  }).filter((item) => item.material);
   const members = [];
   for (const order of (snapshot?.orders || [])) {
     if (!(Number(order.remaining || 0) > 0)) continue;
-    if (!wanted.has(String(order.material || '').trim())) continue;
+    const orderMaterial = String(order.material || '').trim();
+    const orderDate = String(order.dueDate || '').trim();
+    const matched = wanted.some((item) => item.material === orderMaterial && (!item.dates.size || item.dates.has(orderDate)));
+    if (!matched) continue;
     members.push({
       orderId: String(order.id || ''),
       po: order.po || '',
@@ -932,7 +940,7 @@ function buildUnitMembers(materials) {
       material: order.material || '',
       name: order.name || '',
       spec: order.spec || '',
-      dueDate: String(order.dueDate || ''),
+      dueDate: orderDate,
       quantity: Number(order.remaining || 0),
       unit: '件',
     });
