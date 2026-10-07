@@ -757,10 +757,23 @@ const orderCompany = (order) => String(order.customer || '').trim();
 const companyName = (code) => COMPANY_NAMES[code] || code || '未标注公司';
 
 // 同一个交货日期内，特殊订单排在普通订单前面（承样 → 试制 → 工装），方便一眼看到
+const ORDER_TYPE_LABELS = { trial: '试制', sample: '承样', tooling: '工装' };
+const normalizeOrderType = (order) => {
+  const type = String((order && order.orderType) || 'normal');
+  return Object.prototype.hasOwnProperty.call(ORDER_TYPE_LABELS, type) ? type : 'normal';
+};
 const ORDER_TYPE_RANK = { sample: 0, trial: 1, tooling: 2 };
 const orderTypeRank = (order) => {
-  const type = String((order && order.orderType) || '');
+  const type = normalizeOrderType(order);
   return Object.prototype.hasOwnProperty.call(ORDER_TYPE_RANK, type) ? ORDER_TYPE_RANK[type] : 9;
+};
+const remainingTypeTagsHtml = (types) => {
+  const specialTypes = [...new Set(types || [])]
+    .filter((type) => Object.prototype.hasOwnProperty.call(ORDER_TYPE_LABELS, type))
+    .sort((left, right) => ORDER_TYPE_RANK[left] - ORDER_TYPE_RANK[right]);
+  return specialTypes
+    .map((type) => '<span class="order-type-tag order-type-' + type + '">' + ORDER_TYPE_LABELS[type] + '</span>')
+    .join('');
 };
 
 function filteredOrders(filter) {
@@ -3379,8 +3392,26 @@ function shipmentCompany(shipment) {
 }
 function shipmentDisplayBatch(shipment) {
   const explicit = deliveryBatchText(shipment?.deliveryBatch);
-  // 真·历史导入数据保留原样；没开单的发货不再套用“历史已开单”，否则不同日期、不同批次的会被并到一起
-  if (explicit === '历史已开单') return '历史已开单';
+  // 历史导入的发货统一写成「历史已开单」这个占位值。这里按
+  // 「发货日期 + 公司」去云端送货单文件里找真实编号：
+  // 取“这笔发货之后最近上传的那一份”，对应不出来才保留「历史已开单」。
+  if (explicit === '历史已开单') {
+    const day = shipShanghaiDate(shipment?.createdAt);
+    const company = shipmentCompany(shipment);
+    const at = Date.parse(String(shipment?.createdAt || '')) || 0;
+    const files = (snapshot?.deliveryFiles || [])
+      .filter((row) => /\.xlsx$/i.test(String(row.fileName || ''))
+        && String(row.deliveryDate || '') === day
+        && (!company || String(row.kind || '').trim() === company)
+        && deliveryBatchText(row.batch))
+      .map((row) => ({ batch: deliveryBatchText(row.batch), at: Date.parse(String(row.createdAt || '')) || 0 }))
+      .sort((a, b) => a.at - b.at);
+    if (files.length) {
+      const hit = files.find((file) => !at || file.at >= at) || files[files.length - 1];
+      if (hit && hit.batch) return hit.batch;
+    }
+    return '历史已开单';
+  }
   if (explicit) return explicit;
   const date = shipShanghaiDate(shipment?.createdAt);
   const company = shipmentCompany(shipment);
@@ -4114,6 +4145,7 @@ function groupRemainingRows(rows) {
         detailCount: 0,
         drawing: null,
         typeRank: 9,
+        types: new Set(),
         mark: markMaterials.has(material),
       };
       groups.set(key, group);
@@ -4130,6 +4162,7 @@ function groupRemainingRows(rows) {
     group.total += Number(order.remaining || 0);
     group.detailCount += 1;
     group.typeRank = Math.min(group.typeRank, orderTypeRank(order));
+    group.types.add(normalizeOrderType(order));
   }
   return [...groups.values()]
     .map((group) => {
@@ -4141,6 +4174,8 @@ function groupRemainingRows(rows) {
       specs: [...group.specs].sort(),
       dates: [...group.dates].sort(),
       companies: [...group.companies].sort(),
+      types: [...group.types].filter((type) => Object.prototype.hasOwnProperty.call(ORDER_TYPE_LABELS, type))
+        .sort((left, right) => ORDER_TYPE_RANK[left] - ORDER_TYPE_RANK[right]),
       };
     })
     .sort((left, right) => {
@@ -4196,6 +4231,7 @@ function renderMobileRemaining() {
           <div class="remaining-cell order-cell">
             <span>编号</span>
             <strong class="mono">${escapeHtml(group.material)}</strong>
+            ${remainingTypeTagsHtml(group.types)}
             ${group.mark ? '<em class="mark-badge">需打标</em>' : ''}
           </div>
           <div class="remaining-cell detail-cell">
@@ -4839,7 +4875,7 @@ function printRemainingList(groups = remainingGroups()) {
   const rows = groups.map((group) => `
     <tr>
       <td>${escapeHtml(group.material)}</td>
-      <td>${escapeHtml(group.name)}</td>
+      <td>${escapeHtml(group.name)}${remainingTypeTagsHtml(group.types)}</td>
       <td>${escapeHtml(qtyText(group.total))}</td>
       <td>${escapeHtml(remainingDatePrintText(group.dates))}</td>
       <td>${group.mark ? '✅' : ''}</td>
@@ -4920,7 +4956,7 @@ function renderDesktopRemaining() {
   if (els.desktopRemainingSummary) els.desktopRemainingSummary.textContent = `共 ${fmt(groups.length)} 项物料 · ${fmt(rows.length)} 条订单明细 · 合计 ${qtyText(total)} 件 · ${selectedText}`;
   els.desktopRemainingBody.innerHTML = groups.map((group) => `
     <tr>
-      <td class="mono">${escapeHtml(group.material)}</td>
+      <td class="mono">${escapeHtml(group.material)}${remainingTypeTagsHtml(group.types)}</td>
       <td>${escapeHtml(group.name)}</td>
       <td class="mono">${escapeHtml(group.specs.join('、'))}</td>
       <td class="number qty">${escapeHtml(qtyText(group.total))}</td>

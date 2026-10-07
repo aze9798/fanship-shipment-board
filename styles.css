@@ -399,6 +399,7 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 .grouped-remaining-table td { vertical-align: middle; }
 .grouped-remaining-table .qty { color: var(--primary); font-size: 15px; font-weight: 800; }
 .grouped-remaining-table .mark { color: #9b6b14; font-size: 14px; font-weight: 800; text-align: center; }
+.grouped-remaining-table .order-type-tag { margin-left: 7px; padding: 2px 7px; border-radius: 999px; font-size: 11px; font-weight: 800; }
 @media (max-width: 900px) {
   .desktop-remaining-tools { grid-template-columns: 1fr; }
 }
@@ -790,6 +791,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .order-cell > span { display: block; margin-bottom: 4px; }
 .order-cell > strong { display: block; color: #24383f; font-size: 13px; line-height: 1.3; overflow-wrap: anywhere; }
 .order-cell .mark-badge { display: inline-block; margin: 3px auto 0; }
+#remainingList .order-type-tag { display: inline-flex; align-items: center; margin: 4px 2px 0; padding: 2px 6px; border-radius: 999px; font-size: 10px; font-weight: 800; line-height: 1.25; }
 .detail-drawing-slot { flex: 0 0 auto; align-self: center; }
 .detail-drawing-slot .drawing-link { display: inline-flex; margin: 0; padding: 3px 6px; font-size: 8px; white-space: nowrap; }
 .detail-cell { display: flex; align-items: center; gap: 6px; }
@@ -1480,6 +1482,10 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .drawing-link { margin-left: 6px; padding: 1px 6px; border: 1px solid #9fd5cf; border-radius: 6px; color: #0f766e; background: #eefaf8; font: inherit; font-size: 10px; font-weight: 700; cursor: pointer; vertical-align: middle; text-decoration: none; }
 .drawing-link:hover { background: #dff4f0; }
 .order-type-tag { display: inline-block; margin-left: 5px; padding: 1px 5px; border: 1px solid #e0b96b; border-radius: 6px; color: #946314; background: #fff8e8; font-size: 9px; font-weight: 700; vertical-align: middle; }
+/* 特殊订单在未交清单里醒目标注：承样 / 试制 / 工装 */
+.order-type-tag.order-type-sample { border-color: #efb1a0; color: #a33b1e; background: #fff0eb; }
+.order-type-tag.order-type-trial { border-color: #a9c8fb; color: #1d4ed8; background: #eef5ff; }
+.order-type-tag.order-type-tooling { border-color: #a6e3be; color: #067647; background: #ecfdf3; }
 
 /* 图纸库 */
 #desktopFilesView { padding-top: 22px; }
