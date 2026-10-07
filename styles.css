@@ -3252,3 +3252,6 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .mobile-tools #replacementOpen { grid-column: 2; margin: 0; width: auto; min-height: 44px; padding: 0 15px; align-self: start; }
 .mobile-tools #replacementBox,
 .mobile-tools #mobileFilters { grid-column: 1 / -1; }
+.photo-material-option .photo-candidate-stats { color: #0f766e; font-weight: 800; }
+.photo-material-option.locked { opacity: .68; background: #f3f6f6; }
+.photo-material-option.locked b { color: #87979d; }

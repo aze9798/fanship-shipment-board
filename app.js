@@ -306,6 +306,9 @@ let photoPendingDataUrl = '';
 let photoCandidateRows = [];
 let photoSelectedMaterials = new Map();
 let photoViewerTarget = null;
+let photoViewerRow = null;
+let photoRetakeMode = false;
+let photoRetakeAllowedKeys = new Set();
 let editingOrderId = '';
 
 // 手工撤回过的冲抵：这条多送记录不再自动冲抵（本地立刻生效，云端也会记一笔）
@@ -558,7 +561,14 @@ function renderPhotoMaterialList() {
   const query = String(els.photoMaterialSearch?.value || '').trim();
   photoCandidateRows = photoMaterialCandidates(query);
   const selectedText = [...photoSelectedMaterials.values()].map((row) => row.material).filter(Boolean).join('、') || '未选择';
-  const options = photoCandidateRows.map((row, index) => { const selected = photoSelectedMaterials.has(photoMaterialKey(row)); return `<button type="button" class="photo-material-option${selected ? ' selected' : ''}" data-photo-candidate="${index}"><span><strong>${escapeHtml(row.material)}</strong><small>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</small></span><b>${selected ? '已关联' : '关联'}</b></button>`; }).join('');
+  const options = photoCandidateRows.map((row, index) => {
+    const key = photoMaterialKey(row);
+    const selected = photoSelectedMaterials.has(key);
+    const alreadyFiled = materialHasPhoto(row);
+    const locked = alreadyFiled && !photoRetakeAllowedKeys.has(key);
+    const stats = photoCandidateStatsText(row);
+    return `<button type="button" class="photo-material-option${selected ? ' selected' : ''}${locked ? ' locked' : ''}" data-photo-candidate="${index}"${locked ? ' disabled' : ''}><span><strong>${escapeHtml(row.material)}</strong><small>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</small><small class="photo-candidate-stats">${escapeHtml(stats)}</small></span><b>${locked ? '已留档' : (selected ? '已关联' : '关联')}</b></button>`;
+  }).join('');
   els.photoMaterialList.innerHTML = `<div class="photo-selected-summary">已关联：${escapeHtml(selectedText)}</div>${options || '<div class="empty-state"><strong>没有找到物料</strong><span>换个搜索词试试。</span></div>'}`;
 }function photoDateKey(row) {
   return String(row?.meta?.deliveryDate || row?.deliveryDate || row?.capturedAt || row?.createdAt || '').slice(0, 10);
@@ -580,34 +590,62 @@ function materialHasPhoto(target) {
   return photosForTarget(target).length > 0;
 }
 
-function photoPendingRows() {
+function photoPendingStats() {
   const map = new Map();
+  const ensure = (row) => {
+    const key = photoMaterialKey(row);
+    if (!map.has(key)) map.set(key, { material: row.material || '', name: row.name || '', spec: row.spec || '', customer: row.customer || '', remaining: 0, planQty: 0, dueDates: new Set() });
+    return map.get(key);
+  };
   for (const order of (snapshot?.orders || [])) {
     if (!(Number(order.remaining || 0) > 0)) continue;
-    const key = photoMaterialKey(order);
-    if (!map.has(key)) map.set(key, { ...order, photoDate: String(order.dueDate || '') });
+    const item = ensure(order);
+    item.remaining += Number(order.remaining || 0);
+    if (order.dueDate) item.dueDates.add(String(order.dueDate));
   }
   for (const plan of replacementPlans()) {
-    const key = photoMaterialKey(plan);
-    if (!map.has(key)) map.set(key, { ...plan, photoDate: String(plan.deliveryDate || '') });
+    const item = ensure(plan);
+    item.planQty += Number(plan.quantity || 0);
+    if (plan.deliveryDate) item.dueDates.add(String(plan.deliveryDate));
   }
-  return [...map.values()].sort((left, right) =>
+  return map;
+}
+
+function photoPendingRows() {
+  return [...photoPendingStats().values()].map((item) => {
+    const dueDates = [...item.dueDates].sort();
+    return { ...item, dueDates, photoDate: dueDates[0] || '' };
+  }).sort((left, right) =>
     String(left.photoDate || '9999-12-31').localeCompare(String(right.photoDate || '9999-12-31'))
     || String(left.material || '').localeCompare(String(right.material || ''), 'zh-CN')
     || String(left.spec || '').localeCompare(String(right.spec || ''), 'zh-CN'));
 }
 
-function photoMaterialCandidates(queryText) {
-  const query = String(queryText || '').trim();
-  return query ? replacementProducts(query).slice(0, 60) : photoPendingRows().slice(0, 60);
+function photoCandidateStatsText(row) {
+  const parts = [];
+  if (Number(row.remaining || 0) > 0) parts.push('未交 ' + fmt(row.remaining));
+  if (Number(row.planQty || 0) > 0) parts.push('补发 ' + fmt(row.planQty));
+  const dates = Array.isArray(row.dueDates) ? row.dueDates : [];
+  if (dates.length) parts.push('交期 ' + dates.slice(0, 2).map(formatDate).join('、') + (dates.length > 2 ? '等' : ''));
+  return parts.join(' · ') || '暂无未交';
 }
 
+function photoMaterialCandidates(queryText) {
+  const query = String(queryText || '').trim();
+  if (!query) return photoPendingRows().slice(0, 60);
+  const stats = photoPendingStats();
+  return replacementProducts(query).map((row) => {
+    const stat = stats.get(photoMaterialKey(row));
+    return { ...row, remaining: stat?.remaining || 0, planQty: stat?.planQty || 0, dueDates: stat ? [...stat.dueDates].sort() : [] };
+  }).slice(0, 60);
+}
 function currentPhotoMaterials(target) {
   const rows = photoPendingRows();
   const material = String(target?.material || '').trim();
   const selected = new Map();
   for (const row of rows) {
     if (String(row.material || '').trim() !== material) continue;
+    if (String(row.material || '').trim() !== String(target?.material || '').trim() && materialHasPhoto(row)) continue;
     selected.set(photoMaterialKey(row), row);
   }
   if (!selected.size) selected.set(photoMaterialKey(target), target);
@@ -617,6 +655,7 @@ function currentPhotoMaterials(target) {
 function openPhotoViewerRow(row, target) {
   if (!row) return;
   photoViewerTarget = target || null;
+  photoViewerRow = row;
   if (row.dataUrl) openLocalPhoto(row);
   else if (row.id) openCloudPhoto(row.id, row);
 }
@@ -644,11 +683,18 @@ function openPhotoCaptureFromButton(button) {
   }
 }
 
-function openPhotoCapture(target) {
+function openPhotoCapture(target, options = {}) {
   if (!target || !els.photoCaptureModal) return;
   photoCaptureTarget = target;
   photoPendingDataUrl = '';
-  photoSelectedMaterials = currentPhotoMaterials(target);
+  photoRetakeMode = Boolean(options.retake);
+  if (photoRetakeMode && options.existingPhoto?.materials?.length) {
+    photoSelectedMaterials = new Map(options.existingPhoto.materials.map((row) => [photoMaterialKey(row), row]));
+    photoRetakeAllowedKeys = new Set(photoSelectedMaterials.keys());
+  } else {
+    photoRetakeAllowedKeys = new Set();
+    photoSelectedMaterials = currentPhotoMaterials(target);
+  }
   if (els.photoFile) els.photoFile.value = '';
   if (els.photoPreview) els.photoPreview.src = '';
   if (els.photoPreviewWrap) els.photoPreviewWrap.hidden = true;
@@ -658,7 +704,7 @@ function openPhotoCapture(target) {
   els.photoCaptureModal.hidden = false;
 }
 
-function closePhotoCapture() { if (els.photoCaptureModal) els.photoCaptureModal.hidden = true; }
+function closePhotoCapture() { if (els.photoCaptureModal) els.photoCaptureModal.hidden = true; photoRetakeMode = false; photoRetakeAllowedKeys = new Set(); }
 
 function compressPhotoFile(file) {
   return new Promise((resolve, reject) => {
@@ -6825,7 +6871,7 @@ if (els.photoArchiveList) els.photoArchiveList.addEventListener('click', (event)
   else if (row.id) openCloudPhoto(row.id, row);
 });
 if (els.photoViewerClose) els.photoViewerClose.addEventListener('click', () => { if (els.photoViewerModal) els.photoViewerModal.hidden = true; });
-if (els.photoViewerRetake) els.photoViewerRetake.addEventListener('click', () => { if (els.photoViewerModal) els.photoViewerModal.hidden = true; if (photoViewerTarget) openPhotoCapture(photoViewerTarget); });
+if (els.photoViewerRetake) els.photoViewerRetake.addEventListener('click', () => { if (els.photoViewerModal) els.photoViewerModal.hidden = true; if (photoViewerTarget) openPhotoCapture(photoViewerTarget, { retake: true, existingPhoto: photoViewerRow }); });
 
 if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', (event) => {
   const button = event.target.closest('[data-over-cancel]');
