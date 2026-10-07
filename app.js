@@ -4194,11 +4194,10 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
   return `<article class="order-card replacement-plan-card" data-loading-kind="replacement" data-loading-due-date="${escapeHtml(dueDate)}">
     <div class="card-top">
       <div class="order-title">
-        <div class="order-name-line"><strong>${escapeHtml(name || plan.material || '补发物料')}</strong><span class="replacement-plan-tag">补发</span>${drawingButton}</div>
+        <div class="order-name-line"><strong>${escapeHtml(name || plan.material || '补发物料')}</strong><span class="replacement-plan-tag">补发</span>${drawingButton}<span class="replacement-plan-state">${selected ? '已加入本次装车' : '待装车'}</span></div>
         <span class="mono">${escapeHtml(plan.material || '')}${plan.spec ? ' · ' + escapeHtml(plan.spec) : ''}</span>
         <span>补发交期 ${escapeHtml(formatDate(dueDate))} · 4137</span>
       </div>
-      <span class="replacement-plan-state">${selected ? '已加入本次装车' : '待装车'}</span>
     </div>
     <div class="order-numbers">
       <div class="order-number"><span>补发数量</span><strong>${escapeHtml(fmt(plan.quantity))}</strong></div>

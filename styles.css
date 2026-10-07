@@ -1302,7 +1302,9 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .cart-line.replacement { background: #f2f8fd; }
 .replacement-plan-card { border: 2px solid #f0b56b; background: linear-gradient(135deg, #fffaf0 0%, #fff 62%); box-shadow: 0 8px 22px rgba(156, 94, 8, .12); }
 .replacement-plan-card .replacement-plan-tag { display: inline-flex; align-items: center; padding: 2px 8px; border: 1px solid #edb568; border-radius: 999px; color: #9a5205; background: #fff3d8; font-size: 11px; font-weight: 900; }
-.replacement-plan-card .replacement-plan-state { flex: 0 0 auto; padding: 3px 8px; border-radius: 999px; color: #9a5205; background: #fff3d8; font-size: 11px; font-weight: 900; white-space: nowrap; }
+.replacement-plan-card .replacement-plan-state { flex: 0 0 auto; margin-left: auto; padding: 3px 8px; border-radius: 999px; color: #9a5205; background: #fff3d8; font-size: 11px; font-weight: 900; white-space: nowrap; }
+.replacement-plan-card .order-name-line .replacement-plan-tag,
+.replacement-plan-card .order-name-line .replacement-plan-state { display: inline-flex; margin-top: 0; align-items: center; }
 .replacement-plan-card .replacement-plan-note { margin-top: 10px; padding: 8px 10px; border-radius: 9px; color: #76501e; background: #fff9ea; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .replacement-plan-card .replacement-plan-actions { margin-top: 10px; display: flex; justify-content: flex-end; }
 .replacement-plan-card .replacement-plan-actions .replacement-plan-load { margin-right: 15px; }
