@@ -1810,7 +1810,8 @@ function fetchAuxiliaryState() {
       loadShipmentPhotos(),
       loadShipmentUnits(),
       loadReplacements(),
-      loadBilledStatus().then(() => loadDrawings()),
+      loadDrawings(),
+      loadBilledStatus(),
     ]);
     auxiliaryLoadedAt = Date.now();
     return { amounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings };
