@@ -1544,7 +1544,7 @@ async function printSampleApprovals(rows) {
     quantity: Number(row.quantity ?? row.orderQty ?? row.openingRemaining ?? 0),
     customer: row.customer || '',
     orderType: 'sample',
-    date: row.dueDate || snapshot?.today || TODAY,
+    date: snapshot?.today || TODAY,
   })).filter((row) => row.material);
   if (!orders.length) return false;
   try {
