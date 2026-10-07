@@ -59,6 +59,8 @@ let workTimeline = null;
 let workLiveRows = [];
 let workLiveLoading = false;
 let workLiveLoadedAt = 0;
+let remainingVisibleLimit = 60;
+let desktopRemainingVisibleLimit = 120;
 
 function boardModeName(mode = BOARD_MODE) {
   return mode === 'admin' ? '管理员模式' : mode === 'user' ? '普通模式' : '通用模式';
@@ -376,6 +378,26 @@ function replacementProducts(queryText) {
   // 优先保留订单明细，补发时才能把采购单号、项次一起带到送货单。
   for (const order of (snapshot?.orders || [])) {
     orderById.set(String(order.id || ''), order);
+  }
+  const orderCandidates = new Map();
+  const preferNewCompany = (order) => {
+    const customer = String(order?.customer || '');
+    const id = String(order?.id || '');
+    if (customer.includes('4137')) return true;
+    if (customer.includes('4074')) return false;
+    return !id.startsWith('4074:');
+  };
+  for (const order of (snapshot?.orders || [])) {
+    const po = String(order.po || '').trim();
+    const seq = String(order.seq ?? '').trim();
+    const material = String(order.material || '').trim();
+    const spec = String(order.spec || '').trim();
+    if (!material || (!po && !seq)) continue;
+    const key = [material, spec, po, seq].join('\u0000');
+    const current = orderCandidates.get(key);
+    if (!current || (preferNewCompany(order) && !preferNewCompany(current))) orderCandidates.set(key, order);
+  }
+  for (const order of orderCandidates.values()) {
     put({ ...order, source: 'order' });
   }
   for (const shipment of (snapshot?.shipments || [])) {
@@ -395,13 +417,35 @@ function replacementProducts(queryText) {
   for (const row of (snapshot?.overOffsets || [])) put({ ...row, source: 'offset' });
   for (const row of (snapshot?.replacements || [])) put({ ...row, source: 'replacement' });
 
+  // 补发不是每笔都有采购订单。每个料号/规格额外保留一个“无订单号/无项次”选项，
+  // 有明确订单的按订单行显示，没有订单的仍然按普通补发走。
+  const genericSeen = new Set();
+  for (const row of map.values()) {
+    if (!row.orderId && !row.po && !row.seq) genericSeen.add(row.material + '\u0000' + row.spec);
+  }
+  for (const row of [...map.values()]) {
+    const key = row.material + '\u0000' + row.spec;
+    if (genericSeen.has(key)) continue;
+    genericSeen.add(key);
+    map.set('generic\u0000' + key, {
+      ...row,
+      orderId: '',
+      po: '',
+      seq: '',
+      source: 'generic',
+      remaining: 0,
+      dueDate: '',
+    });
+  }
+
   const rows = [...map.values()].sort((a, b) =>
     Number(b.remaining > 0) - Number(a.remaining > 0)
-    || String(a.dueDate || '9999-12-31').localeCompare(String(b.dueDate || '9999-12-31'))
     || String(a.material || '').localeCompare(String(b.material || ''), 'zh-CN')
     || String(a.spec || '').localeCompare(String(b.spec || ''), 'zh-CN')
+    || Number(!a.orderId) - Number(!b.orderId)
     || String(a.po || '').localeCompare(String(b.po || ''), 'zh-CN')
-    || Number(a.seq || 0) - Number(b.seq || 0));
+    || Number(a.seq || 0) - Number(b.seq || 0)
+    || String(a.dueDate || '9999-12-31').localeCompare(String(b.dueDate || '9999-12-31')));
   if (!query) return rows.slice(0, 30);
   return rows.filter((row) => [row.material, row.name, row.spec, row.po, row.seq, row.customer]
     .some((value) => String(value ?? '').toLowerCase().includes(query))).slice(0, 50);
@@ -1167,7 +1211,7 @@ function renderReplacementSuggest() {
   replacementSuggestRows = rows;
   if (!rows.length) { els.replacementSuggest.hidden = true; els.replacementSuggest.innerHTML = ''; return; }
   els.replacementSuggest.innerHTML = rows.map((row, index) => {
-    const orderText = row.po ? row.po + ' · 项次 ' + (row.seq || '—') : '';
+    const orderText = row.po ? row.po + ' · 项次 ' + (row.seq || '—') : '无订单号 / 无项次';
     const detail = [orderText, row.name || '', row.spec || ''].filter(Boolean).join(' · ');
     return '<button type="button" class="suggest-item" data-replacement-index="' + index + '">'
       + '<strong>' + escapeHtml(row.material) + '</strong>'
@@ -1183,7 +1227,7 @@ function renderReplacementPicked() {
   els.replacementPicked.hidden = false;
   els.replacementPicked.innerHTML = `已选：<b>${escapeHtml(replacementPick.material)}</b> ${escapeHtml(replacementPick.name || '')}`
     + `${replacementPick.spec ? ' · ' + escapeHtml(replacementPick.spec) : ''}`
-    + `${replacementPick.po ? ' · ' + escapeHtml(replacementPick.po) + ' 项次 ' + escapeHtml(replacementPick.seq || '—') : ''}`
+    + `${replacementPick.po ? ' · ' + escapeHtml(replacementPick.po) + ' 项次 ' + escapeHtml(replacementPick.seq || '—') : ' · 无订单号 / 无项次'}`
     + `${replacementPick.customer ? '（' + escapeHtml(replacementPick.customer) + '）' : ''}`;
 }
 
@@ -5440,7 +5484,7 @@ function renderMobileRemaining() {
   const selectedText = selectedRemainingDates().length
     ? selectedRemainingDates().map((dueDate) => formatDate(dueDate)).join('、')
     : '全部交期';
-  const rows = groups.slice(0, 150);
+  const visibleGroups = groups.slice(0, remainingVisibleLimit);
   // 每个料号“所有交期”的未交合计（不受当前交期筛选影响），显示在「未交」下面
   const materialTotals = labelRemainingAllDates();
   els.remainingList.innerHTML = `
@@ -5448,7 +5492,7 @@ function renderMobileRemaining() {
       <div><strong>${fmt(groups.length)} 项物料</strong></div>
       <em>${escapeHtml(selectedText)}</em>
     </div>
-    ${rows.map((group) => {
+    ${visibleGroups.map((group) => {
       const companyText = group.companies.length > 1
         ? '两家公司'
         : companyName(group.companies[0] || '');
@@ -5479,7 +5523,7 @@ function renderMobileRemaining() {
         </div>
       </article>`;
     }).join('')}
-    ${groups.length > 150 ? `<div class="empty-state mobile-empty"><strong>还有 ${fmt(groups.length - 150)} 项未显示</strong><span>请用搜索或交期筛选缩小范围。</span></div>` : ''}`;
+    ${groups.length > visibleGroups.length ? `<button type="button" class="load-more-button" data-remaining-load-more>加载更多（还有 ${fmt(groups.length - visibleGroups.length)} 项）</button>` : '}`;
 }
 
 let labelRows = [];
@@ -6230,12 +6274,13 @@ function renderDesktopRemaining() {
   renderRemainingDateChips();
   const rows = remainingRows(desktopRemainingSearch);
   const groups = groupRemainingRows(rows);
+  const visibleGroups = groups.slice(0, desktopRemainingVisibleLimit);
   const total = groups.reduce((sum, group) => sum + group.total, 0);
   const selectedText = selectedRemainingDates().length
     ? selectedRemainingDates().map((dueDate) => formatDate(dueDate)).join('、')
     : '全部交期';
   if (els.desktopRemainingSummary) els.desktopRemainingSummary.textContent = `共 ${fmt(groups.length)} 项物料 · ${fmt(rows.length)} 条待交明细 · 合计 ${qtyText(total)} 件 · ${selectedText}`;
-  els.desktopRemainingBody.innerHTML = groups.map((group) => `
+  els.desktopRemainingBody.innerHTML = visibleGroups.map((group) => `
     <tr>
       <td class="remaining-type-cell">${remainingTypeTagsHtml(group.types, group.hasReplacement)}</td>
       <td class="mono">${escapeHtml(group.material)}</td>
@@ -6245,6 +6290,9 @@ function renderDesktopRemaining() {
       <td class="mark">${group.mark ? '✅' : ''}</td>
       <td>${escapeHtml(remainingDateText(group.dates))}</td>
     </tr>`).join('');
+  if (groups.length > visibleGroups.length) {
+    els.desktopRemainingBody.innerHTML += `<tr><td colspan="7"><button type="button" class="load-more-button" data-remaining-load-more>加载更多（还有 ${fmt(groups.length - visibleGroups.length)} 项）</button></td></tr>`;
+  }
   els.desktopRemainingEmpty.hidden = groups.length > 0;
 }
 

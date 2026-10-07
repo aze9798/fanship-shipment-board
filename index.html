@@ -82,6 +82,7 @@
           <span id="liveDot" class="live-dot"></span>
           <strong id="liveText">正在连接</strong>
         </div>
+        <button id="printHelperStatus" class="print-helper-status" type="button">打印助手：检测中</button>
       </div>
 
       <div class="sidebar-foot">
@@ -538,6 +539,7 @@
             <strong id="mobileBrandTitle">帆顺科技</strong>
             <span id="mobileBrandModule">装车登记</span>
             <span id="mobileLiveLabel">正在连接</span>
+            <button id="mobilePrintHelperStatus" class="print-helper-status mobile" type="button">打印助手：检测中</button>
           </div>
           <div class="mobile-head-actions">
             <button id="mobileRefresh" class="icon-button" type="button" aria-label="刷新数据">↻</button>
@@ -1011,6 +1013,11 @@
       <img id="photoViewerImage" alt="现场照片">
       <div class="modal-actions"><button id="photoViewerRetake" class="button primary" type="button">重新拍照</button></div>
     </section>
+  </div>
+  <div id="taskStatusBar" class="task-status-bar" hidden>
+    <span id="taskStatusText"></span>
+    <button id="taskStatusAction" type="button" hidden></button>
+    <button id="taskStatusClose" class="task-status-close" type="button" aria-label="关闭">×</button>
   </div>
   <div id="toast" class="toast" hidden></div>
   <script src="app.js" type="module"></script>
