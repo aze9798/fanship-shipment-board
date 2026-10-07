@@ -405,6 +405,19 @@
           <article><span>已通过金额</span><strong id="desktopWorkReportAmount">0.00</strong></article>
           <article><span>待审核</span><strong id="desktopWorkReportPending">0</strong></article>
         </section>
+        <section class="panel work-live-panel">
+          <div class="section-head">
+            <div><h2>员工实况</h2><p id="desktopWorkLiveHint">计时中的员工排在最前；点“查看明细”查看当天计时和计件时段。</p></div>
+            <div id="desktopWorkLiveSummary" class="work-live-summary">加载中…</div>
+          </div>
+          <div class="table-wrap">
+            <table class="orders-table work-live-table">
+              <thead><tr><th>员工</th><th>当前状态</th><th>今日计时</th><th>今日计件</th><th>最新动态</th><th>操作</th></tr></thead>
+              <tbody id="desktopWorkLiveBody"></tbody>
+            </table>
+            <div id="desktopWorkLiveEmpty" class="empty-state" hidden><strong>没有可显示的计时计件员工</strong><span>请检查员工工种配置。</span></div>
+          </div>
+        </section>
         <section class="panel">
           <div class="table-wrap">
             <table class="orders-table work-report-table">
@@ -672,6 +685,10 @@
               <div><span>已通过金额</span><strong id="mobileWorkReportAmount">0.00</strong></div>
               <div><span>待审核</span><strong id="mobileWorkReportPending">0</strong></div>
             </div>
+            <section class="mobile-work-live-card">
+              <div class="mobile-work-review-tools mobile-work-live-head"><strong>员工实况</strong><span id="mobileWorkLiveSummary">加载中…</span></div>
+              <div id="mobileWorkLiveList" class="mobile-work-review-list"></div>
+            </section>
             <div id="mobileWorkReportList" class="mobile-work-review-list"></div>
             <section id="mobileWorkTimelinePanel" class="mobile-panel work-timeline-panel" hidden>
               <div class="mobile-work-review-tools"><strong>计时 / 计件时段</strong></div>

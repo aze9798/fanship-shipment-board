@@ -51,6 +51,9 @@ let workReportStatus = 'all';
 let workReportQuery = '';
 let workEmployeesCache = null;
 let workTimeline = null;
+let workLiveRows = [];
+let workLiveLoading = false;
+let workLiveLoadedAt = 0;
 
 function boardModeName(mode = BOARD_MODE) {
   return mode === 'admin' ? '管理员模式' : mode === 'user' ? '普通模式' : '通用模式';
@@ -504,6 +507,10 @@ const els = {
   desktopWorkReportPending: $('#desktopWorkReportPending'),
   desktopWorkReportBody: $('#desktopWorkReportBody'),
   desktopWorkReportEmpty: $('#desktopWorkReportEmpty'),
+  desktopWorkLiveHint: $('#desktopWorkLiveHint'),
+  desktopWorkLiveSummary: $('#desktopWorkLiveSummary'),
+  desktopWorkLiveBody: $('#desktopWorkLiveBody'),
+  desktopWorkLiveEmpty: $('#desktopWorkLiveEmpty'),
   mobileWorkModule: $('#mobileWorkModule'),
   mobileWorkReportPanel: $('#mobileWorkReportPanel'),
   mobileWorkReportDate: $('#mobileWorkReportDate'),
@@ -516,6 +523,8 @@ const els = {
   mobileWorkReportAmount: $('#mobileWorkReportAmount'),
   mobileWorkReportPending: $('#mobileWorkReportPending'),
   mobileWorkReportList: $('#mobileWorkReportList'),
+  mobileWorkLiveSummary: $('#mobileWorkLiveSummary'),
+  mobileWorkLiveList: $('#mobileWorkLiveList'),
   desktopWorkReviewLink: $('#desktopWorkReviewLink'),
   desktopWorkReviewView: $('#desktopWorkReviewView'),
   desktopWorkReviewStatus: $('#desktopWorkReviewStatus'),
@@ -2182,7 +2191,8 @@ function ensureReportDate(input) {
   if (input && !input.value) input.value = workReportDate;
 }
 function fillEmployeeOptions(rows) {
-  const options = '<option value="">全部员工</option>' + (rows || []).map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.employeeNo || '')} · ${escapeHtml(row.name || '')}</option>`).join('');
+  const workbenchRows = (rows || []).filter((row) => row.track === 'welding' || row.track === 'back');
+  const options = '<option value="">全部员工</option>' + workbenchRows.map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.employeeNo || '')} · ${escapeHtml(row.name || '')}</option>`).join('');
   [els.desktopWorkReportEmployee, els.mobileWorkReportEmployee].forEach((select) => { if (select) select.innerHTML = options; });
 }
 async function loadWorkEmployees() {
@@ -2192,6 +2202,115 @@ async function loadWorkEmployees() {
   workEmployeesCache = Array.isArray(result.data) ? result.data : [];
   fillEmployeeOptions(workEmployeesCache);
   return workEmployeesCache;
+}
+function workLiveMinuteText(value) {
+  const minutes = Math.max(0, Math.round(Number(value || 0)));
+  if (minutes < 60) return `${minutes} 分钟`;
+  return `${(minutes / 60).toFixed(2)} 小时`;
+}
+function workLiveEntries(data) {
+  const list = [
+    ...((data && data.periods) || []).flatMap((period) => period.entries || []),
+    ...((data && data.unassignedEntries) || []),
+  ];
+  const map = new Map();
+  for (const entry of list) {
+    if (!entry || !entry.id || entry.status === 'revoked') continue;
+    map.set(entry.id, entry);
+  }
+  return [...map.values()];
+}
+function workLiveLatestPiece(entries) {
+  return entries.slice().sort((a, b) => new Date(b.submittedAt || b.createdAt || 0).getTime() - new Date(a.submittedAt || a.createdAt || 0).getTime())[0] || null;
+}
+function workLiveStatus(row) {
+  if (row.error) return { text:'加载失败', className:'error' };
+  if (row.activeTimer) return { text:'计时中', className:'active' };
+  if ((row.timerEntries || []).length) return { text:'计时已结束', className:'' };
+  if (Number(row.pieceCount || 0) > 0) return { text:'已有计件', className:'piece' };
+  return { text:'未开始', className:'' };
+}
+function workLiveLatestText(row) {
+  if (row.error) return escapeHtml(row.error);
+  if (!row.latestPiece) return '暂无计件动态';
+  return `${workTimelineTime(row.latestPiece.submittedAt)} · ${escapeHtml(row.latestPiece.name || '')} · ${escapeHtml(row.latestPiece.process || '')} · ${fmt(row.latestPiece.quantity)} 件 · ${escapeHtml(workReviewStatusText(row.latestPiece.status))}`;
+}
+function renderWorkLiveOverview() {
+  const rows = Array.isArray(workLiveRows) ? workLiveRows : [];
+  const timingNow = rows.filter((row) => row.activeTimer).length;
+  const timedToday = rows.filter((row) => row.activeTimer || Number(row.timerMinutes || 0) > 0).length;
+  const pieceTotal = rows.reduce((sum, row) => sum + Number(row.pieceCount || 0), 0);
+  const pendingTotal = rows.reduce((sum, row) => sum + Number(row.pending || 0), 0);
+  const summary = `计时中 ${timingNow} 人 · 今日计时 ${timedToday} 人 · 今日计件 ${pieceTotal} 笔 · 待审 ${pendingTotal} 笔`;
+  if (els.desktopWorkLiveSummary) els.desktopWorkLiveSummary.textContent = summary;
+  if (els.mobileWorkLiveSummary) els.mobileWorkLiveSummary.textContent = summary;
+  const sorted = rows.slice().sort((a, b) => (Number(Boolean(b.activeTimer)) - Number(Boolean(a.activeTimer))) || (Number(b.pieceCount || 0) - Number(a.pieceCount || 0)) || String(a.employeeNo).localeCompare(String(b.employeeNo), 'zh-CN', { numeric:true }));
+  if (els.desktopWorkLiveBody) {
+    els.desktopWorkLiveBody.innerHTML = sorted.map((row) => {
+      const status = workLiveStatus(row);
+      const timerText = row.activeTimer ? `进行中 · ${workLiveMinuteText(row.activeTimer.minutes)}` : Number(row.timerMinutes || 0) > 0 ? `合计 ${workLiveMinuteText(row.timerMinutes)}` : '未计时';
+      const timerSub = Number(row.timerPaidHours || 0) > 0 ? `有效 ${Number(row.timerPaidHours).toFixed(2)} 小时` : '---';
+      const pieceText = Number(row.pieceCount || 0) > 0 ? `${fmt(row.pieceCount)} 笔 · ${fmt(row.pieceQuantity)} 件` : '暂无计件';
+      const pieceSub = Number(row.pieceCount || 0) > 0 ? `金额 ${workReviewMoney(row.pieceAmount, 2)} 元 · 待审 ${fmt(row.pending)} 笔` : '---';
+      return `<tr><td><div class="work-live-person"><strong>${escapeHtml(row.name || '')}</strong><small>${escapeHtml(row.employeeNo || '')}</small></div></td><td><span class="work-live-status ${status.className}">${escapeHtml(status.text)}</span></td><td><div class="work-live-metric">${escapeHtml(timerText)}<span>${escapeHtml(timerSub)}</span></div></td><td><div class="work-live-metric">${escapeHtml(pieceText)}<span>${escapeHtml(pieceSub)}</span></div></td><td><div class="work-live-metric">${workLiveLatestText(row)}</div></td><td><button class="work-live-action" type="button" data-work-live-employee="${escapeHtml(row.id)}">查看明细</button></td></tr>`;
+    }).join('');
+  }
+  if (els.mobileWorkLiveList) {
+    els.mobileWorkLiveList.innerHTML = sorted.length ? sorted.map((row) => {
+      const status = workLiveStatus(row);
+      const timerText = row.activeTimer ? `进行中 · ${workLiveMinuteText(row.activeTimer.minutes)}` : Number(row.timerMinutes || 0) > 0 ? `${workLiveMinuteText(row.timerMinutes)}` : '未计时';
+      const pieceText = Number(row.pieceCount || 0) > 0 ? `${fmt(row.pieceCount)} 笔 · ${fmt(row.pieceQuantity)} 件` : '暂无计件';
+      return `<article class="mobile-live-card"><div class="mobile-live-card-head"><h3>${escapeHtml(row.employeeNo || '')} · ${escapeHtml(row.name || '')}</h3><span class="work-live-status ${status.className}">${escapeHtml(status.text)}</span></div><div class="mobile-live-grid"><div><span>今日计时</span><strong>${escapeHtml(timerText)}</strong></div><div><span>今日计件</span><strong>${escapeHtml(pieceText)}</strong></div></div><div class="mobile-live-latest">最新动态：${workLiveLatestText(row)}</div><button type="button" data-work-live-employee="${escapeHtml(row.id)}">查看明细</button></article>`;
+    }).join('') : '<div class="empty-state"><strong>没有可显示的计时计件员工</strong></div>';
+  }
+  if (els.desktopWorkLiveEmpty) els.desktopWorkLiveEmpty.hidden = sorted.length > 0;
+}
+async function loadWorkLiveOverview(employees = null) {
+  if (boardRole !== 'admin' || workLiveLoading) return;
+  workLiveLoading = true;
+  try {
+    const list = (employees || await loadWorkEmployees()).filter((employee) => employee.track === 'welding' || employee.track === 'back');
+    const day = workReportDate || todayShanghai();
+    const results = await Promise.all(list.map(async (employee) => {
+      try {
+        const result = await callRpc('work_admin_piece_timeline', { p_code:getAccessCode(), p_employee_id:employee.id, p_date:day });
+        if (!result.response.ok) throw new Error(result.data?.error || '实况加载失败');
+        const data = result.data || {};
+        const timerEntries = data.timerEntries || [];
+        const pieceEntries = workLiveEntries(data);
+        const activeTimer = timerEntries.find((entry) => !entry.endedAt) || null;
+        return {
+          id:employee.id,
+          employeeNo:employee.employeeNo,
+          name:employee.name,
+          track:employee.track,
+          activeTimer,
+          timerEntries,
+          timerMinutes:timerEntries.reduce((sum, entry) => sum + Number(entry.minutes || 0), 0),
+          timerPaidHours:Number(data.salary?.timerHours || 0),
+          pieceEntries,
+          pieceCount:pieceEntries.length,
+          pieceQuantity:pieceEntries.reduce((sum, entry) => sum + Number(entry.quantity || 0), 0),
+          pieceAmount:pieceEntries.reduce((sum, entry) => sum + (entry.status === 'approved' ? Number(entry.amount || 0) : 0), 0),
+          pending:pieceEntries.filter((entry) => entry.status === 'submitted').length,
+          latestPiece:workLiveLatestPiece(pieceEntries),
+          error:'',
+        };
+      } catch (error) {
+        return { id:employee.id, employeeNo:employee.employeeNo, name:employee.name, track:employee.track, activeTimer:null, timerEntries:[], timerMinutes:0, timerPaidHours:0, pieceEntries:[], pieceCount:0, pieceQuantity:0, pieceAmount:0, pending:0, latestPiece:null, error:error.message || '实况加载失败' };
+      }
+    }));
+    workLiveRows = results;
+    workLiveLoadedAt = Date.now();
+    renderWorkLiveOverview();
+  } finally {
+    workLiveLoading = false;
+  }
+}
+async function loadWorkReportWorkspace() {
+  if (boardRole !== 'admin') return;
+  const employees = await loadWorkEmployees();
+  await Promise.all([loadWorkReport(employees), loadWorkLiveOverview(employees)]);
 }
 function workTimelineTime(value) {
   if (!value) return '--';
@@ -2329,7 +2448,7 @@ function renderWorkReport() {
   }
   if (els.desktopWorkReportEmpty) els.desktopWorkReportEmpty.hidden = list.length > 0;
 }
-async function loadWorkReport() {
+async function loadWorkReport(employees = null) {
   if (boardRole !== 'admin') return;
   ensureReportDate(els.desktopWorkReportDate);
   ensureReportDate(els.mobileWorkReportDate);
@@ -2340,7 +2459,8 @@ async function loadWorkReport() {
   if (els.desktopWorkReportSearch && els.desktopWorkReportSearch.value !== workReportQuery) els.desktopWorkReportSearch.value = workReportQuery;
   if (els.mobileWorkReportSearch && els.mobileWorkReportSearch.value !== workReportQuery) els.mobileWorkReportSearch.value = workReportQuery;
   try {
-    await loadWorkEmployees();
+    const employeeRows = employees || await loadWorkEmployees();
+    fillEmployeeOptions(employeeRows);
     const result = await callRpc('work_admin_report_list', { p_code:getAccessCode(), p_date:workReportDate, p_employee_id:workReportEmployeeId || null, p_status:workReportStatus, p_query:workReportQuery, p_limit:1000 });
     if (!result.response.ok) throw new Error(result.data?.error || '报工情况加载失败');
     workReportRows = result.data || { rows:[], summary:{} };
@@ -2369,7 +2489,7 @@ function switchMobileWorkTab(tab) {
   document.querySelectorAll('[data-mobile-work-tab]').forEach((button) => button.classList.toggle('active', button.dataset.mobileWorkTab === mobileWorkTab));
   if (els.mobileWorkReportPanel) els.mobileWorkReportPanel.hidden = mobileWorkTab !== 'report';
   if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = mobileWorkTab !== 'review';
-  if (mobileWorkTab === 'report') loadWorkReport().catch(() => {});
+  if (mobileWorkTab === 'report') loadWorkReportWorkspace().catch(() => {});
   else loadWorkReviews().catch(() => {});
 }
 function setDesktopModule(module, view = '') {
@@ -2519,7 +2639,7 @@ async function submitWorkReview(action) {
     if (!result.response.ok) throw new Error(result.data?.error || '审核提交失败');
     closeWorkReviewEditor();
     await loadWorkReviews(workReviewStatus);
-    if (desktopModule === 'work' || mobileModule === 'workReview') await loadWorkReport();
+    if (desktopModule === 'work' || mobileModule === 'workReview') await loadWorkReportWorkspace();
     showToast(action === 'approve' ? '审核通过，已更新产品和当前单价' : action === 'reject' ? '已退回员工报工' : '修改已保存');
   } catch (error) {
     setWorkReviewError(error.message || '审核提交失败');
@@ -2703,7 +2823,7 @@ function showDesktopView(name) {
   if (target === 'files') renderCloudFiles();
   if (target === 'drawings') renderDesktopDrawings();
   if (target === 'loading') renderDesktopLoading();
-  if (target === 'workReport') loadWorkReport().catch(() => {});
+  if (target === 'workReport') loadWorkReportWorkspace().catch(() => {});
   if (target === 'workReview') loadWorkReviews().catch(() => {});
   if (target === 'attendance') loadAttendance().catch(() => {});
   window.scrollTo({ top: 0 });
@@ -5696,7 +5816,7 @@ document.addEventListener('keydown', (event) => {
   closeDesktopModuleSheet();
   closeMobileModuleSheet();
 });
-if (els.desktopWorkReportDate) els.desktopWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReport(); });
+if (els.desktopWorkReportDate) els.desktopWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReportWorkspace(); });
 if (els.desktopAttendanceRefresh) els.desktopAttendanceRefresh.addEventListener('click', () => loadAttendance().catch(() => {}));
 if (els.mobileAttendanceRefresh) els.mobileAttendanceRefresh.addEventListener('click', () => loadAttendance().catch(() => {}));
 if (els.desktopAttendanceMonth) els.desktopAttendanceMonth.addEventListener('change', () => { attendanceMonth = els.desktopAttendanceMonth.value || attendancePrevMonth(); loadAttendance().catch(() => {}); });
@@ -5709,7 +5829,7 @@ if (els.desktopAttendanceDetailClose) els.desktopAttendanceDetailClose.addEventL
 if (els.desktopAttendanceTab) els.desktopAttendanceTab.addEventListener('change', applyAttendanceTab);
 document.querySelectorAll('[data-mobile-attendance-tab]').forEach((b) => b.addEventListener('click', () => { switchMobileAttendanceTab(b.dataset.mobileAttendanceTab); if (mobileAttendanceTab === 'reissue') loadAttendanceReissues().catch(() => {}); }));
 
-if (els.mobileWorkReportDate) els.mobileWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReport(); });
+if (els.mobileWorkReportDate) els.mobileWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReportWorkspace(); });
 if (els.desktopWorkReportEmployee) els.desktopWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; loadWorkReport(); });
 if (els.mobileWorkReportEmployee) els.mobileWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; loadWorkReport(); });
 [document.getElementById('desktopWorkTimeline'), document.getElementById('desktopWorkTimelineActions'), document.getElementById('mobileWorkTimeline')].forEach((panel) => {
@@ -5729,8 +5849,19 @@ if (els.desktopWorkReportStatus) els.desktopWorkReportStatus.addEventListener('c
 if (els.mobileWorkReportStatus) els.mobileWorkReportStatus.addEventListener('change', (event) => { workReportStatus = event.target.value; loadWorkReport(); });
 if (els.desktopWorkReportSearch) els.desktopWorkReportSearch.addEventListener('input', (event) => { workReportQuery = event.target.value; loadWorkReport(); });
 if (els.mobileWorkReportSearch) els.mobileWorkReportSearch.addEventListener('input', (event) => { workReportQuery = event.target.value; loadWorkReport(); });
-if (els.desktopWorkReportRefresh) els.desktopWorkReportRefresh.addEventListener('click', loadWorkReport);
-if (els.mobileWorkReportRefresh) els.mobileWorkReportRefresh.addEventListener('click', loadWorkReport);
+if (els.desktopWorkReportRefresh) els.desktopWorkReportRefresh.addEventListener('click', loadWorkReportWorkspace);
+if (els.mobileWorkReportRefresh) els.mobileWorkReportRefresh.addEventListener('click', loadWorkReportWorkspace);
+[els.desktopWorkLiveBody, els.mobileWorkLiveList].forEach((list) => {
+  if (!list) return;
+  list.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-work-live-employee]');
+    if (!button) return;
+    workReportEmployeeId = button.dataset.workLiveEmployee;
+    if (els.desktopWorkReportEmployee) els.desktopWorkReportEmployee.value = workReportEmployeeId;
+    if (els.mobileWorkReportEmployee) els.mobileWorkReportEmployee.value = workReportEmployeeId;
+    loadWorkReport().catch(() => {});
+  });
+});
 [els.desktopWorkReportBody, els.mobileWorkReportList].forEach((list) => {
   if (!list) return;
   list.addEventListener('click', (event) => {
@@ -6377,7 +6508,13 @@ function connectEvents() {
   if (API_BASE || RPC_BASE) {
     setLiveStatus('online');
     clearInterval(connectEvents.pollTimer);
-    connectEvents.pollTimer = setInterval(() => loadState({ quiet: true }), 5000);
+    connectEvents.pollTimer = setInterval(() => {
+      loadState({ quiet: true });
+      if (boardRole !== 'admin' || document.visibilityState !== 'visible') return;
+      const desktopReportVisible = desktopModule === 'work' && desktopView === 'workReport' && els.desktopWorkReportView && !els.desktopWorkReportView.hidden;
+      const mobileReportVisible = mobileModule === 'workReview' && mobileWorkTab === 'report' && els.mobileWorkReportPanel && !els.mobileWorkReportPanel.hidden;
+      if ((desktopReportVisible || mobileReportVisible) && Date.now() - workLiveLoadedAt > 30000) loadWorkReportWorkspace().catch(() => {});
+    }, 5000);
     return;
   }
   eventSource = new EventSource(apiUrl('/api/events'));

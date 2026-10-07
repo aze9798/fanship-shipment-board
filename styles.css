@@ -3154,3 +3154,31 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
   color: #a6adb2;
   cursor: not-allowed;
 }
+
+/* 管理员员工计时 / 计件实况 */
+.work-live-panel{margin-bottom:16px}
+.work-live-summary{color:#617a7f;font-size:12px;font-weight:800;text-align:right;line-height:1.6}
+.work-live-table td{vertical-align:middle}
+.work-live-table td small{display:block;color:#72868a;font-size:10px;margin-top:3px;line-height:1.45}
+.work-live-person strong{display:block;color:#164b52;font-size:13px}
+.work-live-status{display:inline-flex;align-items:center;min-height:26px;padding:0 9px;border-radius:999px;background:#f1f5f5;color:#71858a;font-size:11px;font-weight:900}
+.work-live-status.active{background:#e2f6f1;color:#0f766e;box-shadow:inset 0 0 0 1px #b8e2d8}
+.work-live-status.piece{background:#fff3df;color:#9a5c08}
+.work-live-status.error{background:#fff0ee;color:#b42318}
+.work-live-metric{color:#164b52;font-weight:900;font-size:13px}
+.work-live-metric span{display:block;color:#72868a;font-size:10px;font-weight:600;margin-top:3px}
+.work-live-action{min-height:34px;padding:0 11px;border:1px solid #b9ddd7;border-radius:9px;background:#f7fcfb;color:#0f766e;font-weight:900}
+.mobile-work-live-card{margin:12px 0 14px}
+.mobile-work-live-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.mobile-work-live-head strong{font-size:15px;color:#164b52}
+.mobile-work-live-head span{font-size:11px;color:#6d8589;font-weight:800;text-align:right}
+.mobile-live-card{padding:13px;border:1px solid #dde9e8;border-radius:14px;background:#fff;box-shadow:0 7px 20px rgba(19,67,67,.05)}
+.mobile-live-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.mobile-live-card h3{margin:0;font-size:15px;color:#164b52}
+.mobile-live-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.mobile-live-grid>div{padding:9px;border-radius:10px;background:#f5faf9;border:1px solid #e2eeec}
+.mobile-live-grid span{display:block;color:#72868a;font-size:10px;font-weight:700}
+.mobile-live-grid strong{display:block;margin-top:3px;color:#164b52;font-size:13px}
+.mobile-live-latest{margin-top:9px;color:#60777d;font-size:11px;line-height:1.55}
+.mobile-live-card button{width:100%;min-height:40px;margin-top:9px;border:1px solid #b9ddd7;border-radius:10px;background:#f7fcfb;color:#0f766e;font-weight:900}
+@media(max-width:900px){.work-live-summary{text-align:left}.work-live-table{min-width:760px}}
