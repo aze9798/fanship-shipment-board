@@ -223,7 +223,7 @@
         <label class="special-time-check"><input id="specialTimeOvertime" type="checkbox"><span>确认加班（勾选后 17:00 后工时计入，并扣晚餐 30 分钟）</span></label>
         <div id="specialTimePreview" class="special-time-preview hidden"></div>
         <div class="special-time-row">
-          <input id="specialTimeNote" type="text" maxlength="80" placeholder="备注说明（选填）">
+          <input id="specialTimeNote" type="text" maxlength="80" placeholder="选填">
           <button id="specialTimeConfirm" class="primary" type="button">确认</button>
         </div>
       </div>
@@ -243,7 +243,7 @@
         <div id="selectedPriceCard" class="selected-price-card hidden"></div>
         <div class="action-stack"><button id="priceChangeButton" class="ghost hidden" type="button">单价不对？申请修改</button></div>
         <div class="piece-form">
-          <div class="row"><input id="pieceQty" type="number" min="1" step="1" inputmode="numeric" placeholder="数量（整数）"><input id="pieceNote" type="text" placeholder="备注（选填）"></div>
+          <div class="row"><input id="pieceQty" type="number" min="1" step="1" inputmode="numeric" placeholder="数量（整数）"><input id="pieceNote" type="text" placeholder="选填"></div>
           <button id="pieceSubmit" class="primary piece-submit">提交计件</button>
         </div>
       </div>
@@ -348,7 +348,7 @@
           <label id="requestVariantCustomWrap" class="field hidden"><span id="requestVariantCustomLabel">自己填写</span><input id="requestVariantCustom" type="number" min="1" step="1" inputmode="numeric" placeholder=""></label>
       <label class="field"><span>数量</span><input id="requestQty" type="number" min="1" step="1" inputmode="numeric" placeholder=""></label>
       <label class="field"><span>单价</span><input id="requestPrice" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder=""></label>
-      <label class="field"><span>备注（选填，可不填）</span><input id="requestNote" type="text" placeholder="可不填；也可填写原因或补充说明"></label>
+      <label class="field"><span>选填</span><input id="requestNote" type="text" placeholder="选填"></label>
     </div>
     <div id="requestError" class="request-error hidden"></div>
     <div class="request-tip">提交后显示“待审核”，管理员确认前不计入工资。</div>
