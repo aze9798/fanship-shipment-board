@@ -5697,7 +5697,7 @@ function switchLabelPrintMode(mode) {
 }
 
 function labelRowHtml(row, index) {
-  // 已打印状态只用于「只看已打印的（补打）」过滤，不在行里显示字样，免得挡内容
+  // 已打印状态只用于「已打印」过滤，不在行里显示字样，免得挡内容
   const printedTag = '';
   const moveTarget = labelPrintMode === 'big' ? 'small' : 'big';
   const moveText = moveTarget === 'small' ? '转小标签' : '转大标签';
@@ -5728,7 +5728,7 @@ function renderLabelRows() {
     ? labelRows.map((row, index) => labelRowHtml(row, index)).join('')
     : (labelPrintMode === 'small'
       ? '<div class="label-print-empty">小标签这边还没有料号。<br>在「大标签」页里，把要打小标签的那一行点「转小标签」，它就会挪到这里（会记住这个料号，下次自动归小标签）。</div>'
-      : '<div class="label-print-empty">大标签这边没有待打印的产品了。<br>已经打印过的：勾上上面「只看已打印的（补打）」，或直接搜索料号找出来补打。</div>');
+      : '<div class="label-print-empty">大标签这边没有待打印的产品了。<br>已经打印过的：勾上上面「已打印」，或直接搜索料号找出来补打。</div>');
   if (els.labelPrintModes) {
     els.labelPrintModes.querySelectorAll('[data-label-mode]').forEach((button) => {
       button.classList.toggle('active', button.dataset.labelMode === labelPrintMode);
@@ -6003,6 +6003,29 @@ function labelPayload(rows) {
   });
 }
 
+function finishLabelPrint(mode, sourceKeys, picked, result, manual) {
+  markLabelPrinted(sourceKeys, mode);
+  bumpLabelStats(picked.map((row) => row.material), mode);
+  const rawWritten = mode === 'big' ? result?.bigRows : result?.smallRows;
+  const written = Number.isFinite(Number(rawWritten)) ? Number(rawWritten) : sourceKeys.length;
+  const errors = Array.isArray(result?.errors) && result.errors.length ? '；' + result.errors.join('；') : '';
+  if (mode === 'big') {
+    switchLabelPrintMode('small');
+    showToast(manual
+      ? `大标签已记为已打印（${sourceKeys.length} 项），已切到小标签：刚打过的不会重复出现，剩下的改好再确认${errors}`
+      : `大标签已写入 ${written} 行并发送打印，已自动切到小标签：刚打过的 ${sourceKeys.length} 项已标为已打印，剩下的改好再确认${errors}`);
+  } else {
+    closeLabelPrintModal();
+    showToast(manual
+      ? `小标签已记为已打印（${sourceKeys.length} 项），打印习惯也记下了${errors}`
+      : `小标签已写入 ${written} 行并发送打印，今天的标签任务完成${errors}`);
+  }
+}
+
+async function closeLabelAppAfterManualPrint() {
+  try { await deliveryHelper('/labels/complete', {}); } catch { }
+}
+
 async function confirmLabelPrint() {
   const mode = labelPrintMode;
   const valid = labelRows.filter(labelRowIsValid);
@@ -6015,13 +6038,17 @@ async function confirmLabelPrint() {
   const payload = labelPayload(picked);
   const sourceKeys = [...new Set(picked.map((row) => row.sourceKey).filter(Boolean))];
   if (els.labelPrintError) els.labelPrintError.hidden = true;
-  if (els.labelPrintConfirm) {
-    els.labelPrintConfirm.disabled = true;
-    els.labelPrintConfirm.textContent = '正在写入…';
+  const confirmButton = els.labelPrintConfirm;
+  const originalButtonText = confirmButton?.textContent || (mode === 'big' ? '确认并打印大标签' : '确认并打印小标签');
+  let slowTimer = 0;
+  if (confirmButton) {
+    confirmButton.disabled = true;
+    confirmButton.textContent = '正在写入…';
+    slowTimer = setTimeout(() => { confirmButton.textContent = '正在打开汉码…'; }, 6000);
   }
   try {
     const body = mode === 'big' ? { big: payload, small: [] } : { big: [], small: payload };
-    const result = await deliveryHelper('/labels', body);
+    const result = await deliveryHelper('/labels', body, { timeoutMs: 15000 });
     // 打印助手现在只负责：写数据 → 打开汉码 → 点开打印预览，最后一步「打印」是用户自己点的。
     // 所以这里问一下到底打完没有：确认了才记「已打印」并记打印习惯，没打完就不记（还能补打）。
     const manual = Boolean(result && result.manualPrint);
@@ -6031,31 +6058,30 @@ async function confirmLabelPrint() {
         showToast('这次先不记「已打印」，需要补打时还能找到它');
         return;
       }
+      void closeLabelAppAfterManualPrint();
     }
-    markLabelPrinted(sourceKeys, mode);
-    bumpLabelStats(picked.map((row) => row.material), mode);
-    const written = mode === 'big' ? result.bigRows : result.smallRows;
-    const errors = Array.isArray(result.errors) && result.errors.length ? '；' + result.errors.join('；') : '';
-    if (mode === 'big') {
-      switchLabelPrintMode('small');
-      showToast(manual
-        ? `大标签已记为已打印（${sourceKeys.length} 项），已切到小标签：刚打过的不会重复出现，剩下的改好再确认${errors}`
-        : `大标签已写入 ${written} 行并发送打印，已自动切到小标签：刚打过的 ${sourceKeys.length} 项已标为已打印，剩下的改好再确认${errors}`);
-    } else {
-      closeLabelPrintModal();
-      showToast(manual
-        ? `小标签已记为已打印（${sourceKeys.length} 项），打印习惯也记下了${errors}`
-        : `小标签已写入 ${written} 行并发送打印，今天的标签任务完成${errors}`);
-    }
+    finishLabelPrint(mode, sourceKeys, picked, result, manual);
   } catch (error) {
+    if (error?.name === 'AbortError') {
+      const done = window.confirm('打印助手等待超时，但汉码可能已经打开。\n\n如果已经打印完成，点【确定】记入「已打印」；还没完成就点【取消】，之后还能补打。');
+      if (done) {
+        finishLabelPrint(mode, sourceKeys, picked, { errors: [] }, true);
+        void closeLabelAppAfterManualPrint();
+      } else {
+        showLabelPrintError('打印助手还在处理中；如果汉码已经打开，完成打印后再点一次确认，或稍后补打。');
+      }
+      return;
+    }
     const detail = String(error.message || error || '');
     showLabelPrintError('打印没有完成：' + detail + '（如果是“Failed to fetch”，说明打印助手没在运行）');
     showToast('打印没有完成，看弹窗里的提示');
   } finally {
-    if (els.labelPrintConfirm) {
-      els.labelPrintConfirm.disabled = false;
-      renderLabelRows();
+    if (slowTimer) clearTimeout(slowTimer);
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      confirmButton.textContent = originalButtonText;
     }
+    renderLabelRows();
   }
 }
 
@@ -6517,14 +6543,22 @@ function deliveryPayload() {
   };
 }
 
-async function deliveryHelper(path, payload) {
+async function deliveryHelper(path, payload, helperOptions = {}) {
   const options = payload
     ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
     : { cache: 'no-store' };
-  const response = await fetch(`${PRINT_HELPER_BASE}${path}`, options);
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.ok === false) throw new Error(data.error || `打印助手请求失败（HTTP ${response.status}）`);
-  return data;
+  const timeoutMs = Number(helperOptions.timeoutMs || 0);
+  const controller = timeoutMs > 0 ? new AbortController() : null;
+  if (controller) options.signal = controller.signal;
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    const response = await fetch(`${PRINT_HELPER_BASE}${path}`, options);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.ok === false) throw new Error(data.error || `打印助手请求失败（HTTP ${response.status}）`);
+    return data;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 function renderDeliveryPlan(plan) {
