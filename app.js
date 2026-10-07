@@ -2097,8 +2097,15 @@ function confirmSampleApprovalSelection() {
 
 async function printSampleApprovalPreview() {
   if (!sampleApprovalPreviewRows.length) return;
-  const result = await printSampleApprovals(sampleApprovalPreviewRows, { previewToken: sampleApprovalPreviewToken });
-  if (result) closeSampleApprovalPreview();
+  const button = els.sampleApprovalPreviewPrint;
+  const originalText = button?.textContent || '确认打印';
+  if (button) { button.disabled = true; button.textContent = '正在打印...'; }
+  try {
+    const result = await printSampleApprovals(sampleApprovalPreviewRows, { previewToken: sampleApprovalPreviewToken });
+    if (result) closeSampleApprovalPreview();
+  } finally {
+    if (button) { button.disabled = false; button.textContent = originalText; }
+  }
 }
 async function printSampleApprovals(rows, options = {}) {
   const orders = (rows || []).map((row) => ({
@@ -2115,12 +2122,15 @@ async function printSampleApprovals(rows, options = {}) {
   if (!orders.length) return null;
   const generateOnly = Boolean(options.generateOnly);
   const previewOnly = Boolean(options.previewOnly);
-  try {
-    const health = await fetch(`${PRINT_HELPER_BASE}/ping`, { cache: 'no-store' });
-    if (!health.ok) throw new Error('打印助手没有响应');
-  } catch {
-    showToast(generateOnly ? '无法生成样品承认书：请先启动发货单打印助手' : '样品承认书没有打印：请先启动发货单打印助手', 9000);
-    return null;
+  // 预览刚由打印助手生成过，确认打印时直接复用预览缓存，不再多走一次 /ping。
+  if (!options.previewToken) {
+    try {
+      const health = await fetch(`${PRINT_HELPER_BASE}/ping`, { cache: 'no-store' });
+      if (!health.ok) throw new Error('打印助手没有响应');
+    } catch {
+      showToast(generateOnly ? '无法生成样品承认书：请先启动发货单打印助手' : '样品承认书没有打印：请先启动发货单打印助手', 9000);
+      return null;
+    }
   }
   try {
     const response = await fetch(`${PRINT_HELPER_BASE}/sample-approval`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orders, dryRun: generateOnly || previewOnly, preview: previewOnly, previewToken: options.previewToken || '' }) });
