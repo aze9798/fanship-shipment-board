@@ -453,7 +453,10 @@ function loadingItems(orderRows, options = {}) {
       selected: true,
       legacyIndex,
     })) : [];
-  const unitItems = includeReplacements ? shipmentUnits().filter((unit) => String(unit.status || 'ready') !== 'shipped').map((unit, index) => ({
+  const activeUnits = includeReplacements ? shipmentUnits().filter((unit) => String(unit.status || 'ready') !== 'shipped') : [];
+  const unitOrderIds = new Set(activeUnits.flatMap((unit) => (unit.members || []).map((member) => String(member.orderId || '')).filter(Boolean)));
+  const visibleOrderRows = (orderRows || []).filter((order) => !unitOrderIds.has(String(order.id || '')));
+  const unitItems = includeReplacements ? activeUnits.map((unit, index) => ({
     kind: 'unit',
     dueDate: unitDisplayDate(unit),
     rank: 1.5,
@@ -464,7 +467,7 @@ function loadingItems(orderRows, options = {}) {
     index,
   })) : [];
   return [
-    ...(orderRows || []).map((order) => ({
+    ...visibleOrderRows.map((order) => ({
       kind: 'order',
       dueDate: String(order.dueDate || '').trim(),
       rank: loadingOrderPriority(order),
