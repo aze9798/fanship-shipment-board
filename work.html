@@ -1416,7 +1416,7 @@ function renderPiece() {
       toast(overtime ? '已确认加班，工时和加班工资已计入' : '已确认不加班，只计正常 9 小时');
     } catch (e) { toast(e.message || '确认失败'); } finally { btn.disabled = false; }
   }
-  const EMPLOYEE_SEARCH_ALIASES = { '11': { '001':'001','002':'002','003':'003','004':'004' } };
+  const EMPLOYEE_SEARCH_ALIASES = { '11': { '001':'001','002':'002','003':'003','004':'004' }, '16': { '001':'N16-001','002':'N16-002' } };
   async function searchProducts() {
     const token = ++productSearchToken;
     const q = $('productSearch').value.trim(); const box = $('productSuggest');
@@ -1426,7 +1426,6 @@ function renderPiece() {
       const employeeAliases = EMPLOYEE_SEARCH_ALIASES[employeeNo] || {};
       const aliasMaterial = employeeAliases[q] || '';
       const aliasLabel = aliasMaterial ? q : '';
-      const suffixQuery = !aliasMaterial && /^[A-Za-z0-9]{4}$/.test(q) ? q.toUpperCase() : '';
       const shortNumericSearch = !aliasMaterial && /^\d{1,3}$/.test(q);
       if (shortNumericSearch) {
         box.innerHTML = '<button type="button" disabled><strong>请输入至少4位编号</strong><span>或输入完整料号、产品名称</span></button>';
@@ -1438,8 +1437,7 @@ function renderPiece() {
       if (token !== productSearchToken) return;
       let orderedRows = Array.isArray(rows) ? rows.slice() : [];
       if (aliasMaterial) orderedRows = orderedRows.filter((p) => p.material === aliasMaterial);
-      else if (suffixQuery) orderedRows = orderedRows.filter((p) => String(p.material || '').toUpperCase().endsWith(suffixQuery));
-      const displayLabel = aliasLabel || (suffixQuery ? q : '');
+      const displayLabel = aliasLabel;
       const priorityMaterial = aliasMaterial || (!['11','06','20'].includes(employeeNo) && q.includes('攻丝') ? 'NC-0019' : '');
       orderedRows.sort((a,b) => priorityMaterial && a.material !== b.material ? (a.material === priorityMaterial ? -1 : b.material === priorityMaterial ? 1 : 0) : 0);
       box.innerHTML = orderedRows.length ? orderedRows.map((p) => `<button type="button" data-product="${esc(p.id)}" data-material="${esc(displayLabel || p.material)}" data-name="${esc(p.name)}" data-spec="${esc(p.spec)}"><strong>${esc(displayLabel || p.material)} · ${esc(p.name)}</strong></button>`).join('') : '<button type="button" data-open-custom="1"><strong>没有找到产品</strong><span>点这里自主申报新产品</span></button>';
