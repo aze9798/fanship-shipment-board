@@ -914,6 +914,15 @@
           <span>交货日期</span>
           <input id="orderEditDue" type="date">
         </label>
+        <label>
+          <span>订单类型</span>
+          <select id="orderEditType">
+            <option value="normal">普通订单</option>
+            <option value="trial">试制订单</option>
+            <option value="sample">承样订单</option>
+            <option value="tooling">工装订单</option>
+          </select>
+        </label>
       </div>
       <div id="orderEditError" class="form-error" hidden></div>
       <div class="modal-actions">

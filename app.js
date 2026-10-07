@@ -686,6 +686,7 @@ const els = {
   orderEditInfo: $('#orderEditInfo'),
   orderEditQty: $('#orderEditQty'),
   orderEditShipped: $('#orderEditShipped'),
+  orderEditType: $('#orderEditType'),
   orderEditDue: $('#orderEditDue'),
   orderEditError: $('#orderEditError'),
   orderEditClose: $('#orderEditClose'),
@@ -1158,12 +1159,26 @@ async function confirmPdfImport() {
     const result = await callRpc('board_add_orders', { p_code: getAccessCode(), p_orders: pendingPdfRows });
     if (!result.response.ok) throw new Error(result.data?.message || '导入失败');
     const count = Number(result.data?.count || pendingPdfRows.length);
-    // 订单类别：试制 / 承样 / 工装（只对特殊类别多调用一次设置接口）
-    for (const row of pendingPdfRows) {
-      if (!row.orderType || row.orderType === 'normal') continue;
-      try {
-        await callRpc('board_set_order_type', { p_code: getAccessCode(), p_order_id: row.id, p_order_type: row.orderType });
-      } catch { }
+    // 订单类别：试制 / 承样 / 工装
+    // 注意：pendingPdfRows 里的 id 是本地拼的“采购单号#项次”，不是数据库订单 id，
+    // 直接拿它调 board_set_order_type 会失败（之前就是这样静默丢掉了类型）。
+    // 所以先刷新一次状态，用「单号 + 项次 + 物料」找到真实订单 id 再设置。
+    const typedRows = pendingPdfRows.filter((row) => row.orderType && row.orderType !== 'normal');
+    if (typedRows.length) {
+      await loadState({ quiet: true });
+      let typedOk = 0;
+      for (const row of typedRows) {
+        const target = (snapshot?.orders || []).find((order) => String(order.po || '').trim() === String(row.po || '').trim()
+          && String(order.seq || '').trim() === String(row.seq || '').trim()
+          && String(order.material || '').trim() === String(row.material || '').trim());
+        if (!target) continue;
+        try {
+          const r = await callRpc('board_set_order_type', { p_code: getAccessCode(), p_order_id: target.id, p_order_type: row.orderType });
+          if (r.response.ok) typedOk += 1;
+        } catch { }
+      }
+      if (typedOk) showToast(`已把 ${typedOk} 条标记为${{ trial: '试制', sample: '承样', tooling: '工装' }[typedRows[0].orderType] || '特殊'}订单`);
+      else showToast('订单类型没能写入，请在「订单变更」里手动设置', 6000);
     }
     // 把 PDF 里的含税单价写进云端（管理码专属），并刷新订单总额
     if (boardRole === 'admin') {
@@ -3164,6 +3179,10 @@ function openOrderEdit(orderId) {
   if (els.orderEditQty) els.orderEditQty.value = String(Number(order.orderQty || order.openingRemaining || 0));
   if (els.orderEditShipped) els.orderEditShipped.value = String(Number(order.shipped || 0));
   if (els.orderEditDue) els.orderEditDue.value = order.dueDate || '';
+  if (els.orderEditType) {
+    const t = String(order.orderType || '');
+    els.orderEditType.value = ['trial', 'sample', 'tooling'].includes(t) ? t : 'normal';
+  }
   if (els.orderEditError) els.orderEditError.hidden = true;
   if (els.orderEditModal) els.orderEditModal.hidden = false;
   els.orderEditQty?.focus();
@@ -3208,6 +3227,13 @@ async function saveOrderEdit() {
       p_due_date: cancelling ? null : dueDate,
     });
     if (!result.response.ok) throw new Error(result.data?.message || '保存失败');
+    // 订单类型（试制/承样/工装）单独保存：接口要的是数据库里的真实订单 id
+    const nextType = String(els.orderEditType?.value || 'normal');
+    const nowType = ['trial', 'sample', 'tooling'].includes(String(order.orderType || '')) ? String(order.orderType) : 'normal';
+    if (nextType !== nowType) {
+      const typeResult = await callRpc('board_set_order_type', { p_code: getAccessCode(), p_order_id: order.id, p_order_type: nextType });
+      if (!typeResult.response.ok) throw new Error(typeResult.data?.message || '订单类型保存失败');
+    }
     closeOrderEdit();
     if (cancelling) {
       showToast(`已取消 ${order.po} 项次 ${order.seq}`);
