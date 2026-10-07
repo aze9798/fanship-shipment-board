@@ -983,7 +983,6 @@ function unitCardHtml(unit, index) {
       <input type="number" min="0" step="1" inputmode="numeric" value="${Number(member.quantity || 0) || ''}" placeholder="数量" data-unit-member-qty="${memberIndex}" data-unit-id="${escapeHtml(unit.unitId)}" aria-label="本次装车数量">
       <button type="button" class="cart-remove" data-unit-member-remove="${memberIndex}">移除</button>
     </div>`).join('');
-  const photoAction = photo ? `<button type="button" class="cart-remove" data-unit-view-photo="${escapeHtml(unit.unitId)}">查看照片</button>` : '';
   const retakeAction = status === 'needs_rephoto' ? `<button type="button" class="button primary" data-unit-retake="${escapeHtml(unit.unitId)}">重新拍照</button>` : '';
   const loadAction = status === 'needs_rephoto' ? '' : `<button type="button" class="button primary" data-unit-load="${escapeHtml(unit.unitId)}">${status === 'loaded' ? '更新装车数量' : '整组装车'}</button>`;
   return `<article class="order-card shipment-unit-card" data-unit-card="${escapeHtml(unit.unitId)}">
@@ -995,7 +994,7 @@ function unitCardHtml(unit, index) {
       ${photo ? `<button type="button" class="unit-photo-button" data-unit-view-photo="${escapeHtml(unit.unitId)}">现场照片</button>` : '<span class="unit-photo-button empty">无照片</span>'}
     </div>
     <div class="unit-member-list">${memberHtml || '<div class="unit-member-empty">没有匹配到待发货订单</div>'}</div>
-    <div class="unit-card-actions">${loadAction}${retakeAction}${photoAction}</div>
+    <div class="unit-card-actions">${loadAction}${retakeAction}</div>
   </article>`;
 }
 
@@ -1975,7 +1974,7 @@ function renderSampleApprovalSelectList() {
     const quantity = Number(row.quantity ?? row.orderQty ?? row.openingRemaining ?? row.remaining ?? 0);
     return `<label class="sample-approval-choice${index === sampleApprovalSelectedIndex ? ' selected' : ''}">
       <input type="radio" name="sampleApprovalChoice" value="${index}"${index === sampleApprovalSelectedIndex ? ' checked' : ''}>
-      <span><strong>${escapeHtml(row.material || '')} · ${escapeHtml(row.name || '')}</strong><small>${escapeHtml(row.spec || '')} · 采购单 ${escapeHtml(row.po || '')} · 项次 ${escapeHtml(row.seq || '')}</small></span>
+      <span><strong>${escapeHtml(row.material || '')} · ${escapeHtml(row.name || '')}</strong><small>${escapeHtml(row.spec || '')} · 采购单 ${escapeHtml(row.po || '')} · 项次 ${escapeHtml(row.seq || '')} · 交期 ${escapeHtml(formatDate(row.dueDate))}</small></span>
       <em>${escapeHtml(fmt(quantity))} 件</em>
     </label>`;
   }).join('');
@@ -2010,7 +2009,7 @@ async function openSampleApprovalPreview(row) {
   if (els.sampleApprovalPreviewFrame) els.sampleApprovalPreviewFrame.src = sampleApprovalPreviewObjectUrl;
   if (els.sampleApprovalPreviewMeta) {
     const quantity = Number(row.quantity ?? row.orderQty ?? row.openingRemaining ?? row.remaining ?? 0);
-    els.sampleApprovalPreviewMeta.textContent = `${row.material || ''} · ${row.name || ''} · ${row.spec || ''} · ${fmt(quantity)} 件 · ${snapshot?.today || TODAY}`;
+    els.sampleApprovalPreviewMeta.textContent = `${row.material || ''} · ${row.name || ''} · ${row.spec || ''} · ${fmt(quantity)} 件 · 交期 ${escapeHtml(formatDate(row.dueDate || snapshot?.today || TODAY))}`;
   }
   if (els.sampleApprovalPreviewModal) els.sampleApprovalPreviewModal.hidden = false;
 }
@@ -2037,7 +2036,7 @@ async function printSampleApprovals(rows, options = {}) {
     quantity: Number(row.quantity ?? row.orderQty ?? row.openingRemaining ?? 0),
     customer: row.customer || '',
     orderType: 'sample',
-    date: snapshot?.today || TODAY,
+    date: row.dueDate || snapshot?.today || TODAY,
   })).filter((row) => row.material);
   if (!orders.length) return null;
   const generateOnly = Boolean(options.generateOnly);
