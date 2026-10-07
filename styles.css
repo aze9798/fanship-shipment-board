@@ -3182,3 +3182,4 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .mobile-live-latest{margin-top:9px;color:#60777d;font-size:11px;line-height:1.55}
 .mobile-live-card button{width:100%;min-height:40px;margin-top:9px;border:1px solid #b9ddd7;border-radius:10px;background:#f7fcfb;color:#0f766e;font-weight:900}
 @media(max-width:900px){.work-live-summary{text-align:left}.work-live-table{min-width:760px}}
+.work-live-stale{color:#b45309!important;font-size:10px;font-weight:800}

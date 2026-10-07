@@ -146,19 +146,26 @@ function rpcHeaders() {
   };
 }
 
-async function callRpc(name, body) {
-  const response = await fetch(`${RPC_BASE}/${name}`, {
-    method: 'POST',
-    headers: rpcHeaders(),
-    body: JSON.stringify(body),
-  });
-  let data = null;
-  try { data = await response.json(); } catch { data = null; }
-  if (!response.ok) {
-    const message = data?.message || data?.error || `云端请求失败（HTTP ${response.status}）`;
-    return { response: new Response(JSON.stringify({ error: message }), { status: response.status, headers: { 'Content-Type': 'application/json' } }) };
+async function callRpc(name, body, timeoutMs = 0) {
+  const controller = timeoutMs > 0 ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    const response = await fetch(`${RPC_BASE}/${name}`, {
+      method: 'POST',
+      headers: rpcHeaders(),
+      body: JSON.stringify(body),
+      signal: controller ? controller.signal : undefined,
+    });
+    let data = null;
+    try { data = await response.json(); } catch { data = null; }
+    if (!response.ok) {
+      const message = data?.message || data?.error || `云端请求失败（HTTP ${response.status}）`;
+      return { response: new Response(JSON.stringify({ error: message }), { status: response.status, headers: { 'Content-Type': 'application/json' } }) };
+    }
+    return { response: new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } }), data };
+  } finally {
+    if (timer) clearTimeout(timer);
   }
-  return { response: new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } }), data };
 }
 
 async function requestRpc(url, options = {}) {
@@ -2246,9 +2253,10 @@ function workLiveStatus(row) {
   return { text:'未开始', className:'' };
 }
 function workLiveLatestText(row) {
+  const stale = row.stale ? '<br><small class="work-live-stale">本次刷新失败，显示上次数据</small>' : '';
   if (row.error) return escapeHtml(row.error);
-  if (!row.latestPiece) return '暂无计件动态';
-  return `${workTimelineTime(row.latestPiece.submittedAt)} · ${escapeHtml(row.latestPiece.name || '')} · ${escapeHtml(row.latestPiece.process || '')} · ${fmt(row.latestPiece.quantity)} 件 · ${escapeHtml(workReviewStatusText(row.latestPiece.status))}`;
+  if (!row.latestPiece) return `暂无计件动态${stale}`;
+  return `${workTimelineTime(row.latestPiece.submittedAt)} · ${escapeHtml(row.latestPiece.name || '')} · ${escapeHtml(row.latestPiece.process || '')} · ${fmt(row.latestPiece.quantity)} 件 · ${escapeHtml(workReviewStatusText(row.latestPiece.status))}${stale}`;
 }
 function renderWorkLiveOverview() {
   const rows = Array.isArray(workLiveRows) ? workLiveRows : [];
@@ -2256,7 +2264,8 @@ function renderWorkLiveOverview() {
   const timedToday = rows.filter((row) => row.activeTimer || Number(row.timerMinutes || 0) > 0).length;
   const pieceTotal = rows.reduce((sum, row) => sum + Number(row.pieceCount || 0), 0);
   const pendingTotal = rows.reduce((sum, row) => sum + Number(row.pending || 0), 0);
-  const summary = `计时中 ${timingNow} 人 · 今日计时 ${timedToday} 人 · 今日计件 ${pieceTotal} 笔 · 待审 ${pendingTotal} 笔`;
+  const staleTotal = rows.filter((row) => row.stale).length;
+  const summary = `计时中 ${timingNow} 人 · 今日计时 ${timedToday} 人 · 今日计件 ${pieceTotal} 笔 · 待审 ${pendingTotal} 笔${staleTotal ? ` · 刷新失败 ${staleTotal} 人` : ''}`;
   if (els.desktopWorkLiveSummary) els.desktopWorkLiveSummary.textContent = summary;
   if (els.mobileWorkLiveSummary) els.mobileWorkLiveSummary.textContent = summary;
   const sorted = rows.slice().sort((a, b) => (Number(Boolean(b.activeTimer)) - Number(Boolean(a.activeTimer))) || (Number(b.pieceCount || 0) - Number(a.pieceCount || 0)) || String(a.employeeNo).localeCompare(String(b.employeeNo), 'zh-CN', { numeric:true }));
@@ -2280,42 +2289,78 @@ function renderWorkLiveOverview() {
   }
   if (els.desktopWorkLiveEmpty) els.desktopWorkLiveEmpty.hidden = sorted.length > 0;
 }
+function normalizeWorkLiveRow(employee, data = {}) {
+  const timerEntries = Array.isArray(data.timerEntries) ? data.timerEntries : [];
+  const pieceEntries = Array.isArray(data.pieceEntries)
+    ? data.pieceEntries.filter((entry) => entry && entry.status !== 'revoked')
+    : workLiveEntries(data);
+  const activeTimer = data.activeTimer !== undefined ? data.activeTimer : timerEntries.find((entry) => !entry.endedAt) || null;
+  const timerMinutes = data.timerMinutes != null
+    ? Number(data.timerMinutes)
+    : timerEntries.reduce((sum, entry) => sum + Number(entry.minutes || 0), 0);
+  const pieceQuantity = data.pieceQuantity != null
+    ? Number(data.pieceQuantity)
+    : pieceEntries.reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
+  const pieceAmount = data.pieceAmount != null
+    ? Number(data.pieceAmount)
+    : pieceEntries.reduce((sum, entry) => sum + (entry.status === 'approved' ? Number(entry.amount || 0) : 0), 0);
+  const pending = data.pending != null
+    ? Number(data.pending)
+    : pieceEntries.filter((entry) => entry.status === 'submitted').length;
+  return {
+    id:employee.id,
+    employeeNo:employee.employeeNo,
+    name:employee.name,
+    track:employee.track || '',
+    activeTimer,
+    timerEntries,
+    timerMinutes,
+    timerPaidHours:Number(data.timerPaidHours ?? data.salary?.timerHours ?? 0),
+    pieceEntries,
+    pieceCount:data.pieceCount != null ? Number(data.pieceCount) : pieceEntries.length,
+    pieceQuantity,
+    pieceAmount,
+    pending,
+    latestPiece:data.latestPiece !== undefined ? data.latestPiece : workLiveLatestPiece(pieceEntries),
+    stale:Boolean(data.stale),
+    error:data.error || '',
+  };
+}
 async function loadWorkLiveOverview(employees = null) {
   if (boardRole !== 'admin' || workLiveLoading) return;
   workLiveLoading = true;
   try {
     const list = (employees || await loadWorkEmployees()).filter((employee) => employee.track === 'welding' || employee.track === 'back');
     const day = workReportDate || todayShanghai();
-    const results = await Promise.all(list.map(async (employee) => {
-      try {
-        const result = await callRpc('work_admin_piece_timeline', { p_code:getAccessCode(), p_employee_id:employee.id, p_date:day });
-        if (!result.response.ok) throw new Error(result.data?.error || '实况加载失败');
-        const data = result.data || {};
-        const timerEntries = data.timerEntries || [];
-        const pieceEntries = workLiveEntries(data);
-        const activeTimer = timerEntries.find((entry) => !entry.endedAt) || null;
-        return {
-          id:employee.id,
-          employeeNo:employee.employeeNo,
-          name:employee.name,
-          track:employee.track,
-          activeTimer,
-          timerEntries,
-          timerMinutes:timerEntries.reduce((sum, entry) => sum + Number(entry.minutes || 0), 0),
-          timerPaidHours:Number(data.salary?.timerHours || 0),
-          pieceEntries,
-          pieceCount:pieceEntries.length,
-          pieceQuantity:pieceEntries.reduce((sum, entry) => sum + Number(entry.quantity || 0), 0),
-          pieceAmount:pieceEntries.reduce((sum, entry) => sum + (entry.status === 'approved' ? Number(entry.amount || 0) : 0), 0),
-          pending:pieceEntries.filter((entry) => entry.status === 'submitted').length,
-          latestPiece:workLiveLatestPiece(pieceEntries),
-          error:'',
-        };
-      } catch (error) {
-        return { id:employee.id, employeeNo:employee.employeeNo, name:employee.name, track:employee.track, activeTimer:null, timerEntries:[], timerMinutes:0, timerPaidHours:0, pieceEntries:[], pieceCount:0, pieceQuantity:0, pieceAmount:0, pending:0, latestPiece:null, error:error.message || '实况加载失败' };
+    const previous = new Map((workLiveRows || []).map((row) => [row.id, row]));
+    let rows = [];
+
+    try {
+      const result = await callRpc('work_admin_work_overview', { p_code:getAccessCode(), p_date:day }, 15000);
+      if (!result.response.ok) throw new Error(result.data?.error || '实况汇总加载失败');
+      const sourceRows = Array.isArray(result.data?.rows) ? result.data.rows : [];
+      if (!sourceRows.length && list.length) throw new Error('实况汇总返回为空');
+      rows = sourceRows.map((row) => normalizeWorkLiveRow({ id:row.id, employeeNo:row.employeeNo, name:row.name, track:row.track }, row));
+    } catch {
+      rows = [];
+    }
+
+    if (!rows.length) {
+      for (const employee of list) {
+        try {
+          const result = await callRpc('work_admin_piece_timeline', { p_code:getAccessCode(), p_employee_id:employee.id, p_date:day }, 15000);
+          if (!result.response.ok) throw new Error(result.data?.error || '实况加载失败');
+          rows.push(normalizeWorkLiveRow(employee, result.data || {}));
+        } catch (error) {
+          const previousRow = previous.get(employee.id);
+          rows.push(previousRow
+            ? { ...previousRow, stale:true }
+            : normalizeWorkLiveRow(employee, { error:error.message || '实况加载失败' }));
+        }
       }
-    }));
-    workLiveRows = results;
+    }
+
+    workLiveRows = rows;
     workLiveLoadedAt = Date.now();
     renderWorkLiveOverview();
   } finally {
