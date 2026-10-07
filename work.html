@@ -396,8 +396,11 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
     '打孔': { key: 'holes', label: '孔数', type: 'select', options: [1,2,3,4,5,6,8,10] },
     '攻丝': { key: 'holes', label: '攻丝孔数', type: 'select', options: [1,2,3,4], allowCustom:true },
     '折弯': { key: 'bends', label: '折弯刀数', type: 'select', options: [1,2,3,4], allowCustom:true },
+    '梁配件折弯': { key: 'bends', label: '折弯刀数', type: 'select', options: [1,2,3,4], allowCustom:true },
+    '短梁折边': { key: 'bends', label: '折弯刀数', type: 'select', options: [4], allowCustom:false },
+    '长梁折边': { key: 'bends', label: '折弯刀数', type: 'select', options: [4], allowCustom:false },
     '剪板': { key: 'thickness', label: '板厚', type: 'select', options: [3,4,6] },
-    '弯管': { key: 'bends', label: '弯管道数', type: 'select', options: [1,2,3,4], allowCustom:false },
+    '弯管': { key: 'bends', label: '弯管道数', type: 'select', options: [1,2,3,4], allowCustom:true },
   };
 
   const show = (el, on) => el && el.classList.toggle('hidden', !on);
@@ -540,15 +543,20 @@ function fixedVariantValues(processId) {
     .map((item) => Number(item.variantValue)))]
     .sort((a, b) => a - b);
 }
+function allowCustomForProcess(process, product = selectedProduct) {
+  if (!process) return false;
+  if (process.name === '弯管') return String(product?.material || '') === 'HJ-002';
+  return Boolean(PROCESS_VARIANTS[process.name]?.allowCustom);
+}
 function currentVariantOptions() {
   const process = currentProcess();
   const config = process ? PROCESS_VARIANTS[process.name] : null;
   if (!process || !config) return { process:null, config:null, options:[] };
   const fixed = fixedVariantValues(selectedProcessId);
-  if ((process.name === '折弯' || process.name === '弯管') && fixed.length) {
+  if (fixed.length) {
     return { process, config, options:fixed };
   }
-  if (config.allowCustom) return { process, config, options:config.options };
+  if (allowCustomForProcess(process)) return { process, config, options:config.options };
   return { process, config, options:fixed.length ? fixed : config.options };
 }
 function isGenericProduct(product = selectedProduct) {
@@ -635,7 +643,7 @@ function openVariantModal() {
   }
   $('variantModalTitle').textContent = `请选择${config.label}`;
   $('variantModalHint').textContent = `点一下下面的${config.label}，然后填写数量。`;
-  $('variantModalOptions').innerHTML = options.map((v) => `<button type="button" data-modal-variant-value="${v}" data-modal-variant-label="${variantDisplay(process.name, v)}" class="${Number(selectedVariant?.value) === v && !selectedVariant?.custom ? 'active' : ''}">${variantDisplay(process.name, v)}</button>`).join('') + (config.allowCustom ? '<button type="button" data-modal-variant-custom="1">自填</button>' : '');
+  $('variantModalOptions').innerHTML = options.map((v) => `<button type="button" data-modal-variant-value="${v}" data-modal-variant-label="${variantDisplay(process.name, v)}" class="${Number(selectedVariant?.value) === v && !selectedVariant?.custom ? 'active' : ''}">${variantDisplay(process.name, v)}</button>`).join('') + (allowCustomForProcess(process) ? '<button type="button" data-modal-variant-custom="1">自填</button>' : '');
   const customSelected = Boolean(selectedVariant?.custom && Number(selectedVariant?.value) > 0);
   $('variantModalCustomValue').value = customSelected ? String(selectedVariant.value) : '';
   show($('variantModalCustomWrap'), customSelected);
@@ -650,7 +658,7 @@ function renderVariant() {
   if (!config) { selectedVariant = null; show(box, false); box.innerHTML = ''; return; }
   if (config.type === 'select') {
     const options = currentVariantOptions().options;
-    box.innerHTML = `<div class="variant-label">${config.label}</div><div class="variant-options">${options.map((v) => `<button type="button" data-variant-value="${v}" data-variant-label="${variantDisplay(process.name, v)}" class="${Number(selectedVariant?.value) === v && !selectedVariant?.custom ? 'active' : ''}">${variantDisplay(process.name, v)}</button>`).join('')}${config.allowCustom ? '<button type="button" data-variant-custom="1" class="' + (selectedVariant?.custom ? 'active' : '') + '">自填</button>' : ''}</div>${config.allowCustom ? '<div id="variantCustomWrap" class="variant-custom hidden"><input id="variantCustomValue" type="number" min="1" step="1" inputmode="numeric" placeholder="请输入正整数"><button id="variantCustomConfirm" class="primary" type="button">确定</button></div>' : ''}`;
+    box.innerHTML = `<div class="variant-label">${config.label}</div><div class="variant-options">${options.map((v) => `<button type="button" data-variant-value="${v}" data-variant-label="${variantDisplay(process.name, v)}" class="${Number(selectedVariant?.value) === v && !selectedVariant?.custom ? 'active' : ''}">${variantDisplay(process.name, v)}</button>`).join('')}${allowCustomForProcess(process) ? '<button type="button" data-variant-custom="1" class="' + (selectedVariant?.custom ? 'active' : '') + '">自填</button>' : ''}</div>${allowCustomForProcess(process) ? '<div id="variantCustomWrap" class="variant-custom hidden"><input id="variantCustomValue" type="number" min="1" step="1" inputmode="numeric" placeholder="请输入正整数"><button id="variantCustomConfirm" class="primary" type="button">确定</button></div>' : ''}`;
   } else {
     box.innerHTML = `<div class="variant-label">${config.label}</div><input id="variantValue" type="number" min="1" step="1" inputmode="numeric" placeholder="${config.placeholder}" value="${selectedVariant?.value || ''}">`;
   }
@@ -1407,13 +1415,16 @@ function renderPiece() {
       toast(overtime ? '已确认加班，工时和加班工资已计入' : '已确认不加班，只计正常 9 小时');
     } catch (e) { toast(e.message || '确认失败'); } finally { btn.disabled = false; }
   }
-  async function searchProducts() {
+  const TAO_SEARCH_ALIASES = { '001':'BZJ-001', '002':'HJ-002', '003':'TDC-003', '004':'GENERIC-BEND' };
+  const TAO_ALLOWED_MATERIALS = new Set(['BZJ-001','HJ-002','TDC-003','GENERIC-BEND','611901667','612901742','611050012','611028015','611028045','611018052','611018053','410276813']);  async function searchProducts() {
     const q = $('productSearch').value.trim(); const box = $('productSuggest');
     if (!q) { show(box,false); show($('newPieceButton'), true); return; }
     try {
-      const rows = await rpc('work_search_products', { p_code:code, p_query:q });
-      let orderedRows = Array.isArray(rows) ? rows.slice() : [];
       const isTao = state?.employee?.employeeNo === '11';
+      const aliasMaterial = isTao ? (TAO_SEARCH_ALIASES[q] || '') : '';
+      const rows = await rpc('work_search_products', { p_code:code, p_query:aliasMaterial || q });
+      let orderedRows = Array.isArray(rows) ? rows.slice() : [];
+      if (isTao) orderedRows = aliasMaterial ? orderedRows.filter((p) => p.material === aliasMaterial) : orderedRows.filter((p) => TAO_ALLOWED_MATERIALS.has(p.material));
       const isTaoPackQuery = isTao && q.includes('包装架');
       const isTaoGuardrailQuery = isTao && q.includes('护栏');
       if (isTaoPackQuery) {
@@ -1424,7 +1435,7 @@ function renderPiece() {
         const genericRows = orderedRows.filter((p) => p.material === 'HJ-002' || p.name === '护栏弯管（通用）');
         if (genericRows.length) orderedRows = genericRows;
       }
-      const priorityMaterial = isTaoPackQuery ? 'BZJ-001' : isTaoGuardrailQuery ? 'HJ-002' : q.includes('攻丝') ? 'NC-0019' : '';
+      const priorityMaterial = aliasMaterial || (isTaoPackQuery ? 'BZJ-001' : isTaoGuardrailQuery ? 'HJ-002' : !isTao && q.includes('攻丝') ? 'NC-0019' : '');
       orderedRows.sort((a,b) => priorityMaterial && a.material !== b.material ? (a.material === priorityMaterial ? -1 : b.material === priorityMaterial ? 1 : 0) : 0);
       box.innerHTML = orderedRows.length ? orderedRows.map((p) => `<button type="button" data-product="${esc(p.id)}" data-material="${esc(p.material)}" data-name="${esc(p.name)}" data-spec="${esc(p.spec)}"><strong>${esc(p.material)} · ${esc(p.name)}</strong><span>${esc(p.spec || '无图号')}</span></button>`).join('') : '<button type="button" data-open-custom="1"><strong>没有找到产品</strong><span>点这里自主申报新产品</span></button>';
       show(box,true);
@@ -1433,7 +1444,7 @@ function renderPiece() {
   }
 function variantDisplay(processName, value) {
     const v = Number(value || 0);
-    if (processName === '折弯') return `${v}刀`;
+    if (['折弯','梁配件折弯','短梁折边','长梁折边'].includes(processName)) return `${v}刀`;
     if (processName === '弯管') return `${v}道`;
     if (processName === '剪板') return `${v}mm`;
     return `${v}孔`;
@@ -1525,12 +1536,12 @@ function variantDisplay(processName, value) {
     }
     $('requestVariantLabel').textContent = config.label;
     const currentValue = Number(keepValue ? (selectedVariant?.value || editEntry?.variantValue || 0) : 0);
-    const fixed = (process.name === '折弯' || process.name === '弯管') ? fixedVariantValues(process.id) : [];
+    const fixed = fixedVariantValues(process.id);
     const values = fixed.length ? [...fixed] : [...config.options];
     if (currentValue > 0 && !values.includes(currentValue)) values.push(currentValue);
     input.innerHTML = '<option value="">请选择</option>'
       + values.map((value) => `<option value="${value}">${variantDisplay(process.name, value)}</option>`).join('')
-      + (config.allowCustom ? '<option value="custom">自己填写</option>' : '');
+      + (allowCustomForProcess(process, requestProduct || selectedProduct) ? '<option value="custom">自己填写</option>' : '');
     show(wrap, true);
     const customWrap = $('requestVariantCustomWrap');
     const customInput = $('requestVariantCustom');
@@ -1551,7 +1562,7 @@ function variantDisplay(processName, value) {
     const config = requestVariantConfig(process);
     const input = $('requestPrice');
     let suggestion = null;
-    if (process && config && (process.name === '折弯' || process.name === '攻丝')) {
+    if (process && config && (['折弯','梁配件折弯','短梁折边','长梁折边'].includes(process.name) || process.name === '攻丝')) {
       const raw = $('requestVariantValue').value;
       const value = raw === 'custom' ? Math.floor(Number($('requestVariantCustom')?.value || 0)) : Number(raw || 0);
       if (value > 0) suggestion = Number((value * 0.2).toFixed(2));
