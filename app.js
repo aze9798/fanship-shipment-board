@@ -1534,6 +1534,39 @@ function renderPdfPreview(docs) {
   if (bad.length) showToast(`总金额核对未通过：${bad.length} 个 PDF 有问题，已禁止导入`, 7000);
 }
 
+async function printSampleApprovals(rows) {
+  const orders = (rows || []).map((row) => ({
+    po: row.po || '',
+    seq: row.seq || '',
+    material: row.material || '',
+    name: row.name || '',
+    spec: row.spec || '',
+    quantity: Number(row.quantity ?? row.orderQty ?? row.openingRemaining ?? 0),
+    customer: row.customer || '',
+    orderType: 'sample',
+    date: row.dueDate || snapshot?.today || TODAY,
+  })).filter((row) => row.material);
+  if (!orders.length) return false;
+  try {
+    const health = await fetch(`${PRINT_HELPER_BASE}/health`, { cache: 'no-store' });
+    if (!health.ok) throw new Error('打印助手没有响应');
+  } catch {
+    showToast('样品承认书没有自动打印：请先启动发货单打印助手，再从承样订单卡片点“样品承认书”补打。', 9000);
+    return false;
+  }
+  try {
+    const response = await fetch(`${PRINT_HELPER_BASE}/sample-approval`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orders }) });
+    const result = await response.json();
+    if (!response.ok || result.ok === false) throw new Error(result.error || '样品承认书打印失败');
+    const printed = (result.results || []).filter((item) => item.approvalPrinted).length;
+    const drawings = (result.results || []).filter((item) => item.drawingPrinted).length;
+    showToast(`样品承认书已发送打印 ${printed} 份，图纸 ${drawings} 份`, 7000);
+    return true;
+  } catch (error) {
+    showToast('样品承认书打印失败：' + (error.message || '请检查打印助手'), 9000);
+    return false;
+  }
+}
 async function confirmPdfImport() {
   if (!pendingPdfRows.length) return;
   if (boardRole !== 'admin') {
@@ -1587,6 +1620,7 @@ async function confirmPdfImport() {
     showToast(`已导入 ${count} 行新订单（未交已更新）`);
     await loadState({ quiet: true });
     renderAll();
+    void printSampleApprovals(typedRows.filter((row) => row.orderType === 'sample'));
   } catch (error) {
     showToast(error.message || '导入失败');
     els.confirmPdf.disabled = false;
@@ -4426,6 +4460,7 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
       </div>
       <div class="card-actions">
         <button type="button" class="photo-open" data-photo-order="${escapeHtml(order.id)}">拍照留存</button>
+        ${order.orderType === 'sample' ? `<button type="button" class="sample-approval-open" data-sample-approval="${escapeHtml(order.id)}">样品承认书</button>` : ''}
         ${boardRole === 'admin' ? `<button type="button" class="order-edit-link mobile" data-edit-order="${escapeHtml(order.id)}">变更数量 / 交期</button>` : ''}
         ${(() => { const info = materialSummary(order); return info.count > 1
           ? `<div class="material-total">同料号共 ${info.count} 单 · 未交合计 <b>${fmt(info.total)}</b></div>` : ''; })()}
@@ -6264,6 +6299,8 @@ if (els.desktopLoadingCardList) {
   els.desktopLoadingCardList.addEventListener('click', (event) => {
     const photoButton = event.target.closest('[data-photo-order], [data-photo-plan]');
     if (photoButton) { openPhotoCaptureFromButton(photoButton); return; }
+    const sampleButton = event.target.closest('[data-sample-approval]');
+    if (sampleButton) { const order = snapshot?.orders?.find((row) => String(row.id) === String(sampleButton.dataset.sampleApproval)); if (order) void printSampleApprovals([order]); return; }
     const planSelect = event.target.closest('[data-select-replacement-plan]');
     if (planSelect) {
       selectReplacementPlan(planSelect.dataset.selectReplacementPlan);
@@ -6963,6 +7000,8 @@ document.addEventListener('keydown', (event) => {
 els.mobileOrderList.addEventListener('click', (event) => {
   const photoButton = event.target.closest('[data-photo-order], [data-photo-plan]');
   if (photoButton) { openPhotoCaptureFromButton(photoButton); return; }
+  const sampleButton = event.target.closest('[data-sample-approval]');
+  if (sampleButton) { const order = snapshot?.orders?.find((row) => String(row.id) === String(sampleButton.dataset.sampleApproval)); if (order) void printSampleApprovals([order]); return; }
   const planSelect = event.target.closest('[data-select-replacement-plan]');
   if (planSelect) {
     selectReplacementPlan(planSelect.dataset.selectReplacementPlan);

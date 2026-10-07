@@ -3207,7 +3207,8 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 /* ===== 装车现场照片留档 ===== */
 .photo-archive-open { margin-top: 3px; width: 100%; }
 .photo-archive-open b { display: inline-flex; min-width: 22px; margin-left: 4px; justify-content: center; padding: 1px 6px; border-radius: 999px; color: #fff; background: var(--primary); font-size: 11px; }
-.photo-open { min-height: 32px; padding: 0 10px; border: 1px solid #b9ddd7; border-radius: 8px; background: #fff; color: #0f766e; font-weight: 800; font-size: 11px; }
+.photo-open, .sample-approval-open { min-height: 32px; padding: 0 10px; border: 1px solid #b9ddd7; border-radius: 8px; background: #fff; color: #0f766e; font-weight: 800; font-size: 11px; }
+.sample-approval-open { border-color: #e0b96b; color: #946314; background: #fff8e8; }
 .photo-capture-card { width: min(100%, 720px); }
 .photo-capture-actions { margin: 14px 0 4px; display: flex; justify-content: center; }
 .photo-preview-wrap { margin: 10px auto; text-align: center; }
