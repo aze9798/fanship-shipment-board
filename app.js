@@ -312,7 +312,6 @@ const UNIT_FILE_KIND = 'SHIPMENT_UNIT';
 const sessionReplacements = [];
 const sessionPhotos = [];
 let replacementPick = null;
-let replacementSuggestRows = [];
 let photoCaptureTarget = null;
 let photoPendingDataUrl = '';
 let photoCandidateRows = [];
@@ -354,101 +353,41 @@ function replacementProducts(queryText) {
     const material = String(row.material || '').trim();
     if (!material) return;
     const spec = String(row.spec || '').trim();
-    const orderId = String(row.orderId || row.id || '').trim();
-    const po = String(row.po || '').trim();
-    const seq = String(row.seq ?? '').trim();
-    const customer = String(row.customer || '').trim();
-    const key = [material, spec, orderId, po, seq, customer].join('\u0000');
-    if (map.has(key)) return;
+    const key = material + '|' + spec;
+    const current = map.get(key) || {};
     map.set(key, {
-      material,
-      name: String(row.name || '').trim(),
-      spec,
-      customer,
-      orderId,
-      po,
-      seq,
-      orderType: String(row.orderType || 'normal'),
-      remaining: Number(row.remaining || 0),
-      dueDate: String(row.dueDate || row.deliveryDate || '').trim(),
-      source: String(row.source || '').trim(),
+      material: current.material || material,
+      name: current.name || String(row.name || '').trim(),
+      spec: current.spec || spec,
+      customer: current.customer || String(row.customer || '').trim(),
     });
   };
 
-  // 优先保留订单明细，补发时才能把采购单号、项次一起带到送货单。
+  // 补发搜索保持原样：按料号/名称/规格列历史产品，不在这里展开订单和项次。
   for (const order of (snapshot?.orders || [])) {
     orderById.set(String(order.id || ''), order);
-  }
-  const orderCandidates = new Map();
-  const preferNewCompany = (order) => {
-    const customer = String(order?.customer || '');
-    const id = String(order?.id || '');
-    if (customer.includes('4137')) return true;
-    if (customer.includes('4074')) return false;
-    return !id.startsWith('4074:');
-  };
-  for (const order of (snapshot?.orders || [])) {
-    const po = String(order.po || '').trim();
-    const seq = String(order.seq ?? '').trim();
-    const material = String(order.material || '').trim();
-    const spec = String(order.spec || '').trim();
-    if (!material || (!po && !seq)) continue;
-    const key = [material, spec, po, seq].join('\u0000');
-    const current = orderCandidates.get(key);
-    if (!current || (preferNewCompany(order) && !preferNewCompany(current))) orderCandidates.set(key, order);
-  }
-  for (const order of orderCandidates.values()) {
-    put({ ...order, source: 'order' });
+    put(order);
   }
   for (const shipment of (snapshot?.shipments || [])) {
     for (const item of (shipment.items || [])) {
-      if (orderById.has(String(item.orderId || ''))) continue;
+      const order = orderById.get(String(item.orderId || ''));
       put({
-        orderId: item.orderId,
         material: item.material,
-        name: item.name,
-        spec: item.spec,
-        customer: shipment.customer,
-        source: 'shipment',
+        name: item.name || order?.name,
+        spec: item.spec || order?.spec,
+        customer: shipment.customer || order?.customer,
       });
     }
   }
-  for (const row of (snapshot?.overDeliveries || [])) put({ ...row, source: 'over' });
-  for (const row of (snapshot?.overOffsets || [])) put({ ...row, source: 'offset' });
-  for (const row of (snapshot?.replacements || [])) put({ ...row, source: 'replacement' });
-
-  // 补发不是每笔都有采购订单。每个料号/规格额外保留一个“无订单号/无项次”选项，
-  // 有明确订单的按订单行显示，没有订单的仍然按普通补发走。
-  const genericSeen = new Set();
-  for (const row of map.values()) {
-    if (!row.orderId && !row.po && !row.seq) genericSeen.add(row.material + '\u0000' + row.spec);
-  }
-  for (const row of [...map.values()]) {
-    const key = row.material + '\u0000' + row.spec;
-    if (genericSeen.has(key)) continue;
-    genericSeen.add(key);
-    map.set('generic\u0000' + key, {
-      ...row,
-      orderId: '',
-      po: '',
-      seq: '',
-      source: 'generic',
-      remaining: 0,
-      dueDate: '',
-    });
-  }
+  for (const row of (snapshot?.overDeliveries || [])) put(row);
+  for (const row of (snapshot?.overOffsets || [])) put(row);
+  for (const row of (snapshot?.replacements || [])) put(row);
 
   const rows = [...map.values()].sort((a, b) =>
-    Number(b.remaining > 0) - Number(a.remaining > 0)
-    || String(a.material || '').localeCompare(String(b.material || ''), 'zh-CN')
-    || String(a.spec || '').localeCompare(String(b.spec || ''), 'zh-CN')
-    || Number(!a.orderId) - Number(!b.orderId)
-    || String(a.po || '').localeCompare(String(b.po || ''), 'zh-CN')
-    || Number(a.seq || 0) - Number(b.seq || 0)
-    || String(a.dueDate || '9999-12-31').localeCompare(String(b.dueDate || '9999-12-31')));
-  if (!query) return rows.slice(0, 30);
-  return rows.filter((row) => [row.material, row.name, row.spec, row.po, row.seq, row.customer]
-    .some((value) => String(value ?? '').toLowerCase().includes(query))).slice(0, 50);
+    String(a.material || '').localeCompare(String(b.material || ''), 'zh-CN')
+    || String(a.spec || '').localeCompare(String(b.spec || ''), 'zh-CN'));
+  if (!query) return rows.slice(0, 20);
+  return rows.filter((row) => [row.material, row.name, row.spec].join(' ').toLowerCase().includes(query)).slice(0, 50);
 }
 
 function currentDeliveryDate() {
@@ -1208,16 +1147,11 @@ async function markLoadedUnitsShipped(shipmentId) {
 function renderReplacementSuggest() {
   if (!els.replacementSuggest || !els.replacementSearch) return;
   const rows = replacementProducts(els.replacementSearch.value);
-  replacementSuggestRows = rows;
   if (!rows.length) { els.replacementSuggest.hidden = true; els.replacementSuggest.innerHTML = ''; return; }
-  els.replacementSuggest.innerHTML = rows.map((row, index) => {
-    const orderText = row.po ? row.po + ' · 项次 ' + (row.seq || '—') : '无订单号 / 无项次';
-    const detail = [orderText, row.name || '', row.spec || ''].filter(Boolean).join(' · ');
-    return '<button type="button" class="suggest-item" data-replacement-index="' + index + '">'
-      + '<strong>' + escapeHtml(row.material) + '</strong>'
-      + '<span>' + escapeHtml(detail) + '</span>'
-      + '</button>';
-  }).join('');
+  els.replacementSuggest.innerHTML = rows.map((row) => `<button type="button" class="suggest-item" data-replacement-pick="${escapeHtml([row.material, row.name, row.spec, row.customer].join('|'))}">
+      <strong>${escapeHtml(row.material)}</strong>
+      <span>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</span>
+    </button>`).join('');
   els.replacementSuggest.hidden = false;
 }
 
@@ -1227,7 +1161,6 @@ function renderReplacementPicked() {
   els.replacementPicked.hidden = false;
   els.replacementPicked.innerHTML = `已选：<b>${escapeHtml(replacementPick.material)}</b> ${escapeHtml(replacementPick.name || '')}`
     + `${replacementPick.spec ? ' · ' + escapeHtml(replacementPick.spec) : ''}`
-    + `${replacementPick.po ? ' · ' + escapeHtml(replacementPick.po) + ' 项次 ' + escapeHtml(replacementPick.seq || '—') : ' · 无订单号 / 无项次'}`
     + `${replacementPick.customer ? '（' + escapeHtml(replacementPick.customer) + '）' : ''}`;
 }
 
@@ -1298,6 +1231,8 @@ const els = {
   desktopLiveDot: $('#desktopLiveDot'),
   desktopLiveText: $('#desktopLiveText'),
   mobileLiveLabel: $('#mobileLiveLabel'),
+  printHelperStatus: $('#printHelperStatus'),
+  mobilePrintHelperStatus: $('#mobilePrintHelperStatus'),
   sourceTitle: $('#sourceTitle'),
   sourceStamp: $('#sourceStamp'),
   resetButton: $('#resetButton'),
@@ -1592,6 +1527,10 @@ const els = {
   closeDeliveryModalAction: $('#closeDeliveryModalAction'),
   refreshDeliveryPreview: $('#refreshDeliveryPreview'),
   printDeliveryNotes: $('#printDeliveryNotes'),
+  taskStatusBar: $('#taskStatusBar'),
+  taskStatusText: $('#taskStatusText'),
+  taskStatusAction: $('#taskStatusAction'),
+  taskStatusClose: $('#taskStatusClose'),
   toast: $('#toast'),
   orderEditModal: $('#orderEditModal'),
   orderEditInfo: $('#orderEditInfo'),
@@ -2093,6 +2032,7 @@ async function handlePdfFiles(fileList) {
     return;
   }
   showToast(`正在识别 ${files.length} 个采购订单 PDF...`);
+  beginTask('正在识别采购订单 PDF...');
   if (els.pdfPreview) {
     els.pdfPreview.innerHTML = '<div class="submit-summary-row"><span>正在识别</span><strong>请稍等…</strong></div>';
     els.pdfModal.hidden = false;
@@ -2103,8 +2043,10 @@ async function handlePdfFiles(fileList) {
     renderPdfPreview(docs);
     const okCount = docs.filter((d) => !d.error && d.items.length).length;
     if (okCount !== docs.length) showToast(`${docs.length} 个文件里只有 ${okCount} 个识别成功，请看核对窗口里的提示`);
+    finishTask(okCount === docs.length ? 'PDF 识别完成' : 'PDF 已识别，但有文件需要检查', okCount === docs.length ? 'success' : 'error', 4500);
   } catch (error) {
     if (els.pdfModal) els.pdfModal.hidden = true;
+    finishTask('PDF 识别失败', 'error', 5000);
     showToast(error.message || 'PDF 识别失败');
   } finally {
     if (els.pdfFileInput) els.pdfFileInput.value = '';
@@ -2346,6 +2288,7 @@ async function confirmPdfImport() {
     return;
   }
   els.confirmPdf.disabled = true;
+  beginTask('正在导入采购订单...');
   try {
     const result = await callRpc('board_add_orders', { p_code: getAccessCode(), p_orders: pendingPdfRows });
     if (!result.response.ok) throw new Error(result.data?.message || '导入失败');
@@ -2388,8 +2331,10 @@ async function confirmPdfImport() {
     showToast(`已导入 ${count} 行新订单（未交已更新）`);
     await loadState({ quiet: true });
     renderAll();
+    finishTask('采购订单导入完成', 'success', 3000);
     openSampleApprovalSelector(typedRows.filter((row) => row.orderType === 'sample'));
   } catch (error) {
+    finishTask('采购订单导入失败', 'error', 5000);
     showToast(error.message || '导入失败');
     els.confirmPdf.disabled = false;
   }
@@ -6127,30 +6072,37 @@ async function confirmLabelPrint() {
   }
   try {
     const body = mode === 'big' ? { big: payload, small: [] } : { big: [], small: payload };
-    const result = await deliveryHelper('/labels', body, { timeoutMs: 15000 });
+    const result = await deliveryHelper('/labels', body, { timeoutMs: 15000, taskLabel: '正在准备标签数据...', keepTaskOpen: true });
     // 打印助手现在只负责：写数据 → 打开汉码 → 点开打印预览，最后一步「打印」是用户自己点的。
     // 所以这里问一下到底打完没有：确认了才记「已打印」并记打印习惯，没打完就不记（还能补打）。
     const manual = Boolean(result && result.manualPrint);
+    if (manual) setTaskStatus('数据已写入，等待你在汉码里打印', 'info');
     if (manual) {
       const done = window.confirm('汉码已经打开并停在打印预览页面（数据已写好、模板正确）。\n\n打印完成了吗？\n\n【确定】= 已完成 → 记入「已打印」，并记住这些料号的打印习惯\n【取消】= 还没打完 → 先不记，之后还能找到它补打');
       if (!done) {
+        clearTaskStatus();
         showToast('这次先不记「已打印」，需要补打时还能找到它');
         return;
       }
       void closeLabelAppAfterManualPrint();
     }
     finishLabelPrint(mode, sourceKeys, picked, result, manual);
+    finishTask('标签打印已确认', 'success', 3000);
   } catch (error) {
     if (error?.name === 'AbortError') {
+      finishTask('等待打印助手超时，请确认是否已打印', 'error', 0);
       const done = window.confirm('打印助手等待超时，但汉码可能已经打开。\n\n如果已经打印完成，点【确定】记入「已打印」；还没完成就点【取消】，之后还能补打。');
       if (done) {
         finishLabelPrint(mode, sourceKeys, picked, { errors: [] }, true);
+        finishTask('标签打印已确认', 'success', 3000);
         void closeLabelAppAfterManualPrint();
       } else {
+        clearTaskStatus();
         showLabelPrintError('打印助手还在处理中；如果汉码已经打开，完成打印后再点一次确认，或稍后补打。');
       }
       return;
     }
+    clearTaskStatus();
     const detail = String(error.message || error || '');
     showLabelPrintError('打印没有完成：' + detail + '（如果是“Failed to fetch”，说明打印助手没在运行）');
     showToast('打印没有完成，看弹窗里的提示');
@@ -6578,6 +6530,82 @@ function showToast(message, duration = 2600) {
   showToast.timer = setTimeout(() => { els.toast.hidden = true; }, duration);
 }
 
+let taskStatusTimer = 0;
+let taskStatusActionHandler = null;
+
+function setTaskStatus(message, state = 'info', options = {}) {
+  if (!els.taskStatusBar || !message) return;
+  clearTimeout(taskStatusTimer);
+  els.taskStatusBar.hidden = false;
+  els.taskStatusBar.dataset.state = state;
+  if (els.taskStatusText) els.taskStatusText.textContent = message;
+  if (els.taskStatusAction) {
+    if (options.actionText && typeof options.onAction === 'function') {
+      els.taskStatusAction.hidden = false;
+      els.taskStatusAction.textContent = options.actionText;
+      taskStatusActionHandler = options.onAction;
+    } else {
+      els.taskStatusAction.hidden = true;
+      els.taskStatusAction.textContent = '';
+      taskStatusActionHandler = null;
+    }
+  }
+}
+
+function clearTaskStatus() {
+  clearTimeout(taskStatusTimer);
+  taskStatusTimer = 0;
+  taskStatusActionHandler = null;
+  if (els.taskStatusBar) els.taskStatusBar.hidden = true;
+}
+
+function beginTask(message) {
+  setTaskStatus(message, 'info');
+}
+
+function finishTask(message, state = 'success', delay = 3000) {
+  setTaskStatus(message, state);
+  if (delay) taskStatusTimer = setTimeout(clearTaskStatus, delay);
+}
+
+function helperTaskLabel(path) {
+  return ({
+    '/prepare': '正在汇总送货单...',
+    '/print': '正在发送送货单打印...',
+    '/labels': '正在准备标签数据...',
+    '/labels/complete': '正在关闭汉码...',
+  })[path] || '';
+}
+
+async function checkPrintHelper(showResult = false) {
+  const chips = [els.printHelperStatus, els.mobilePrintHelperStatus].filter(Boolean);
+  chips.forEach((chip) => {
+    chip.dataset.state = 'checking';
+    chip.textContent = '打印助手：检测中';
+    chip.disabled = true;
+  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 2500);
+  try {
+    const response = await fetch(`${PRINT_HELPER_BASE}/ping`, { cache: 'no-store', signal: controller.signal });
+    if (!response.ok) throw new Error('打印助手没有响应');
+    chips.forEach((chip) => {
+      chip.dataset.state = 'online';
+      chip.textContent = '打印助手：已连接';
+    });
+    if (showResult) showToast('打印助手已连接，可以打印');
+  } catch {
+    chips.forEach((chip) => {
+      chip.dataset.state = 'offline';
+      chip.textContent = '打印助手：未启动';
+    });
+    if (showResult) showToast('打印助手未启动：请先双击桌面“启动打印助手”，再点这里重试', 7000);
+  } finally {
+    clearTimeout(timer);
+    chips.forEach((chip) => { chip.disabled = false; });
+  }
+}
+
 function showSubmitError(message) {
   if (!els.submitError) return;
   if (!message) { els.submitError.hidden = true; els.submitError.textContent = ''; return; }
@@ -6634,11 +6662,18 @@ async function deliveryHelper(path, payload, helperOptions = {}) {
   const controller = timeoutMs > 0 ? new AbortController() : null;
   if (controller) options.signal = controller.signal;
   const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const taskLabel = helperOptions.taskLabel || helperTaskLabel(path);
+  const keepTaskOpen = Boolean(helperOptions.keepTaskOpen);
+  if (taskLabel) beginTask(taskLabel);
   try {
     const response = await fetch(`${PRINT_HELPER_BASE}${path}`, options);
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.ok === false) throw new Error(data.error || `打印助手请求失败（HTTP ${response.status}）`);
+    if (taskLabel && !keepTaskOpen) finishTask('操作已完成', 'success', 2200);
     return data;
+  } catch (error) {
+    if (taskLabel) finishTask('操作失败：' + (error.message || '请检查打印助手'), 'error', 5000);
+    throw error;
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -7550,10 +7585,8 @@ if (els.replacementSearch) els.replacementSearch.addEventListener('focus', rende
 if (els.replacementSuggest) els.replacementSuggest.addEventListener('click', (event) => {
   const button = event.target.closest('[data-replacement-pick]');
   if (!button) return;
-  const index = Number(button.dataset.replacementIndex);
-  const picked = replacementSuggestRows[index];
-  if (!picked) return;
-  replacementPick = { ...picked };
+  const [material, name, spec, customer] = button.dataset.replacementPick.split('|');
+  replacementPick = { material, name, spec, customer };
   els.replacementSuggest.hidden = true;
   els.replacementSearch.value = '';
   renderReplacementPicked();
@@ -7630,6 +7663,14 @@ if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', (even
   showAllocationNotice(`已取消 ${material} 的无订单发货，只保留有采购单的数量。`, 'ok');
 });
 
+function handleRemainingLoadMore(event) {
+  if (!event.target.closest('[data-remaining-load-more]')) return;
+  remainingVisibleLimit += 60;
+  desktopRemainingVisibleLimit += 120;
+  renderMobileRemaining();
+  renderDesktopRemaining();
+}
+
 function handleRemainingFilterClick(event) {
   const dateButton = event.target.closest('[data-remaining-date]');
   if (dateButton) {
@@ -7666,10 +7707,15 @@ function handleRemainingFilterClick(event) {
   }
 }
 
+if (els.remainingList) els.remainingList.addEventListener('click', handleRemainingLoadMore);
+if (els.desktopRemainingBody) els.desktopRemainingBody.addEventListener('click', handleRemainingLoadMore);
+
 if (els.mobileRemainingPanel) {
   els.mobileRemainingPanel.addEventListener('input', (event) => {
     if (event.target.id !== 'remainingSearch') return;
     remainingSearch = event.target.value;
+    remainingVisibleLimit = 60;
+    desktopRemainingVisibleLimit = 120;
     refreshRemainingViews();
   });
   els.mobileRemainingPanel.addEventListener('click', handleRemainingFilterClick);
@@ -7678,6 +7724,8 @@ if (els.mobileRemainingPanel) {
 if (els.desktopRemainingSearch) {
   els.desktopRemainingSearch.addEventListener('input', (event) => {
     desktopRemainingSearch = event.target.value;
+    remainingVisibleLimit = 60;
+    desktopRemainingVisibleLimit = 120;
     renderDesktopRemaining();
   });
 }

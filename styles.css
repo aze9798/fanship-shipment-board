@@ -3307,3 +3307,96 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .photo-unit-qty-empty { padding: 8px 10px; border-radius: 9px; color: #829398; background: #f3f6f6; font-size: 11px; }
 
 .sample-approval-select-search { width: 100%; height: 42px; margin-top: 12px; padding: 0 12px; border: 1px solid #d9e5e4; border-radius: 11px; background: #fff; color: #244a51; font: inherit; font-size: 14px; }
+
+/* ===== 长列表性能：可视区域外延后绘制，剩余列表分批加载 ===== */
+.order-card,
+.mobile-remaining-card,
+.history-card,
+.label-print-row {
+  content-visibility: auto;
+  contain-intrinsic-size: 140px;
+}
+
+.load-more-button {
+  display: block;
+  width: min(420px, calc(100% - 32px));
+  margin: 16px auto 22px;
+  padding: 12px 18px;
+  border: 1px solid #9ecbc5;
+  border-radius: 10px;
+  background: #f2fbf9;
+  color: #0b7168;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.load-more-button:hover { background: #e3f6f2; }
+/* ===== 打印助手状态 / 全局任务状态 ===== */
+.print-helper-status {
+  display: block;
+  width: 100%;
+  margin-top: 7px;
+  padding: 5px 8px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 8px;
+  background: rgba(255,255,255,.08);
+  color: rgba(255,255,255,.82);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.print-helper-status:hover { background: rgba(255,255,255,.15); }
+.print-helper-status[data-state="online"] { color: #bceee5; border-color: rgba(120,220,200,.45); }
+.print-helper-status[data-state="offline"] { color: #ffd1c8; border-color: rgba(255,160,140,.5); background: rgba(180,55,35,.18); }
+.print-helper-status.mobile { width: auto; margin: 2px 0 0; padding: 2px 6px; border: 0; background: transparent; font-size: 10px; text-align: left; }
+.print-helper-status.mobile:hover { background: transparent; text-decoration: underline; }
+
+.task-status-bar {
+  position: fixed;
+  z-index: 12000;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(620px, calc(100vw - 28px));
+  padding: 11px 12px 11px 16px;
+  border: 1px solid #b9d9d5;
+  border-radius: 12px;
+  background: #f6fbfa;
+  box-shadow: 0 10px 35px rgba(25, 58, 65, .18);
+  color: #17464a;
+  font-size: 13px;
+  font-weight: 700;
+}
+.task-status-bar[data-state="success"] { border-color: #9bd5c7; background: #effbf7; color: #176b5a; }
+.task-status-bar[data-state="error"] { border-color: #f0b8ad; background: #fff5f2; color: #9b3b2b; }
+.task-status-bar > span { flex: 1 1 auto; min-width: 0; }
+.task-status-bar > button:not(.task-status-close) {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.task-status-close {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0,0,0,.06);
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+@media (max-width: 900px) {
+  .task-status-bar { bottom: 78px; }
+}
