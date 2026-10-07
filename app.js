@@ -15,6 +15,7 @@ const BOARD_MODE = (() => {
 const MODE_KEY_SUFFIX = BOARD_MODE ? ':' + BOARD_MODE : '';
 const ACCESS_CODE_STORAGE_KEY = ACCESS_CODE_KEY + MODE_KEY_SUFFIX;
 const ROLE_STORAGE_KEY = 'shipmentBoardRole' + MODE_KEY_SUFFIX;
+const STATE_CACHE_KEY = 'shipmentBoardStateCache' + MODE_KEY_SUFFIX;
 const PRINT_HELPER_BASE = 'http://127.0.0.1:8790';
 let deliveryFilesPromise = null;
 let auxiliaryPromise = null;
@@ -1747,6 +1748,49 @@ function setLiveStatus(status) {
   }
 }
 
+function coreSnapshotForCache(state) {
+  if (!state || !Array.isArray(state.orders) || !Array.isArray(state.shipments) || !state.summary) return null;
+  return {
+    orders: state.orders,
+    shipments: state.shipments,
+    summary: state.summary,
+    source: state.source || {},
+    storage: state.storage || {},
+    revision: state.revision,
+    today: state.today,
+    overDeliveries: Array.isArray(state.overDeliveries) ? state.overDeliveries : [],
+    overOffsets: Array.isArray(state.overOffsets) ? state.overOffsets : [],
+    replacements: Array.isArray(state.replacements) ? state.replacements : [],
+    amounts: Array.isArray(state.amounts) ? state.amounts : [],
+  };
+}
+
+function saveCachedState() {
+  const code = getAccessCode();
+  if (!code || !snapshot) return;
+  const core = coreSnapshotForCache(snapshot);
+  if (!core) return;
+  try { localStorage.setItem(STATE_CACHE_KEY, JSON.stringify({ code, savedAt: Date.now(), snapshot: core })); } catch {}
+}
+
+function restoreCachedState() {
+  const code = getAccessCode();
+  if (!code) return false;
+  try {
+    const cached = JSON.parse(localStorage.getItem(STATE_CACHE_KEY) || 'null');
+    if (!cached || cached.code !== code || !cached.snapshot) return false;
+    if (Date.now() - Number(cached.savedAt || 0) > 24 * 60 * 60 * 1000) return false;
+    const cachedSnapshot = cached.snapshot;
+    if (!Array.isArray(cachedSnapshot.orders) || !Array.isArray(cachedSnapshot.shipments) || !cachedSnapshot.summary) return false;
+    snapshot = cachedSnapshot;
+    if (snapshot.today) TODAY = snapshot.today;
+    rebuildAmountMap();
+    rebuildDrawingMap();
+    setLiveStatus('connecting');
+    renderAll();
+    return true;
+  } catch { return false; }
+}
 async function waitForStateIdle(maxMs = 5000) {
   const started = Date.now();
   while ((refreshing || auxiliaryPromise) && Date.now() - started < maxMs) {
@@ -1798,7 +1842,12 @@ async function loadState({ quiet = false, fast = false } = {}) {
       nextSnapshot.drawings = previous?.drawings || [];
     }
     const changed = !previous || nextSnapshot.revision !== previous.revision || (!fast && shouldRefreshAuxiliary);
+    const stateChanged = !previous || nextSnapshot.revision !== previous.revision;
     snapshot = nextSnapshot;
+    if (stateChanged) {
+      if ('requestIdleCallback' in window) requestIdleCallback(saveCachedState, { timeout: 2000 });
+      else setTimeout(saveCachedState, 0);
+    }
     stateLoadFailures = 0;
     setLiveStatus('online');
     rebuildAmountMap();
@@ -8182,6 +8231,7 @@ setupRpcExportLink();
 if (!getAccessCode()) askAccessCode();
 await loadBoardRole();
 await loadMarkMaterials();
+restoreCachedState();
 await loadState({ fast: true });
 connectEvents();
 warmOptionalLibraries();
