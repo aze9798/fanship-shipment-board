@@ -556,7 +556,7 @@ function closePhotoArchive() { if (els.photoArchiveModal) els.photoArchiveModal.
 function renderPhotoMaterialList() {
   if (!els.photoMaterialList) return;
   const query = String(els.photoMaterialSearch?.value || '').trim();
-  photoCandidateRows = replacementProducts(query).slice(0, 60);
+  photoCandidateRows = photoMaterialCandidates(query);
   const selectedText = [...photoSelectedMaterials.values()].map((row) => row.material).filter(Boolean).join('、') || '未选择';
   const options = photoCandidateRows.map((row, index) => { const selected = photoSelectedMaterials.has(photoMaterialKey(row)); return `<button type="button" class="photo-material-option${selected ? ' selected' : ''}" data-photo-candidate="${index}"><span><strong>${escapeHtml(row.material)}</strong><small>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</small></span><b>${selected ? '已关联' : '关联'}</b></button>`; }).join('');
   els.photoMaterialList.innerHTML = `<div class="photo-selected-summary">已关联：${escapeHtml(selectedText)}</div>${options || '<div class="empty-state"><strong>没有找到物料</strong><span>换个搜索词试试。</span></div>'}`;
@@ -580,11 +580,30 @@ function materialHasPhoto(target) {
   return photosForTarget(target).length > 0;
 }
 
+function photoPendingRows() {
+  const map = new Map();
+  for (const order of (snapshot?.orders || [])) {
+    if (!(Number(order.remaining || 0) > 0)) continue;
+    const key = photoMaterialKey(order);
+    if (!map.has(key)) map.set(key, { ...order, photoDate: String(order.dueDate || '') });
+  }
+  for (const plan of replacementPlans()) {
+    const key = photoMaterialKey(plan);
+    if (!map.has(key)) map.set(key, { ...plan, photoDate: String(plan.deliveryDate || '') });
+  }
+  return [...map.values()].sort((left, right) =>
+    String(left.photoDate || '9999-12-31').localeCompare(String(right.photoDate || '9999-12-31'))
+    || String(left.material || '').localeCompare(String(right.material || ''), 'zh-CN')
+    || String(left.spec || '').localeCompare(String(right.spec || ''), 'zh-CN'));
+}
+
+function photoMaterialCandidates(queryText) {
+  const query = String(queryText || '').trim();
+  return query ? replacementProducts(query).slice(0, 60) : photoPendingRows().slice(0, 60);
+}
+
 function currentPhotoMaterials(target) {
-  const rows = [];
-  if (document.body.dataset.view === 'mobile') rows.push(...mobileRows());
-  else rows.push(...desktopLoadingOrders());
-  rows.push(...replacementPlans());
+  const rows = photoPendingRows();
   const material = String(target?.material || '').trim();
   const selected = new Map();
   for (const row of rows) {

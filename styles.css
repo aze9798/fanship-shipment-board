@@ -3244,3 +3244,10 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 @media (max-width: 620px) { .photo-archive-item { grid-template-columns: 76px minmax(0, 1fr); } .photo-archive-thumb { width: 76px; height: 64px; } .photo-archive-item > .button { grid-column: 1 / -1; } }
 .card-actions .photo-open { margin-left: auto; }
 .replacement-plan-card .replacement-plan-actions .photo-open { margin-top: 0; margin-right: 15px; }
+/* 手机端搜索框与补发按钮同一行 */
+.mobile-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; align-items: start; }
+.mobile-tools .mobile-search { grid-column: 1; }
+.mobile-tools #mobileSuggest { grid-column: 1 / -1; }
+.mobile-tools #replacementOpen { grid-column: 2; margin: 0; width: auto; min-height: 44px; padding: 0 15px; align-self: start; }
+.mobile-tools #replacementBox,
+.mobile-tools #mobileFilters { grid-column: 1 / -1; }
