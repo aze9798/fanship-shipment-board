@@ -390,6 +390,7 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
   let betaStateLoaded = false;
   let selectedPriceToken = 0;
   let productProcessToken = 0;
+  let productSearchToken = 0;
   const productProcessMap = new Map();
   const matchedVariantMap = new Map();
   const PROCESS_VARIANTS = {
@@ -545,7 +546,7 @@ function fixedVariantValues(processId) {
 }
 function allowCustomForProcess(process, product = selectedProduct) {
   if (!process) return false;
-  if (process.name === '弯管') return String(product?.material || '') === 'HJ-002';
+  if (process.name === '弯管') return ['002','HJ-002'].includes(String(product?.material || ''));
   return Boolean(PROCESS_VARIANTS[process.name]?.allowCustom);
 }
 function currentVariantOptions() {
@@ -1415,32 +1416,29 @@ function renderPiece() {
       toast(overtime ? '已确认加班，工时和加班工资已计入' : '已确认不加班，只计正常 9 小时');
     } catch (e) { toast(e.message || '确认失败'); } finally { btn.disabled = false; }
   }
-  const TAO_SEARCH_ALIASES = { '001':'BZJ-001', '002':'HJ-002', '003':'TDC-003', '004':'GENERIC-BEND' };
-  const TAO_ALLOWED_MATERIALS = new Set(['BZJ-001','HJ-002','TDC-003','GENERIC-BEND','611901667','612901742','611050012','611028015','611028045','611018052','611018053','410276813']);  async function searchProducts() {
+  const TAO_SEARCH_ALIASES = { '001':'001', '002':'002', '003':'003', '004':'004' };
+  async function searchProducts() {
+    const token = ++productSearchToken;
     const q = $('productSearch').value.trim(); const box = $('productSuggest');
     if (!q) { show(box,false); show($('newPieceButton'), true); return; }
     try {
       const isTao = state?.employee?.employeeNo === '11';
-      const aliasMaterial = isTao ? (TAO_SEARCH_ALIASES[q] || '') : '';
+      const aliasMaterial = isTao ? (TAO_SEARCH_ALIASES[q] || '') : '';      const shortNumericSearch = isTao && !aliasMaterial && /^\d+$/.test(q) && q.length < 4;
+      if (shortNumericSearch) {
+        box.innerHTML = '<button type="button" disabled><strong>请输入至少4位编号</strong><span>或输入完整料号、产品名称</span></button>';
+        show(box, true);
+        show($('newPieceButton'), false);
+        return;
+      }
       const rows = await rpc('work_search_products', { p_code:code, p_query:aliasMaterial || q });
+      if (token !== productSearchToken) return;
       let orderedRows = Array.isArray(rows) ? rows.slice() : [];
-      if (isTao) orderedRows = aliasMaterial ? orderedRows.filter((p) => p.material === aliasMaterial) : orderedRows.filter((p) => TAO_ALLOWED_MATERIALS.has(p.material));
-      const isTaoPackQuery = isTao && q.includes('包装架');
-      const isTaoGuardrailQuery = isTao && q.includes('护栏');
-      if (isTaoPackQuery) {
-        const genericRows = orderedRows.filter((p) => p.material === 'BZJ-001' || p.material === 'PACK-RACK' || p.name === '包装架（通用）');
-        if (genericRows.length) orderedRows = genericRows;
-      }
-      if (isTaoGuardrailQuery) {
-        const genericRows = orderedRows.filter((p) => p.material === 'HJ-002' || p.name === '护栏弯管（通用）');
-        if (genericRows.length) orderedRows = genericRows;
-      }
-      const priorityMaterial = aliasMaterial || (isTaoPackQuery ? 'BZJ-001' : isTaoGuardrailQuery ? 'HJ-002' : !isTao && q.includes('攻丝') ? 'NC-0019' : '');
+      const priorityMaterial = aliasMaterial || (!isTao && q.includes('攻丝') ? 'NC-0019' : '');
       orderedRows.sort((a,b) => priorityMaterial && a.material !== b.material ? (a.material === priorityMaterial ? -1 : b.material === priorityMaterial ? 1 : 0) : 0);
       box.innerHTML = orderedRows.length ? orderedRows.map((p) => `<button type="button" data-product="${esc(p.id)}" data-material="${esc(p.material)}" data-name="${esc(p.name)}" data-spec="${esc(p.spec)}"><strong>${esc(p.material)} · ${esc(p.name)}</strong><span>${esc(p.spec || '无图号')}</span></button>`).join('') : '<button type="button" data-open-custom="1"><strong>没有找到产品</strong><span>点这里自主申报新产品</span></button>';
       show(box,true);
       show($('newPieceButton'), orderedRows.length === 0);
-    } catch (e) { toast(e.message || '搜索失败'); }
+    } catch (e) { if (token !== productSearchToken) return; toast(e.message || '搜索失败'); }
   }
 function variantDisplay(processName, value) {
     const v = Number(value || 0);
