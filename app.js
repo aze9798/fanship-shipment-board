@@ -312,6 +312,7 @@ let sampleApprovalCandidates = [];
 let sampleApprovalSelectedIndex = -1;
 let sampleApprovalPreviewRows = [];
 let sampleApprovalPreviewObjectUrl = '';
+let sampleApprovalPreviewToken = '';
 let photoViewerTarget = null;
 let photoViewerRow = null;
 let photoRetakeMode = false;
@@ -2078,6 +2079,7 @@ async function openSampleApprovalPreview(row) {
   if (sampleApprovalPreviewObjectUrl) URL.revokeObjectURL(sampleApprovalPreviewObjectUrl);
   sampleApprovalPreviewObjectUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
   sampleApprovalPreviewRows = [row];
+  sampleApprovalPreviewToken = String(item.previewToken || '');
   if (els.sampleApprovalPreviewFrame) els.sampleApprovalPreviewFrame.src = sampleApprovalPreviewObjectUrl;
   if (els.sampleApprovalPreviewMeta) {
     const quantity = Number(row.quantity ?? row.orderQty ?? row.openingRemaining ?? row.remaining ?? 0);
@@ -2095,7 +2097,7 @@ function confirmSampleApprovalSelection() {
 
 async function printSampleApprovalPreview() {
   if (!sampleApprovalPreviewRows.length) return;
-  const result = await printSampleApprovals(sampleApprovalPreviewRows);
+  const result = await printSampleApprovals(sampleApprovalPreviewRows, { previewToken: sampleApprovalPreviewToken });
   if (result) closeSampleApprovalPreview();
 }
 async function printSampleApprovals(rows, options = {}) {
@@ -2114,14 +2116,14 @@ async function printSampleApprovals(rows, options = {}) {
   const generateOnly = Boolean(options.generateOnly);
   const previewOnly = Boolean(options.previewOnly);
   try {
-    const health = await fetch(`${PRINT_HELPER_BASE}/health`, { cache: 'no-store' });
+    const health = await fetch(`${PRINT_HELPER_BASE}/ping`, { cache: 'no-store' });
     if (!health.ok) throw new Error('打印助手没有响应');
   } catch {
     showToast(generateOnly ? '无法生成样品承认书：请先启动发货单打印助手' : '样品承认书没有打印：请先启动发货单打印助手', 9000);
     return null;
   }
   try {
-    const response = await fetch(`${PRINT_HELPER_BASE}/sample-approval`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orders, dryRun: generateOnly || previewOnly, preview: previewOnly }) });
+    const response = await fetch(`${PRINT_HELPER_BASE}/sample-approval`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orders, dryRun: generateOnly || previewOnly, preview: previewOnly, previewToken: options.previewToken || '' }) });
     const result = await response.json();
     if (!response.ok || result.ok === false) throw new Error(result.error || '样品承认书处理失败');
     if (previewOnly) return result;
