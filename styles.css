@@ -634,7 +634,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .mobile-tab { min-height: 38px; padding: 0 2px; border: 0; border-radius: 10px; color: #72848b; background: transparent; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .mobile-tab.active { color: #1c4b4c; background: #fff; box-shadow: 0 2px 9px rgba(32, 57, 64, .09); }
 .mobile-panel { padding: 12px 12px 0; }
-.mobile-tools { position: sticky; top: 68px; z-index: 12; padding-bottom: 14px; background: #f2f5f6; box-shadow: 0 10px 18px rgba(21, 55, 60, .08); }
+.mobile-tools { position: sticky; top: 116px; z-index: 12; padding-bottom: 14px; background: #f2f5f6; box-shadow: 0 10px 18px rgba(21, 55, 60, .08); }
 .mobile-search { height: 44px; padding: 0 13px; display: flex; align-items: center; gap: 9px; border: 1px solid #dce4e6; border-radius: 13px; background: #fff; box-shadow: 0 3px 12px rgba(40, 62, 68, .05); }
 .mobile-search span { color: #7c9097; font-size: 19px; }
 .mobile-search input { min-width: 0; flex: 1; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 13px; }
