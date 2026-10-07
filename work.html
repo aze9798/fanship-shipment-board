@@ -325,7 +325,7 @@
     <div id="variantModalCustomWrap" class="variant-custom hidden"><input id="variantModalCustomValue" type="number" min="1" step="1" inputmode="numeric" placeholder="请输入正整数"><button id="variantModalCustomConfirm" class="primary" type="button">确定</button></div>
     <div id="variantGenericInfoWrap" class="request-fields hidden">
       <label class="field"><span>实际品名</span><input id="variantGenericName" type="text" placeholder="请填写实际产品品名"></label>
-      <label class="field"><span>料件编号</span><input id="variantGenericMaterial" type="text" placeholder="请填写完整料件编号或后四位"><small class="request-tip">请填写完整料件编号或后四位 不清楚请询问现场管理人员。</small></label>
+      <label class="field"><span>料件编号</span><input id="variantGenericMaterial" type="text" placeholder="请询问现场管理人员物料编号后填写"><small class="request-tip">请询问现场管理人员物料编号后填写</small></label>
       <label class="field"><span>本次数量</span><input id="variantGenericQty" type="number" min="1" step="1" inputmode="numeric" placeholder="请输入整数数量"></label>
       <div id="variantGenericPrice" class="request-product">自填数量后自动计算单价</div>
       <button id="variantGenericSubmit" class="primary" type="button">提交管理员审核</button>
@@ -534,13 +534,22 @@ function revealVariantBox() {
     setTimeout(() => box.classList.remove('variant-attention'), 800);
   });
 }
+function fixedVariantValues(processId) {
+  return [...new Set((matchedVariantMap.get(processId) || [])
+    .filter((item) => item.variantKey && Number(item.variantValue) > 0)
+    .map((item) => Number(item.variantValue)))]
+    .sort((a, b) => a - b);
+}
 function currentVariantOptions() {
   const process = currentProcess();
   const config = process ? PROCESS_VARIANTS[process.name] : null;
   if (!process || !config) return { process:null, config:null, options:[] };
+  const fixed = fixedVariantValues(selectedProcessId);
+  if ((process.name === '折弯' || process.name === '弯管') && fixed.length) {
+    return { process, config, options:fixed };
+  }
   if (config.allowCustom) return { process, config, options:config.options };
-  const matched = (matchedVariantMap.get(selectedProcessId) || []).filter((item) => item.variantKey && Number(item.variantValue) > 0).map((item) => Number(item.variantValue));
-  return { process, config, options: matched.length ? [...new Set(matched)] : config.options };
+  return { process, config, options:fixed.length ? fixed : config.options };
 }
 function isGenericProduct(product = selectedProduct) {
   return Boolean(product && (/^NC-/i.test(String(product.material || '')) || !String(product.material || '').trim()));
@@ -1501,7 +1510,8 @@ function variantDisplay(processName, value) {
     }
     $('requestVariantLabel').textContent = config.label;
     const currentValue = Number(keepValue ? (selectedVariant?.value || editEntry?.variantValue || 0) : 0);
-    const values = [...config.options];
+    const fixed = (process.name === '折弯' || process.name === '弯管') ? fixedVariantValues(process.id) : [];
+    const values = fixed.length ? [...fixed] : [...config.options];
     if (currentValue > 0 && !values.includes(currentValue)) values.push(currentValue);
     input.innerHTML = '<option value="">请选择</option>'
       + values.map((value) => `<option value="${value}">${variantDisplay(process.name, value)}</option>`).join('')
@@ -1509,7 +1519,7 @@ function variantDisplay(processName, value) {
     show(wrap, true);
     const customWrap = $('requestVariantCustomWrap');
     const customInput = $('requestVariantCustom');
-    const isCustomValue = currentValue > 0 && !config.options.includes(currentValue);
+    const isCustomValue = currentValue > 0 && !values.includes(currentValue);
     if (isCustomValue) {
       input.value = 'custom';
       if (customInput) customInput.value = String(currentValue);
