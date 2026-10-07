@@ -5483,7 +5483,7 @@ function renderMobileRemaining() {
         </div>
       </article>`;
     }).join('')}
-    ${groups.length > visibleGroups.length ? `<button type="button" class="load-more-button" data-remaining-load-more>加载更多（还有 ${fmt(groups.length - visibleGroups.length)} 项）</button>` : '}`;
+    ${groups.length > visibleGroups.length ? `<button type="button" class="load-more-button" data-remaining-load-more>加载更多（还有 ${fmt(groups.length - visibleGroups.length)} 项）</button>` : ''}`;
 }
 
 let labelRows = [];
