@@ -767,13 +767,17 @@ const orderTypeRank = (order) => {
   const type = normalizeOrderType(order);
   return Object.prototype.hasOwnProperty.call(ORDER_TYPE_RANK, type) ? ORDER_TYPE_RANK[type] : 9;
 };
+const orderTypeTagHtml = (type) => {
+  const normalized = String(type || '');
+  return Object.prototype.hasOwnProperty.call(ORDER_TYPE_LABELS, normalized)
+    ? '<span class="order-type-tag order-type-' + normalized + '">' + ORDER_TYPE_LABELS[normalized] + '</span>'
+    : '';
+};
 const remainingTypeTagsHtml = (types) => {
   const specialTypes = [...new Set(types || [])]
     .filter((type) => Object.prototype.hasOwnProperty.call(ORDER_TYPE_LABELS, type))
     .sort((left, right) => ORDER_TYPE_RANK[left] - ORDER_TYPE_RANK[right]);
-  return specialTypes
-    .map((type) => '<span class="order-type-tag order-type-' + type + '">' + ORDER_TYPE_LABELS[type] + '</span>')
-    .join('');
+  return specialTypes.map(orderTypeTagHtml).join('');
 };
 
 function filteredOrders(filter) {
@@ -3037,7 +3041,7 @@ function setupDesktopColumnResize() {
 }
 
 const DESKTOP_REMAINING_COLUMN_WIDTH_KEY = 'shipmentDesktopRemainingColumnWidths';
-const DESKTOP_REMAINING_COLUMN_DEFAULT_WIDTHS = [180, 340, 290, 100, 90, 300];
+const DESKTOP_REMAINING_COLUMN_DEFAULT_WIDTHS = [78, 180, 300, 262, 90, 90, 300];
 
 function readDesktopRemainingColumnWidths() {
   try {
@@ -3206,14 +3210,13 @@ function renderDesktopTable() {
   const rows = desktopRows();
   els.desktopTableBody.innerHTML = rows.map((order) => {
     const badge = dueBadge(order);
-    const typeLabel = ({ trial: '试制', sample: '承样', tooling: '工装' })[order.orderType] || '';
     const orderQty = Number(order.orderQty ?? order.openingRemaining ?? 0);
     const amount = amountFor(order.id);
     const priceText = boardRole === 'admin' && amount && amount.unitPrice != null ? fmt(amount.unitPrice) : '--';
     const amountText = boardRole === 'admin' && amount && amount.amount != null ? fmt(amount.amount) : '--';
     return `
       <tr>
-        <td><span class="order-id">${escapeHtml(order.po)}</span><span class="company-tag" title="${escapeHtml(companyName(orderCompany(order)))}">${escapeHtml(orderCompany(order) || '—')}</span>${typeLabel ? `<span class="order-type-tag">${typeLabel}</span>` : ''}${boardRole === 'admin' ? `<button type="button" class="order-edit-link" data-edit-order="${escapeHtml(order.id)}">变更</button>` : ''}</td>
+        <td><span class="order-id">${escapeHtml(order.po)}</span><span class="company-tag" title="${escapeHtml(companyName(orderCompany(order)))}">${escapeHtml(orderCompany(order) || '—')}</span>${orderTypeTagHtml(order.orderType)}${boardRole === 'admin' ? `<button type="button" class="order-edit-link" data-edit-order="${escapeHtml(order.id)}">变更</button>` : ''}</td>
         <td><span class="material-code mono">${escapeHtml(order.material)}</span>${(() => { const info = materialSummary(order); return info.count > 1 ? `<span class="material-total-tag" title="同一物料编号所有采购单合计未交">共${fmt(info.total)}/${info.count}单</span>` : ''; })()}${(() => { const d = drawingFor(order); return d ? drawingLinkHtml(d) : ''; })()}</td>
         <td><span class="item-name">${escapeHtml(order.name)}</span></td>
         <td><span class="spec-code mono">${escapeHtml(order.spec || '—')}</span></td>
@@ -3985,7 +3988,7 @@ function orderCard(order) {
       ${selectedQuantity ? `<span class="selected-tag">已选 ${fmt(selectedQuantity)}</span>` : ''}
       <div class="card-top">
         <div class="order-title">
-          <div class="order-name-line"><strong>${escapeHtml(order.name)}</strong>${(() => { const t = ({ trial: '试制', sample: '承样', tooling: '工装' })[order.orderType]; return t ? `<span class="order-type-tag">${t}</span>` : ''; })()}</div>
+          <div class="order-name-line"><strong>${escapeHtml(order.name)}</strong>${orderTypeTagHtml(order.orderType)}</div>
           <span class="mono">${escapeHtml(order.material)} · ${escapeHtml(order.spec)}${(() => { const d = drawingFor(order); return d ? ' ' + drawingLinkHtml(d) : ''; })()}</span>
           <span>${escapeHtml(order.po)} · 项次 ${escapeHtml(order.seq)}</span>
         </div>
@@ -4956,7 +4959,8 @@ function renderDesktopRemaining() {
   if (els.desktopRemainingSummary) els.desktopRemainingSummary.textContent = `共 ${fmt(groups.length)} 项物料 · ${fmt(rows.length)} 条订单明细 · 合计 ${qtyText(total)} 件 · ${selectedText}`;
   els.desktopRemainingBody.innerHTML = groups.map((group) => `
     <tr>
-      <td class="mono">${escapeHtml(group.material)}${remainingTypeTagsHtml(group.types)}</td>
+      <td class="remaining-type-cell">${remainingTypeTagsHtml(group.types)}</td>
+      <td class="mono">${escapeHtml(group.material)}</td>
       <td>${escapeHtml(group.name)}</td>
       <td class="mono">${escapeHtml(group.specs.join('、'))}</td>
       <td class="number qty">${escapeHtml(qtyText(group.total))}</td>
