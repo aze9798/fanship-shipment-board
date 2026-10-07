@@ -756,6 +756,13 @@ const COMPANY_NAMES = {
 const orderCompany = (order) => String(order.customer || '').trim();
 const companyName = (code) => COMPANY_NAMES[code] || code || '未标注公司';
 
+// 同一个交货日期内，特殊订单排在普通订单前面（承样 → 试制 → 工装），方便一眼看到
+const ORDER_TYPE_RANK = { sample: 0, trial: 1, tooling: 2 };
+const orderTypeRank = (order) => {
+  const type = String((order && order.orderType) || '');
+  return Object.prototype.hasOwnProperty.call(ORDER_TYPE_RANK, type) ? ORDER_TYPE_RANK[type] : 9;
+};
+
 function filteredOrders(filter) {
   const active = snapshot.orders.filter((order) => order.remaining > 0);
   if (filter === 'urgent') return active.filter((order) => order.dueDate <= TODAY);
@@ -863,7 +870,10 @@ function mobileRows() {
   const query = mobileSearch.trim().toLowerCase();
   let rows = filteredOrders(mobileFilter);
   if (query) rows = rows.filter((order) => searchable(order).includes(query));
-  return rows;
+  // 跟随交货日期排序；同一交期内承样/试制/工装排最上面
+  return rows.sort((a, b) => String(a.dueDate || '9999-12-31').localeCompare(String(b.dueDate || '9999-12-31'))
+    || orderTypeRank(a) - orderTypeRank(b)
+    || Number(a.seq || 0) - Number(b.seq || 0));
 }
 
 function setLiveStatus(status) {
@@ -2148,7 +2158,9 @@ function desktopLoadingOrders() {
     .filter(desktopLoadingDuePass)
     .filter((order) => !query || [order.po, order.seq, order.material, order.name, order.spec]
       .some((value) => String(value ?? '').toLowerCase().includes(query)))
-    .sort((a, b) => String(a.dueDate || '9999-12-31').localeCompare(String(b.dueDate || '9999-12-31')) || Number(a.seq || 0) - Number(b.seq || 0));
+    .sort((a, b) => String(a.dueDate || '9999-12-31').localeCompare(String(b.dueDate || '9999-12-31'))
+      || orderTypeRank(a) - orderTypeRank(b)
+      || Number(a.seq || 0) - Number(b.seq || 0));
 }
 function renderDesktopLoadingRecords() {
   if (!els.desktopLoadingRecords) return;
@@ -3942,7 +3954,7 @@ function orderCard(order) {
       ${selectedQuantity ? `<span class="selected-tag">已选 ${fmt(selectedQuantity)}</span>` : ''}
       <div class="card-top">
         <div class="order-title">
-          <strong>${escapeHtml(order.name)}</strong>${(() => { const t = ({ trial: '试制', sample: '承样', tooling: '工装' })[order.orderType]; return t ? `<span class="order-type-tag">${t}</span>` : ''; })()}
+          <div class="order-name-line"><strong>${escapeHtml(order.name)}</strong>${(() => { const t = ({ trial: '试制', sample: '承样', tooling: '工装' })[order.orderType]; return t ? `<span class="order-type-tag">${t}</span>` : ''; })()}</div>
           <span class="mono">${escapeHtml(order.material)} · ${escapeHtml(order.spec)}${(() => { const d = drawingFor(order); return d ? ' ' + drawingLinkHtml(d) : ''; })()}</span>
           <span>${escapeHtml(order.po)} · 项次 ${escapeHtml(order.seq)}</span>
         </div>
@@ -4101,6 +4113,7 @@ function groupRemainingRows(rows) {
         total: 0,
         detailCount: 0,
         drawing: null,
+        typeRank: 9,
         mark: markMaterials.has(material),
       };
       groups.set(key, group);
@@ -4116,6 +4129,7 @@ function groupRemainingRows(rows) {
     if (company) group.companies.add(company);
     group.total += Number(order.remaining || 0);
     group.detailCount += 1;
+    group.typeRank = Math.min(group.typeRank, orderTypeRank(order));
   }
   return [...groups.values()]
     .map((group) => {
@@ -4133,6 +4147,7 @@ function groupRemainingRows(rows) {
       const leftDate = left.dates[0] || '9999-12-31';
       const rightDate = right.dates[0] || '9999-12-31';
       return leftDate.localeCompare(rightDate)
+        || (left.typeRank || 9) - (right.typeRank || 9)
         || left.material.localeCompare(right.material)
         || left.name.localeCompare(right.name);
     });
