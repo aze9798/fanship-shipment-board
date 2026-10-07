@@ -3304,3 +3304,5 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .photo-unit-qty-row small { color: #74898e; font-size: 10px; }
 .photo-unit-qty-row input { width: 100%; height: 34px; padding: 0 6px; border: 1px solid #d7e1e3; border-radius: 8px; background: #fff; color: #17333b; text-align: center; font: inherit; font-size: 13px; font-weight: 800; }
 .photo-unit-qty-empty { padding: 8px 10px; border-radius: 9px; color: #829398; background: #f3f6f6; font-size: 11px; }
+
+.sample-approval-select-search { width: 100%; height: 42px; margin-top: 12px; padding: 0 12px; border: 1px solid #d9e5e4; border-radius: 11px; background: #fff; color: #244a51; font: inherit; font-size: 14px; }

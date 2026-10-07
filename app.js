@@ -307,6 +307,7 @@ let photoPendingDataUrl = '';
 let photoCandidateRows = [];
 let photoSelectedMaterials = new Map();
 let photoUnitQuantities = new Map();
+let sampleApprovalAllCandidates = [];
 let sampleApprovalCandidates = [];
 let sampleApprovalSelectedIndex = -1;
 let sampleApprovalPreviewRows = [];
@@ -1018,7 +1019,15 @@ async function createUnitFromPhoto(unitId, materials, photoFileName, quantities 
   const unit = buildUnitMeta(unitId, materials, photoFileName, quantities);
   const fileName = 'unit-' + currentDeliveryDate().replace(/-/g, '') + '-' + unitId + '.json';
   return persistUnit({ ...unit, fileName });
-}function unitDisplayDate(unit) {
+}function unitMaterialCount(unit) {
+  return new Set((unit.members || []).map((member) => String(member.material || '').trim()).filter(Boolean)).size;
+}
+
+function unitTotalQuantity(unit) {
+  return (unit.members || []).reduce((sum, member) => sum + Number(member.quantity || 0), 0);
+}
+
+function unitDisplayDate(unit) {
   const dates = (unit.members || []).map((member) => String(member.dueDate || '').trim()).filter(Boolean).sort();
   return dates[0] || String(unit.deliveryDate || '').trim() || currentDeliveryDate();
 }
@@ -1042,7 +1051,7 @@ function unitCardHtml(unit, index) {
     <div class="unit-card-head">
       <div>
         <div class="order-name-line"><strong>${escapeHtml(unit.label || '装车单元')}</strong><span class="unit-status ${escapeHtml(status)}">${escapeHtml(unitStatusText(unit))}</span></div>
-        <span class="mono">交期 ${escapeHtml(formatDate(unitDisplayDate(unit)))} · ${members.length} 项物料</span>
+        <span class="mono">交期 ${escapeHtml(formatDate(unitDisplayDate(unit)))} · ${escapeHtml(fmt(unitMaterialCount(unit)))} 项物料 · 共 ${escapeHtml(fmt(unitTotalQuantity(unit)))} 件</span>
       </div>
       ${photo ? `<button type="button" class="unit-photo-button" data-unit-view-photo="${escapeHtml(unit.unitId)}">现场照片</button>` : '<span class="unit-photo-button empty">无照片</span>'}
     </div>
@@ -1421,6 +1430,7 @@ const els = {
   photoViewerImage: $('#photoViewerImage'),
   sampleApprovalSelectModal: $('#sampleApprovalSelectModal'),
   sampleApprovalSelectList: $('#sampleApprovalSelectList'),
+  sampleApprovalSelectSearch: $('#sampleApprovalSelectSearch'),
   sampleApprovalSelectClose: $('#sampleApprovalSelectClose'),
   sampleApprovalSelectCancel: $('#sampleApprovalSelectCancel'),
   sampleApprovalSelectConfirm: $('#sampleApprovalSelectConfirm'),
@@ -2015,11 +2025,15 @@ function sampleApprovalCandidateList(rows) {
     const key = [row.po, row.seq, row.material, row.spec].map((value) => String(value || '').trim()).join('|');
     if (!map.has(key)) map.set(key, row);
   }
-  return [...map.values()].sort((left, right) => String(left.material || '').localeCompare(String(right.material || ''), 'zh-CN'));
+  return [...map.values()].sort((left, right) => String(right.dueDate || '').localeCompare(String(left.dueDate || '')) || String(left.material || '').localeCompare(String(right.material || ''), 'zh-CN'));
 }
 
 function renderSampleApprovalSelectList() {
   if (!els.sampleApprovalSelectList) return;
+  const query = String(els.sampleApprovalSelectSearch?.value || '').trim().toLowerCase();
+  sampleApprovalCandidates = sampleApprovalAllCandidates.filter((row) => !query
+    || [row.po, row.seq, row.material, row.name, row.spec].join(' ').toLowerCase().includes(query));
+  if (sampleApprovalSelectedIndex >= sampleApprovalCandidates.length) sampleApprovalSelectedIndex = 0;
   if (!sampleApprovalCandidates.length) {
     els.sampleApprovalSelectList.innerHTML = '<div class="empty-state"><strong>没有可选承样订单</strong><span>当前范围里没有承样订单。</span></div>';
     return;
@@ -2035,9 +2049,10 @@ function renderSampleApprovalSelectList() {
 }
 
 function openSampleApprovalSelector(rows) {
-  sampleApprovalCandidates = sampleApprovalCandidateList(rows);
-  if (!sampleApprovalCandidates.length) { showToast('当前未交清单里没有承样订单'); return; }
+  sampleApprovalAllCandidates = sampleApprovalCandidateList(rows);
+  if (!sampleApprovalAllCandidates.length) { showToast('没有可打印的承样订单'); return; }
   sampleApprovalSelectedIndex = 0;
+  if (els.sampleApprovalSelectSearch) els.sampleApprovalSelectSearch.value = '';
   renderSampleApprovalSelectList();
   if (els.sampleApprovalSelectModal) els.sampleApprovalSelectModal.hidden = false;
 }
@@ -2122,8 +2137,8 @@ async function printSampleApprovals(rows, options = {}) {
   }
 }
 async function printRemainingSampleApprovals(searchText) {
-  const rows = remainingRows(searchText).filter((row) => String(row.orderType || '') === 'sample' && Number(row.remaining || 0) > 0);
-  if (!rows.length) { showToast('当前未交清单里没有承样订单'); return; }
+  const rows = (snapshot?.orders || []).filter((row) => String(row.orderType || '') === 'sample');
+  if (!rows.length) { showToast('系统里还没有承样订单'); return; }
   openSampleApprovalSelector(rows);
 }
 
@@ -7310,6 +7325,7 @@ if (els.photoArchiveList) els.photoArchiveList.addEventListener('click', (event)
 if (els.photoViewerClose) els.photoViewerClose.addEventListener('click', () => { if (els.photoViewerModal) els.photoViewerModal.hidden = true; });
 if (els.sampleApprovalSelectClose) els.sampleApprovalSelectClose.addEventListener('click', closeSampleApprovalSelector);
 if (els.sampleApprovalSelectCancel) els.sampleApprovalSelectCancel.addEventListener('click', closeSampleApprovalSelector);
+if (els.sampleApprovalSelectSearch) els.sampleApprovalSelectSearch.addEventListener('input', renderSampleApprovalSelectList);
 if (els.sampleApprovalSelectList) els.sampleApprovalSelectList.addEventListener('change', (event) => {
   const input = event.target.closest('input[name="sampleApprovalChoice"]');
   if (!input) return;
