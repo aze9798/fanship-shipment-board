@@ -1534,7 +1534,7 @@ function renderPdfPreview(docs) {
   if (bad.length) showToast(`总金额核对未通过：${bad.length} 个 PDF 有问题，已禁止导入`, 7000);
 }
 
-async function printSampleApprovals(rows) {
+async function printSampleApprovals(rows, options = {}) {
   const orders = (rows || []).map((row) => ({
     po: row.po || '',
     seq: row.seq || '',
@@ -1546,26 +1546,43 @@ async function printSampleApprovals(rows) {
     orderType: 'sample',
     date: snapshot?.today || TODAY,
   })).filter((row) => row.material);
-  if (!orders.length) return false;
+  if (!orders.length) return null;
+  const generateOnly = Boolean(options.generateOnly);
   try {
     const health = await fetch(`${PRINT_HELPER_BASE}/health`, { cache: 'no-store' });
     if (!health.ok) throw new Error('打印助手没有响应');
   } catch {
-    showToast('样品承认书没有自动打印：请先启动发货单打印助手，再从承样订单卡片点“样品承认书”补打。', 9000);
-    return false;
+    showToast(generateOnly ? '无法生成样品承认书：请先启动发货单打印助手' : '样品承认书没有打印：请先启动发货单打印助手', 9000);
+    return null;
   }
   try {
-    const response = await fetch(`${PRINT_HELPER_BASE}/sample-approval`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orders }) });
+    const response = await fetch(`${PRINT_HELPER_BASE}/sample-approval`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orders, dryRun: generateOnly }) });
     const result = await response.json();
-    if (!response.ok || result.ok === false) throw new Error(result.error || '样品承认书打印失败');
+    if (!response.ok || result.ok === false) throw new Error(result.error || '样品承认书处理失败');
+    if (generateOnly) {
+      const generated = (result.results || []).filter((item) => item.approvalGenerated).length;
+      showToast(`已生成 ${generated} 份样品承认书`, 5000);
+      return result;
+    }
     const printed = (result.results || []).filter((item) => item.approvalPrinted).length;
     const drawings = (result.results || []).filter((item) => item.drawingPrinted).length;
     showToast(`样品承认书已发送打印 ${printed} 份，图纸 ${drawings} 份`, 7000);
-    return true;
+    return result;
   } catch (error) {
-    showToast('样品承认书打印失败：' + (error.message || '请检查打印助手'), 9000);
+    showToast((generateOnly ? '样品承认书生成失败：' : '样品承认书打印失败：') + (error.message || '请检查打印助手'), 9000);
+    return null;
+  }
+}
+async function generateAndPromptSampleApprovals(rows) {
+  const result = await printSampleApprovals(rows, { generateOnly: true });
+  if (!result) return false;
+  const names = (result.results || []).map((item) => item.material).filter(Boolean).join('、');
+  const message = `样品承认书已生成${names ? '：' + names : ''}。\n现在去打印吗？`;
+  if (!window.confirm(message)) {
+    showToast('样品承认书已生成，已保留在打印助手的 sample-approval 文件夹里', 8000);
     return false;
   }
+  return printSampleApprovals(rows);
 }
 async function confirmPdfImport() {
   if (!pendingPdfRows.length) return;
@@ -1620,7 +1637,7 @@ async function confirmPdfImport() {
     showToast(`已导入 ${count} 行新订单（未交已更新）`);
     await loadState({ quiet: true });
     renderAll();
-    void printSampleApprovals(typedRows.filter((row) => row.orderType === 'sample'));
+    void generateAndPromptSampleApprovals(typedRows.filter((row) => row.orderType === 'sample'));
   } catch (error) {
     showToast(error.message || '导入失败');
     els.confirmPdf.disabled = false;
