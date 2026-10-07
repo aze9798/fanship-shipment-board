@@ -305,6 +305,7 @@ let photoCaptureTarget = null;
 let photoPendingDataUrl = '';
 let photoCandidateRows = [];
 let photoSelectedMaterials = new Map();
+let photoViewerTarget = null;
 let editingOrderId = '';
 
 // 手工撤回过的冲抵：这条多送记录不再自动冲抵（本地立刻生效，云端也会记一笔）
@@ -559,18 +560,68 @@ function renderPhotoMaterialList() {
   const selectedText = [...photoSelectedMaterials.values()].map((row) => row.material).filter(Boolean).join('、') || '未选择';
   const options = photoCandidateRows.map((row, index) => { const selected = photoSelectedMaterials.has(photoMaterialKey(row)); return `<button type="button" class="photo-material-option${selected ? ' selected' : ''}" data-photo-candidate="${index}"><span><strong>${escapeHtml(row.material)}</strong><small>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</small></span><b>${selected ? '已关联' : '关联'}</b></button>`; }).join('');
   els.photoMaterialList.innerHTML = `<div class="photo-selected-summary">已关联：${escapeHtml(selectedText)}</div>${options || '<div class="empty-state"><strong>没有找到物料</strong><span>换个搜索词试试。</span></div>'}`;
-}function openPhotoCaptureFromButton(button) {
+}function photoDateKey(row) {
+  return String(row?.meta?.deliveryDate || row?.deliveryDate || row?.capturedAt || row?.createdAt || '').slice(0, 10);
+}
+
+function photosForTarget(target) {
+  const material = String(target?.material || '').trim();
+  if (!material) return [];
+  const today = currentDeliveryDate();
+  return photoArchiveRows().filter((row) => photoDateKey(row) === today
+    && (row.materials || []).some((item) => String(item.material || '').trim() === material));
+}
+
+function latestPhotoForTarget(target) {
+  return photosForTarget(target)[0] || null;
+}
+
+function materialHasPhoto(target) {
+  return photosForTarget(target).length > 0;
+}
+
+function currentPhotoMaterials(target) {
+  const rows = [];
+  if (document.body.dataset.view === 'mobile') rows.push(...mobileRows());
+  else rows.push(...desktopLoadingOrders());
+  rows.push(...replacementPlans());
+  const material = String(target?.material || '').trim();
+  const selected = new Map();
+  for (const row of rows) {
+    if (String(row.material || '').trim() !== material) continue;
+    selected.set(photoMaterialKey(row), row);
+  }
+  if (!selected.size) selected.set(photoMaterialKey(target), target);
+  return selected;
+}
+
+function openPhotoViewerRow(row, target) {
+  if (!row) return;
+  photoViewerTarget = target || null;
+  if (row.dataUrl) openLocalPhoto(row);
+  else if (row.id) openCloudPhoto(row.id, row);
+}
+
+function openPhotoCaptureFromButton(button) {
   if (!button) return;
   const orderId = String(button.dataset.photoOrder || '').trim();
   const planId = String(button.dataset.photoPlan || '').trim();
   if (orderId) {
     const order = snapshot?.orders?.find((row) => String(row.id) === orderId);
-    if (order) openPhotoCapture(order);
+    if (order) {
+      const existing = latestPhotoForTarget(order);
+      if (existing) openPhotoViewerRow(existing, order);
+      else openPhotoCapture(order);
+    }
     return;
   }
   if (planId) {
     const plan = replacementPlans().find((row) => String(row.id) === planId);
-    if (plan) openPhotoCapture(plan);
+    if (plan) {
+      const existing = latestPhotoForTarget(plan);
+      if (existing) openPhotoViewerRow(existing, plan);
+      else openPhotoCapture(plan);
+    }
   }
 }
 
@@ -578,7 +629,7 @@ function openPhotoCapture(target) {
   if (!target || !els.photoCaptureModal) return;
   photoCaptureTarget = target;
   photoPendingDataUrl = '';
-  photoSelectedMaterials = new Map([[photoMaterialKey(target), target]]);
+  photoSelectedMaterials = currentPhotoMaterials(target);
   if (els.photoFile) els.photoFile.value = '';
   if (els.photoPreview) els.photoPreview.src = '';
   if (els.photoPreviewWrap) els.photoPreviewWrap.hidden = true;
@@ -630,6 +681,8 @@ async function savePhotoCapture() {
     sessionPhotos.push({ id: result.data?.id || '', fileName, dataUrl: photoPendingDataUrl, materials, note, meta, capturedAt: meta.capturedAt, uploaded });
     closePhotoCapture();
     renderPhotoArchive();
+    renderMobileList();
+    renderDesktopLoading();
     showToast(uploaded ? '照片已保存到云端' : '照片已暂存在本机，确认装车时会重试上传');
   } finally {
     if (els.photoSave) els.photoSave.disabled = false;
@@ -972,6 +1025,7 @@ const els = {
   photoArchiveList: $('#photoArchiveList'),
   photoViewerModal: $('#photoViewerModal'),
   photoViewerClose: $('#photoViewerClose'),
+  photoViewerRetake: $('#photoViewerRetake'),
   photoViewerMeta: $('#photoViewerMeta'),
   photoViewerImage: $('#photoViewerImage'),
   mobileOffsetBox: $('#mobileOffsetBox'),
@@ -1236,6 +1290,19 @@ function mobileRows() {
   return rows.sort((a, b) => String(a.dueDate || '9999-12-31').localeCompare(String(b.dueDate || '9999-12-31'))
     || orderTypeRank(a) - orderTypeRank(b)
     || Number(a.seq || 0) - Number(b.seq || 0));
+}
+
+function syncMobileStickyOffsets() {
+  if (document.body.dataset.view !== 'mobile') return;
+  const head = document.querySelector('.mobile-head');
+  const tabs = document.querySelector('.mobile-tabs');
+  if (!head || !tabs) return;
+  requestAnimationFrame(() => {
+    const headHeight = Math.ceil(head.getBoundingClientRect().height || 0);
+    const tabsHeight = Math.ceil(tabs.getBoundingClientRect().height || 0);
+    document.documentElement.style.setProperty('--mobile-head-height', headHeight + 'px');
+    document.documentElement.style.setProperty('--mobile-tabs-bottom', (headHeight + tabsHeight) + 'px');
+  });
 }
 
 function setLiveStatus(status) {
@@ -3384,6 +3451,7 @@ function renderAll() {
   renderDesktopDrawings();
   renderCart();
   renderPhotoArchive();
+  syncMobileStickyOffsets();
   if (els.desktopLoadingView && !els.desktopLoadingView.hidden) {
     if (!els.desktopLoadingCardList || !els.desktopLoadingCardList.contains(document.activeElement)) renderDesktopLoading();
     else { renderDesktopLoadingSummary(); renderDesktopLoadingCart(); renderDesktopLoadingRecords(); }
@@ -4435,12 +4503,13 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
   const name = String(plan.name || '').trim();
   const planId = String(plan.id || plan.planId || '').trim();
   const drawing = drawingFor(plan);
+  const hasPhoto = materialHasPhoto(plan);
   const drawingButton = drawing ? drawingLinkHtml(drawing) : '';
   const selectedAction = selected
     ? `<button type="button" class="cart-remove" data-unselect-replacement-plan="${escapeHtml(planId)}">取消装车</button>`
     : `<button type="button" class="button primary replacement-plan-load" data-select-replacement-plan="${escapeHtml(planId)}">装车</button>`;
   const legacyAction = `<button type="button" class="cart-remove" data-remove-replacement-plan="${legacyIndex}">取消计划</button>`;
-  const photoAction = planId ? '<button type="button" class="photo-open" data-photo-plan="' + escapeHtml(planId) + '">拍照留档</button>' : '';
+  const photoAction = planId ? '<button type="button" class="photo-open' + (hasPhoto ? ' has-photo' : '') + '" data-photo-plan="' + escapeHtml(planId) + '">' + (hasPhoto ? '已留档' : '拍照留档') + '</button>' : '';
   const deleteAction = boardRole === 'admin' && planId
     ? `<button type="button" class="cart-remove" data-delete-replacement-plan="${escapeHtml(planId)}">删除计划</button>`
     : '';
@@ -4461,6 +4530,7 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
     <div class="replacement-plan-actions">${photoAction}${selectedAction}${legacyIndex === null ? '' : legacyAction}${deleteAction}</div>
   </article>`;
 }function orderCard(order) {
+  const hasPhoto = materialHasPhoto(order);
   const badge = dueBadge(order);
   const selectedQuantity = Number(selected.get(order.id) || 0);
   const complete = order.remaining <= 0;
@@ -4480,7 +4550,7 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
         ${boardRole === 'admin' ? `<button type="button" class="order-edit-link mobile" data-edit-order="${escapeHtml(order.id)}">变更数量 / 交期</button>` : ''}
         ${(() => { const info = materialSummary(order); return info.count > 1
           ? `<div class="material-total">同料号共 ${info.count} 单 · 未交合计 <b>${fmt(info.total)}</b></div>` : ''; })()}
-        <button type="button" class="photo-open" data-photo-order="${escapeHtml(order.id)}">拍照留档</button>
+        <button type="button" class="photo-open${hasPhoto ? ' has-photo' : ''}" data-photo-order="${escapeHtml(order.id)}">${hasPhoto ? '已留档' : '拍照留档'}</button>
       </div>
       ${overDeliveryFor(order.material).length ? `<div class="material-total over">该料号已有无订单发货 <b>${fmt(overDeliveryFor(order.material).reduce((sum, row) => sum + Number(row.remaining || 0), 0))}</b> 件待冲抵</div>` : ''}
       <div class="order-numbers">
@@ -6728,6 +6798,7 @@ if (els.photoArchiveList) els.photoArchiveList.addEventListener('click', (event)
   else if (row.id) openCloudPhoto(row.id, row);
 });
 if (els.photoViewerClose) els.photoViewerClose.addEventListener('click', () => { if (els.photoViewerModal) els.photoViewerModal.hidden = true; });
+if (els.photoViewerRetake) els.photoViewerRetake.addEventListener('click', () => { if (els.photoViewerModal) els.photoViewerModal.hidden = true; if (photoViewerTarget) openPhotoCapture(photoViewerTarget); });
 
 if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', (event) => {
   const button = event.target.closest('[data-over-cancel]');
@@ -7446,6 +7517,8 @@ await loadBoardRole();
 await loadMarkMaterials();
 await loadState();
 connectEvents();
+syncMobileStickyOffsets();
+window.addEventListener('resize', syncMobileStickyOffsets);
 
 
 

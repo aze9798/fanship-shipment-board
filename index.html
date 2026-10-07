@@ -574,7 +574,6 @@
                 <button id="replacementAdd" class="button primary" type="button">加入补发计划</button>
               </div>
             </div>
-            <button id="photoArchiveOpen" class="button ghost photo-archive-open" type="button">现场照片留档 <b id="photoArchiveCount">0</b></button>
             <div id="mobileFilters" class="filter-chips">
               <button class="chip active" data-filter="active" type="button">全部未交</button>
               <button class="chip" data-filter="dueToday" type="button">今日到期</button>
@@ -981,18 +980,6 @@
       </div>
     </section>
   </div>
-  <div id="photoArchiveModal" class="modal-backdrop photo-modal-backdrop" hidden>
-    <section class="modal-card photo-archive-card" role="dialog" aria-modal="true" aria-labelledby="photoArchiveTitle">
-      <div class="modal-head">
-        <div>
-          <p class="eyebrow">装车现场留档</p>
-          <h2 id="photoArchiveTitle">现场照片</h2>
-        </div>
-        <button id="photoArchiveClose" class="icon-button" type="button" aria-label="关闭">×</button>
-      </div>
-      <div id="photoArchiveList" class="photo-archive-list"></div>
-    </section>
-  </div>
   <div id="photoViewerModal" class="modal-backdrop photo-modal-backdrop" hidden>
     <section class="modal-card photo-viewer-card" role="dialog" aria-modal="true" aria-labelledby="photoViewerTitle">
       <div class="modal-head">
@@ -1001,6 +988,7 @@
       </div>
       <div class="photo-viewer-meta" id="photoViewerMeta"></div>
       <img id="photoViewerImage" alt="现场照片">
+      <div class="modal-actions"><button id="photoViewerRetake" class="button primary" type="button">重新拍照</button></div>
     </section>
   </div>
   <div id="toast" class="toast" hidden></div>

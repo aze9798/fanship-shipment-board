@@ -634,7 +634,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .mobile-tab { min-height: 38px; padding: 0 2px; border: 0; border-radius: 10px; color: #72848b; background: transparent; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .mobile-tab.active { color: #1c4b4c; background: #fff; box-shadow: 0 2px 9px rgba(32, 57, 64, .09); }
 .mobile-panel { padding: 12px 12px 0; }
-.mobile-tools { position: sticky; top: 116px; z-index: 12; padding-bottom: 14px; background: #f2f5f6; box-shadow: 0 10px 18px rgba(21, 55, 60, .08); }
+.mobile-tools { position: sticky; top: var(--mobile-tabs-bottom, 141px); z-index: 12; padding-bottom: 14px; background: #f2f5f6; box-shadow: 0 10px 18px rgba(21, 55, 60, .08); }
 .mobile-search { height: 44px; padding: 0 13px; display: flex; align-items: center; gap: 9px; border: 1px solid #dce4e6; border-radius: 13px; background: #fff; box-shadow: 0 3px 12px rgba(40, 62, 68, .05); }
 .mobile-search span { color: #7c9097; font-size: 19px; }
 .mobile-search input { min-width: 0; flex: 1; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 13px; }
@@ -2209,7 +2209,7 @@ body[data-view="mobile"] { background: #e6edeb; }
 }
 .mobile-tabs {
   position: sticky;
-  top: 68px;
+  top: var(--mobile-head-height, 93px);
   z-index: 16;
   margin: 14px 12px 0;
   background: rgba(225, 234, 232, .92);
@@ -3207,6 +3207,7 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 /* ===== 装车现场照片留档 ===== */
 .photo-archive-open { margin-top: 3px; width: 100%; }
 .photo-archive-open b { display: inline-flex; min-width: 22px; margin-left: 4px; justify-content: center; padding: 1px 6px; border-radius: 999px; color: #fff; background: var(--primary); font-size: 11px; }
+.photo-open.has-photo { border-color: #a6d9a2; color: #167044; background: #eff9eb; }
 .photo-open, .sample-approval-open { min-height: 32px; padding: 0 10px; border: 1px solid #b9ddd7; border-radius: 8px; background: #fff; color: #0f766e; font-weight: 800; font-size: 11px; }
 .sample-approval-open { border-color: #e0b96b; color: #946314; background: #fff8e8; }
 .photo-capture-card { width: min(100%, 720px); }
