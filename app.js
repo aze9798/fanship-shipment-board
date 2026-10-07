@@ -545,7 +545,7 @@ function renderPhotoArchive() {
   photoArchiveCache = rows;
   if (els.photoArchiveCount) els.photoArchiveCount.textContent = fmt(rows.length);
   if (!els.photoArchiveList) return;
-  if (!rows.length) { els.photoArchiveList.innerHTML = '<div class="empty-state"><strong>还没有现场照片</strong><span>在装车录入里点物料卡片上的“拍照留存”即可。</span></div>'; return; }
+  if (!rows.length) { els.photoArchiveList.innerHTML = '<div class="empty-state"><strong>还没有现场照片</strong><span>在装车录入里点物料卡片上的“拍照留档”即可。</span></div>'; return; }
   els.photoArchiveList.innerHTML = rows.map((row, index) => `<article class="photo-archive-item">${row.dataUrl ? `<img class="photo-archive-thumb" src="${row.dataUrl}" alt="现场照片">` : '<div class="photo-archive-thumb photo-archive-placeholder">已上传云端</div>'}<div class="photo-archive-info"><strong>${escapeHtml(photoMaterialsText(row))}</strong><span>${escapeHtml(row.note || '无备注')}</span><small>${row.pending ? '待装车确认' : (row.shipmentId ? '已关联装车 ' + escapeHtml(row.shipmentId) : '已留存')} · ${escapeHtml(String(row.capturedAt || row.createdAt || '').slice(0, 16).replace('T', ' '))}</small></div><button type="button" class="button ghost" data-photo-view-index="${index}">查看照片</button></article>`).join('');
 }
 
@@ -4423,7 +4423,7 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
     ? `<button type="button" class="cart-remove" data-unselect-replacement-plan="${escapeHtml(planId)}">取消装车</button>`
     : `<button type="button" class="button primary replacement-plan-load" data-select-replacement-plan="${escapeHtml(planId)}">装车</button>`;
   const legacyAction = `<button type="button" class="cart-remove" data-remove-replacement-plan="${legacyIndex}">取消计划</button>`;
-  const photoAction = planId ? '<button type="button" class="photo-open" data-photo-plan="' + escapeHtml(planId) + '">拍照留存</button>' : '';
+  const photoAction = planId ? '<button type="button" class="photo-open" data-photo-plan="' + escapeHtml(planId) + '">拍照留档</button>' : '';
   const deleteAction = boardRole === 'admin' && planId
     ? `<button type="button" class="cart-remove" data-delete-replacement-plan="${escapeHtml(planId)}">删除计划</button>`
     : '';
@@ -4459,11 +4459,11 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
         <span class="due-badge ${badge.className}">${escapeHtml(badge.text)}</span>
       </div>
       <div class="card-actions">
-        <button type="button" class="photo-open" data-photo-order="${escapeHtml(order.id)}">拍照留存</button>
         ${order.orderType === 'sample' ? `<button type="button" class="sample-approval-open" data-sample-approval="${escapeHtml(order.id)}">样品承认书</button>` : ''}
         ${boardRole === 'admin' ? `<button type="button" class="order-edit-link mobile" data-edit-order="${escapeHtml(order.id)}">变更数量 / 交期</button>` : ''}
         ${(() => { const info = materialSummary(order); return info.count > 1
           ? `<div class="material-total">同料号共 ${info.count} 单 · 未交合计 <b>${fmt(info.total)}</b></div>` : ''; })()}
+        <button type="button" class="photo-open" data-photo-order="${escapeHtml(order.id)}">拍照留档</button>
       </div>
       ${overDeliveryFor(order.material).length ? `<div class="material-total over">该料号已有无订单发货 <b>${fmt(overDeliveryFor(order.material).reduce((sum, row) => sum + Number(row.remaining || 0), 0))}</b> 件待冲抵</div>` : ''}
       <div class="order-numbers">
