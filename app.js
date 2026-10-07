@@ -400,11 +400,14 @@ function loadingReplacementPriority(item) {
   return dueDate && dueDate < currentDeliveryDate() ? 0 : 1;
 }
 
-function loadingItems(orderRows) {
+function loadingItems(orderRows, options = {}) {
+  const includeReplacements = options.includeReplacements !== false;
+  const planQuery = String(options.planQuery || '').trim().toLowerCase();
   const selectedPlans = new Map(sessionReplacements
     .filter((item) => item.planId)
     .map((item) => [String(item.planId), item]));
-  const planItems = replacementPlans().map((plan) => {
+  const planItems = includeReplacements ? replacementPlans().filter((plan) => !planQuery
+    || [plan.material, plan.name, plan.spec, replacementPlanNote(plan)].join(' ').toLowerCase().includes(planQuery)).map((plan) => {
     const selected = selectedPlans.get(String(plan.id)) || null;
     const dueDate = String(plan.deliveryDate || '').trim() || defaultReplacementDueDate();
     return {
@@ -418,8 +421,8 @@ function loadingItems(orderRows) {
       selected: Boolean(selected),
       planId: String(plan.id || ''),
     };
-  });
-  const legacyItems = sessionReplacements
+  }) : [];
+  const legacyItems = includeReplacements ? sessionReplacements
     .filter((item) => !item.planId)
     .map((item, legacyIndex) => ({
       kind: 'replacement',
@@ -431,7 +434,7 @@ function loadingItems(orderRows) {
       item,
       selected: true,
       legacyIndex,
-    }));
+    })) : [];
   return [
     ...(orderRows || []).map((order) => ({
       kind: 'order',
@@ -2413,7 +2416,10 @@ function renderDesktopLoadingSummary() {
 function renderDesktopLoading() {
   if (!els.desktopLoadingCardList) return;
   syncDesktopLoadingDueOptions();
-  const items = loadingItems(desktopLoadingOrders());
+  const items = loadingItems(desktopLoadingOrders(), {
+    includeReplacements: desktopLoadingDue === 'all' && desktopLoadingCompany === 'all',
+    planQuery: desktopLoadingSearch,
+  });
   const limit = 120;
   const shown = items.slice(0, limit);
   if (els.desktopLoadingSummary) els.desktopLoadingSummary.textContent = fmt(items.length);
@@ -4241,7 +4247,10 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
 
 function renderMobileList() {
   if (!snapshot) return;
-  const items = loadingItems(mobileRows());
+  const items = loadingItems(mobileRows(), {
+    includeReplacements: mobileFilter === 'active',
+    planQuery: mobileSearch,
+  });
   const limit = 80;
   const shown = items.slice(0, limit);
   els.mobileOrderList.innerHTML = shown.map((item) => item.kind === 'replacement'
