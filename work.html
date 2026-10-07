@@ -1410,7 +1410,15 @@ function renderPiece() {
     const q = $('productSearch').value.trim(); const box = $('productSuggest');
     if (!q) { show(box,false); show($('newPieceButton'), true); return; }
     try {
-      const rows = await rpc('work_search_products', { p_code:code, p_query:q }); const priorityMaterial = q.includes('包装架') && state?.employee?.employeeNo === '11' ? 'PACK-RACK' : q.includes('攻丝') ? 'NC-0019' : ''; const orderedRows = (Array.isArray(rows) ? rows.slice() : []).sort((a,b) => priorityMaterial && a.material !== b.material ? (a.material === priorityMaterial ? -1 : b.material === priorityMaterial ? 1 : 0) : 0);
+      const rows = await rpc('work_search_products', { p_code:code, p_query:q });
+      let orderedRows = Array.isArray(rows) ? rows.slice() : [];
+      const isTaoPackQuery = state?.employee?.employeeNo === '11' && q.includes('包装架');
+      if (isTaoPackQuery) {
+        const genericRows = orderedRows.filter((p) => p.material === 'BZJ-001' || p.material === 'PACK-RACK' || p.name === '包装架（通用）');
+        if (genericRows.length) orderedRows = genericRows;
+      }
+      const priorityMaterial = isTaoPackQuery ? 'BZJ-001' : q.includes('攻丝') ? 'NC-0019' : '';
+      orderedRows.sort((a,b) => priorityMaterial && a.material !== b.material ? (a.material === priorityMaterial ? -1 : b.material === priorityMaterial ? 1 : 0) : 0);
       box.innerHTML = orderedRows.length ? orderedRows.map((p) => `<button type="button" data-product="${esc(p.id)}" data-material="${esc(p.material)}" data-name="${esc(p.name)}" data-spec="${esc(p.spec)}"><strong>${esc(p.material)} · ${esc(p.name)}</strong><span>${esc(p.spec || '无图号')}</span></button>`).join('') : '<button type="button" data-open-custom="1"><strong>没有找到产品</strong><span>点这里自主申报新产品</span></button>';
       show(box,true);
       show($('newPieceButton'), orderedRows.length === 0);
