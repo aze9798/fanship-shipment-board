@@ -297,8 +297,14 @@ const sessionOver = new Map();
 
 // 本次装车里的补发（不良补货）：不扣未交，直接进送货单
 const REPLACEMENT_PLAN_MARK = '【补发计划待装车】';
+const PHOTO_FILE_KIND = 'SHIPMENT_PHOTO';
 const sessionReplacements = [];
+const sessionPhotos = [];
 let replacementPick = null;
+let photoCaptureTarget = null;
+let photoPendingDataUrl = '';
+let photoCandidateRows = [];
+let photoSelectedMaterials = new Map();
 let editingOrderId = '';
 
 // 手工撤回过的冲抵：这条多送记录不再自动冲抵（本地立刻生效，云端也会记一笔）
@@ -506,7 +512,166 @@ async function deleteReplacementPlan(planId) {
   await loadState({ quiet: true });
   renderAll();
   showToast('补发计划已删除');
-}function renderReplacementSuggest() {
+}function normalizePhotoRow(row) {
+  let meta = {};
+  try { meta = JSON.parse(String(row?.batch || '{}')); } catch {}
+  const materials = Array.isArray(meta.materials) ? meta.materials : [];
+  return { ...row, meta, materials, note: String(meta.note || ''), capturedAt: String(meta.capturedAt || row?.createdAt || ''), shipmentId: String(meta.shipmentId || ''), pending: !String(meta.shipmentId || '') };
+}
+
+function shipmentPhotos() {
+  return Array.isArray(snapshot?.shipmentPhotos) ? snapshot.shipmentPhotos : [];
+}
+
+function photoMaterialKey(row) {
+  return [String(row?.material || '').trim(), String(row?.spec || '').trim()].join('\u0000');
+}
+
+function photoArchiveRows() {
+  const map = new Map();
+  for (const photo of sessionPhotos) map.set(String(photo.fileName || photo.localId), { ...photo, local: true, pending: !String(photo.meta?.shipmentId || '') });
+  for (const row of shipmentPhotos()) { const key = String(row.fileName || row.id); if (!map.has(key)) map.set(key, row); }
+  return [...map.values()].sort((left, right) => String(right.capturedAt || right.createdAt || '').localeCompare(String(left.capturedAt || left.createdAt || '')));
+}
+
+function photoMaterialsText(row) {
+  return (row.materials || []).map((item) => String(item.material || '').trim() + (item.name ? ' ' + String(item.name).trim() : '')).filter(Boolean).join('、') || '未关联物料';
+}
+
+let photoArchiveCache = [];
+
+function renderPhotoArchive() {
+  const rows = photoArchiveRows();
+  photoArchiveCache = rows;
+  if (els.photoArchiveCount) els.photoArchiveCount.textContent = fmt(rows.length);
+  if (!els.photoArchiveList) return;
+  if (!rows.length) { els.photoArchiveList.innerHTML = '<div class="empty-state"><strong>还没有现场照片</strong><span>在装车录入里点物料卡片上的“拍照留存”即可。</span></div>'; return; }
+  els.photoArchiveList.innerHTML = rows.map((row, index) => `<article class="photo-archive-item">${row.dataUrl ? `<img class="photo-archive-thumb" src="${row.dataUrl}" alt="现场照片">` : '<div class="photo-archive-thumb photo-archive-placeholder">已上传云端</div>'}<div class="photo-archive-info"><strong>${escapeHtml(photoMaterialsText(row))}</strong><span>${escapeHtml(row.note || '无备注')}</span><small>${row.pending ? '待装车确认' : (row.shipmentId ? '已关联装车 ' + escapeHtml(row.shipmentId) : '已留存')} · ${escapeHtml(String(row.capturedAt || row.createdAt || '').slice(0, 16).replace('T', ' '))}</small></div><button type="button" class="button ghost" data-photo-view-index="${index}">查看照片</button></article>`).join('');
+}
+
+function openPhotoArchive() { renderPhotoArchive(); if (els.photoArchiveModal) els.photoArchiveModal.hidden = false; }
+function closePhotoArchive() { if (els.photoArchiveModal) els.photoArchiveModal.hidden = true; }
+
+function renderPhotoMaterialList() {
+  if (!els.photoMaterialList) return;
+  const query = String(els.photoMaterialSearch?.value || '').trim();
+  photoCandidateRows = replacementProducts(query).slice(0, 60);
+  const selectedText = [...photoSelectedMaterials.values()].map((row) => row.material).filter(Boolean).join('、') || '未选择';
+  const options = photoCandidateRows.map((row, index) => { const selected = photoSelectedMaterials.has(photoMaterialKey(row)); return `<button type="button" class="photo-material-option${selected ? ' selected' : ''}" data-photo-candidate="${index}"><span><strong>${escapeHtml(row.material)}</strong><small>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</small></span><b>${selected ? '已关联' : '关联'}</b></button>`; }).join('');
+  els.photoMaterialList.innerHTML = `<div class="photo-selected-summary">已关联：${escapeHtml(selectedText)}</div>${options || '<div class="empty-state"><strong>没有找到物料</strong><span>换个搜索词试试。</span></div>'}`;
+}function openPhotoCaptureFromButton(button) {
+  if (!button) return;
+  const orderId = String(button.dataset.photoOrder || '').trim();
+  const planId = String(button.dataset.photoPlan || '').trim();
+  if (orderId) {
+    const order = snapshot?.orders?.find((row) => String(row.id) === orderId);
+    if (order) openPhotoCapture(order);
+    return;
+  }
+  if (planId) {
+    const plan = replacementPlans().find((row) => String(row.id) === planId);
+    if (plan) openPhotoCapture(plan);
+  }
+}
+
+function openPhotoCapture(target) {
+  if (!target || !els.photoCaptureModal) return;
+  photoCaptureTarget = target;
+  photoPendingDataUrl = '';
+  photoSelectedMaterials = new Map([[photoMaterialKey(target), target]]);
+  if (els.photoFile) els.photoFile.value = '';
+  if (els.photoPreview) els.photoPreview.src = '';
+  if (els.photoPreviewWrap) els.photoPreviewWrap.hidden = true;
+  if (els.photoNote) els.photoNote.value = '';
+  if (els.photoMaterialSearch) els.photoMaterialSearch.value = '';
+  renderPhotoMaterialList();
+  els.photoCaptureModal.hidden = false;
+}
+
+function closePhotoCapture() { if (els.photoCaptureModal) els.photoCaptureModal.hidden = true; }
+
+function compressPhotoFile(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !String(file.type || '').startsWith('image/')) { reject(new Error('请选择图片文件')); return; }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('照片读取失败'));
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => reject(new Error('照片解析失败'));
+      image.onload = () => {
+        const maxSide = 1600;
+        const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const context = canvas.getContext('2d');
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.72));
+      };
+      image.src = String(reader.result || '');
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function savePhotoCapture() {
+  if (!photoPendingDataUrl) { showToast('请先拍照或选择照片'); return; }
+  const materials = [...photoSelectedMaterials.values()];
+  if (!materials.length) { showToast('请至少关联一个物料'); return; }
+  const photoId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2)).replace(/-/g, '');
+  const fileName = `photo-${currentDeliveryDate().replace(/-/g, '')}-${photoId}.jpg`;
+  const note = String(els.photoNote?.value || '').trim();
+  const meta = { type: 'shipment_photo', photoId, deliveryDate: currentDeliveryDate(), materials, note, capturedAt: new Date().toISOString(), shipmentId: '' };
+  const payload = { date: currentDeliveryDate(), batch: JSON.stringify(meta), fileName, kind: PHOTO_FILE_KIND, noteCount: materials.length, contentBase64: photoPendingDataUrl.split(',')[1] || '' };
+  if (els.photoSave) els.photoSave.disabled = true;
+  try {
+    const result = await callRpc('board_save_delivery_file', { p_code: getAccessCode(), p_payload: payload });
+    const uploaded = result.response.ok;
+    sessionPhotos.push({ id: result.data?.id || '', fileName, dataUrl: photoPendingDataUrl, materials, note, meta, capturedAt: meta.capturedAt, uploaded });
+    closePhotoCapture();
+    renderPhotoArchive();
+    showToast(uploaded ? '照片已保存到云端' : '照片已暂存在本机，确认装车时会重试上传');
+  } finally {
+    if (els.photoSave) els.photoSave.disabled = false;
+  }
+}
+async function uploadSessionPhotos(shipmentId) {
+  const failed = [];
+  const succeeded = new Set();
+  for (const photo of sessionPhotos) {
+    const meta = { ...photo.meta, shipmentId: String(shipmentId || ''), finalized: true };
+    const payload = { date: photo.meta?.deliveryDate || currentDeliveryDate(), batch: JSON.stringify(meta), fileName: photo.fileName, kind: PHOTO_FILE_KIND, noteCount: photo.materials.length, contentBase64: String(photo.dataUrl || '').split(',')[1] || '' };
+    try {
+      const result = await callRpc('board_save_delivery_file', { p_code: getAccessCode(), p_payload: payload });
+      if (!result.response.ok) throw new Error(result.data?.message || '照片上传失败');
+      succeeded.add(photo.fileName);
+    } catch { failed.push(photo.fileName); }
+  }
+  const remaining = sessionPhotos.filter((photo) => !succeeded.has(photo.fileName));
+  sessionPhotos.length = 0;
+  sessionPhotos.push(...remaining);
+  renderPhotoArchive();
+  return failed;
+}
+
+async function openCloudPhoto(id, row = null) {
+  try {
+    const result = await callRpc('board_get_delivery_file', { p_code: getAccessCode(), p_id: id });
+    if (!result.response.ok) throw new Error(result.data?.message || '照片读取失败');
+    const data = result.data || {};
+    if (els.photoViewerImage) els.photoViewerImage.src = `data:image/jpeg;base64,${String(data.contentBase64 || '')}`;
+    if (els.photoViewerMeta) els.photoViewerMeta.textContent = row ? photoMaterialsText(row) + (row.note ? ' · ' + row.note : '') : '现场照片';
+    if (els.photoViewerModal) els.photoViewerModal.hidden = false;
+  } catch (error) { showToast(error.message || '照片读取失败'); }
+}
+
+function openLocalPhoto(row) {
+  if (!row?.dataUrl || !els.photoViewerImage) return;
+  els.photoViewerImage.src = row.dataUrl;
+  if (els.photoViewerMeta) els.photoViewerMeta.textContent = photoMaterialsText(row) + (row.note ? ' · ' + row.note : '');
+  if (els.photoViewerModal) els.photoViewerModal.hidden = false;
+}
+function renderReplacementSuggest() {
   if (!els.replacementSuggest || !els.replacementSearch) return;
   const rows = replacementProducts(els.replacementSearch.value);
   if (!rows.length) { els.replacementSuggest.hidden = true; els.replacementSuggest.innerHTML = ''; return; }
@@ -789,6 +954,26 @@ const els = {
   replacementDueDate: $('#replacementDueDate'),
   replacementRemark: $('#replacementRemark'),
   replacementAdd: $('#replacementAdd'),
+  photoArchiveOpen: $('#photoArchiveOpen'),
+  photoArchiveCount: $('#photoArchiveCount'),
+  photoCaptureModal: $('#photoCaptureModal'),
+  photoCaptureClose: $('#photoCaptureClose'),
+  photoCaptureCancel: $('#photoCaptureCancel'),
+  photoFile: $('#photoFile'),
+  photoChoose: $('#photoChoose'),
+  photoPreviewWrap: $('#photoPreviewWrap'),
+  photoPreview: $('#photoPreview'),
+  photoNote: $('#photoNote'),
+  photoMaterialSearch: $('#photoMaterialSearch'),
+  photoMaterialList: $('#photoMaterialList'),
+  photoSave: $('#photoSave'),
+  photoArchiveModal: $('#photoArchiveModal'),
+  photoArchiveClose: $('#photoArchiveClose'),
+  photoArchiveList: $('#photoArchiveList'),
+  photoViewerModal: $('#photoViewerModal'),
+  photoViewerClose: $('#photoViewerClose'),
+  photoViewerMeta: $('#photoViewerMeta'),
+  photoViewerImage: $('#photoViewerImage'),
   mobileOffsetBox: $('#mobileOffsetBox'),
   mobileEmpty: $('#mobileEmpty'),
   mobileEntryPanel: $('#mobileEntryPanel'),
@@ -1080,11 +1265,12 @@ async function loadState({ quiet = false } = {}) {
     if (!response.ok) throw new Error('数据加载失败');
     const nextSnapshot = await response.json();
     // 并行拉取，避免一个个排队等（页面卡顿的主因）
-    const [amounts, overDeliveries, overOffsets, deliveryFiles, replacements, drawings] = await Promise.all([
+    const [amounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, replacements, drawings] = await Promise.all([
       boardRole === 'admin' ? loadAmounts() : Promise.resolve([]),
       loadOverDeliveries(),
       loadOverOffsets(),
       loadDeliveryFiles(),
+      loadShipmentPhotos(),
       loadReplacements(),
       loadBilledStatus().then(() => loadDrawings()),
     ]);
@@ -1092,6 +1278,7 @@ async function loadState({ quiet = false } = {}) {
     nextSnapshot.overDeliveries = overDeliveries;
     nextSnapshot.overOffsets = overOffsets;
     nextSnapshot.deliveryFiles = deliveryFiles;
+    nextSnapshot.shipmentPhotos = shipmentPhotos;
     nextSnapshot.replacements = replacements;
     nextSnapshot.drawings = drawings;
     const changed = !snapshot || nextSnapshot.revision !== snapshot.revision;
@@ -1771,9 +1958,22 @@ async function loadDeliveryFiles() {
   const accessCode = getAccessCode();
   if (!accessCode) return [];
   try {
-    const result = await callRpc('board_get_delivery_files', { p_code: accessCode, p_limit: 200 });
+    const result = await callRpc('board_get_delivery_files', { p_code: accessCode, p_limit: 300 });
     if (!result.response.ok) return [];
-    return Array.isArray(result.data) ? result.data : [];
+    return Array.isArray(result.data) ? result.data.filter((row) => String(row.kind || '') !== PHOTO_FILE_KIND) : [];
+  } catch { return []; }
+}
+
+async function loadShipmentPhotos() {
+  if (!RPC_BASE) return [];
+  const accessCode = getAccessCode();
+  if (!accessCode) return [];
+  try {
+    const result = await callRpc('board_get_delivery_files', { p_code: accessCode, p_limit: 300 });
+    if (!result.response.ok) return [];
+    return Array.isArray(result.data)
+      ? result.data.filter((row) => String(row.kind || '') === PHOTO_FILE_KIND).map(normalizePhotoRow)
+      : [];
   } catch { return []; }
 }
 
@@ -3132,6 +3332,7 @@ function renderAll() {
   renderCloudFiles();
   renderDesktopDrawings();
   renderCart();
+  renderPhotoArchive();
   if (els.desktopLoadingView && !els.desktopLoadingView.hidden) {
     if (!els.desktopLoadingCardList || !els.desktopLoadingCardList.contains(document.activeElement)) renderDesktopLoading();
     else { renderDesktopLoadingSummary(); renderDesktopLoadingCart(); renderDesktopLoadingRecords(); }
@@ -4188,6 +4389,7 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
     ? `<button type="button" class="cart-remove" data-unselect-replacement-plan="${escapeHtml(planId)}">取消装车</button>`
     : `<button type="button" class="button primary replacement-plan-load" data-select-replacement-plan="${escapeHtml(planId)}">装车</button>`;
   const legacyAction = `<button type="button" class="cart-remove" data-remove-replacement-plan="${legacyIndex}">取消计划</button>`;
+  const photoAction = planId ? '<button type="button" class="photo-open" data-photo-plan="' + escapeHtml(planId) + '">拍照留存</button>' : '';
   const deleteAction = boardRole === 'admin' && planId
     ? `<button type="button" class="cart-remove" data-delete-replacement-plan="${escapeHtml(planId)}">删除计划</button>`
     : '';
@@ -4205,7 +4407,7 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
       <div class="order-number"><span>状态</span><strong>${selected ? '已装入' : '待装车'}</strong></div>
     </div>
     <div class="replacement-plan-note">补发原因：${escapeHtml(remark || '未填写')}</div>
-    <div class="replacement-plan-actions">${selectedAction}${legacyIndex === null ? '' : legacyAction}${deleteAction}</div>
+    <div class="replacement-plan-actions">${photoAction}${selectedAction}${legacyIndex === null ? '' : legacyAction}${deleteAction}</div>
   </article>`;
 }function orderCard(order) {
   const badge = dueBadge(order);
@@ -4223,6 +4425,7 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
         <span class="due-badge ${badge.className}">${escapeHtml(badge.text)}</span>
       </div>
       <div class="card-actions">
+        <button type="button" class="photo-open" data-photo-order="${escapeHtml(order.id)}">拍照留存</button>
         ${boardRole === 'admin' ? `<button type="button" class="order-edit-link mobile" data-edit-order="${escapeHtml(order.id)}">变更数量 / 交期</button>` : ''}
         ${(() => { const info = materialSummary(order); return info.count > 1
           ? `<div class="material-total">同料号共 ${info.count} 单 · 未交合计 <b>${fmt(info.total)}</b></div>` : ''; })()}
@@ -5737,6 +5940,7 @@ async function submitShipment() {
         replacementFailed.push(item.material);
       }
     }
+    const photoUploadFailed = await uploadSessionPhotos(shipmentId);
     selected.clear();
     els.shipmentForm.reset();
     closeSubmitModal();
@@ -5752,6 +5956,7 @@ applyRoleUI();
     if (replacementSaved.length) showToast(`补发已登记：${replacementSaved.join('、')}`);
     if (replacementWarnings.length) showToast(`补发已登记，但以下计划需要稍后清理：${replacementWarnings.join('、')}`, 7000);
     if (replacementFailed.length) showToast(`补发登记失败：${replacementFailed.join('、')}，请重新提交`);
+    if (photoUploadFailed.length) showToast(`${photoUploadFailed.length} 张现场照片没有上传成功，请稍后重试`, 8000);
     if (overFailed.length) showToast(`无订单发货登记失败：${overFailed.join('、')}，请在本次装车明细里重新提交`);
   } catch (error) {
     const raw = String(error.message || '提交失败');
@@ -6057,6 +6262,8 @@ if (els.desktopLoadingCompany) els.desktopLoadingCompany.addEventListener('chang
 if (els.desktopLoadingRefresh) els.desktopLoadingRefresh.addEventListener('click', async () => { await loadState({ quiet:false }); renderAll(); renderDesktopLoading(); showToast('未交订单已刷新'); });
 if (els.desktopLoadingCardList) {
   els.desktopLoadingCardList.addEventListener('click', (event) => {
+    const photoButton = event.target.closest('[data-photo-order], [data-photo-plan]');
+    if (photoButton) { openPhotoCaptureFromButton(photoButton); return; }
     const planSelect = event.target.closest('[data-select-replacement-plan]');
     if (planSelect) {
       selectReplacementPlan(planSelect.dataset.selectReplacementPlan);
@@ -6430,6 +6637,44 @@ if (els.replacementSuggest) els.replacementSuggest.addEventListener('click', (ev
 });
 if (els.replacementAdd) els.replacementAdd.addEventListener('click', addReplacement);
 
+if (els.photoArchiveOpen) els.photoArchiveOpen.addEventListener('click', openPhotoArchive);
+if (els.photoArchiveClose) els.photoArchiveClose.addEventListener('click', closePhotoArchive);
+if (els.photoCaptureClose) els.photoCaptureClose.addEventListener('click', closePhotoCapture);
+if (els.photoCaptureCancel) els.photoCaptureCancel.addEventListener('click', closePhotoCapture);
+if (els.photoChoose) els.photoChoose.addEventListener('click', () => els.photoFile?.click());
+if (els.photoFile) els.photoFile.addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    photoPendingDataUrl = await compressPhotoFile(file);
+    if (els.photoPreview) els.photoPreview.src = photoPendingDataUrl;
+    if (els.photoPreviewWrap) els.photoPreviewWrap.hidden = false;
+  } catch (error) {
+    showToast(error.message || '照片处理失败');
+  }
+});
+if (els.photoMaterialSearch) els.photoMaterialSearch.addEventListener('input', renderPhotoMaterialList);
+if (els.photoMaterialList) els.photoMaterialList.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-photo-candidate]');
+  if (!button) return;
+  const row = photoCandidateRows[Number(button.dataset.photoCandidate)];
+  if (!row) return;
+  const key = photoMaterialKey(row);
+  if (photoSelectedMaterials.has(key)) photoSelectedMaterials.delete(key);
+  else photoSelectedMaterials.set(key, row);
+  renderPhotoMaterialList();
+});
+if (els.photoSave) els.photoSave.addEventListener('click', savePhotoCapture);
+if (els.photoArchiveList) els.photoArchiveList.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-photo-view-index]');
+  if (!button) return;
+  const row = photoArchiveCache[Number(button.dataset.photoViewIndex)];
+  if (!row) return;
+  if (row.dataUrl) openLocalPhoto(row);
+  else if (row.id) openCloudPhoto(row.id, row);
+});
+if (els.photoViewerClose) els.photoViewerClose.addEventListener('click', () => { if (els.photoViewerModal) els.photoViewerModal.hidden = true; });
+
 if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', (event) => {
   const button = event.target.closest('[data-over-cancel]');
   if (!button) return;
@@ -6716,6 +6961,8 @@ document.addEventListener('keydown', (event) => {
 });
 
 els.mobileOrderList.addEventListener('click', (event) => {
+  const photoButton = event.target.closest('[data-photo-order], [data-photo-plan]');
+  if (photoButton) { openPhotoCaptureFromButton(photoButton); return; }
   const planSelect = event.target.closest('[data-select-replacement-plan]');
   if (planSelect) {
     selectReplacementPlan(planSelect.dataset.selectReplacementPlan);

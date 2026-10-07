@@ -574,6 +574,7 @@
                 <button id="replacementAdd" class="button primary" type="button">加入补发计划</button>
               </div>
             </div>
+            <button id="photoArchiveOpen" class="button ghost photo-archive-open" type="button">现场照片留存 <b id="photoArchiveCount">0</b></button>
             <div id="mobileFilters" class="filter-chips">
               <button class="chip active" data-filter="active" type="button">全部未交</button>
               <button class="chip" data-filter="dueToday" type="button">今日到期</button>
@@ -954,6 +955,52 @@
         <button id="drawingViewerNext" class="button ghost" type="button">下一页</button>
       </div>
       <div id="drawingViewerPages" class="drawing-viewer-pages"></div>
+    </section>
+  </div>
+  <div id="photoCaptureModal" class="modal-backdrop photo-modal-backdrop" hidden>
+    <section class="modal-card photo-capture-card" role="dialog" aria-modal="true" aria-labelledby="photoCaptureTitle">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow">装车现场留档</p>
+          <h2 id="photoCaptureTitle">拍照留存</h2>
+        </div>
+        <button id="photoCaptureClose" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <input id="photoFile" type="file" accept="image/*" capture="environment" hidden>
+      <div class="photo-capture-actions"><button id="photoChoose" class="button primary" type="button">拍照 / 选择照片</button></div>
+      <div id="photoPreviewWrap" class="photo-preview-wrap" hidden><img id="photoPreview" alt="现场照片预览"></div>
+      <label class="photo-note-field"><span>照片备注</span><input id="photoNote" type="text" placeholder="例如：1号托盘，连接板 + 导向板"></label>
+      <div class="photo-associate-block">
+        <div class="photo-associate-head"><strong>关联物料</strong><span>可多选，一张照片可关联多行</span></div>
+        <input id="photoMaterialSearch" type="search" placeholder="搜索要关联的物料">
+        <div id="photoMaterialList" class="photo-material-list"></div>
+      </div>
+      <div class="modal-actions">
+        <button id="photoCaptureCancel" class="button ghost" type="button">取消</button>
+        <button id="photoSave" class="button primary" type="button">保存照片</button>
+      </div>
+    </section>
+  </div>
+  <div id="photoArchiveModal" class="modal-backdrop photo-modal-backdrop" hidden>
+    <section class="modal-card photo-archive-card" role="dialog" aria-modal="true" aria-labelledby="photoArchiveTitle">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow">装车现场留档</p>
+          <h2 id="photoArchiveTitle">现场照片</h2>
+        </div>
+        <button id="photoArchiveClose" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <div id="photoArchiveList" class="photo-archive-list"></div>
+    </section>
+  </div>
+  <div id="photoViewerModal" class="modal-backdrop photo-modal-backdrop" hidden>
+    <section class="modal-card photo-viewer-card" role="dialog" aria-modal="true" aria-labelledby="photoViewerTitle">
+      <div class="modal-head">
+        <div><p class="eyebrow">现场照片</p><h2 id="photoViewerTitle">照片查看</h2></div>
+        <button id="photoViewerClose" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <div class="photo-viewer-meta" id="photoViewerMeta"></div>
+      <img id="photoViewerImage" alt="现场照片">
     </section>
   </div>
   <div id="toast" class="toast" hidden></div>
