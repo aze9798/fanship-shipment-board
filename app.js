@@ -564,6 +564,31 @@ async function deleteReplacementPlan(planId) {
 function shipmentPhotos() {
   return Array.isArray(snapshot?.shipmentPhotos) ? snapshot.shipmentPhotos : [];
 }
+function photoArchiveRows() {
+  const map = new Map();
+  for (const photo of sessionPhotos) map.set(String(photo.fileName || photo.localId), { ...photo, local: true, pending: !String(photo.meta?.shipmentId || '') });
+  for (const row of shipmentPhotos()) { const key = String(row.fileName || row.id); if (!map.has(key)) map.set(key, row); }
+  return [...map.values()].sort((left, right) => String(right.capturedAt || right.createdAt || '').localeCompare(String(left.capturedAt || left.createdAt || '')));
+}
+
+function photoMaterialsText(row) {
+  return (row.materials || []).map((item) => String(item.material || '').trim() + (item.name ? ' ' + String(item.name).trim() : '')).filter(Boolean).join('、') || '未关联物料';
+}
+
+let photoArchiveCache = [];
+
+function renderPhotoArchive() {
+  const rows = photoArchiveRows();
+  photoArchiveCache = rows;
+  if (els.photoArchiveCount) els.photoArchiveCount.textContent = fmt(rows.length);
+  if (!els.photoArchiveList) return;
+  if (!rows.length) { els.photoArchiveList.innerHTML = '<div class="empty-state"><strong>还没有现场照片</strong><span>在装车录入里点物料卡片上的“拍照留档”即可。</span></div>'; return; }
+  els.photoArchiveList.innerHTML = rows.map((row, index) => `<article class="photo-archive-item">${row.dataUrl ? `<img class="photo-archive-thumb" src="${row.dataUrl}" alt="现场照片">` : '<div class="photo-archive-thumb photo-archive-placeholder">已上传云端</div>'}<div class="photo-archive-info"><strong>${escapeHtml(photoMaterialsText(row))}</strong><span>${escapeHtml(row.note || '无备注')}</span><small>${row.pending ? '待装车确认' : (row.shipmentId ? '已关联装车 ' + escapeHtml(row.shipmentId) : '已留存')} · ${escapeHtml(String(row.capturedAt || row.createdAt || '').slice(0, 16).replace('T', ' '))}</small></div><button type="button" class="button ghost" data-photo-view-index="${index}">查看照片</button></article>`).join('');
+}
+
+function openPhotoArchive() { renderPhotoArchive(); if (els.photoArchiveModal) els.photoArchiveModal.hidden = false; }
+function closePhotoArchive() { if (els.photoArchiveModal) els.photoArchiveModal.hidden = true; }
+
 
 function photoMaterialKey(row) {
   const id = String(row?.id || row?.orderId || row?.planId || '').trim();
