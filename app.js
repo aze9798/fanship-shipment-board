@@ -1055,6 +1055,7 @@ const els = {
   remainingDateChips: $('#remainingDateChips'),
   remainingDateClear: $('#remainingDateClear'),
   remainingPrint: $('#remainingPrint'),
+  remainingSampleApproval: $('#remainingSampleApproval'),
   remainingExport: $('#remainingExport'),
   remainingList: $('#remainingList'),
   desktopRemainingSearch: $('#desktopRemainingSearch'),
@@ -1062,6 +1063,7 @@ const els = {
   desktopRemainingDateClear: $('#desktopRemainingDateClear'),
   desktopRemainingPrint: $('#desktopRemainingPrint'),
   desktopLabelPrint: $('#desktopLabelPrint'),
+  desktopRemainingSampleApproval: $('#desktopRemainingSampleApproval'),
   labelPrintModal: $('#labelPrintModal'),
   labelPrintRows: $('#labelPrintRows'),
   labelPrintSummary: $('#labelPrintSummary'),
@@ -1659,6 +1661,12 @@ async function printSampleApprovals(rows, options = {}) {
     return null;
   }
 }
+async function printRemainingSampleApprovals(searchText) {
+  const rows = remainingRows(searchText).filter((row) => String(row.orderType || '') === 'sample' && Number(row.remaining || 0) > 0);
+  if (!rows.length) { showToast('当前未交清单里没有承样订单'); return; }
+  await generateAndPromptSampleApprovals(rows);
+}
+
 async function generateAndPromptSampleApprovals(rows) {
   const result = await printSampleApprovals(rows, { generateOnly: true });
   if (!result) return false;
@@ -6847,6 +6855,10 @@ function handleRemainingFilterClick(event) {
     printRemainingList();
     return;
   }
+  if (event.target.id === 'remainingSampleApproval') {
+    void printRemainingSampleApprovals(remainingSearch);
+    return;
+  }
   if (event.target.id === 'desktopRemainingPrint') {
     printRemainingList(remainingGroups(desktopRemainingSearch));
     return;
@@ -6879,6 +6891,7 @@ if (els.desktopRemainingDateChips) els.desktopRemainingDateChips.addEventListene
 if (els.desktopRemainingDateClear) els.desktopRemainingDateClear.addEventListener('click', handleRemainingFilterClick);
 if (els.desktopRemainingPrint) els.desktopRemainingPrint.addEventListener('click', handleRemainingFilterClick);
 if (els.desktopRemainingExport) els.desktopRemainingExport.addEventListener('click', handleRemainingFilterClick);
+if (els.desktopRemainingSampleApproval) els.desktopRemainingSampleApproval.addEventListener('click', () => { void printRemainingSampleApprovals(desktopRemainingSearch); });
 if (els.desktopLabelPrint) els.desktopLabelPrint.addEventListener('click', openLabelPrintModal);
 if (els.labelPrintRows) {
   els.labelPrintRows.addEventListener('input', handleLabelPrintInput);

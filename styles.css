@@ -414,7 +414,8 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 .remaining-date-chip b { margin-left: 3px; color: #84949a; font-size: 9px; }
 .remaining-date-chip.active { border-color: var(--primary); background: var(--primary); color: #fff; }
 .remaining-date-chip.active b { color: #d9f2ef; }
-.remaining-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.remaining-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.remaining-actions .label-print-button { padding-inline: 8px; font-size: 12px; white-space: nowrap; }
 .remaining-list-summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 9px; padding: 10px 12px; border: 1px solid #e0e7e9; border-radius: 12px; background: #fff; }
 .remaining-list-summary strong { display: block; color: #17333b; font-size: 13px; }
 .remaining-list-summary span { color: #7f9096; font-size: 10px; }
