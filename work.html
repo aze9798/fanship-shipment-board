@@ -717,9 +717,10 @@ async function loadProductProcesses(productId) {
     productProcessMap.delete(foldProcess.id);
     matchedVariantMap.delete(foldProcess.id);
   }
+  const hasPackagingProcess = [...productProcessMap.values()].some((row) => String(row.name || '').includes('包装'));
   const extraProcessName = isGuardrail ? '弯管' : '折弯';
   const extraProcess = (state?.processes || []).find((process) => process.name === extraProcessName && process.id);
-  if (extraProcess && !productProcessMap.has(extraProcess.id)) {
+  if (!hasPackagingProcess && extraProcess && !productProcessMap.has(extraProcess.id)) {
     productProcessMap.set(extraProcess.id, { id:extraProcess.id, name:extraProcessName, variants:[] });
     matchedVariantMap.set(extraProcess.id, []);
   }
