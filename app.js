@@ -61,6 +61,8 @@ let workLiveLoading = false;
 let workLiveLoadedAt = 0;
 let remainingVisibleLimit = 60;
 let desktopRemainingVisibleLimit = 120;
+let formBaseRevision = null;
+let orderEditBaseRevision = null;
 
 function boardModeName(mode = BOARD_MODE) {
   return mode === 'admin' ? '管理员模式' : mode === 'user' ? '普通模式' : '通用模式';
@@ -564,34 +566,12 @@ function shipmentPhotos() {
 }
 
 function photoMaterialKey(row) {
-  return [String(row?.material || '').trim(), String(row?.spec || '').trim()].join('\u0000');
+  const id = String(row?.id || row?.orderId || row?.planId || '').trim();
+  const material = String(row?.material || '').trim();
+  const spec = String(row?.spec || '').trim();
+  const dueDate = String(row?.dueDate || row?.deliveryDate || row?.dueDates?.[0] || '').slice(0, 10);
+  return [id, material, spec, dueDate].join('\u0000');
 }
-
-function photoArchiveRows() {
-  const map = new Map();
-  for (const photo of sessionPhotos) map.set(String(photo.fileName || photo.localId), { ...photo, local: true, pending: !String(photo.meta?.shipmentId || '') });
-  for (const row of shipmentPhotos()) { const key = String(row.fileName || row.id); if (!map.has(key)) map.set(key, row); }
-  return [...map.values()].sort((left, right) => String(right.capturedAt || right.createdAt || '').localeCompare(String(left.capturedAt || left.createdAt || '')));
-}
-
-function photoMaterialsText(row) {
-  return (row.materials || []).map((item) => String(item.material || '').trim() + (item.name ? ' ' + String(item.name).trim() : '')).filter(Boolean).join('、') || '未关联物料';
-}
-
-let photoArchiveCache = [];
-
-function renderPhotoArchive() {
-  const rows = photoArchiveRows();
-  photoArchiveCache = rows;
-  if (els.photoArchiveCount) els.photoArchiveCount.textContent = fmt(rows.length);
-  if (!els.photoArchiveList) return;
-  if (!rows.length) { els.photoArchiveList.innerHTML = '<div class="empty-state"><strong>还没有现场照片</strong><span>在装车录入里点物料卡片上的“拍照留档”即可。</span></div>'; return; }
-  els.photoArchiveList.innerHTML = rows.map((row, index) => `<article class="photo-archive-item">${row.dataUrl ? `<img class="photo-archive-thumb" src="${row.dataUrl}" alt="现场照片">` : '<div class="photo-archive-thumb photo-archive-placeholder">已上传云端</div>'}<div class="photo-archive-info"><strong>${escapeHtml(photoMaterialsText(row))}</strong><span>${escapeHtml(row.note || '无备注')}</span><small>${row.pending ? '待装车确认' : (row.shipmentId ? '已关联装车 ' + escapeHtml(row.shipmentId) : '已留存')} · ${escapeHtml(String(row.capturedAt || row.createdAt || '').slice(0, 16).replace('T', ' '))}</small></div><button type="button" class="button ghost" data-photo-view-index="${index}">查看照片</button></article>`).join('');
-}
-
-function openPhotoArchive() { renderPhotoArchive(); if (els.photoArchiveModal) els.photoArchiveModal.hidden = false; }
-function closePhotoArchive() { if (els.photoArchiveModal) els.photoArchiveModal.hidden = true; }
-
 function renderPhotoUnitQtyList() {
   if (!els.photoUnitQtyList) return;
   const selected = [...photoSelectedMaterials.values()];
@@ -601,23 +581,45 @@ function renderPhotoUnitQtyList() {
     return `<label class="photo-unit-qty-row"><span><strong>${escapeHtml(row.material || '')}</strong><small>${escapeHtml(photoCandidateStatsText(row))}</small></span><input type="number" min="0" step="1" inputmode="numeric" value="${value || ''}" placeholder="本框数量" data-photo-unit-qty="${encodeURIComponent(key)}"></label>`;
   }).join('') || '<div class="photo-unit-qty-empty">选择物料后填写本框/托盘总数量</div>';
 }
+
 function renderPhotoMaterialList() {
   if (!els.photoMaterialList) return;
   const query = String(els.photoMaterialSearch?.value || '').trim();
-  photoCandidateRows = photoMaterialCandidates(query);
+  const candidates = photoMaterialCandidates(query).filter((row) => {
+    const key = photoMaterialKey(row);
+    return photoRetakeAllowedKeys.has(key) || !materialHasPhoto(row);
+  });
+  photoCandidateRows = candidates;
   const selectedText = [...photoSelectedMaterials.values()].map((row) => row.material).filter(Boolean).join('、') || '未选择';
-  const options = photoCandidateRows.map((row, index) => {
+  const options = candidates.map((row, index) => {
     const key = photoMaterialKey(row);
     const selected = photoSelectedMaterials.has(key);
-    const alreadyFiled = materialHasPhoto(row);
-    const locked = alreadyFiled && !photoRetakeAllowedKeys.has(key);
     const stats = photoCandidateStatsText(row);
-    return `<button type="button" class="photo-material-option${selected ? ' selected' : ''}${locked ? ' locked' : ''}" data-photo-candidate="${index}"${locked ? ' disabled' : ''}><span><strong>${escapeHtml(row.material)}</strong><small>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</small><small class="photo-candidate-stats">${escapeHtml(stats)}</small></span><b>${locked ? '已留档' : (selected ? '已关联' : '关联')}</b></button>`;
+    return `<button type="button" class="photo-material-option${selected ? ' selected' : ''}" data-photo-candidate="${index}"><span><strong>${escapeHtml(row.material)}</strong><small>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</small><small class="photo-candidate-stats">${escapeHtml(stats)}</small></span><b>${selected ? '已关联' : '关联'}</b></button>`;
   }).join('');
-  els.photoMaterialList.innerHTML = `<div class="photo-selected-summary">已关联：${escapeHtml(selectedText)}</div>${options || '<div class="empty-state"><strong>没有找到物料</strong><span>换个搜索词试试。</span></div>'}`;
+  els.photoMaterialList.innerHTML = `<div class="photo-selected-summary">已关联：${escapeHtml(selectedText)}</div>${options || '<div class="empty-state"><strong>没有待关联物料</strong><span>已留档的不会重复显示，可在照片档案里对已留档照片“再拍一张”。</span></div>'}`;
   renderPhotoUnitQtyList();
-}function photoDateKey(row) {
+}
+
+
+function photoDateKey(row) {
   return String(row?.meta?.deliveryDate || row?.deliveryDate || row?.capturedAt || row?.createdAt || '').slice(0, 10);
+}
+
+function photoTargetMatches(item, target) {
+  const itemMaterial = String(item?.material || '').trim();
+  const targetMaterial = String(target?.material || '').trim();
+  if (!itemMaterial || !targetMaterial || itemMaterial !== targetMaterial) return false;
+  const itemSpec = String(item?.spec || '').trim();
+  const targetSpec = String(target?.spec || '').trim();
+  if (itemSpec && targetSpec && itemSpec !== targetSpec) return false;
+  const itemDate = String(item?.dueDate || item?.deliveryDate || item?.dueDates?.[0] || '').slice(0, 10);
+  const targetDate = String(target?.dueDate || target?.deliveryDate || target?.dueDates?.[0] || '').slice(0, 10);
+  if (itemDate && targetDate && itemDate !== targetDate) return false;
+  const itemId = String(item?.id || item?.orderId || item?.planId || '').trim();
+  const targetId = String(target?.id || target?.orderId || target?.planId || '').trim();
+  if (itemId && targetId) return itemId === targetId;
+  return true;
 }
 
 function photosForTarget(target) {
@@ -625,7 +627,7 @@ function photosForTarget(target) {
   if (!material) return [];
   const today = currentDeliveryDate();
   return photoArchiveRows().filter((row) => photoDateKey(row) === today
-    && (row.materials || []).some((item) => String(item.material || '').trim() === material));
+    && (row.materials || []).some((item) => photoTargetMatches(item, target)));
 }
 
 function latestPhotoForTarget(target) {
@@ -636,70 +638,80 @@ function materialHasPhoto(target) {
   return photosForTarget(target).length > 0;
 }
 
-function photoPendingStats() {
-  const map = new Map();
-  const ensure = (row) => {
-    const key = photoMaterialKey(row);
-    if (!map.has(key)) map.set(key, { material: row.material || '', name: row.name || '', spec: row.spec || '', customer: row.customer || '', remaining: 0, planQty: 0, dueDates: new Set() });
-    return map.get(key);
-  };
+function photoPendingRows() {
+  const rows = [];
   for (const order of (snapshot?.orders || [])) {
-    if (!(Number(order.remaining || 0) > 0)) continue;
-    const item = ensure(order);
-    item.remaining += Number(order.remaining || 0);
-    if (order.dueDate) item.dueDates.add(String(order.dueDate));
+    const remaining = Number(order.remaining || 0);
+    if (!(remaining > 0)) continue;
+    rows.push({
+      id: String(order.id || ''),
+      orderId: String(order.id || ''),
+      sourceType: 'order',
+      material: String(order.material || '').trim(),
+      name: String(order.name || '').trim(),
+      spec: String(order.spec || '').trim(),
+      customer: String(order.customer || '').trim(),
+      remaining,
+      planQty: 0,
+      dueDate: String(order.dueDate || '').slice(0, 10),
+    });
   }
   for (const plan of replacementPlans()) {
-    const item = ensure(plan);
-    item.planQty += Number(plan.quantity || 0);
-    if (plan.deliveryDate) item.dueDates.add(String(plan.deliveryDate));
+    const planQty = Number(plan.quantity || 0);
+    if (!(planQty > 0)) continue;
+    rows.push({
+      id: String(plan.id || plan.planId || ''),
+      planId: String(plan.id || plan.planId || ''),
+      sourceType: 'replacement',
+      material: String(plan.material || '').trim(),
+      name: String(plan.name || '').trim(),
+      spec: String(plan.spec || '').trim(),
+      customer: '4137',
+      remaining: 0,
+      planQty,
+      dueDate: String(plan.deliveryDate || plan.dueDate || '').slice(0, 10),
+    });
   }
-  return map;
-}
-
-function photoPendingRows() {
-  return [...photoPendingStats().values()].map((item) => {
-    const dueDates = [...item.dueDates].sort();
-    return { ...item, dueDates, photoDate: dueDates[0] || '' };
-  }).sort((left, right) =>
-    String(left.photoDate || '9999-12-31').localeCompare(String(right.photoDate || '9999-12-31'))
+  return rows.sort((left, right) =>
+    String(left.dueDate || '9999-12-31').localeCompare(String(right.dueDate || '9999-12-31'))
     || String(left.material || '').localeCompare(String(right.material || ''), 'zh-CN')
-    || String(left.spec || '').localeCompare(String(right.spec || ''), 'zh-CN'));
+    || String(left.id || '').localeCompare(String(right.id || '')));
 }
 
 function photoCandidateStatsText(row) {
   const parts = [];
   if (Number(row.remaining || 0) > 0) parts.push('未交 ' + fmt(row.remaining));
   if (Number(row.planQty || 0) > 0) parts.push('补发 ' + fmt(row.planQty));
-  const dates = Array.isArray(row.dueDates) ? row.dueDates : [];
-  if (dates.length) parts.push('交期 ' + dates.slice(0, 2).map(formatDate).join('、') + (dates.length > 2 ? '等' : ''));
+  if (row.dueDate) parts.push('交期 ' + formatDate(row.dueDate));
   return parts.join(' · ') || '暂无未交';
 }
 
 function photoMaterialCandidates(queryText) {
-  const query = String(queryText || '').trim();
-  if (!query) return photoPendingRows().slice(0, 60);
-  const stats = photoPendingStats();
-  return replacementProducts(query).map((row) => {
-    const stat = stats.get(photoMaterialKey(row));
-    return { ...row, remaining: stat?.remaining || 0, planQty: stat?.planQty || 0, dueDates: stat ? [...stat.dueDates].sort() : [] };
-  }).slice(0, 60);
-}
-function currentPhotoMaterials(target) {
-  const rows = photoPendingRows();
-  const material = String(target?.material || '').trim();
-  const targetDate = String(target?.dueDate || target?.deliveryDate || '').trim();
-  const selected = new Map();
-  for (const row of rows) {
-    if (String(row.material || '').trim() !== material) continue;
-    if (targetDate && Array.isArray(row.dueDates) && !row.dueDates.includes(targetDate)) continue;
-    if (String(row.material || '').trim() !== String(target?.material || '').trim() && materialHasPhoto(row)) continue;
-    selected.set(photoMaterialKey(row), { ...row, dueDate: targetDate || row.dueDates?.[0] || '' });
-  }
-  if (!selected.size) selected.set(photoMaterialKey(target), target);
-  return selected;
+  const query = String(queryText || '').trim().toLowerCase();
+  return photoPendingRows()
+    .filter((row) => !query || [row.material, row.name, row.spec, row.dueDate]
+      .some((value) => String(value || '').toLowerCase().includes(query)))
+    .slice(0, 80);
 }
 
+function currentPhotoMaterials(target) {
+  const rows = photoPendingRows();
+  const targetId = String(target?.id || target?.orderId || target?.planId || '').trim();
+  const material = String(target?.material || '').trim();
+  const spec = String(target?.spec || '').trim();
+  const targetDate = String(target?.dueDate || target?.deliveryDate || target?.dueDates?.[0] || '').slice(0, 10);
+  const selected = new Map();
+  for (const row of rows) {
+    const rowId = String(row.id || row.orderId || row.planId || '').trim();
+    if (targetId && rowId && rowId !== targetId) continue;
+    if (String(row.material || '').trim() !== material) continue;
+    if (spec && String(row.spec || '').trim() && String(row.spec || '').trim() !== spec) continue;
+    if (targetDate && row.dueDate && row.dueDate !== targetDate) continue;
+    selected.set(photoMaterialKey(row), row);
+  }
+  if (!selected.size && target) selected.set(photoMaterialKey(target), target);
+  return selected;
+}
 function openPhotoViewerRow(row, target) {
   if (!row) return;
   photoViewerTarget = target || null;
@@ -843,7 +855,7 @@ async function openCloudPhoto(id, row = null) {
     if (!result.response.ok) throw new Error(result.data?.message || '照片读取失败');
     const data = result.data || {};
     if (els.photoViewerImage) els.photoViewerImage.src = `data:image/jpeg;base64,${String(data.contentBase64 || '')}`;
-    if (els.photoViewerMeta) els.photoViewerMeta.textContent = row ? photoMaterialsText(row) + (row.note ? ' · ' + row.note : '') : '现场照片';
+    els.photoViewerMeta.textContent = row ? photoMaterialsText(row) + (row.note ? ' · ' + row.note : '') : '现场照片';
     if (els.photoViewerModal) els.photoViewerModal.hidden = false;
   } catch (error) { showToast(error.message || '照片读取失败'); }
 }
@@ -851,7 +863,7 @@ async function openCloudPhoto(id, row = null) {
 function openLocalPhoto(row) {
   if (!row?.dataUrl || !els.photoViewerImage) return;
   els.photoViewerImage.src = row.dataUrl;
-  if (els.photoViewerMeta) els.photoViewerMeta.textContent = photoMaterialsText(row) + (row.note ? ' · ' + row.note : '');
+  els.photoViewerMeta.textContent = photoMaterialsText(row) + (row.note ? ' · ' + row.note : '');
   if (els.photoViewerModal) els.photoViewerModal.hidden = false;
 }
 function shipmentUnits() {
@@ -4404,6 +4416,7 @@ function openOrderEdit(orderId) {
   const order = (snapshot?.orders || []).find((row) => String(row.id) === String(orderId));
   if (!order) { showToast('找不到这笔订单'); return; }
   editingOrderId = String(order.id);
+  orderEditBaseRevision = snapshot?.revision ?? null;
   if (els.orderEditInfo) {
     els.orderEditInfo.innerHTML = `<strong>${escapeHtml(order.material)} · ${escapeHtml(order.name || '')}</strong>`
       + `<span>${escapeHtml(order.po)} · 项次 ${escapeHtml(order.seq)} · 已发货 ${fmt(order.shipped)} 件</span>`
@@ -4449,6 +4462,8 @@ async function saveOrderEdit() {
     return;
   }
   if (!cancelling && !dueDate) { fail('请选择交货日期'); return; }
+  if (!(await confirmFreshRevision(orderEditBaseRevision, '订单变更'))) return;
+  orderEditBaseRevision = snapshot?.revision ?? null;
   const button = els.orderEditSave;
   if (button) button.disabled = true;
   try {
@@ -6606,6 +6621,13 @@ async function checkPrintHelper(showResult = false) {
   }
 }
 
+async function confirmFreshRevision(baseRevision, actionName) {
+  if (baseRevision == null) return true;
+  await loadState({ quiet: true, fast: true });
+  if (snapshot?.revision === baseRevision) return true;
+  return window.confirm(`「${actionName}」打开后，数据已被其他人更新。\n\n【确定】按最新数据继续；【取消】先返回核对最新未交。`);
+}
+
 function showSubmitError(message) {
   if (!els.submitError) return;
   if (!message) { els.submitError.hidden = true; els.submitError.textContent = ''; return; }
@@ -6620,6 +6642,7 @@ function openSubmitModal() {
     return;
   }
   showSubmitError('');
+  formBaseRevision = snapshot?.revision ?? null;
   // 打开确认框时顺手同步一次最新未交，减少"别的设备刚发过货"造成的误差
   loadState({ quiet: true }).then(() => renderAll()).catch(() => {});
   const orderTotal = entries.reduce((sum, [, quantity]) => sum + Number(quantity), 0);
@@ -6774,6 +6797,7 @@ async function submitShipment() {
   const button = $('#submitShipment');
   button.disabled = true;
   button.textContent = '正在核对未交...';
+  beginTask('正在核对并提交装车...');
   let reallocated = false;
   try {
     // ① 先记住本次每个料号打算发多少
@@ -6786,6 +6810,14 @@ async function submitShipment() {
     }
     // ② 拉一次最新未交（别的手机/电脑可能刚发过货，避免超发报错）
     await loadState({ quiet: true });
+    if (formBaseRevision != null && snapshot?.revision !== formBaseRevision) {
+      const keep = window.confirm('你打开本次装车后，数据已被其他人更新。\n\n【确定】按最新未交继续？【取消】返回重新核对。');
+      if (!keep) {
+        showToast('已取消提交，请重新核对最新未交数量');
+        return;
+      }
+      formBaseRevision = snapshot?.revision ?? null;
+    }
     // ③ 按最新未交重新按交期分配（超出所有未交的部分仍会自动记成无订单发货）
     for (const [material, total] of wantedByMaterial) {
       if (!material || total <= 0) continue;
@@ -6811,6 +6843,7 @@ async function submitShipment() {
       items,
     };
     button.textContent = '正在同步...';
+    setTaskStatus('正在同步装车数据...', 'info');
     let shipmentId = '';
     if (!onlyReplacement) {
       const response = await requestWithAccessCode(apiUrl('/api/shipments'), {
@@ -6881,8 +6914,10 @@ async function submitShipment() {
     selected.clear();
     els.shipmentForm.reset();
     closeSubmitModal();
+    formBaseRevision = null;
     showSubmitError('');
     showToast(`${shipmentId} 已保存${reallocated ? '（已按最新未交重新分配）' : ''}${overSaved.length ? `，含无订单发货 ${overSaved.join('、')}` : ''}`);
+    finishTask('装车已提交，正在刷新最新未交', 'success', 3500);
     const isIOSDevice = /iPad|iPhone|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 if (isIOSDevice) setTimeout(() => { loadPdfJs().catch(() => {}); }, 2000);
 
@@ -7076,6 +7111,7 @@ async function handleImportFile(event) {
     return;
   }
   try {
+    beginTask('正在解析 Excel 未交订单...');
     const workbook = window.XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
     const { orders, sheetName } = parseExcelRows(workbook);
     if (!orders.length) throw new Error('没有识别到未交数量大于 0 的订单');
@@ -7090,9 +7126,11 @@ async function handleImportFile(event) {
     ].join('');
     els.confirmImport.disabled = false;
     els.importModal.hidden = false;
+    finishTask('Excel 解析完成，请核对后导入', 'success', 3500);
   } catch (error) {
     pendingImportOrders = null;
     els.confirmImport.disabled = true;
+    finishTask('Excel 解析失败', 'error', 5000);
     showToast(error.message || 'Excel 解析失败');
   } finally {
     event.target.value = '';
@@ -7104,6 +7142,7 @@ async function confirmImportOrders() {
   const button = els.confirmImport;
   button.disabled = true;
   button.textContent = '正在覆盖云端...';
+  beginTask('正在覆盖导入未交订单...');
   try {
     const response = await requestWithAccessCode(apiUrl('/api/import-orders'), {
       method: 'POST',
@@ -7113,10 +7152,12 @@ async function confirmImportOrders() {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || '导入失败');
     showToast(`已导入 ${fmt(result.count)} 行，共 ${fmt(result.totalQuantity)} 件`);
+    finishTask('未交订单导入完成', 'success', 3500);
     pendingImportOrders = null;
     closeImportDialog();
     await loadState();
   } catch (error) {
+    finishTask('未交订单导入失败', 'error', 5000);
     showToast(error.message || '导入失败');
   } finally {
     button.disabled = false;
@@ -7678,11 +7719,15 @@ function handleRemainingFilterClick(event) {
     if (!dueDate) remainingDates.clear();
     else if (remainingDates.has(dueDate)) remainingDates.delete(dueDate);
     else remainingDates.add(dueDate);
+    remainingVisibleLimit = 60;
+    desktopRemainingVisibleLimit = 120;
     refreshRemainingViews();
     return;
   }
   if (event.target.id === 'remainingDateClear' || event.target.id === 'desktopRemainingDateClear') {
     remainingDates.clear();
+    remainingVisibleLimit = 60;
+    desktopRemainingVisibleLimit = 120;
     refreshRemainingViews();
     return;
   }
@@ -8406,6 +8451,12 @@ restoreCachedState();
 await loadState({ fast: true });
 connectEvents();
 warmOptionalLibraries();
+if (els.printHelperStatus) els.printHelperStatus.addEventListener('click', () => void checkPrintHelper(true));
+if (els.mobilePrintHelperStatus) els.mobilePrintHelperStatus.addEventListener('click', () => void checkPrintHelper(true));
+if (els.taskStatusClose) els.taskStatusClose.addEventListener('click', clearTaskStatus);
+if (els.taskStatusAction) els.taskStatusAction.addEventListener('click', () => { if (taskStatusActionHandler) taskStatusActionHandler(); });
+void checkPrintHelper();
+setInterval(() => { if (document.visibilityState === 'visible') void checkPrintHelper(); }, 60000);
 syncMobileStickyOffsets();
 window.addEventListener('resize', syncMobileStickyOffsets);
 
