@@ -1416,14 +1416,19 @@ function renderPiece() {
       toast(overtime ? '已确认加班，工时和加班工资已计入' : '已确认不加班，只计正常 9 小时');
     } catch (e) { toast(e.message || '确认失败'); } finally { btn.disabled = false; }
   }
-  const TAO_SEARCH_ALIASES = { '001':'001', '002':'002', '003':'003', '004':'004' };
+  const WANG_LIU_SEARCH_ALIASES = { '0001':'NC-0001','0002':'NC-0004','0003':'NC-0005','0004':'NC-0006','0005':'NC-0011','0006':'NC-0014','0007':'NC-0017','0008':'NC-0019','0009':'NC-0020','0012':'NC-0012' };
+  const EMPLOYEE_SEARCH_ALIASES = { '11': { '001':'001','002':'002','003':'003','004':'004' }, '06': WANG_LIU_SEARCH_ALIASES, '20': WANG_LIU_SEARCH_ALIASES };
   async function searchProducts() {
     const token = ++productSearchToken;
     const q = $('productSearch').value.trim(); const box = $('productSuggest');
     if (!q) { show(box,false); show($('newPieceButton'), true); return; }
     try {
-      const isTao = state?.employee?.employeeNo === '11';
-      const aliasMaterial = isTao ? (TAO_SEARCH_ALIASES[q] || '') : '';      const shortNumericSearch = isTao && !aliasMaterial && /^\d+$/.test(q) && q.length < 4;
+      const employeeNo = String(state?.employee?.employeeNo || '');
+      const employeeAliases = EMPLOYEE_SEARCH_ALIASES[employeeNo] || {};
+      const aliasMaterial = employeeAliases[q] || '';
+      const aliasLabel = aliasMaterial ? q : '';
+      const aliasName = q === '0008' ? '攻丝通用' : '';
+      const shortNumericSearch = ['11','06','20'].includes(employeeNo) && !aliasMaterial && /^\d+$/.test(q) && q.length < 4;
       if (shortNumericSearch) {
         box.innerHTML = '<button type="button" disabled><strong>请输入至少4位编号</strong><span>或输入完整料号、产品名称</span></button>';
         show(box, true);
@@ -1434,9 +1439,9 @@ function renderPiece() {
       if (token !== productSearchToken) return;
       let orderedRows = Array.isArray(rows) ? rows.slice() : [];
       if (aliasMaterial) orderedRows = orderedRows.filter((p) => p.material === aliasMaterial);
-      const priorityMaterial = aliasMaterial || (!isTao && q.includes('攻丝') ? 'NC-0019' : '');
+      const priorityMaterial = aliasMaterial || (!['11','06','20'].includes(employeeNo) && q.includes('攻丝') ? 'NC-0019' : '');
       orderedRows.sort((a,b) => priorityMaterial && a.material !== b.material ? (a.material === priorityMaterial ? -1 : b.material === priorityMaterial ? 1 : 0) : 0);
-      box.innerHTML = orderedRows.length ? orderedRows.map((p) => `<button type="button" data-product="${esc(p.id)}" data-material="${esc(p.material)}" data-name="${esc(p.name)}" data-spec="${esc(p.spec)}"><strong>${esc(p.material)} · ${esc(p.name)}</strong><span>${esc(p.spec || '无图号')}</span></button>`).join('') : '<button type="button" data-open-custom="1"><strong>没有找到产品</strong><span>点这里自主申报新产品</span></button>';
+      box.innerHTML = orderedRows.length ? orderedRows.map((p) => `<button type="button" data-product="${esc(p.id)}" data-material="${esc(aliasLabel || p.material)}" data-name="${esc(aliasName || p.name)}" data-spec="${esc(p.spec)}"><strong>${esc(aliasLabel || p.material)} · ${esc(aliasName || p.name)}</strong></button>`).join('') : '<button type="button" data-open-custom="1"><strong>没有找到产品</strong><span>点这里自主申报新产品</span></button>';
       show(box,true);
       show($('newPieceButton'), orderedRows.length === 0);
     } catch (e) { if (token !== productSearchToken) return; toast(e.message || '搜索失败'); }
@@ -1610,7 +1615,7 @@ function variantDisplay(processName, value) {
   }
   function renderRequestMaterialMatches(rows) {
     const box = $('requestMaterialMatches');
-    box.innerHTML = rows.map((p) => `<button type="button" data-request-product="${esc(p.id)}" data-material="${esc(p.material)}" data-name="${esc(p.name)}" data-spec="${esc(p.spec)}"><strong>${esc(p.material)} · ${esc(p.name || '（无品名）')}</strong><span>${esc(p.spec || '无图号')}</span></button>`).join('');
+    box.innerHTML = rows.map((p) => `<button type="button" data-request-product="${esc(p.id)}" data-material="${esc(aliasLabel || p.material)}" data-name="${esc(aliasName || p.name)}" data-spec="${esc(p.spec)}"><strong>${esc(p.material)} · ${esc(p.name || '（无品名）')}</strong><span>${esc(p.spec || '无图号')}</span></button>`).join('');
     show(box, rows.length > 0);
   }
   async function lookupRequestMaterial() {
