@@ -1330,6 +1330,10 @@ function renderPiece() {
         pendingSpecialEntry = '';
         renderSpecialPanel();
         toast('本次计时已结束（已确认加班）');
+      } else if (active && result && result.deleted) {
+        pendingSpecialEntry = '';
+        renderSpecialPanel();
+        toast('不足1分钟，本次计时已自动取消');
       } else {
         pendingSpecialEntry = '';
         renderSpecialPanel();
@@ -1337,7 +1341,9 @@ function renderPiece() {
       }
       if (active) {
         const clock = (v) => fmtClock(v);
-        const text = result && result.capped
+        const text = result && result.deleted
+          ? '已取消 · 不足1分钟'
+          : result && result.capped
           ? `已结束 · 按 ${clock(result.endedAt)} 计`
           : result && result.endedAt ? `已结束 · ${clock(result.endedAt)}` : '本次计时已结束';
         finishClockMorph(btn, text);
