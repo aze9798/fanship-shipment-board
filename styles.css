@@ -1497,6 +1497,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .order-type-tag.order-type-sample { border-color: #efb1a0; color: #a33b1e; background: #fff0eb; }
 .order-type-tag.order-type-trial { border-color: #a9c8fb; color: #1d4ed8; background: #eef5ff; }
 .order-type-tag.order-type-tooling { border-color: #a6e3be; color: #067647; background: #ecfdf3; }
+.order-type-tag.order-type-replacement { border-color: #8fc9c2; color: #0f766e; background: #e9f8f5; }
 
 /* 图纸库 */
 #desktopFilesView { padding-top: 22px; }

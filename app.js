@@ -16,6 +16,10 @@ const MODE_KEY_SUFFIX = BOARD_MODE ? ':' + BOARD_MODE : '';
 const ACCESS_CODE_STORAGE_KEY = ACCESS_CODE_KEY + MODE_KEY_SUFFIX;
 const ROLE_STORAGE_KEY = 'shipmentBoardRole' + MODE_KEY_SUFFIX;
 const PRINT_HELPER_BASE = 'http://127.0.0.1:8790';
+let deliveryFilesPromise = null;
+let auxiliaryPromise = null;
+let auxiliaryLoadedAt = 0;
+let xlsxPromise = null;
 
 function syncMobileEntryLink() {
   const link = document.getElementById('mobileEntryLink');
@@ -75,6 +79,9 @@ async function loadBoardRole() {
     if ((cachedRole === 'admin' || cachedRole === 'user') && canUseRole(cachedRole) && cachedCode === getAccessCode()) {
       boardRole = cachedRole;
       boardCanSeeAmount = cachedRole === 'admin';
+      // 同一访问码下角色已经验证过，直接使用缓存，避免每次打开都先等一次云端身份校验。
+      applyRoleUI();
+      return;
     }
   } catch { }
 
@@ -865,17 +872,21 @@ function normalizeUnitRow(row) {
   };
 }
 
-async function loadShipmentUnits() {
+async function fetchDeliveryFileRows() {
   if (!RPC_BASE) return [];
   const accessCode = getAccessCode();
   if (!accessCode) return [];
-  try {
-    const result = await callRpc('board_get_delivery_files', { p_code: accessCode, p_limit: 300 });
-    if (!result.response.ok) return [];
-    return Array.isArray(result.data)
-      ? result.data.filter((row) => String(row.kind || '') === UNIT_FILE_KIND).map(normalizeUnitRow)
-      : [];
-  } catch { return []; }
+  if (!deliveryFilesPromise) {
+    deliveryFilesPromise = callRpc('board_get_delivery_files', { p_code: accessCode, p_limit: 300 })
+      .then((result) => result.response.ok && Array.isArray(result.data) ? result.data : [])
+      .catch(() => []);
+  }
+  return deliveryFilesPromise;
+}
+
+async function loadShipmentUnits() {
+  const rows = await fetchDeliveryFileRows();
+  return rows.filter((row) => String(row.kind || '') === UNIT_FILE_KIND).map(normalizeUnitRow);
 }
 
 function unitStatusText(unit) {
@@ -1540,7 +1551,7 @@ const escapeHtml = (value) => String(value ?? '')
   .replaceAll("'", '&#039;');
 
 const fmt = (value) => numberFormat.format(Number(value || 0));
-const searchable = (order) => [order.po, order.material, order.name, order.spec, order.batch, order.seq, order.customer, order.orderQty, order.shipped, order.remaining].join(' ').toLowerCase();
+const searchable = (order) => [order.po, order.material, order.name, order.spec, order.batch, order.seq, order.customer, order.orderQty, order.shipped, order.remaining, order.remark, order.replacementPlanId, order.isReplacementPlan ? '补发 补货' : ''].join(' ').toLowerCase();
 
 function dayDiff(dateText) {
   const a = new Date(`${TODAY}T00:00:00+08:00`).getTime();
@@ -1590,11 +1601,12 @@ const orderTypeTagHtml = (type) => {
     ? '<span class="order-type-tag order-type-' + normalized + '">' + ORDER_TYPE_LABELS[normalized] + '</span>'
     : '';
 };
-const remainingTypeTagsHtml = (types) => {
+const remainingTypeTagsHtml = (types, hasReplacement = false) => {
   const specialTypes = [...new Set(types || [])]
     .filter((type) => Object.prototype.hasOwnProperty.call(ORDER_TYPE_LABELS, type))
     .sort((left, right) => ORDER_TYPE_RANK[left] - ORDER_TYPE_RANK[right]);
-  return specialTypes.map(orderTypeTagHtml).join('');
+  return specialTypes.map(orderTypeTagHtml).join('')
+    + (hasReplacement ? '<span class="order-type-tag order-type-replacement">补发</span>' : '');
 };
 
 function filteredOrders(filter) {
@@ -1737,19 +1749,15 @@ function setLiveStatus(status) {
 
 async function waitForStateIdle(maxMs = 5000) {
   const started = Date.now();
-  while (refreshing && Date.now() - started < maxMs) {
+  while ((refreshing || auxiliaryPromise) && Date.now() - started < maxMs) {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 }
 
-async function loadState({ quiet = false } = {}) {
-  if (refreshing) return;
-  refreshing = true;
-  try {
-    const response = await requestWithAccessCode(apiUrl('/api/state'), { cache: 'no-store' });
-    if (!response.ok) throw new Error('数据加载失败');
-    const nextSnapshot = await response.json();
-    // 并行拉取，避免一个个排队等（页面卡顿的主因）
+function fetchAuxiliaryState() {
+  if (auxiliaryPromise) return auxiliaryPromise;
+  const promise = (async () => {
+    deliveryFilesPromise = null;
     const [amounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings] = await Promise.all([
       boardRole === 'admin' ? loadAmounts() : Promise.resolve([]),
       loadOverDeliveries(),
@@ -1760,15 +1768,36 @@ async function loadState({ quiet = false } = {}) {
       loadReplacements(),
       loadBilledStatus().then(() => loadDrawings()),
     ]);
-    nextSnapshot.amounts = amounts;
-    nextSnapshot.overDeliveries = overDeliveries;
-    nextSnapshot.overOffsets = overOffsets;
-    nextSnapshot.deliveryFiles = deliveryFiles;
-    nextSnapshot.shipmentPhotos = shipmentPhotos;
-    nextSnapshot.shipmentUnits = shipmentUnits;
-    nextSnapshot.replacements = replacements;
-    nextSnapshot.drawings = drawings;
-    const changed = !snapshot || nextSnapshot.revision !== snapshot.revision;
+    auxiliaryLoadedAt = Date.now();
+    return { amounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings };
+  })();
+  auxiliaryPromise = promise.finally(() => { auxiliaryPromise = null; });
+  return auxiliaryPromise;
+}
+
+async function loadState({ quiet = false, fast = false } = {}) {
+  if (refreshing) return;
+  refreshing = true;
+  try {
+    const response = await requestWithAccessCode(apiUrl('/api/state'), { cache: 'no-store' });
+    if (!response.ok) throw new Error('数据加载失败');
+    const nextSnapshot = await response.json();
+    // 核心表格先渲染；图片、图纸、金额等辅助数据放后台或低频刷新，避免首屏被慢请求拖住。
+    const shouldRefreshAuxiliary = !quiet || !snapshot || Date.now() - auxiliaryLoadedAt > 60000;
+    const previous = snapshot;
+    if (!fast && shouldRefreshAuxiliary) {
+      Object.assign(nextSnapshot, await fetchAuxiliaryState());
+    } else {
+      nextSnapshot.amounts = previous?.amounts || [];
+      nextSnapshot.overDeliveries = previous?.overDeliveries || [];
+      nextSnapshot.overOffsets = previous?.overOffsets || [];
+      nextSnapshot.deliveryFiles = previous?.deliveryFiles || [];
+      nextSnapshot.shipmentPhotos = previous?.shipmentPhotos || [];
+      nextSnapshot.shipmentUnits = previous?.shipmentUnits || [];
+      nextSnapshot.replacements = previous?.replacements || [];
+      nextSnapshot.drawings = previous?.drawings || [];
+    }
+    const changed = !previous || nextSnapshot.revision !== previous.revision || (!fast && shouldRefreshAuxiliary);
     snapshot = nextSnapshot;
     stateLoadFailures = 0;
     setLiveStatus('online');
@@ -1777,6 +1806,16 @@ async function loadState({ quiet = false } = {}) {
     if (snapshot.today) TODAY = snapshot.today;
     reconcileSelection();
     if (!quiet || changed) renderAll();
+    if (fast && shouldRefreshAuxiliary) {
+      const revision = nextSnapshot.revision;
+      void fetchAuxiliaryState().then((auxiliary) => {
+        if (!snapshot || snapshot.revision !== revision) return;
+        Object.assign(snapshot, auxiliary);
+        rebuildAmountMap();
+        rebuildDrawingMap();
+        renderAll();
+      }).catch(() => {});
+    }
   } catch (error) {
     stateLoadFailures += 1;
     setLiveStatus(stateLoadFailures >= 2 ? 'offline' : 'connecting');
@@ -1806,7 +1845,8 @@ const pdfIso = (v) => {
 
 async function pdfToLines(file) {
   const data = await file.arrayBuffer();
-  const pdf = await window.pdfjsLib.getDocument({ data }).promise;
+  const pdfjs = await loadPdfJs();
+  const pdf = await pdfjs.getDocument({ data }).promise;
   const lines = [];
   for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
     const page = await pdf.getPage(pageNo);
@@ -1920,8 +1960,10 @@ let pendingPdfDocs = [];
 async function handlePdfFiles(fileList) {
   const files = [...(fileList || [])].filter(Boolean);
   if (!files.length) return;
-  if (!window.pdfjsLib) {
-    showToast('PDF 识别组件没加载成功，请刷新页面（Ctrl+F5）后重试');
+  try {
+    await loadPdfJs();
+  } catch {
+    showToast('PDF 识别组件加载失败，请检查网络后重试');
     if (els.pdfFileInput) els.pdfFileInput.value = '';
     return;
   }
@@ -2361,6 +2403,7 @@ async function loadPdfJs() {
       if (pdfjs.GlobalWorkerOptions) {
         pdfjs.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdf.worker.min.mjs', import.meta.url).href;
       }
+      window.pdfjsLib = pdfjs;
       return pdfjs;
     }).catch(async (error) => {
       if (window.pdfjsLib) return window.pdfjsLib;
@@ -2589,27 +2632,13 @@ async function loadOverOffsets() {
 }
 
 async function loadDeliveryFiles() {
-  if (!RPC_BASE) return [];
-  const accessCode = getAccessCode();
-  if (!accessCode) return [];
-  try {
-    const result = await callRpc('board_get_delivery_files', { p_code: accessCode, p_limit: 300 });
-    if (!result.response.ok) return [];
-    return Array.isArray(result.data) ? result.data.filter((row) => String(row.kind || '') !== PHOTO_FILE_KIND && String(row.kind || '') !== UNIT_FILE_KIND) : [];
-  } catch { return []; }
+  const rows = await fetchDeliveryFileRows();
+  return rows.filter((row) => String(row.kind || '') !== PHOTO_FILE_KIND && String(row.kind || '') !== UNIT_FILE_KIND);
 }
 
 async function loadShipmentPhotos() {
-  if (!RPC_BASE) return [];
-  const accessCode = getAccessCode();
-  if (!accessCode) return [];
-  try {
-    const result = await callRpc('board_get_delivery_files', { p_code: accessCode, p_limit: 300 });
-    if (!result.response.ok) return [];
-    return Array.isArray(result.data)
-      ? result.data.filter((row) => String(row.kind || '') === PHOTO_FILE_KIND).map(normalizePhotoRow)
-      : [];
-  } catch { return []; }
+  const rows = await fetchDeliveryFileRows();
+  return rows.filter((row) => String(row.kind || '') === PHOTO_FILE_KIND).map(normalizePhotoRow);
 }
 
 async function loadReplacements() {
@@ -2646,6 +2675,25 @@ function planAlreadyFinalized(plan) {
 
 function replacementPlans() {
   return replacements().filter((row) => isReplacementPlanRow(row) && !planAlreadyFinalized(row));
+}
+
+function replacementPlanRemainingRows() {
+  return replacementPlans().map((plan) => ({
+    id: 'replacement-plan:' + String(plan.id || ''),
+    material: String(plan.material || '').trim(),
+    name: String(plan.name || '').trim(),
+    spec: String(plan.spec || '').trim(),
+    po: '补发',
+    seq: '',
+    customer: String(plan.customer || '4137').trim() || '4137',
+    dueDate: String(plan.deliveryDate || '').trim() || defaultReplacementDueDate(),
+    remaining: Number(plan.quantity || 0),
+    orderType: 'normal',
+    isReplacementPlan: true,
+    replacementPlanId: String(plan.id || ''),
+    remark: replacementPlanNote(plan),
+    createdAt: String(plan.createdAt || ''),
+  })).filter((row) => row.remaining > 0 && row.material);
 }
 
 function confirmedReplacements() {
@@ -5130,9 +5178,13 @@ function selectedRemainingDates() {
   return [...remainingDates].filter(Boolean).sort();
 }
 
+function remainingBaseRows() {
+  return [...filteredOrders('active'), ...replacementPlanRemainingRows()];
+}
+
 function remainingDateOptions() {
   const counts = new Map();
-  for (const order of filteredOrders('active')) {
+  for (const order of remainingBaseRows()) {
     const dueDate = String(order.dueDate || '').trim();
     if (!dueDate) continue;
     counts.set(dueDate, (counts.get(dueDate) || 0) + 1);
@@ -5161,7 +5213,7 @@ function renderRemainingDateChips() {
 
 function remainingRows(queryText = remainingSearch) {
   if (!snapshot) return [];
-  let rows = filteredOrders('active');
+  let rows = remainingBaseRows();
   const query = String(queryText || '').trim().toLowerCase();
   if (query) rows = rows.filter((order) => searchable(order).includes(query));
   if (remainingDates.size) rows = rows.filter((order) => remainingDates.has(String(order.dueDate || '').trim()));
@@ -5229,6 +5281,9 @@ function groupRemainingRows(rows) {
         typeRank: 9,
         types: new Set(),
         mark: markMaterials.has(material),
+        replacementTotal: 0,
+        replacementCount: 0,
+        hasReplacement: false,
       };
       groups.set(key, group);
     }
@@ -5242,6 +5297,11 @@ function groupRemainingRows(rows) {
     if (dueDate) group.dates.add(dueDate);
     if (company) group.companies.add(company);
     group.total += Number(order.remaining || 0);
+    if (order.isReplacementPlan) {
+      group.replacementTotal += Number(order.remaining || 0);
+      group.replacementCount += 1;
+      group.hasReplacement = true;
+    }
     group.detailCount += 1;
     group.typeRank = Math.min(group.typeRank, orderTypeRank(order));
     group.types.add(normalizeOrderType(order));
@@ -5313,7 +5373,7 @@ function renderMobileRemaining() {
           <div class="remaining-cell order-cell">
             <span>编号</span>
             <strong class="mono">${escapeHtml(group.material)}</strong>
-            ${remainingTypeTagsHtml(group.types)}
+            ${remainingTypeTagsHtml(group.types, group.hasReplacement)}
             ${group.mark ? '<em class="mark-badge">需打标</em>' : ''}
           </div>
           <div class="remaining-cell detail-cell">
@@ -5516,12 +5576,12 @@ function labelPool() {
 }
 
 function labelRemainingAllDates() {
-  // 订单剩余未交：统计这个料号在所有交期上的未交合计，不受当前交期筛选影响
+  // 待交合计：订单未交 + 有效补发计划，统计料号在所有交期上的数量，不受当前交期筛选影响
   const map = new Map();
-  for (const order of (snapshot?.orders || [])) {
-    const remaining = Number(order.remaining || 0);
+  for (const row of remainingBaseRows()) {
+    const remaining = Number(row.remaining || 0);
     if (remaining <= 0) continue;
-    const material = String(order.material || '').trim();
+    const material = String(row.material || '').trim();
     if (!material) continue;
     map.set(material, (map.get(material) || 0) + remaining);
   }
@@ -5957,7 +6017,7 @@ function printRemainingList(groups = remainingGroups()) {
   const rows = groups.map((group) => `
     <tr>
       <td>${escapeHtml(group.material)}</td>
-      <td>${escapeHtml(group.name)}${remainingTypeTagsHtml(group.types)}</td>
+      <td>${escapeHtml(group.name)}${remainingTypeTagsHtml(group.types, group.hasReplacement)}</td>
       <td>${escapeHtml(qtyText(group.total))}</td>
       <td>${escapeHtml(remainingDatePrintText(group.dates))}</td>
       <td>${group.mark ? '✅' : ''}</td>
@@ -5991,12 +6051,40 @@ function printRemainingList(groups = remainingGroups()) {
   setTimeout(() => printWindow.print(), 300);
 }
 
-function exportRemainingList(groups = remainingGroups()) {
+async function loadXlsx() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (!xlsxPromise) {
+    xlsxPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+      script.async = true;
+      script.dataset.xlsxLoader = '1';
+      script.onload = () => window.XLSX ? resolve(window.XLSX) : reject(new Error('Excel 导出组件初始化失败'));
+      script.onerror = () => reject(new Error('Excel 导出组件加载失败，请检查网络后重试'));
+      document.head.appendChild(script);
+    });
+  }
+  return xlsxPromise.catch((error) => { xlsxPromise = null; throw error; });
+}
+
+function warmOptionalLibraries() {
+  const warm = () => { loadXlsx().catch(() => {}); };
+  if ('requestIdleCallback' in window) requestIdleCallback(warm, { timeout: 4000 });
+  else setTimeout(warm, 1800);
+}
+async function exportRemainingList(groups = remainingGroups()) {
   if (!groups.length) {
     showToast('没有可导出的未交数据');
     return;
   }
-  if (!window.XLSX) {
+  try {
+    await loadXlsx();
+  } catch (error) {
+    showToast(error.message || 'Excel 导出组件加载失败');
+    return;
+  }
+  const xlsx = window.XLSX;
+  if (!xlsx) {
     showToast('Excel 导出组件尚未加载');
     return;
   }
@@ -6010,7 +6098,7 @@ function exportRemainingList(groups = remainingGroups()) {
       group.mark ? '✅' : '',
     ]),
   ];
-  const sheet = XLSX.utils.aoa_to_sheet(data);
+  const sheet = xlsx.utils.aoa_to_sheet(data);
   sheet['!cols'] = [
     { wch: 18.265625 },
     { wch: 41.53125 },
@@ -6019,10 +6107,10 @@ function exportRemainingList(groups = remainingGroups()) {
     { wch: 8.46484375 },
   ];
   sheet['!rows'] = data.map(() => ({ hpt: 25.05 }));
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, sheet, '未交清单');
+  const workbook = xlsx.utils.book_new();
+  xlsx.utils.book_append_sheet(workbook, sheet, '未交清单');
   const suffix = selectedRemainingDates().length ? selectedRemainingDates().join('_') : '全部交期';
-  XLSX.writeFile(workbook, `未交清单_${suffix}.xlsx`, { compression: true });
+  xlsx.writeFile(workbook, `未交清单_${suffix}.xlsx`, { compression: true });
   showToast(`已导出 ${groups.length} 项未交物料`);
 }
 
@@ -6035,10 +6123,10 @@ function renderDesktopRemaining() {
   const selectedText = selectedRemainingDates().length
     ? selectedRemainingDates().map((dueDate) => formatDate(dueDate)).join('、')
     : '全部交期';
-  if (els.desktopRemainingSummary) els.desktopRemainingSummary.textContent = `共 ${fmt(groups.length)} 项物料 · ${fmt(rows.length)} 条订单明细 · 合计 ${qtyText(total)} 件 · ${selectedText}`;
+  if (els.desktopRemainingSummary) els.desktopRemainingSummary.textContent = `共 ${fmt(groups.length)} 项物料 · ${fmt(rows.length)} 条待交明细 · 合计 ${qtyText(total)} 件 · ${selectedText}`;
   els.desktopRemainingBody.innerHTML = groups.map((group) => `
     <tr>
-      <td class="remaining-type-cell">${remainingTypeTagsHtml(group.types)}</td>
+      <td class="remaining-type-cell">${remainingTypeTagsHtml(group.types, group.hasReplacement)}</td>
       <td class="mono">${escapeHtml(group.material)}</td>
       <td>${escapeHtml(group.name)}</td>
       <td class="mono">${escapeHtml(group.specs.join('、'))}</td>
@@ -6770,8 +6858,16 @@ function closeImportDialog() {
 async function handleImportFile(event) {
   const file = event.target.files?.[0];
   if (!file) return;
+  try {
+    await loadXlsx();
+  } catch (error) {
+    showToast(error.message || 'Excel 解析组件加载失败');
+    event.target.value = '';
+    return;
+  }
   if (!window.XLSX) {
     showToast('Excel 解析组件加载失败，请刷新页面后重试');
+    event.target.value = '';
     return;
   }
   try {
@@ -7793,9 +7889,6 @@ if (els.importButton && els.importFileInput) {
 }
 
 // 采购订单 PDF 导入
-if (window.pdfjsLib) {
-  window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-}
 if (els.pdfImportButton && els.pdfFileInput) {
   els.pdfImportButton.addEventListener('click', () => {
     if (boardRole !== 'admin') {
@@ -7858,13 +7951,19 @@ function connectEvents() {
   if (API_BASE || RPC_BASE) {
     setLiveStatus('online');
     clearInterval(connectEvents.pollTimer);
-    connectEvents.pollTimer = setInterval(() => {
-      loadState({ quiet: true });
-      if (boardRole !== 'admin' || document.visibilityState !== 'visible') return;
+    const poll = () => {
+      if (document.visibilityState !== 'visible') return;
+      void loadState({ quiet: true, fast: true });
+      if (boardRole !== 'admin') return;
       const desktopReportVisible = desktopModule === 'work' && desktopView === 'workReport' && els.desktopWorkReportView && !els.desktopWorkReportView.hidden;
       const mobileReportVisible = mobileModule === 'workReview' && mobileWorkTab === 'report' && els.mobileWorkReportPanel && !els.mobileWorkReportPanel.hidden;
       if ((desktopReportVisible || mobileReportVisible) && Date.now() - workLiveLoadedAt > 30000) loadWorkReportWorkspace().catch(() => {});
-    }, 5000);
+    };
+    // 后台标签页完全停止轮询；前台 10 秒同步一次，减少频繁网络请求造成的卡顿。
+    connectEvents.pollTimer = setInterval(poll, 10000);
+    if (connectEvents.visibilityHandler) document.removeEventListener('visibilitychange', connectEvents.visibilityHandler);
+    connectEvents.visibilityHandler = () => { if (document.visibilityState === 'visible') void loadState({ quiet: true, fast: true }); };
+    document.addEventListener('visibilitychange', connectEvents.visibilityHandler);
     return;
   }
   eventSource = new EventSource(apiUrl('/api/events'));
@@ -8083,8 +8182,9 @@ setupRpcExportLink();
 if (!getAccessCode()) askAccessCode();
 await loadBoardRole();
 await loadMarkMaterials();
-await loadState();
+await loadState({ fast: true });
 connectEvents();
+warmOptionalLibraries();
 syncMobileStickyOffsets();
 window.addEventListener('resize', syncMobileStickyOffsets);
 
