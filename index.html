@@ -9,10 +9,6 @@
   <meta http-equiv="Expires" content="0">
   <title>发货实时看板</title>
   <link rel="icon" href="data:,">
-  <script>
-    window.SHIPMENT_RPC_BASE = "https://dkbeigqtiilgxthwkixg.supabase.co/rest/v1/rpc";
-    window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
-  </script>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -39,7 +35,7 @@
         </div>
       </div>
       <nav class="side-nav" aria-label="主导航">
-        <a class="side-link active" href="./" data-desktop-view="overview" data-module="shipment">
+        <a class="side-link active" href="/desktop" data-desktop-view="overview" data-module="shipment">
           <span class="nav-dot"></span>
           实时总览
         </a>
@@ -1010,7 +1006,7 @@
       </div>
       <div class="photo-viewer-meta" id="photoViewerMeta"></div>
       <img id="photoViewerImage" alt="现场照片">
-      <div class="modal-actions"><button id="photoViewerRetake" class="button primary" type="button">再拍一张</button></div>
+      <div class="modal-actions"><button id="photoViewerDelete" class="button ghost danger-text" type="button">删除并重拍</button><button id="photoViewerRetake" class="button primary" type="button">再拍一张</button></div>
     </section>
   </div>
   <div id="taskStatusBar" class="task-status-bar" hidden>

@@ -874,6 +874,39 @@ async function uploadSessionPhotos(shipmentId) {
   return failed;
 }
 
+async function deletePhotoViewerAndRetake() {
+  const row = photoViewerRow;
+  const target = photoViewerTarget;
+  if (!row) return;
+  if (!window.confirm('确定删除这张照片吗？删除后可以重新拍照留档。')) return;
+  const button = els.photoViewerDelete;
+  const originalText = button?.textContent || '删除并重拍';
+  if (button) { button.disabled = true; button.textContent = '删除中...'; }
+  try {
+    if (row.id) {
+      const result = await callRpc('board_delete_delivery_file', { p_code: getAccessCode(), p_id: row.id });
+      if (!result.response.ok) throw new Error(result.data?.message || '删除照片失败');
+    }
+    const fileName = String(row.fileName || '');
+    const localIndex = sessionPhotos.findIndex((photo) => (row.id && String(photo.id || '') === String(row.id)) || (fileName && String(photo.fileName || '') === fileName));
+    if (localIndex >= 0) sessionPhotos.splice(localIndex, 1);
+    if (snapshot && Array.isArray(snapshot.shipmentPhotos)) {
+      snapshot.shipmentPhotos = snapshot.shipmentPhotos.filter((photo) => (row.id && String(photo.id || '') !== String(row.id)) && (!fileName || String(photo.fileName || '') !== fileName));
+    }
+    photoViewerRow = null;
+    if (els.photoViewerModal) els.photoViewerModal.hidden = true;
+    renderPhotoArchive();
+    renderMobileList();
+    renderDesktopLoading();
+    showToast('照片已删除，可以重新拍照留档');
+    if (target) openPhotoCapture(target);
+  } catch (error) {
+    showToast(error.message || '删除照片失败');
+  } finally {
+    if (button) { button.disabled = false; button.textContent = originalText; }
+  }
+}
+
 async function openCloudPhoto(id, row = null) {
   try {
     const result = await callRpc('board_get_delivery_file', { p_code: getAccessCode(), p_id: id });
@@ -7718,6 +7751,7 @@ if (els.sampleApprovalSelectConfirm) els.sampleApprovalSelectConfirm.addEventLis
 if (els.sampleApprovalPreviewClose) els.sampleApprovalPreviewClose.addEventListener('click', closeSampleApprovalPreview);
 if (els.sampleApprovalPreviewCancel) els.sampleApprovalPreviewCancel.addEventListener('click', closeSampleApprovalPreview);
 if (els.sampleApprovalPreviewPrint) els.sampleApprovalPreviewPrint.addEventListener('click', () => { void printSampleApprovalPreview(); });
+if (els.photoViewerDelete) els.photoViewerDelete.addEventListener('click', deletePhotoViewerAndRetake);
 if (els.photoViewerRetake) els.photoViewerRetake.addEventListener('click', () => { if (els.photoViewerModal) els.photoViewerModal.hidden = true; if (photoViewerTarget) openPhotoCapture(photoViewerTarget, { retake: true, existingPhoto: photoViewerRow }); });
 
 if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', (event) => {
