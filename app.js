@@ -296,6 +296,7 @@ let cartOpen = false;
 const sessionOver = new Map();
 
 // 本次装车里的补发（不良补货）：不扣未交，直接进送货单
+const REPLACEMENT_PLAN_MARK = '【补发计划待装车】';
 const sessionReplacements = [];
 let replacementPick = null;
 let editingOrderId = '';
@@ -400,7 +401,38 @@ function loadingReplacementPriority(item) {
 }
 
 function loadingItems(orderRows) {
-  const items = [
+  const selectedPlans = new Map(sessionReplacements
+    .filter((item) => item.planId)
+    .map((item) => [String(item.planId), item]));
+  const planItems = replacementPlans().map((plan) => {
+    const selected = selectedPlans.get(String(plan.id)) || null;
+    const dueDate = String(plan.deliveryDate || '').trim() || defaultReplacementDueDate();
+    return {
+      kind: 'replacement',
+      dueDate,
+      rank: loadingReplacementPriority({ dueDate }),
+      material: String(plan.material || ''),
+      name: String(plan.name || ''),
+      seq: String(plan.createdAt || ''),
+      item: selected ? { ...plan, quantity: selected.quantity, remark: selected.remark } : plan,
+      selected: Boolean(selected),
+      planId: String(plan.id || ''),
+    };
+  });
+  const legacyItems = sessionReplacements
+    .filter((item) => !item.planId)
+    .map((item, legacyIndex) => ({
+      kind: 'replacement',
+      dueDate: String(item.dueDate || '').trim() || defaultReplacementDueDate(),
+      rank: loadingReplacementPriority(item),
+      material: String(item.material || ''),
+      name: String(item.name || ''),
+      seq: legacyIndex,
+      item,
+      selected: true,
+      legacyIndex,
+    }));
+  return [
     ...(orderRows || []).map((order) => ({
       kind: 'order',
       dueDate: String(order.dueDate || '').trim(),
@@ -410,25 +442,15 @@ function loadingItems(orderRows) {
       seq: Number(order.seq || 0),
       order,
     })),
-    ...sessionReplacements.map((item, index) => ({
-      kind: 'replacement',
-      dueDate: String(item.dueDate || '').trim() || defaultReplacementDueDate(),
-      rank: loadingReplacementPriority(item),
-      material: String(item.material || ''),
-      name: String(item.name || ''),
-      seq: index,
-      item,
-      index,
-    })),
-  ];
-  return items.sort((left, right) =>
+    ...planItems,
+    ...legacyItems,
+  ].sort((left, right) =>
     String(left.dueDate || '9999-12-31').localeCompare(String(right.dueDate || '9999-12-31'))
     || Number(left.rank || 0) - Number(right.rank || 0)
     || String(left.material || '').localeCompare(String(right.material || ''), 'zh-CN')
     || String(left.name || '').localeCompare(String(right.name || ''), 'zh-CN')
-    || Number(left.seq || 0) - Number(right.seq || 0));
-}
-function removeReplacementPlan(index) {
+    || String(left.seq || '').localeCompare(String(right.seq || '')));
+}function removeReplacementPlan(index) {
   const current = Number(index);
   if (!Number.isInteger(current) || current < 0 || current >= sessionReplacements.length) return;
   const removed = sessionReplacements.splice(current, 1)[0];
@@ -439,7 +461,49 @@ function removeReplacementPlan(index) {
   if (removed) showToast('已取消补发计划：' + removed.material);
 }
 
-function renderReplacementSuggest() {
+function selectReplacementPlan(planId) {
+  const plan = replacementPlans().find((row) => String(row.id) === String(planId));
+  if (!plan) { showToast('这个补发计划已经不存在或已被装车'); return; }
+  if (sessionReplacements.some((item) => String(item.planId) === String(planId))) return;
+  sessionReplacements.push({
+    planId: String(plan.id),
+    material: plan.material || '',
+    name: plan.name || '',
+    spec: plan.spec || '',
+    customer: plan.customer || '',
+    quantity: Number(plan.quantity || 0),
+    dueDate: String(plan.deliveryDate || '').trim() || defaultReplacementDueDate(),
+    remark: replacementPlanNote(plan),
+  });
+  renderMobileSummary();
+  renderMobileList();
+  renderDesktopLoading();
+  renderCart();
+  showToast(`已装入补发计划：${plan.material} ${fmt(plan.quantity)} 件`);
+}
+
+function unselectReplacementPlan(planId) {
+  const index = sessionReplacements.findIndex((item) => String(item.planId) === String(planId));
+  if (index >= 0) sessionReplacements.splice(index, 1);
+  renderMobileSummary();
+  renderMobileList();
+  renderDesktopLoading();
+  renderCart();
+  showToast('已取消装入这个补发计划，计划仍保留在待装车列表');
+}
+
+async function deleteReplacementPlan(planId) {
+  const plan = replacementPlans().find((row) => String(row.id) === String(planId));
+  if (!plan) { showToast('这个补发计划已经不存在'); return; }
+  if (!window.confirm(`要删除补发计划吗？\n${plan.material} · ${fmt(plan.quantity)} 件`)) return;
+  const result = await callRpc('board_revoke_replacement', { p_code: getAccessCode(), p_id: planId });
+  if (!result.response.ok) { showToast(result.data?.message || '删除补发计划失败'); return; }
+  unselectReplacementPlan(planId);
+  await waitForStateIdle();
+  await loadState({ quiet: true });
+  renderAll();
+  showToast('补发计划已删除');
+}function renderReplacementSuggest() {
   if (!els.replacementSuggest || !els.replacementSearch) return;
   const rows = replacementProducts(els.replacementSearch.value);
   if (!rows.length) { els.replacementSuggest.hidden = true; els.replacementSuggest.innerHTML = ''; return; }
@@ -459,35 +523,43 @@ function renderReplacementPicked() {
     + `${replacementPick.customer ? `（${escapeHtml(replacementPick.customer)}）` : ''}`;
 }
 
-function addReplacement() {
+async function addReplacement() {
   if (!replacementPick) { showToast('请先搜索并选择要补发的产品'); return; }
   const quantity = Number(els.replacementQty?.value || 0);
   if (!Number.isFinite(quantity) || quantity <= 0) { showToast('请填写补发数量'); return; }
   const dueDate = String(els.replacementDueDate?.value || '').trim() || defaultReplacementDueDate();
   if (!dueDate) { showToast('请选择补发交期'); return; }
   const remark = String(els.replacementRemark?.value || '').trim();
-  sessionReplacements.push({
-    material: replacementPick.material,
-    name: replacementPick.name || '',
-    spec: replacementPick.spec || '',
-    customer: replacementPick.customer || '',
-    quantity,
-    dueDate,
-    remark,
-  });
-  replacementPick = null;
-  if (els.replacementQty) els.replacementQty.value = '';
-  if (els.replacementRemark) els.replacementRemark.value = '';
-  if (els.replacementSearch) els.replacementSearch.value = '';
-  renderReplacementPicked();
-  renderMobileSummary();
-  renderMobileList();
-  renderDesktopLoading();
-  renderCart();
-  showToast(`已加入补发计划：${quantity} 件，交期 ${formatDate(dueDate)}${remark ? '（原因：' + remark + '）' : ''}`);
-}
-
-function offsetSkipped(over) {
+  if (els.replacementAdd) els.replacementAdd.disabled = true;
+  try {
+    const result = await callRpc('board_add_replacement', {
+      p_code: getAccessCode(),
+      p_payload: {
+        date: dueDate,
+        customer: replacementPick.customer || '',
+        material: replacementPick.material,
+        name: replacementPick.name || '',
+        spec: replacementPick.spec || '',
+        quantity,
+        remark: replacementPlanRemark(remark),
+      },
+    });
+    if (!result.response.ok) throw new Error(result.data?.message || '补发计划发布失败');
+    replacementPick = null;
+    if (els.replacementQty) els.replacementQty.value = '';
+    if (els.replacementRemark) els.replacementRemark.value = '';
+    if (els.replacementSearch) els.replacementSearch.value = '';
+    renderReplacementPicked();
+    await waitForStateIdle();
+    await loadState({ quiet: true });
+    renderAll();
+    showToast(`补发计划已发布：${quantity} 件，交期 ${formatDate(dueDate)}`);
+  } catch (error) {
+    showToast(error.message || '补发计划发布失败');
+  } finally {
+    if (els.replacementAdd) els.replacementAdd.disabled = false;
+  }
+}function offsetSkipped(over) {
   if (!over) return false;
   if (over.autoOffset === false) return true;
   return manualOffsetSkip.has(String(over.id));
@@ -987,6 +1059,13 @@ function setLiveStatus(status) {
     if (!dot) continue;
     dot.classList.toggle('online', status === 'online');
     dot.classList.toggle('offline', status === 'offline');
+  }
+}
+
+async function waitForStateIdle(maxMs = 5000) {
+  const started = Date.now();
+  while (refreshing && Date.now() - started < maxMs) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
 }
 
@@ -1710,9 +1789,34 @@ function replacements() {
   return (snapshot && Array.isArray(snapshot.replacements)) ? snapshot.replacements : [];
 }
 
+function replacementPlanRemark(remark) {
+  return REPLACEMENT_PLAN_MARK + String(remark || '').trim();
+}
+
+function replacementPlanNote(row) {
+  return String(row?.remark || '').replace(REPLACEMENT_PLAN_MARK, '').trim();
+}
+
+function isReplacementPlanRow(row) {
+  return String(row?.remark || '').startsWith(REPLACEMENT_PLAN_MARK);
+}
+
+function planAlreadyFinalized(plan) {
+  const key = [plan.material, plan.name, plan.spec, plan.deliveryDate, Number(plan.quantity || 0)].map((value) => String(value ?? '').trim()).join('|');
+  return confirmedReplacements().some((row) => [row.material, row.name, row.spec, row.deliveryDate, Number(row.quantity || 0)].map((value) => String(value ?? '').trim()).join('|') === key);
+}
+
+function replacementPlans() {
+  return replacements().filter((row) => isReplacementPlanRow(row) && !planAlreadyFinalized(row));
+}
+
+function confirmedReplacements() {
+  return replacements().filter((row) => !isReplacementPlanRow(row));
+}
+
 function replacementHistoryRows() {
   const query = replacementQuery.trim().toLowerCase();
-  return replacements()
+  return confirmedReplacements()
     .filter((row) => {
       if (replacementDate && String(row.deliveryDate || '') !== replacementDate) return false;
       if (!query) return true;
@@ -2315,7 +2419,7 @@ function renderDesktopLoading() {
   if (els.desktopLoadingSummary) els.desktopLoadingSummary.textContent = fmt(items.length);
   els.desktopLoadingEmpty.hidden = items.length > 0;
   els.desktopLoadingCardList.innerHTML = shown.map((item) => item.kind === 'replacement'
-    ? replacementPlanCard(item.item, item.index)
+    ? replacementPlanCard(item.item, item.selected, item.legacyIndex)
     : orderCard(item.order)).join('')
     + (items.length > limit ? `<div class="empty-state desktop-loading-more"><strong>还有 ${fmt(items.length - limit)} 项未显示</strong><span>请用搜索快速定位物料。</span></div>` : '');
   renderDesktopLoadingSummary();
@@ -4067,29 +4171,36 @@ function renderShipmentSection(shipments, queryText = '') {
 window.addEventListener('resize', () => { applyDeliveryColumnWidths('grouped'); applyDeliveryColumnWidths('merged'); });
 }
 
-function replacementPlanCard(item, index) {
-  const dueDate = String(item.dueDate || '').trim() || defaultReplacementDueDate();
-  const remark = String(item.remark || '').trim();
-  const name = String(item.name || '').trim();
-  return `<article class="order-card replacement-plan-card" data-replacement-plan="${index}">
+function replacementPlanCard(plan, selected = false, legacyIndex = null) {
+  const dueDate = String(plan.deliveryDate || plan.dueDate || '').trim() || defaultReplacementDueDate();
+  const remark = replacementPlanNote(plan);
+  const name = String(plan.name || '').trim();
+  const planId = String(plan.id || plan.planId || '').trim();
+  const selectedAction = selected
+    ? `<button type="button" class="cart-remove" data-unselect-replacement-plan="${escapeHtml(planId)}">取消装车</button>`
+    : `<button type="button" class="button primary replacement-plan-load" data-select-replacement-plan="${escapeHtml(planId)}">装车</button>`;
+  const legacyAction = `<button type="button" class="cart-remove" data-remove-replacement-plan="${legacyIndex}">取消计划</button>`;
+  const deleteAction = boardRole === 'admin' && planId
+    ? `<button type="button" class="cart-remove" data-delete-replacement-plan="${escapeHtml(planId)}">删除计划</button>`
+    : '';
+  return `<article class="order-card replacement-plan-card" data-loading-kind="replacement" data-loading-due-date="${escapeHtml(dueDate)}">
     <div class="card-top">
       <div class="order-title">
-        <div class="order-name-line"><strong>${escapeHtml(name || item.material || '补发物料')}</strong><span class="replacement-plan-tag">补发</span></div>
-        <span class="mono">${escapeHtml(item.material || '')}${item.spec ? ' · ' + escapeHtml(item.spec) : ''}</span>
-        <span>补发交期 ${escapeHtml(formatDate(dueDate))}${item.customer ? ' · ' + escapeHtml(item.customer) : ''}</span>
+        <div class="order-name-line"><strong>${escapeHtml(name || plan.material || '补发物料')}</strong><span class="replacement-plan-tag">补发计划</span></div>
+        <span class="mono">${escapeHtml(plan.material || '')}${plan.spec ? ' · ' + escapeHtml(plan.spec) : ''}</span>
+        <span>补发交期 ${escapeHtml(formatDate(dueDate))}${plan.customer ? ' · ' + escapeHtml(plan.customer) : ''}</span>
       </div>
-      <span class="replacement-plan-state">待装车确认</span>
+      <span class="replacement-plan-state">${selected ? '已加入本次装车' : '待装车'}</span>
     </div>
     <div class="order-numbers">
-      <div class="order-number"><span>补发数量</span><strong>${escapeHtml(fmt(item.quantity))}</strong></div>
+      <div class="order-number"><span>补发数量</span><strong>${escapeHtml(fmt(plan.quantity))}</strong></div>
       <div class="order-number"><span>交期</span><strong>${escapeHtml(formatDate(dueDate))}</strong></div>
-      <div class="order-number"><span>状态</span><strong>待确认</strong></div>
+      <div class="order-number"><span>状态</span><strong>${selected ? '已装入' : '待装车'}</strong></div>
     </div>
     <div class="replacement-plan-note">补发原因：${escapeHtml(remark || '未填写')}</div>
-    <div class="replacement-plan-actions"><button type="button" class="cart-remove" data-remove-replacement-plan="${index}">取消补发计划</button></div>
+    <div class="replacement-plan-actions">${selectedAction}${legacyIndex === null ? '' : legacyAction}${deleteAction}</div>
   </article>`;
-}
-function orderCard(order) {
+}function orderCard(order) {
   const badge = dueBadge(order);
   const selectedQuantity = Number(selected.get(order.id) || 0);
   const complete = order.remaining <= 0;
@@ -4132,7 +4243,7 @@ function renderMobileList() {
   const limit = 80;
   const shown = items.slice(0, limit);
   els.mobileOrderList.innerHTML = shown.map((item) => item.kind === 'replacement'
-    ? replacementPlanCard(item.item, item.index)
+    ? replacementPlanCard(item.item, item.selected, item.legacyIndex)
     : orderCard(item.order)).join('');
   if (items.length > limit) {
     els.mobileOrderList.insertAdjacentHTML('beforeend', `<div class="empty-state mobile-empty"><strong>还有 ${items.length - limit} 项未显示</strong><span>请用搜索快速定位物料。</span></div>`);
@@ -5587,9 +5698,10 @@ async function submitShipment() {
         overFailed.push(material);
       }
     }
-    // 补发：逐条登记到云端（进送货单：订单号无、项次无，备注用填写的文字）
+    // 补发：把已装入本次装车的计划转成正式补发记录；订单号无、项次无，备注用填写的文字
     const replacementSaved = [];
     const replacementFailed = [];
+    const replacementWarnings = [];
     for (const item of [...sessionReplacements]) {
       try {
         const r = await callRpc('board_add_replacement', {
@@ -5605,6 +5717,10 @@ async function submitShipment() {
           },
         });
         if (!r.response.ok) throw new Error(r.data?.message || '补发登记失败');
+        if (item.planId) {
+          const removedPlan = await callRpc('board_revoke_replacement', { p_code: getAccessCode(), p_id: item.planId });
+          if (!removedPlan.response.ok) replacementWarnings.push(`${item.material}的待装车计划未清理`);
+        }
         replacementSaved.push(`${item.material} ${fmt(item.quantity)} 件（${formatDate(item.dueDate || defaultReplacementDueDate())}）`);
         sessionReplacements.splice(sessionReplacements.indexOf(item), 1);
       } catch (error) {
@@ -5624,6 +5740,7 @@ applyRoleUI();
 await loadState();
 applyRoleUI();
     if (replacementSaved.length) showToast(`补发已登记：${replacementSaved.join('、')}`);
+    if (replacementWarnings.length) showToast(`补发已登记，但以下计划需要稍后清理：${replacementWarnings.join('、')}`, 7000);
     if (replacementFailed.length) showToast(`补发登记失败：${replacementFailed.join('、')}，请重新提交`);
     if (overFailed.length) showToast(`无订单发货登记失败：${overFailed.join('、')}，请在本次装车明细里重新提交`);
   } catch (error) {
@@ -5930,6 +6047,21 @@ if (els.desktopLoadingCompany) els.desktopLoadingCompany.addEventListener('chang
 if (els.desktopLoadingRefresh) els.desktopLoadingRefresh.addEventListener('click', async () => { await loadState({ quiet:false }); renderAll(); renderDesktopLoading(); showToast('未交订单已刷新'); });
 if (els.desktopLoadingCardList) {
   els.desktopLoadingCardList.addEventListener('click', (event) => {
+    const planSelect = event.target.closest('[data-select-replacement-plan]');
+    if (planSelect) {
+      selectReplacementPlan(planSelect.dataset.selectReplacementPlan);
+      return;
+    }
+    const planUnselect = event.target.closest('[data-unselect-replacement-plan]');
+    if (planUnselect) {
+      unselectReplacementPlan(planUnselect.dataset.unselectReplacementPlan);
+      return;
+    }
+    const planDelete = event.target.closest('[data-delete-replacement-plan]');
+    if (planDelete) {
+      deleteReplacementPlan(planDelete.dataset.deleteReplacementPlan);
+      return;
+    }
     const replacementRemove = event.target.closest('[data-remove-replacement-plan]');
     if (replacementRemove) {
       removeReplacementPlan(replacementRemove.dataset.removeReplacementPlan);
@@ -6574,6 +6706,21 @@ document.addEventListener('keydown', (event) => {
 });
 
 els.mobileOrderList.addEventListener('click', (event) => {
+  const planSelect = event.target.closest('[data-select-replacement-plan]');
+  if (planSelect) {
+    selectReplacementPlan(planSelect.dataset.selectReplacementPlan);
+    return;
+  }
+  const planUnselect = event.target.closest('[data-unselect-replacement-plan]');
+  if (planUnselect) {
+    unselectReplacementPlan(planUnselect.dataset.unselectReplacementPlan);
+    return;
+  }
+  const planDelete = event.target.closest('[data-delete-replacement-plan]');
+  if (planDelete) {
+    deleteReplacementPlan(planDelete.dataset.deleteReplacementPlan);
+    return;
+  }
   const replacementRemove = event.target.closest('[data-remove-replacement-plan]');
   if (replacementRemove) {
     removeReplacementPlan(replacementRemove.dataset.removeReplacementPlan);
