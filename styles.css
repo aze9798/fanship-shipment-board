@@ -469,7 +469,7 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
   position: fixed;
   left: 10px;
   right: 10px;
-  bottom: 80px;
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   z-index: 60;
   margin: 0;
   padding: 10px 12px;
