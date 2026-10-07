@@ -306,6 +306,7 @@ let photoCaptureTarget = null;
 let photoPendingDataUrl = '';
 let photoCandidateRows = [];
 let photoSelectedMaterials = new Map();
+let photoUnitQuantities = new Map();
 let sampleApprovalCandidates = [];
 let sampleApprovalSelectedIndex = -1;
 let sampleApprovalPreviewRows = [];
@@ -453,7 +454,7 @@ function loadingItems(orderRows, options = {}) {
     })) : [];
   const unitItems = includeReplacements ? shipmentUnits().filter((unit) => String(unit.status || 'ready') !== 'shipped').map((unit, index) => ({
     kind: 'unit',
-    dueDate: String(unit.deliveryDate || '').trim() || defaultReplacementDueDate(),
+    dueDate: unitDisplayDate(unit),
     rank: 1.5,
     material: String(unit.members?.[0]?.material || unit.unitId || ''),
     name: String(unit.label || '装车单元'),
@@ -573,6 +574,15 @@ function renderPhotoArchive() {
 function openPhotoArchive() { renderPhotoArchive(); if (els.photoArchiveModal) els.photoArchiveModal.hidden = false; }
 function closePhotoArchive() { if (els.photoArchiveModal) els.photoArchiveModal.hidden = true; }
 
+function renderPhotoUnitQtyList() {
+  if (!els.photoUnitQtyList) return;
+  const selected = [...photoSelectedMaterials.values()];
+  els.photoUnitQtyList.innerHTML = selected.map((row) => {
+    const key = photoMaterialKey(row);
+    const value = photoUnitQuantities.get(key);
+    return `<label class="photo-unit-qty-row"><span><strong>${escapeHtml(row.material || '')}</strong><small>${escapeHtml(photoCandidateStatsText(row))}</small></span><input type="number" min="0" step="1" inputmode="numeric" value="${value || ''}" placeholder="本框数量" data-photo-unit-qty="${encodeURIComponent(key)}"></label>`;
+  }).join('') || '<div class="photo-unit-qty-empty">选择物料后填写本框/托盘总数量</div>';
+}
 function renderPhotoMaterialList() {
   if (!els.photoMaterialList) return;
   const query = String(els.photoMaterialSearch?.value || '').trim();
@@ -587,6 +597,7 @@ function renderPhotoMaterialList() {
     return `<button type="button" class="photo-material-option${selected ? ' selected' : ''}${locked ? ' locked' : ''}" data-photo-candidate="${index}"${locked ? ' disabled' : ''}><span><strong>${escapeHtml(row.material)}</strong><small>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</small><small class="photo-candidate-stats">${escapeHtml(stats)}</small></span><b>${locked ? '已留档' : (selected ? '已关联' : '关联')}</b></button>`;
   }).join('');
   els.photoMaterialList.innerHTML = `<div class="photo-selected-summary">已关联：${escapeHtml(selectedText)}</div>${options || '<div class="empty-state"><strong>没有找到物料</strong><span>换个搜索词试试。</span></div>'}`;
+  renderPhotoUnitQtyList();
 }function photoDateKey(row) {
   return String(row?.meta?.deliveryDate || row?.deliveryDate || row?.capturedAt || row?.createdAt || '').slice(0, 10);
 }
@@ -706,6 +717,7 @@ function openPhotoCapture(target, options = {}) {
   if (!target || !els.photoCaptureModal) return;
   photoCaptureTarget = target;
   photoPendingDataUrl = '';
+  photoUnitQuantities = new Map();
   photoRetakeMode = Boolean(options.retake);
   photoUnitContext = options.unit || null;
   if (photoRetakeMode && options.existingPhoto?.materials?.length) {
@@ -724,7 +736,7 @@ function openPhotoCapture(target, options = {}) {
   els.photoCaptureModal.hidden = false;
 }
 
-function closePhotoCapture() { if (els.photoCaptureModal) els.photoCaptureModal.hidden = true; photoRetakeMode = false; photoRetakeAllowedKeys = new Set(); photoUnitContext = null; }
+function closePhotoCapture() { if (els.photoCaptureModal) els.photoCaptureModal.hidden = true; photoRetakeMode = false; photoRetakeAllowedKeys = new Set(); photoUnitContext = null; photoUnitQuantities = new Map(); }
 
 function compressPhotoFile(file) {
   return new Promise((resolve, reject) => {
@@ -770,7 +782,7 @@ async function savePhotoCapture() {
       await persistUnit({ ...unitContext, photoFileNames: [...(unitContext.photoFileNames || []), fileName], status: 'ready' });
       unitUpdated = true;
     } else if (uploaded && materials.length > 1) {
-      await createUnitFromPhoto(photoId, materials, fileName);
+      await createUnitFromPhoto(photoId, materials, fileName, photoUnitQuantities);
       unitUpdated = true;
     }
     closePhotoCapture();
@@ -921,18 +933,25 @@ async function updateShipmentUnit(unit, patch = {}) {
   return updated;
 }
 
-function buildUnitMembers(materials) {
-  const wanted = (materials || []).map((row) => {
-    const dates = new Set([row.dueDate, row.deliveryDate, ...(Array.isArray(row.dueDates) ? row.dueDates : [])].map((value) => String(value || '').trim()).filter(Boolean));
-    return { material: String(row.material || '').trim(), dates };
-  }).filter((item) => item.material);
+function unitCandidateOrders(row) {
+  const material = String(row?.material || '').trim();
+  const spec = String(row?.spec || '').trim();
+  return (snapshot?.orders || [])
+    .filter((order) => Number(order.remaining || 0) > 0
+      && String(order.material || '').trim() === material
+      && (!spec || String(order.spec || '').trim() === spec))
+    .sort((left, right) => String(left.dueDate || '9999-12-31').localeCompare(String(right.dueDate || '9999-12-31'))
+      || Number(left.seq || 0) - Number(right.seq || 0));
+}
+
+function allocateUnitMember(row, totalQuantity) {
+  let remainingToAllocate = Math.max(0, Number(totalQuantity || 0));
   const members = [];
-  for (const order of (snapshot?.orders || [])) {
-    if (!(Number(order.remaining || 0) > 0)) continue;
-    const orderMaterial = String(order.material || '').trim();
-    const orderDate = String(order.dueDate || '').trim();
-    const matched = wanted.some((item) => item.material === orderMaterial && (!item.dates.size || item.dates.has(orderDate)));
-    if (!matched) continue;
+  for (const order of unitCandidateOrders(row)) {
+    if (remainingToAllocate <= 0) break;
+    const available = Number(order.remaining || 0);
+    const quantity = Math.min(available, remainingToAllocate);
+    if (quantity <= 0) continue;
     members.push({
       orderId: String(order.id || ''),
       po: order.po || '',
@@ -940,16 +959,44 @@ function buildUnitMembers(materials) {
       material: order.material || '',
       name: order.name || '',
       spec: order.spec || '',
-      dueDate: orderDate,
-      quantity: Number(order.remaining || 0),
+      dueDate: String(order.dueDate || ''),
+      quantity,
       unit: '件',
     });
+    remainingToAllocate -= quantity;
   }
   return members;
 }
 
-function buildUnitMeta(unitId, materials, photoFileName) {
-  const members = buildUnitMembers(materials);
+function buildUnitMembers(materials, quantities = new Map()) {
+  const explicit = quantities instanceof Map && quantities.size > 0;
+  const members = [];
+  for (const row of (materials || [])) {
+    const key = photoMaterialKey(row);
+    const explicitQuantity = Number((quantities instanceof Map ? quantities.get(key) : 0) || 0);
+    if (explicit) {
+      if (explicitQuantity > 0) members.push(...allocateUnitMember(row, explicitQuantity));
+      continue;
+    }
+    for (const order of unitCandidateOrders(row)) {
+      members.push({
+        orderId: String(order.id || ''),
+        po: order.po || '',
+        seq: order.seq || '',
+        material: order.material || '',
+        name: order.name || '',
+        spec: order.spec || '',
+        dueDate: String(order.dueDate || ''),
+        quantity: Number(order.remaining || 0),
+        unit: '件',
+      });
+    }
+  }
+  return members;
+}
+
+function buildUnitMeta(unitId, materials, photoFileName, quantities = new Map()) {
+  const members = buildUnitMembers(materials, quantities);
   return {
     unitId,
     label: '装车单元',
@@ -964,12 +1011,18 @@ function buildUnitMeta(unitId, materials, photoFileName) {
   };
 }
 
-async function createUnitFromPhoto(unitId, materials, photoFileName) {
-  if (!materials || materials.length < 2) return null;
-  const unit = buildUnitMeta(unitId, materials, photoFileName);
+async function createUnitFromPhoto(unitId, materials, photoFileName, quantities = new Map()) {
+  const members = buildUnitMembers(materials, quantities);
+  const explicit = quantities instanceof Map && quantities.size > 0;
+  if (!materials || !members.length || (!explicit && materials.length < 2)) return null;
+  const unit = buildUnitMeta(unitId, materials, photoFileName, quantities);
   const fileName = 'unit-' + currentDeliveryDate().replace(/-/g, '') + '-' + unitId + '.json';
   return persistUnit({ ...unit, fileName });
+}function unitDisplayDate(unit) {
+  const dates = (unit.members || []).map((member) => String(member.dueDate || '').trim()).filter(Boolean).sort();
+  return dates[0] || String(unit.deliveryDate || '').trim() || currentDeliveryDate();
 }
+
 function unitCardHtml(unit, index) {
   const photo = unitPhoto(unit);
   const status = unit.status || 'ready';
@@ -989,7 +1042,7 @@ function unitCardHtml(unit, index) {
     <div class="unit-card-head">
       <div>
         <div class="order-name-line"><strong>${escapeHtml(unit.label || '装车单元')}</strong><span class="unit-status ${escapeHtml(status)}">${escapeHtml(unitStatusText(unit))}</span></div>
-        <span class="mono">交期 ${escapeHtml(formatDate(unit.deliveryDate || ''))} · ${members.length} 项物料</span>
+        <span class="mono">交期 ${escapeHtml(formatDate(unitDisplayDate(unit)))} · ${members.length} 项物料</span>
       </div>
       ${photo ? `<button type="button" class="unit-photo-button" data-unit-view-photo="${escapeHtml(unit.unitId)}">现场照片</button>` : '<span class="unit-photo-button empty">无照片</span>'}
     </div>
@@ -1356,6 +1409,7 @@ const els = {
   photoNote: $('#photoNote'),
   photoMaterialSearch: $('#photoMaterialSearch'),
   photoMaterialList: $('#photoMaterialList'),
+  photoUnitQtyList: $('#photoUnitQtyList'),
   photoSave: $('#photoSave'),
   photoArchiveModal: $('#photoArchiveModal'),
   photoArchiveClose: $('#photoArchiveClose'),
@@ -7226,6 +7280,14 @@ if (els.photoFile) els.photoFile.addEventListener('change', async (event) => {
   }
 });
 if (els.photoMaterialSearch) els.photoMaterialSearch.addEventListener('input', renderPhotoMaterialList);
+if (els.photoUnitQtyList) els.photoUnitQtyList.addEventListener('input', (event) => {
+  const input = event.target.closest('[data-photo-unit-qty]');
+  if (!input) return;
+  const key = decodeURIComponent(input.dataset.photoUnitQty || '');
+  const value = Number(input.value);
+  if (Number.isFinite(value) && value > 0) photoUnitQuantities.set(key, value);
+  else photoUnitQuantities.delete(key);
+});
 if (els.photoMaterialList) els.photoMaterialList.addEventListener('click', (event) => {
   const button = event.target.closest('[data-photo-candidate]');
   if (!button) return;
