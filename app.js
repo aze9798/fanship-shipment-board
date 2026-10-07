@@ -760,6 +760,8 @@ function filteredOrders(filter) {
   const active = snapshot.orders.filter((order) => order.remaining > 0);
   if (filter === 'urgent') return active.filter((order) => order.dueDate <= TODAY);
   if (filter === 'dueToday') return active.filter((order) => order.dueDate === TODAY);
+  // 试制 / 承样订单（工装订单请用「全部未交」查看）
+  if (filter === 'special') return active.filter((order) => ['trial', 'sample'].includes(String(order.orderType || '')));
   if (filter === 'overdue') return active.filter((order) => order.dueDate < TODAY);
   if (filter === 'partial') return active.filter((order) => order.shipped > 0);
   return active;
