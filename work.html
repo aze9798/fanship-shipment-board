@@ -23,8 +23,20 @@
     .error{margin-top:10px;padding:10px 12px;border-radius:10px;background:#fff1f0;color:var(--danger);font-size:12px}
     .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.top h1{margin:0;font-size:26px}.top>div{display:flex;flex-direction:column;align-items:center}.top p{margin:4px 0 0;color:var(--muted);font-size:14px}.logout{border:0;background:transparent;color:var(--muted);font-size:12px}
     .tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:5px;background:#e3eeec;border-radius:14px;margin-bottom:12px}.tabs button{border:0;border-radius:10px;background:transparent;color:#5e747a;min-height:42px;font-weight:800}.tabs button.active{background:#fff;color:var(--primary);box-shadow:0 4px 12px rgba(36,92,88,.1)}
+    .active-timer-banner{position:sticky;top:8px;z-index:40;display:flex;align-items:center;gap:8px;margin:0 0 12px;padding:11px 13px;border-radius:14px;background:linear-gradient(135deg,#f97316,#dc2626);color:#fff;box-shadow:0 10px 24px rgba(220,38,38,.24);font-weight:900}
+    .active-timer-banner .active-timer-dot{width:10px;height:10px;border-radius:50%;background:#fff;box-shadow:0 0 0 5px rgba(255,255,255,.22);animation:activeTimerDot 1.25s ease-in-out infinite;flex:0 0 auto}
+    .active-timer-banner strong{font-size:14px}.active-timer-banner #activeTimerElapsed{margin-left:auto;font-size:20px;letter-spacing:.04em}.active-timer-banner small{font-size:11px;opacity:.9;white-space:nowrap}
+    @keyframes activeTimerDot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.35);opacity:.72}}
+    @media(max-width:520px){.active-timer-banner{flex-wrap:wrap}.active-timer-banner small{width:100%;margin-left:18px}}
     .section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}.section-head h2{margin:0;font-size:20px}.section-head p{margin:4px 0 0;color:var(--muted);font-size:11px}
-    .clock-card{background:linear-gradient(145deg,#0c6f68,#0c8b7f);color:#fff;border:0}
+    .clock-card{background:linear-gradient(145deg,#0c6f68,#0c8b7f);color:#fff;border:0;transition:background .35s ease,box-shadow .35s ease}
+    .clock-card.is-running{background:linear-gradient(145deg,#f97316,#dc2626);box-shadow:0 14px 30px rgba(220,38,38,.3);animation:activeTimerPulse 2.1s ease-in-out infinite}
+    .clock-card.is-running .clock-label{font-size:13px;font-weight:900;letter-spacing:.06em;opacity:1}
+    .clock-card.is-running .clock-time{font-size:48px;text-shadow:0 2px 10px rgba(120,53,15,.22)}
+    .clock-card.is-running .clock-note{font-size:12px;opacity:1}
+    .clock-card.is-running .clock-action{background:#fff;border-color:#fff;color:#c2410c;font-weight:900}
+    .clock-card.is-running .clock-action .ca-text::before{content:"■";font-size:11px;margin-right:7px;vertical-align:2px}
+    @keyframes activeTimerPulse{0%,100%{box-shadow:0 14px 30px rgba(220,38,38,.28)}50%{box-shadow:0 14px 36px rgba(249,115,22,.5)}}
   .special-time{border:1px solid #f0d9a8;background:#fffaf0}
   .special-time-hint{margin:0 0 8px;color:#8a6b22;font-size:12px;line-height:1.5}
   .special-time-check{display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;color:#76520f;font-size:13px;font-weight:800;line-height:1.45}
@@ -191,6 +203,9 @@
   </section>
   <section id="mainView" class="hidden">
     <div class="top"><div><h1 id="employeeName">员工</h1><p id="employeeMeta"></p></div></div>
+    <div id="activeTimerBanner" class="active-timer-banner hidden" role="status" aria-live="polite">
+      <span class="active-timer-dot" aria-hidden="true"></span><strong>计时进行中</strong><span id="activeTimerElapsed">00:00</span><small id="activeTimerSince"></small>
+    </div>
     <div class="tabs"><button class="active" data-tab="time" data-piece-tab>计时</button><button data-tab="piece" data-piece-tab>计件</button><button data-tab="salary">工资</button><button data-tab="attendance">考勤</button></div>
     <section id="timePanel">
       <div id="sessionBetaCard" class="card session-beta hidden">
@@ -510,10 +525,18 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
   }
   function renderTime() {
     const active = Boolean(state?.activeEntry);
-    $('clockLabel').textContent = active ? '正在计时' : '当前未计时';
-    $('clockTime').textContent = currentElapsedText();
+    const elapsed = currentElapsedText();
+    $('clockLabel').textContent = active ? '计时中 · 已开始' : '当前未计时';
+    $('clockTime').textContent = elapsed;
+    const banner = $('activeTimerBanner');
+    banner.classList.toggle('hidden', !active);
+    if (active) {
+      $('activeTimerElapsed').textContent = elapsed;
+      $('activeTimerSince').textContent = `开始 ${fmtClock(state.activeEntry.startedAt)}`;
+    }
+    $('normalClockCard').classList.toggle('is-running', active);
     const note = $('clockNote');
-    note.textContent = active ? `开始于 ${fmtClock(state.activeEntry.startedAt)}` : '';
+    note.textContent = active ? `已从 ${fmtClock(state.activeEntry.startedAt)} 开始计时，请勿重复点击开始` : '';
     note.hidden = !active;
     const btn = $('clockAction');
     if (!btn.classList.contains('is-loading') && !btn.classList.contains('is-success') && !btn.classList.contains('is-result')) {
@@ -1310,7 +1333,7 @@ function renderPiece() {
       } else {
         pendingSpecialEntry = '';
         renderSpecialPanel();
-        toast(active ? '本次计时已结束' : '计时已开始');
+        toast(active ? '本次计时已结束' : '计时已开始，页面已切换为橙色计时状态');
       }
       if (active) {
         const clock = (v) => fmtClock(v);
@@ -1320,6 +1343,7 @@ function renderPiece() {
         finishClockMorph(btn, text);
       } else {
         btn.disabled = false;
+        navigator.vibrate?.(120);
       }
     } catch (e) {
       resetClockMorph(btn);
@@ -2074,7 +2098,14 @@ function variantDisplay(processName, value) {
   $('requestSubmit').addEventListener('click', submitRequest);
   $('requestModal').addEventListener('click', (e) => { if (e.target === $('requestModal')) closeRequestModal(); });
   $('pieceSubmit').addEventListener('click', submitPiece);
-  setInterval(() => { if (SESSION_BETA) renderBetaSession(); else if (state?.activeEntry) $('clockTime').textContent = currentElapsedText(); }, 1000);
+  setInterval(() => {
+    if (SESSION_BETA) renderBetaSession();
+    else if (state?.activeEntry) {
+      const elapsed = currentElapsedText();
+      $('clockTime').textContent = elapsed;
+      if ($('activeTimerElapsed')) $('activeTimerElapsed').textContent = elapsed;
+    }
+  }, 1000);
   setInterval(() => { if (code && state) loadState().catch(() => {}); }, 30000);
   const urlCode = new URLSearchParams(location.search).get('code');
   const stored = storedEmployeeCode();
