@@ -310,6 +310,7 @@ const UNIT_FILE_KIND = 'SHIPMENT_UNIT';
 const sessionReplacements = [];
 const sessionPhotos = [];
 let replacementPick = null;
+let replacementSuggestRows = [];
 let photoCaptureTarget = null;
 let photoPendingDataUrl = '';
 let photoCandidateRows = [];
@@ -351,41 +352,59 @@ function replacementProducts(queryText) {
     const material = String(row.material || '').trim();
     if (!material) return;
     const spec = String(row.spec || '').trim();
-    const key = material + '|' + spec;
-    const current = map.get(key) || {};
+    const orderId = String(row.orderId || row.id || '').trim();
+    const po = String(row.po || '').trim();
+    const seq = String(row.seq ?? '').trim();
+    const customer = String(row.customer || '').trim();
+    const key = [material, spec, orderId, po, seq, customer].join('\u0000');
+    if (map.has(key)) return;
     map.set(key, {
-      material: current.material || material,
-      name: current.name || String(row.name || '').trim(),
-      spec: current.spec || spec,
-      customer: current.customer || String(row.customer || '').trim(),
+      material,
+      name: String(row.name || '').trim(),
+      spec,
+      customer,
+      orderId,
+      po,
+      seq,
+      orderType: String(row.orderType || 'normal'),
+      remaining: Number(row.remaining || 0),
+      dueDate: String(row.dueDate || row.deliveryDate || '').trim(),
+      source: String(row.source || '').trim(),
     });
   };
 
-  // 补发不只针对未交订单，系统里所有历史订单、发货、无订单发货和补发记录都纳入检索。
+  // 优先保留订单明细，补发时才能把采购单号、项次一起带到送货单。
   for (const order of (snapshot?.orders || [])) {
     orderById.set(String(order.id || ''), order);
-    put(order);
+    put({ ...order, source: 'order' });
   }
   for (const shipment of (snapshot?.shipments || [])) {
     for (const item of (shipment.items || [])) {
-      const order = orderById.get(String(item.orderId || ''));
+      if (orderById.has(String(item.orderId || ''))) continue;
       put({
+        orderId: item.orderId,
         material: item.material,
-        name: item.name || order?.name,
-        spec: item.spec || order?.spec,
-        customer: shipment.customer || order?.customer,
+        name: item.name,
+        spec: item.spec,
+        customer: shipment.customer,
+        source: 'shipment',
       });
     }
   }
-  for (const row of (snapshot?.overDeliveries || [])) put(row);
-  for (const row of (snapshot?.overOffsets || [])) put(row);
-  for (const row of (snapshot?.replacements || [])) put(row);
+  for (const row of (snapshot?.overDeliveries || [])) put({ ...row, source: 'over' });
+  for (const row of (snapshot?.overOffsets || [])) put({ ...row, source: 'offset' });
+  for (const row of (snapshot?.replacements || [])) put({ ...row, source: 'replacement' });
 
   const rows = [...map.values()].sort((a, b) =>
-    String(a.material || '').localeCompare(String(b.material || ''), 'zh-CN')
-    || String(a.spec || '').localeCompare(String(b.spec || ''), 'zh-CN'));
-  if (!query) return rows.slice(0, 20);
-  return rows.filter((row) => [row.material, row.name, row.spec].join(' ').toLowerCase().includes(query)).slice(0, 50);
+    Number(b.remaining > 0) - Number(a.remaining > 0)
+    || String(a.dueDate || '9999-12-31').localeCompare(String(b.dueDate || '9999-12-31'))
+    || String(a.material || '').localeCompare(String(b.material || ''), 'zh-CN')
+    || String(a.spec || '').localeCompare(String(b.spec || ''), 'zh-CN')
+    || String(a.po || '').localeCompare(String(b.po || ''), 'zh-CN')
+    || Number(a.seq || 0) - Number(b.seq || 0));
+  if (!query) return rows.slice(0, 30);
+  return rows.filter((row) => [row.material, row.name, row.spec, row.po, row.seq, row.customer]
+    .some((value) => String(value ?? '').toLowerCase().includes(query))).slice(0, 50);
 }
 
 function currentDeliveryDate() {
@@ -511,6 +530,9 @@ function selectReplacementPlan(planId) {
   if (sessionReplacements.some((item) => String(item.planId) === String(planId))) return;
   sessionReplacements.push({
     planId: String(plan.id),
+    orderId: String(plan.orderId || ''),
+    po: String(plan.po || ''),
+    seq: String(plan.seq ?? ''),
     material: plan.material || '',
     name: plan.name || '',
     spec: plan.spec || '',
@@ -1142,11 +1164,16 @@ async function markLoadedUnitsShipped(shipmentId) {
 function renderReplacementSuggest() {
   if (!els.replacementSuggest || !els.replacementSearch) return;
   const rows = replacementProducts(els.replacementSearch.value);
+  replacementSuggestRows = rows;
   if (!rows.length) { els.replacementSuggest.hidden = true; els.replacementSuggest.innerHTML = ''; return; }
-  els.replacementSuggest.innerHTML = rows.map((row) => `<button type="button" class="suggest-item" data-replacement-pick="${escapeHtml([row.material, row.name, row.spec, row.customer].join('|'))}">
-      <strong>${escapeHtml(row.material)}</strong>
-      <span>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</span>
-    </button>`).join('');
+  els.replacementSuggest.innerHTML = rows.map((row, index) => {
+    const orderText = row.po ? row.po + ' · 项次 ' + (row.seq || '—') : '';
+    const detail = [orderText, row.name || '', row.spec || ''].filter(Boolean).join(' · ');
+    return '<button type="button" class="suggest-item" data-replacement-index="' + index + '">'
+      + '<strong>' + escapeHtml(row.material) + '</strong>'
+      + '<span>' + escapeHtml(detail) + '</span>'
+      + '</button>';
+  }).join('');
   els.replacementSuggest.hidden = false;
 }
 
@@ -1156,7 +1183,8 @@ function renderReplacementPicked() {
   els.replacementPicked.hidden = false;
   els.replacementPicked.innerHTML = `已选：<b>${escapeHtml(replacementPick.material)}</b> ${escapeHtml(replacementPick.name || '')}`
     + `${replacementPick.spec ? ' · ' + escapeHtml(replacementPick.spec) : ''}`
-    + `${replacementPick.customer ? `（${escapeHtml(replacementPick.customer)}）` : ''}`;
+    + `${replacementPick.po ? ' · ' + escapeHtml(replacementPick.po) + ' 项次 ' + escapeHtml(replacementPick.seq || '—') : ''}`
+    + `${replacementPick.customer ? '（' + escapeHtml(replacementPick.customer) + '）' : ''}`;
 }
 
 async function addReplacement() {
@@ -1173,6 +1201,9 @@ async function addReplacement() {
       p_payload: {
         date: dueDate,
         customer: '4137',
+        orderId: replacementPick.orderId || '',
+        po: replacementPick.po || '',
+        seq: replacementPick.seq || '',
         material: replacementPick.material,
         name: replacementPick.name || '',
         spec: replacementPick.spec || '',
@@ -2741,6 +2772,9 @@ function replacementPlanRemainingRows() {
     orderType: 'normal',
     isReplacementPlan: true,
     replacementPlanId: String(plan.id || ''),
+    orderId: String(plan.orderId || ''),
+    po: String(plan.po || ''),
+    seq: String(plan.seq ?? ''),
     remark: replacementPlanNote(plan),
     createdAt: String(plan.createdAt || ''),
   })).filter((row) => row.remaining > 0 && row.material);
@@ -5135,6 +5169,7 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
       <div class="order-title">
         <div class="order-name-line"><strong>${escapeHtml(name || plan.material || '补发物料')}</strong><span class="replacement-plan-tag">补发</span>${drawingButton}<span class="replacement-plan-state">${selected ? '已加入本次装车' : '待装车'}</span></div>
         <span class="mono">${escapeHtml(plan.material || '')}${plan.spec ? ' · ' + escapeHtml(plan.spec) : ''}</span>
+        ${plan.po ? `<span>${escapeHtml(plan.po)} · 项次 ${escapeHtml(plan.seq || '—')}</span>` : ''}
         <span>补发交期 ${escapeHtml(formatDate(dueDate))} · 4137</span>
       </div>
     </div>
@@ -6737,6 +6772,9 @@ async function submitShipment() {
           p_payload: {
             date: item.dueDate || defaultReplacementDueDate(),
             customer: '4137',
+            orderId: item.orderId || '',
+            po: item.po || '',
+            seq: item.seq || '',
             material: item.material,
             name: item.name,
             spec: item.spec,
@@ -7464,8 +7502,10 @@ if (els.replacementSearch) els.replacementSearch.addEventListener('focus', rende
 if (els.replacementSuggest) els.replacementSuggest.addEventListener('click', (event) => {
   const button = event.target.closest('[data-replacement-pick]');
   if (!button) return;
-  const [material, name, spec, customer] = button.dataset.replacementPick.split('|');
-  replacementPick = { material, name, spec, customer };
+  const index = Number(button.dataset.replacementIndex);
+  const picked = replacementSuggestRows[index];
+  if (!picked) return;
+  replacementPick = { ...picked };
   els.replacementSuggest.hidden = true;
   els.replacementSearch.value = '';
   renderReplacementPicked();
