@@ -3434,3 +3434,22 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
   .delivery-name-cell { display: block; }
   .shipment-photo-btn { display: inline-flex; align-items: center; margin: 6px 0 0; }
 }
+/* ===== 查询页搜索结果：按发货日期汇总，点开看明细 ===== */
+.search-date-card { padding: 0; overflow: hidden; }
+.search-date-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 14px 16px; cursor: pointer; }
+.search-date-main { min-width: 0; }
+.search-date-main strong { display: block; font-size: 16px; font-weight: 800; color: #17333b; }
+.search-date-main span { display: block; margin-top: 3px; color: #8d9ca1; font-size: 11px; }
+.search-date-stats { display: flex; align-items: center; gap: 8px; }
+.search-date-stats strong { color: #0f5f59; font-size: 14px; font-weight: 800; white-space: nowrap; }
+.search-date-toggle { color: #60747a; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.search-date-detail { border-top: 1px dashed #dfe6e8; padding: 0 14px 12px; }
+.search-date-card .delivery-lines { margin-top: 0; border-top: 0; }
+@media (max-width: 900px) {
+  .search-date-head { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 8px; }
+  .search-date-main { grid-column: 1; }
+  .search-date-toggle { grid-column: 2; grid-row: 1; }
+  .search-date-stats { grid-column: 1 / -1; grid-row: 2; justify-content: space-between; }
+  .search-date-stats strong { font-size: 15px; }
+  .search-date-detail { padding: 0 10px 10px; }
+}

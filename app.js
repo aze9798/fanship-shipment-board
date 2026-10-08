@@ -695,20 +695,35 @@ function photosForShipmentLine(item) {
   const itemOrderId = String(item?.orderId || '').trim();
   const itemPlanId = String(item?.planId || '').trim();
   const itemSpec = String(item?.spec || '').trim();
+  const itemDate = shipShanghaiDate(item?.shippedAt || item?.createdAt || item?.deliveryDate || '');
   const matches = new Map();
   for (const row of photoArchiveRows()) {
     const key = photoRowKey(row);
     if (!key) continue;
     const rowShipmentId = String(row.shipmentId || '').trim();
+    const rowDate = shipShanghaiDate(photoDateKey(row));
+    const sameDate = !itemDate || !rowDate || itemDate === rowDate;
     for (const photoMaterial of (row.materials || [])) {
       if (String(photoMaterial.material || '').trim() !== material) continue;
       const photoSpec = String(photoMaterial.spec || '').trim();
       if (photoSpec && itemSpec && photoSpec !== itemSpec) continue;
-      let score = 30;
-      if (rowShipmentId && shipmentId && rowShipmentId === shipmentId) score = 100;
-      else if (itemOrderId && String(photoMaterial.orderId || '').trim() === itemOrderId) score = 80;
-      else if (itemPlanId && String(photoMaterial.planId || '').trim() === itemPlanId) score = 80;
-      else if (photoSpec && itemSpec) score = 60;
+      let score = 0;
+      if (rowShipmentId && shipmentId) {
+        if (rowShipmentId !== shipmentId) continue;
+        score = 100;
+      } else if (itemOrderId && String(photoMaterial.orderId || '').trim() === itemOrderId) {
+        if (!sameDate) continue;
+        score = 80;
+      } else if (itemPlanId && String(photoMaterial.planId || '').trim() === itemPlanId) {
+        if (!sameDate) continue;
+        score = 80;
+      } else if (photoSpec && itemSpec) {
+        if (!sameDate) continue;
+        score = 60;
+      } else {
+        if (!sameDate) continue;
+        score = 30;
+      }
       const current = matches.get(key);
       if (!current || score > current.score) matches.set(key, { row, score });
     }
@@ -5429,6 +5444,22 @@ function deliveryStampText(value) {
   if (!text) return '—';
   return text.replace('T', ' ').slice(0, 10);
 }
+function mergedDeliveryTableHtml(rows) {
+  return `<div class="delivery-lines merged">
+        <div class="delivery-lines-head"><span>采购单号<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="0" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span>料件编号<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="1" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span>品名<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="2" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">发货数量<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="3" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">项次<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="4" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">未交<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="5" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="ship-batch-head">送货单编号<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="6" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="ship-date-head">发货日期<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="7" role="separator" title="拖动调整列宽，双击恢复默认"></i></span></div>
+        ${rows.map((item) => `<div class="delivery-line">
+          <span data-label="采购单号">${escapeHtml(item.po)}${item.typeLabel ? ` <em>${escapeHtml(item.typeLabel)}</em>` : ''}</span>
+          <span data-label="料件编号">${escapeHtml(item.material)}</span>
+          <span data-label="品名"><span class="delivery-name-cell">${escapeHtml(item.name)}${item.spec ? ` · ${escapeHtml(item.spec)}` : ''}${item.remark ? `<small>备注：${escapeHtml(item.remark)}</small>` : ''}</span></span>
+          <strong data-label="发货数量" class="number"><span class="qty-value-with-edit">${fmt(item.quantity)} 件${qtyEditButtonHtml(item, item.billed)}</span></strong>
+          <span data-label="项次" class="number">${escapeHtml(item.seq)}</span>
+          <span data-label="未交" class="number">${escapeHtml(deliveryRemainingText(item.remaining, item.hasOrder))}</span>
+          <span data-label="送货单编号" class="ship-batch">${escapeHtml(item.batch || '未开单')}</span>
+          <span data-label="发货日期" class="ship-date">${escapeHtml(deliveryStampText(item.shippedAt))}</span>
+        </div>`).join('')}
+      </div>`;
+}
+
 function renderMergedDeliveryRows(groups) {
   const unitHtml = unitHistoryHtml(groups.flatMap((group) => group.shipmentIds || []));
   const rows = [];
@@ -5437,28 +5468,118 @@ function renderMergedDeliveryRows(groups) {
   }
   if (!rows.length) return '<div class="empty-state"><strong>没有符合条件的发货记录</strong><span>可以搜索送货单号、采购单号、料件编号或品名。</span></div>';
   rows.sort((a, b) => String(b.shippedAt || '').localeCompare(String(a.shippedAt || '')));
-  return `<article class="history-card delivery-batch-card merged-card">
-      <div class="delivery-lines merged">
-        <div class="delivery-lines-head"><span>采购单号<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="0" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span>料件编号<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="1" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span>品名<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="2" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">发货数量<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="3" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">项次<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="4" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">未交<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="5" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="ship-batch-head">送货单编号<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="6" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="ship-date-head">发货日期<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="7" role="separator" title="拖动调整列宽，双击恢复默认"></i></span></div>
-        ${rows.map((item) => `<div class="delivery-line">
-          <span data-label="采购单号">${escapeHtml(item.po)}${item.typeLabel ? ` <em>${escapeHtml(item.typeLabel)}</em>` : ''}</span>
-          <span data-label="料件编号">${escapeHtml(item.material)}</span>
-          <span data-label="品名"><span class="delivery-name-cell">${escapeHtml(item.name)}${item.spec ? ` · ${escapeHtml(item.spec)}` : ''}${item.remark ? `<small>备注：${escapeHtml(item.remark)}</small>` : ''}${shipmentPhotoButtonHtml(item)}</span></span>
-          <strong data-label="发货数量" class="number"><span class="qty-value-with-edit">${fmt(item.quantity)} 件${qtyEditButtonHtml(item, item.billed)}</span></strong>
-          <span data-label="项次" class="number">${escapeHtml(item.seq)}</span>
-          <span data-label="未交" class="number">${escapeHtml(deliveryRemainingText(item.remaining, item.hasOrder))}</span>
-          <span data-label="送货单编号" class="ship-batch">${escapeHtml(item.batch || '未开单')}</span>
-          <span data-label="发货日期" class="ship-date">${escapeHtml(deliveryStampText(item.shippedAt))}</span>
-        </div>`).join('')}
+  return `<article class="history-card delivery-batch-card merged-card">${mergedDeliveryTableHtml(rows)}${unitHtml}</article>`;
+}
+
+function buildSearchDateGroups(groups) {
+  const map = new Map();
+  for (const group of groups) {
+    for (const item of group.items) {
+      const shippedAt = group.createdAt || '';
+      const date = shipShanghaiDate(shippedAt) || String(shippedAt).slice(0, 10) || '未知日期';
+      const row = { ...item, batch: group.batch || '', shippedAt, shipmentId: item.shipmentId || group.shipmentIds?.[0] || '', billed: Boolean(item.billed || group.billed) };
+      if (!map.has(date)) map.set(date, { date, rows: [], total: 0, batches: new Set(), shipmentIds: new Set() });
+      const bucket = map.get(date);
+      bucket.rows.push(row);
+      bucket.total += Number(row.quantity || 0);
+      if (row.batch) bucket.batches.add(String(row.batch));
+      if (row.shipmentId) bucket.shipmentIds.add(String(row.shipmentId));
+    }
+  }
+  return [...map.values()].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+}
+
+function dateGroupPhotos(group) {
+  const photos = [];
+  const seen = new Set();
+  for (const row of group.rows) {
+    for (const photo of photosForShipmentLine(row)) {
+      const key = photoRowKey(photo);
+      if (key && !seen.has(key)) { seen.add(key); photos.push(photo); }
+    }
+  }
+  return photos;
+}
+
+function searchExtraRows(queryText) {
+  const query = String(queryText || '').trim().toLowerCase();
+  if (!query) return [];
+  const rows = [];
+  const activeOverIds = new Set(overDeliveries().map((row) => String(row.id || '').trim()).filter(Boolean));
+  for (const row of overDeliveries()) {
+    const haystack = [row.material, row.name, row.spec, row.note, row.deliveryBatch, '无订单', '无订单发货'].join(' ').toLowerCase();
+    if (!haystack.includes(query)) continue;
+    rows.push({ source: 'over', po: '无', seq: '无', material: String(row.material || ''), name: String(row.name || ''), spec: String(row.spec || ''), quantity: Number(row.quantity || 0), remaining: 0, hasOrder: false, batch: String(row.deliveryBatch || ''), shippedAt: row.billedAt || row.createdAt || '', billed: isBilledExtra(row.id), typeLabel: '无订单', remark: '' });
+  }
+  for (const row of overOffsets()) {
+    const overId = String(row.overId || '').trim();
+    if (overId && activeOverIds.has(overId)) continue;
+    const haystack = [row.material, row.name, row.spec, row.orderId, '无订单', '无订单发货', '冲抵'].join(' ').toLowerCase();
+    if (!haystack.includes(query)) continue;
+    rows.push({ source: 'over-offset', po: '无', seq: '无', material: String(row.material || ''), name: String(row.name || ''), spec: String(row.spec || ''), quantity: Number(row.quantity || 0), remaining: 0, hasOrder: false, batch: '', shippedAt: row.deliveredAt || row.appliedAt || '', billed: true, typeLabel: '无订单', remark: '' });
+  }
+  for (const row of confirmedReplacements()) {
+    const haystack = [row.material, row.name, row.spec, row.remark, row.po, '补发'].join(' ').toLowerCase();
+    if (!haystack.includes(query)) continue;
+    rows.push({ source: 'replacement', po: row.po || '无', seq: row.seq || '无', material: String(row.material || ''), name: String(row.name || ''), spec: String(row.spec || ''), quantity: Number(row.quantity || 0), remaining: 0, hasOrder: false, batch: String(row.deliveryBatch || ''), shippedAt: row.deliveryDate || row.createdAt || '', billed: isBilledExtra(row.id), typeLabel: '补发', remark: row.remark || '' });
+  }
+  return rows;
+}
+
+function addSearchExtrasToDateGroups(dateGroups, queryText) {
+  const extras = searchExtraRows(queryText);
+  if (!extras.length) return;
+  const map = new Map(dateGroups.map((group) => [group.date, group]));
+  for (const row of extras) {
+    const date = shipShanghaiDate(row.shippedAt) || String(row.shippedAt).slice(0, 10) || '未知日期';
+    let bucket = map.get(date);
+    if (!bucket) {
+      bucket = { date, rows: [], total: 0, batches: new Set(), shipmentIds: new Set() };
+      map.set(date, bucket);
+      dateGroups.push(bucket);
+    }
+    bucket.rows.push(row);
+    bucket.total += Number(row.quantity || 0);
+    if (row.batch) bucket.batches.add(String(row.batch));
+  }
+  dateGroups.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+}
+
+function renderSearchByDate(groups, queryText = '') {
+  const dateGroups = buildSearchDateGroups(groups);
+  addSearchExtrasToDateGroups(dateGroups, queryText);
+  if (!dateGroups.length) return '<div class="empty-state"><strong>没有符合条件的发货记录</strong><span>可以搜索送货单号、采购单号、料件编号或品名。</span></div>';
+  return dateGroups.map((group) => {
+    const key = 'date:' + group.date;
+    const expanded = expandedShipments.has(key);
+    const photos = dateGroupPhotos(group);
+    const photoHtml = photos.length
+      ? `<button type="button" class="shipment-photo-btn" data-shipment-photo="${escapeHtml(photoRowKey(photos[0]))}">${photos.length > 1 ? `照片 ${photos.length}` : '照片'}</button>`
+      : '<span class="row-locked">未留档</span>';
+    const batchText = [...group.batches].filter(Boolean).join('、') || '未开单';
+    const rows = [...group.rows].sort((a, b) => String(a.batch || '').localeCompare(String(b.batch || '')) || String(a.po || '').localeCompare(String(b.po || '')) || Number(a.seq || 0) - Number(b.seq || 0));
+    return `<article class="history-card delivery-batch-card search-date-card">
+      <div class="search-date-head" data-date-card="${escapeHtml(key)}" role="button" tabindex="0">
+        <div class="search-date-main">
+          <strong>${escapeHtml(formatDate(group.date))}</strong>
+          <span>${escapeHtml(batchText)}</span>
+        </div>
+        <div class="search-date-stats">
+          <strong>${escapeHtml(fmt(group.total))} 件 · ${group.rows.length} 笔</strong>
+          ${photoHtml}
+        </div>
+        <span class="search-date-toggle">${expanded ? '收起明细' : '展开明细'}</span>
       </div>
-      ${unitHtml}</article>`;
+      ${expanded ? `<div class="search-date-detail">${mergedDeliveryTableHtml(rows)}</div>` : ''}
+    </article>`;
+  }).join('');
 }
 function renderShipmentSection(shipments, queryText = '') {
   const groups = buildDeliveryGroups(shipments, queryText);
-  // 按料件编号/品名搜索时合并成一张连续的表，方便纵向核对；
+  // 按料件编号/品名搜索时：先按发货日期汇总，点日期再展开订单/项次明细。
   // 按送货单号搜索时仍按送货单分卡展示，保留送货单标题和撤回入口。
   if (String(queryText || '').trim() && groups.length && groups.every((group) => group.searchMode)) {
-    return renderMergedDeliveryRows(groups);
+    return renderSearchByDate(groups, queryText);
   }
   return renderDeliveryGroups(groups);
 }function renderDesktopHistory() {
@@ -7905,6 +8026,15 @@ if (els.shipmentHistory) els.shipmentHistory.addEventListener('click', (event) =
 if (els.mobileRecordsPanel) els.mobileRecordsPanel.addEventListener('click', (event) => {
   const shipmentPhoto = event.target.closest('[data-shipment-photo]');
   if (shipmentPhoto) { openShipmentPhoto(shipmentPhoto.dataset.shipmentPhoto); return; }
+  const dateCard = event.target.closest('[data-date-card]');
+  if (dateCard) {
+    const key = dateCard.dataset.dateCard;
+    if (expandedShipments.has(key)) expandedShipments.delete(key);
+    else expandedShipments.add(key);
+    renderDesktopHistory();
+    renderMobileRecords();
+    return;
+  }
   const unitPhoto = event.target.closest('[data-unit-view-photo]');
   if (unitPhoto) { viewUnitPhoto(unitPhoto.dataset.unitViewPhoto); return; }
   const fileButton = event.target.closest('[data-file-id]');
@@ -8271,6 +8401,15 @@ if (els.historyToday) els.historyToday.addEventListener('click', () => {
 function handleHistoryClick(event) {
   const shipmentPhoto = event.target.closest('[data-shipment-photo]');
   if (shipmentPhoto) { openShipmentPhoto(shipmentPhoto.dataset.shipmentPhoto); return; }
+  const dateCard = event.target.closest('[data-date-card]');
+  if (dateCard) {
+    const key = dateCard.dataset.dateCard;
+    if (expandedShipments.has(key)) expandedShipments.delete(key);
+    else expandedShipments.add(key);
+    renderDesktopHistory();
+    renderMobileRecords();
+    return;
+  }
   const unitPhoto = event.target.closest('[data-unit-view-photo]');
   if (unitPhoto) { viewUnitPhoto(unitPhoto.dataset.unitViewPhoto); return; }
   const fileButton = event.target.closest('[data-file-id]');
