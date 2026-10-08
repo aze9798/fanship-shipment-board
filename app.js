@@ -980,8 +980,40 @@ function openLocalPhoto(row) {
   els.photoViewerMeta.textContent = photoMaterialsText(row) + (row.note ? ' · ' + row.note : '');
   if (els.photoViewerModal) els.photoViewerModal.hidden = false;
 }
+function unitIdentityKeys(unit) {
+  const keys = (unit?.members || []).map((member) => {
+    if (member.planId) return 'plan:' + String(member.planId);
+    if (member.orderId) return 'order:' + String(member.orderId);
+    return 'material:' + String(member.material || '') + '|' + String(member.dueDate || '');
+  }).filter(Boolean);
+  if (!keys.length && unit?.unitId) keys.push('unit:' + String(unit.unitId));
+  return keys;
+}
+
+function unitQualityScore(unit) {
+  const statusScore = unit?.status === 'ready' ? 30 : unit?.status === 'loaded' ? 25 : unit?.status === 'shipped' ? 10 : 0;
+  const stamp = Date.parse(String(unit?.updatedAt || unit?.createdAt || '')) || 0;
+  return (unit?.members || []).length * 100
+    + (unit?.photoFileNames || []).length * 40
+    + statusScore
+    + stamp / 1e13;
+}
+
+function dedupeShipmentUnits(units) {
+  const sorted = [...(units || [])].sort((left, right) => unitQualityScore(right) - unitQualityScore(left));
+  const used = new Set();
+  const result = [];
+  for (const unit of sorted) {
+    const keys = unitIdentityKeys(unit);
+    if (keys.some((key) => used.has(key))) continue;
+    keys.forEach((key) => used.add(key));
+    result.push(unit);
+  }
+  return result;
+}
+
 function shipmentUnits() {
-  return Array.isArray(snapshot?.shipmentUnits) ? snapshot.shipmentUnits : [];
+  return dedupeShipmentUnits(Array.isArray(snapshot?.shipmentUnits) ? snapshot.shipmentUnits : []);
 }
 
 function normalizeUnitRow(row) {
