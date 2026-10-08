@@ -5304,7 +5304,7 @@ function renderMergedDeliveryRows(groups) {
           <span data-label="发货日期" class="ship-date">${escapeHtml(deliveryStampText(item.shippedAt))}</span>
         </div>`).join('')}
       </div>
-      </article>`;
+      ${unitHtml}</article>`;
 }
 function renderShipmentSection(shipments, queryText = '') {
   const groups = buildDeliveryGroups(shipments, queryText);
@@ -5659,7 +5659,7 @@ function renderMobileRemaining() {
             <strong>${escapeHtml(remainingDateText(group.dates))}</strong>
           </div>
         </div>
-      ${unitHtml}</article>`;
+      </article>`;
     }).join('')}
     ${groups.length > visibleGroups.length ? `<button type="button" class="load-more-button" data-remaining-load-more>加载更多（还有 ${fmt(groups.length - visibleGroups.length)} 项）</button>` : ''}`;
 }
