@@ -3453,3 +3453,4 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
   .search-date-stats strong { font-size: 15px; }
   .search-date-detail { padding: 0 10px 10px; }
 }
+.desktop-offset-box { margin-bottom: 12px; }
