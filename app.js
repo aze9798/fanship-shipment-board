@@ -8642,8 +8642,10 @@ if (els.printHelperStatus) els.printHelperStatus.addEventListener('click', () =>
 if (els.mobilePrintHelperStatus) els.mobilePrintHelperStatus.addEventListener('click', () => void checkPrintHelper(true));
 if (els.taskStatusClose) els.taskStatusClose.addEventListener('click', clearTaskStatus);
 if (els.taskStatusAction) els.taskStatusAction.addEventListener('click', () => { if (taskStatusActionHandler) taskStatusActionHandler(); });
-void checkPrintHelper();
+if (document.body.dataset.view !== 'mobile') {
+  void checkPrintHelper();
 setInterval(() => { if (document.visibilityState === 'visible') void checkPrintHelper(); }, 60000);
+}
 syncMobileStickyOffsets();
 window.addEventListener('resize', syncMobileStickyOffsets);
 
