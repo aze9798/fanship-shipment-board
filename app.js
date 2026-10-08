@@ -831,11 +831,10 @@ async function savePhotoCapture() {
     const uploaded = result.response.ok;
     sessionPhotos.push({ id: result.data?.id || '', fileName, dataUrl: photoPendingDataUrl, materials, note, meta, capturedAt: meta.capturedAt, uploaded });
     let unitUpdated = false;
-    const hasReplacement = materials.some((row) => String(row?.sourceType || '') === 'replacement' || Boolean(row?.planId));
     if (uploaded && unitContext) {
-      await persistUnit({ ...unitContext, photoFileNames: [...(unitContext.photoFileNames || []), fileName], status: 'ready' });
-      unitUpdated = true;
-    } else if (uploaded && (materials.length > 1 || hasReplacement)) {
+      const nextMembers = buildUnitMembers(materials, photoUnitQuantities);
+      await persistUnit({ ...unitContext, members: nextMembers.length ? nextMembers : unitContext.members, photoFileNames: [fileName], status: 'ready' });
+    } else if (uploaded && materials.length > 1) {
       await createUnitFromPhoto(photoId, materials, fileName, photoUnitQuantities);
       unitUpdated = true;
     }
@@ -1136,8 +1135,7 @@ function buildUnitMeta(unitId, materials, photoFileName, quantities = new Map())
 async function createUnitFromPhoto(unitId, materials, photoFileName, quantities = new Map()) {
   const members = buildUnitMembers(materials, quantities);
   const explicit = quantities instanceof Map && quantities.size > 0;
-  const hasReplacement = (materials || []).some((row) => String(row?.sourceType || '') === 'replacement' || Boolean(row?.planId));
-  if (!materials || !members.length || (!explicit && materials.length < 2 && !hasReplacement)) return null;
+  if (!materials || !members.length || (!explicit && materials.length < 2)) return null;
   const unit = buildUnitMeta(unitId, materials, photoFileName, quantities);
   const fileName = 'unit-' + currentDeliveryDate().replace(/-/g, '') + '-' + unitId + '.json';
   return persistUnit({ ...unit, fileName });
@@ -1169,6 +1167,7 @@ function unitCardHtml(unit, index) {
     </div>`).join('');
   const retakeAction = status === 'needs_rephoto' ? `<button type="button" class="button primary" data-unit-retake="${escapeHtml(unit.unitId)}">重新拍照</button>` : '';
   const loadAction = status === 'needs_rephoto' ? '' : `<button type="button" class="button primary" data-unit-load="${escapeHtml(unit.unitId)}">${status === 'loaded' ? '更新装车数量' : '整组装车'}</button>`;
+  const addAction = status === 'shipped' ? '' : `<button type="button" class="button ghost" data-unit-add="${escapeHtml(unit.unitId)}">增加物料</button>`;
   return `<article class="order-card shipment-unit-card" data-unit-card="${escapeHtml(unit.unitId)}">
     <div class="unit-card-head">
       <div>
@@ -1178,7 +1177,7 @@ function unitCardHtml(unit, index) {
       ${photo ? `<button type="button" class="unit-photo-button" data-unit-view-photo="${escapeHtml(unit.unitId)}">现场照片</button>` : '<span class="unit-photo-button empty">无照片</span>'}
     </div>
     <div class="unit-member-list">${memberHtml || '<div class="unit-member-empty">没有匹配到待发货订单</div>'}</div>
-    <div class="unit-card-actions">${loadAction}${retakeAction}</div>
+    <div class="unit-card-actions">${addAction}${loadAction}${retakeAction}</div>
   </article>`;
 }
 
@@ -1233,7 +1232,7 @@ async function removeUnitMember(unitId, memberIndex) {
   if (!window.confirm(`要把 ${member.material} 从装车单元中移除吗？\n移除后需要重新拍照。`)) return;
   if (member.orderId) selected.delete(String(member.orderId));
   const members = (unit.members || []).filter((_, i) => i !== index);
-  await updateShipmentUnit(unit, { members, status: 'needs_rephoto' });
+  await updateShipmentUnit(unit, { members, status: 'needs_rephoto', photoFileNames: [] });
   showToast('已移除物料，请重新拍照后再确认整组装车');
 }
 
@@ -7364,6 +7363,8 @@ if (els.desktopLoadingCardList) {
   els.desktopLoadingCardList.addEventListener('click', (event) => {
     const unitLoad = event.target.closest('[data-unit-load]');
     if (unitLoad) { loadUnitToCart(unitLoad.dataset.unitLoad); return; }
+    const unitAdd = event.target.closest('[data-unit-add]');
+    if (unitAdd) { retakeUnit(unitAdd.dataset.unitAdd); return; }
     const unitRetake = event.target.closest('[data-unit-retake]');
     if (unitRetake) { retakeUnit(unitRetake.dataset.unitRetake); return; }
     const unitView = event.target.closest('[data-unit-view-photo]');
@@ -8122,6 +8123,8 @@ document.addEventListener('keydown', (event) => {
 els.mobileOrderList.addEventListener('click', (event) => {
   const unitLoad = event.target.closest('[data-unit-load]');
   if (unitLoad) { loadUnitToCart(unitLoad.dataset.unitLoad); return; }
+    const unitAdd = event.target.closest('[data-unit-add]');
+    if (unitAdd) { retakeUnit(unitAdd.dataset.unitAdd); return; }
   const unitRetake = event.target.closest('[data-unit-retake]');
   if (unitRetake) { retakeUnit(unitRetake.dataset.unitRetake); return; }
   const unitView = event.target.closest('[data-unit-view-photo]');
