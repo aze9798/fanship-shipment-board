@@ -3400,3 +3400,11 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 @media (max-width: 900px) {
   .task-status-bar { bottom: 78px; }
 }
+
+/* ===== 查询页：已发货装车单元与现场照片入口 ===== */
+.history-units { display: grid; gap: 7px; margin-top: 11px; padding-top: 10px; border-top: 1px dashed #d6e5e2; }
+.history-unit { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid #cfe7e2; border-radius: 10px; background: #f4fbf9; }
+.history-unit > div { min-width: 0; display: grid; gap: 3px; }
+.history-unit strong { color: #0f766e; font-size: 12px; }
+.history-unit span { color: #557078; font-size: 11px; overflow-wrap: anywhere; }
+.history-unit .unit-photo-button { flex: 0 0 auto; min-height: 32px; padding: 0 11px; }

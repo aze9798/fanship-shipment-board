@@ -313,6 +313,8 @@ const PHOTO_FILE_KIND = 'SHIPMENT_PHOTO';
 const UNIT_FILE_KIND = 'SHIPMENT_UNIT';
 const sessionReplacements = [];
 const sessionPhotos = [];
+const photoDataUrlCache = new Map();
+const photoDataLoadPromises = new Map();
 let replacementPick = null;
 let photoCaptureTarget = null;
 let photoPendingDataUrl = '';
@@ -431,6 +433,26 @@ function loadingReplacementPriority(item) {
   return dueDate && dueDate < currentDeliveryDate() ? 0 : 1;
 }
 
+function unitDueDates(unit) {
+  return [...new Set((unit?.members || []).map((member) => String(member.dueDate || '').slice(0, 10)).filter(Boolean))];
+}
+
+function unitMatchesDueFilter(unit, filter) {
+  if (!filter || filter === 'all' || filter === 'active') return true;
+  const dates = unitDueDates(unit);
+  if (!dates.length) return false;
+  const today = String(snapshot?.today || TODAY || '').slice(0, 10);
+  if (filter === 'today' || filter === 'dueToday') return dates.some((date) => date === today);
+  if (filter === 'overdue') return dates.some((date) => date && date < today);
+  if (String(filter).startsWith('date:')) { const target = String(filter).slice(5); return dates.some((date) => date === target); }
+  return true;
+}
+
+function unitMatchesCompany(unit, company) {
+  if (!company || company === 'all') return true;
+  return (unit?.members || []).some((member) => String(member.customer || '') === String(company));
+}
+
 function loadingItems(orderRows, options = {}) {
   const includeReplacements = options.includeReplacements !== false;
   const planQuery = String(options.planQuery || '').trim().toLowerCase();
@@ -466,10 +488,10 @@ function loadingItems(orderRows, options = {}) {
       selected: true,
       legacyIndex,
     })) : [];
-  const activeUnits = includeReplacements ? shipmentUnits().filter((unit) => String(unit.status || 'ready') !== 'shipped') : [];
+  const activeUnits = shipmentUnits().filter((unit) => String(unit.status || 'ready') !== 'shipped' && (typeof options.unitFilter !== 'function' || options.unitFilter(unit)));
   const unitOrderIds = new Set(activeUnits.flatMap((unit) => (unit.members || []).map((member) => String(member.orderId || '')).filter(Boolean)));
   const visibleOrderRows = (orderRows || []).filter((order) => !unitOrderIds.has(String(order.id || '')));
-  const unitItems = includeReplacements ? activeUnits.map((unit, index) => ({
+  const unitItems = activeUnits.map((unit, index) => ({
     kind: 'unit',
     dueDate: unitDisplayDate(unit),
     rank: 1.5,
@@ -478,7 +500,7 @@ function loadingItems(orderRows, options = {}) {
     seq: index,
     unit,
     index,
-  })) : [];
+  }));
   return [
     ...visibleOrderRows.map((order) => ({
       kind: 'order',
@@ -902,6 +924,7 @@ async function deletePhotoViewerAndRetake() {
     if (snapshot && Array.isArray(snapshot.shipmentPhotos)) {
       snapshot.shipmentPhotos = snapshot.shipmentPhotos.filter((photo) => (row.id && String(photo.id || '') !== String(row.id)) && (!fileName || String(photo.fileName || '') !== fileName));
     }
+    if (row.id) photoDataUrlCache.delete(String(row.id));
     photoViewerRow = null;
     if (els.photoViewerModal) els.photoViewerModal.hidden = true;
     renderPhotoArchive();
@@ -917,14 +940,37 @@ async function deletePhotoViewerAndRetake() {
 }
 
 async function openCloudPhoto(id, row = null) {
-  try {
-    const result = await callRpc('board_get_delivery_file', { p_code: getAccessCode(), p_id: id });
-    if (!result.response.ok) throw new Error(result.data?.message || '照片读取失败');
-    const data = result.data || {};
-    if (els.photoViewerImage) els.photoViewerImage.src = `data:image/jpeg;base64,${String(data.contentBase64 || '')}`;
-    els.photoViewerMeta.textContent = row ? photoMaterialsText(row) + (row.note ? ' · ' + row.note : '') : '现场照片';
+  if (!id) return;
+  const key = String(id);
+  const metaText = row ? photoMaterialsText(row) + (row.note ? ' · ' + row.note : '') : '现场照片';
+  const cached = photoDataUrlCache.get(key);
+  if (cached) {
+    if (els.photoViewerImage) els.photoViewerImage.src = cached;
+    if (els.photoViewerMeta) els.photoViewerMeta.textContent = metaText;
     if (els.photoViewerModal) els.photoViewerModal.hidden = false;
-  } catch (error) { showToast(error.message || '照片读取失败'); }
+    return;
+  }
+  if (els.photoViewerImage) els.photoViewerImage.src = '';
+  if (els.photoViewerMeta) els.photoViewerMeta.textContent = '照片加载中...';
+  if (els.photoViewerModal) els.photoViewerModal.hidden = false;
+  try {
+    let promise = photoDataLoadPromises.get(key);
+    if (!promise) {
+      promise = (async () => {
+        const result = await callRpc('board_get_delivery_file', { p_code: getAccessCode(), p_id: id });
+        if (!result.response.ok) throw new Error(result.data?.message || '照片读取失败');
+        const data = result.data || {};
+        return `data:image/jpeg;base64,${String(data.contentBase64 || '')}`;
+      })().finally(() => photoDataLoadPromises.delete(key));
+      photoDataLoadPromises.set(key, promise);
+    }
+    const dataUrl = await promise;
+    photoDataUrlCache.set(key, dataUrl);
+    if (els.photoViewerImage) els.photoViewerImage.src = dataUrl;
+    if (els.photoViewerMeta) els.photoViewerMeta.textContent = metaText;
+  } catch (error) {
+    showToast(error.message || '照片读取失败');
+  }
 }
 
 function openLocalPhoto(row) {
@@ -983,6 +1029,21 @@ function unitPhoto(unit) {
   if (!fileName) return null;
   return photoArchiveRows().find((row) => String(row.fileName || '') === fileName) || null;
 }
+function unitsForShipment(shipmentIds) {
+  const ids = new Set((Array.isArray(shipmentIds) ? shipmentIds : [shipmentIds]).map((value) => String(value || '')).filter(Boolean));
+  if (!ids.size) return [];
+  return shipmentUnits().filter((unit) => ids.has(String(unit.shipmentId || '')));
+}
+
+function unitHistoryHtml(shipmentIds) {
+  const units = unitsForShipment(shipmentIds);
+  if (!units.length) return '';
+  return `<div class="history-units">${units.map((unit) => {
+    const photo = unitPhoto(unit);
+    return `<div class="history-unit"><div><strong>装车单元</strong><span>${escapeHtml(fmt(unitMaterialCount(unit)))} 项 · ${escapeHtml(fmt(unitTotalQuantity(unit)))} 件 · ${escapeHtml(unitMembersText(unit))}</span></div>${photo ? `<button type="button" class="unit-photo-button" data-unit-view-photo="${escapeHtml(unit.unitId)}">查看照片</button>` : '<span class="row-locked">无现场照片</span>'}</div>`;
+  }).join('')}</div>`;
+}
+
 
 function unitMembersText(unit) {
   return (unit.members || []).map((member) => member.material).filter(Boolean).join('、') || '未填写物料';
@@ -3498,6 +3559,7 @@ function renderDesktopLoading() {
   if (!els.desktopLoadingCardList) return;
   syncDesktopLoadingDueOptions();
   const items = loadingItems(desktopLoadingOrders(), {
+    unitFilter: (unit) => unitMatchesDueFilter(unit, desktopLoadingDue) && unitMatchesCompany(unit, desktopLoadingCompany),
     includeReplacements: desktopLoadingDue === 'all' && desktopLoadingCompany === 'all',
     planQuery: desktopLoadingSearch,
   });
@@ -5205,6 +5267,7 @@ function renderDeliveryGroups(groups) {
         </div>`).join('')}
       </div>
       ${group.items.length > 6 ? `<button class="history-expand" type="button" data-expand="${escapeHtml(group.key)}">${expanded ? '收起明细' : `展开全部 ${group.items.length} 项（还有 ${hidden} 项）`}</button>` : ''}
+      ${unitHistoryHtml(group.shipmentIds)}
       <div class="history-foot">
         <span class="history-total">合计 ${fmt(group.total)} 件 · ${group.items.length} 项</span>
         ${group.billed
@@ -5220,6 +5283,7 @@ function deliveryStampText(value) {
   return text.replace('T', ' ').slice(0, 10);
 }
 function renderMergedDeliveryRows(groups) {
+  const unitHtml = unitHistoryHtml(groups.flatMap((group) => group.shipmentIds || []));
   const rows = [];
   for (const group of groups) {
     for (const item of group.items) rows.push({ ...item, batch: group.batch || '', shippedAt: group.createdAt || '', billed: item.billed });
@@ -5240,7 +5304,7 @@ function renderMergedDeliveryRows(groups) {
           <span data-label="发货日期" class="ship-date">${escapeHtml(deliveryStampText(item.shippedAt))}</span>
         </div>`).join('')}
       </div>
-    </article>`;
+      </article>`;
 }
 function renderShipmentSection(shipments, queryText = '') {
   const groups = buildDeliveryGroups(shipments, queryText);
@@ -5341,6 +5405,7 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
 function renderMobileList() {
   if (!snapshot) return;
   const items = loadingItems(mobileRows(), {
+    unitFilter: (unit) => unitMatchesDueFilter(unit, mobileFilter),
     includeReplacements: mobileFilter === 'active',
     planQuery: mobileSearch,
   });
@@ -5594,7 +5659,7 @@ function renderMobileRemaining() {
             <strong>${escapeHtml(remainingDateText(group.dates))}</strong>
           </div>
         </div>
-      </article>`;
+      ${unitHtml}</article>`;
     }).join('')}
     ${groups.length > visibleGroups.length ? `<button type="button" class="load-more-button" data-remaining-load-more>加载更多（还有 ${fmt(groups.length - visibleGroups.length)} 项）</button>` : ''}`;
 }
@@ -7690,6 +7755,8 @@ if (els.shipmentHistory) els.shipmentHistory.addEventListener('click', (event) =
   if (button) revokeOffset(button.dataset.revokeOffset);
 });
 if (els.mobileRecordsPanel) els.mobileRecordsPanel.addEventListener('click', (event) => {
+  const unitPhoto = event.target.closest('[data-unit-view-photo]');
+  if (unitPhoto) { viewUnitPhoto(unitPhoto.dataset.unitViewPhoto); return; }
   const fileButton = event.target.closest('[data-file-id]');
   if (fileButton) { downloadDeliveryFile(fileButton.dataset.fileId, fileButton); return; }
   const overButton = event.target.closest('[data-revoke-over]');
@@ -8052,6 +8119,8 @@ if (els.historyToday) els.historyToday.addEventListener('click', () => {
   showToast(historyDate ? ('只显示 ' + formatDate(today) + ' 的发货记录') : '已显示全部发货日期');
 });
 function handleHistoryClick(event) {
+  const unitPhoto = event.target.closest('[data-unit-view-photo]');
+  if (unitPhoto) { viewUnitPhoto(unitPhoto.dataset.unitViewPhoto); return; }
   const fileButton = event.target.closest('[data-file-id]');
   if (fileButton) { downloadDeliveryFile(fileButton.dataset.fileId, fileButton); return; }
   const overButton = event.target.closest('[data-revoke-over]');
