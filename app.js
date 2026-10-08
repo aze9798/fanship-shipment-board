@@ -650,9 +650,7 @@ function photoTargetMatches(item, target) {
 function photosForTarget(target) {
   const material = String(target?.material || '').trim();
   if (!material) return [];
-  const today = currentDeliveryDate();
-  return photoArchiveRows().filter((row) => photoDateKey(row) === today
-    && (row.materials || []).some((item) => photoTargetMatches(item, target)));
+  return photoArchiveRows().filter((row) => (row.materials || []).some((item) => photoTargetMatches(item, target)));
 }
 
 function latestPhotoForTarget(target) {
@@ -833,14 +831,14 @@ async function savePhotoCapture() {
     const uploaded = result.response.ok;
     sessionPhotos.push({ id: result.data?.id || '', fileName, dataUrl: photoPendingDataUrl, materials, note, meta, capturedAt: meta.capturedAt, uploaded });
     let unitUpdated = false;
+    const hasReplacement = materials.some((row) => String(row?.sourceType || '') === 'replacement' || Boolean(row?.planId));
     if (uploaded && unitContext) {
       await persistUnit({ ...unitContext, photoFileNames: [...(unitContext.photoFileNames || []), fileName], status: 'ready' });
       unitUpdated = true;
-    } else if (uploaded && materials.length > 1) {
+    } else if (uploaded && (materials.length > 1 || hasReplacement)) {
       await createUnitFromPhoto(photoId, materials, fileName, photoUnitQuantities);
       unitUpdated = true;
     }
-    closePhotoCapture();
     if (unitUpdated) {
       await waitForStateIdle();
       await loadState({ quiet: true });
@@ -850,6 +848,18 @@ async function savePhotoCapture() {
       renderMobileList();
       renderDesktopLoading();
     }
+    showToast(uploaded ? '照片已保存到云端' : '照片已暂存在本机，确认装车时会重试上传');
+    if (window.confirm('照片已保存。要继续新增一张照片吗？')) {
+      photoPendingDataUrl = '';
+      if (els.photoFile) els.photoFile.value = '';
+      if (els.photoPreview) els.photoPreview.src = '';
+      if (els.photoPreviewWrap) els.photoPreviewWrap.hidden = true;
+      if (els.photoNote) els.photoNote.value = '';
+      renderPhotoMaterialList();
+      showToast('可以继续拍下一张，关联物料已保留');
+      return;
+    }
+    closePhotoCapture();
     showToast(uploaded ? '照片已保存到云端' : '照片已暂存在本机，确认装车时会重试上传');
   } finally {
     if (els.photoSave) els.photoSave.disabled = false;
@@ -1066,6 +1076,26 @@ function buildUnitMembers(materials, quantities = new Map()) {
   for (const row of (materials || [])) {
     const key = photoMaterialKey(row);
     const explicitQuantity = Number((quantities instanceof Map ? quantities.get(key) : 0) || 0);
+    const isReplacement = String(row?.sourceType || '') === 'replacement' || Boolean(row?.planId);
+    if (isReplacement) {
+      const quantity = explicit ? explicitQuantity : Number(row.planQty || row.quantity || 0);
+      if (quantity > 0) {
+        members.push({
+          orderId: String(row.orderId || row.id || row.planId || ''),
+          planId: String(row.planId || row.id || ''),
+          po: String(row.po || '补发'),
+          seq: String(row.seq || ''),
+          material: String(row.material || ''),
+          name: String(row.name || ''),
+          spec: String(row.spec || ''),
+          dueDate: String(row.dueDate || ''),
+          quantity,
+          unit: '件',
+          replacement: true,
+        });
+      }
+      continue;
+    }
     if (explicit) {
       if (explicitQuantity > 0) members.push(...allocateUnitMember(row, explicitQuantity));
       continue;
@@ -1106,7 +1136,8 @@ function buildUnitMeta(unitId, materials, photoFileName, quantities = new Map())
 async function createUnitFromPhoto(unitId, materials, photoFileName, quantities = new Map()) {
   const members = buildUnitMembers(materials, quantities);
   const explicit = quantities instanceof Map && quantities.size > 0;
-  if (!materials || !members.length || (!explicit && materials.length < 2)) return null;
+  const hasReplacement = (materials || []).some((row) => String(row?.sourceType || '') === 'replacement' || Boolean(row?.planId));
+  if (!materials || !members.length || (!explicit && materials.length < 2 && !hasReplacement)) return null;
   const unit = buildUnitMeta(unitId, materials, photoFileName, quantities);
   const fileName = 'unit-' + currentDeliveryDate().replace(/-/g, '') + '-' + unitId + '.json';
   return persistUnit({ ...unit, fileName });
@@ -1158,13 +1189,38 @@ async function loadUnitToCart(unitId) {
   let loaded = 0;
   for (const member of unit.members || []) {
     const quantity = Number(member.quantity || 0);
-    if (!member.orderId || quantity <= 0) continue;
+    if (quantity <= 0) continue;
+    const planId = String(member.planId || '').trim();
+    if (member.replacement || planId) {
+      if (!planId || sessionReplacements.some((item) => String(item.planId) === planId)) continue;
+      const plan = replacementPlans().find((row) => String(row.id) === planId);
+      sessionReplacements.push({
+        planId,
+        orderId: String(member.orderId || plan?.orderId || ''),
+        po: String(member.po || plan?.po || ''),
+        seq: String(member.seq ?? plan?.seq ?? ''),
+        material: String(member.material || plan?.material || ''),
+        name: String(member.name || plan?.name || ''),
+        spec: String(member.spec || plan?.spec || ''),
+        customer: '4137',
+        quantity,
+        dueDate: String(member.dueDate || plan?.deliveryDate || defaultReplacementDueDate()),
+        remark: plan ? replacementPlanNote(plan) : '',
+      });
+      loaded += 1;
+      continue;
+    }
+    if (!member.orderId) continue;
     selected.set(String(member.orderId), quantity);
     clearPendingOver(member.material);
     loaded += 1;
   }
   if (!loaded) { showToast('请先填写至少一项装车数量'); return; }
   await updateShipmentUnit(unit, { status: 'loaded' });
+  renderMobileSummary();
+  renderMobileList();
+  renderDesktopLoading();
+  renderCart();
   showToast(`已装入 ${loaded} 项物料，确认装车后一起发货`);
 }
 
