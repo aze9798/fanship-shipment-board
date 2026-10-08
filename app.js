@@ -5026,7 +5026,7 @@ function applyQueryTab() {
 }
 
 document.querySelectorAll('[data-query-tab]').forEach((button) => {
-  button.addEventListener('click', () => { queryTab = button.dataset.queryTab; applyQueryTab(); });
+  button.addEventListener('click', () => { queryTab = button.dataset.queryTab; applyQueryTab(); if (button.closest('#mobileRecordsPanel')) renderMobileRecords(); });
 });
 
 function syncQueryInputs() {
@@ -7355,6 +7355,7 @@ function switchMobileTab(tab) {
   els.mobileEntryPanel.hidden = tab !== 'entry';
   els.mobileRemainingPanel.hidden = tab !== 'remaining';
   els.mobileRecordsPanel.hidden = tab !== 'records';
+  if (tab === 'records') renderMobileRecords();
   if (els.mobileFilesPanel) els.mobileFilesPanel.hidden = tab !== 'files';
   if (tab === 'files') renderCloudFiles();
   renderCart();

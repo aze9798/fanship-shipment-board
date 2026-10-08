@@ -3408,3 +3408,6 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .history-unit strong { color: #0f766e; font-size: 12px; }
 .history-unit span { color: #557078; font-size: 11px; overflow-wrap: anywhere; }
 .history-unit .unit-photo-button { flex: 0 0 auto; min-height: 32px; padding: 0 11px; }
+/* 手机查询页默认选中项高对比度 */
+#mobileRecordsPanel .mobile-query-tabs .chip { color: #36545b; background: #fff; border-color: #d6e3e4; }
+#mobileRecordsPanel .mobile-query-tabs .chip.active { color: #fff !important; background: #0f766e !important; border-color: #0f766e !important; box-shadow: 0 3px 10px rgba(15,118,110,.18); }
