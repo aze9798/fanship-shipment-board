@@ -572,7 +572,7 @@ function unselectReplacementPlan(planId) {
 async function deleteReplacementPlan(planId) {
   const plan = replacementPlans().find((row) => String(row.id) === String(planId));
   if (!plan) { showToast('这个补发计划已经不存在'); return; }
-  if (!window.confirm(`要删除补发计划吗？\n${plan.material} · ${fmt(plan.quantity)} 件\n删除后会归档，不再出现在当前列表；如果已经装车，历史单元里的关联仍会保留。`)) return;
+  if (!window.confirm(`要删除补发计划吗？\n${plan.material} · ${fmt(plan.quantity)} 件\n删除后会从当前列表移除；如果已经装车，历史单元里的关联仍会保留。`)) return;
   const result = await callRpc('board_revoke_replacement', { p_code: getAccessCode(), p_id: planId });
   if (!result.response.ok) { showToast(result.data?.message || '删除补发计划失败'); return; }
   unselectReplacementPlan(planId);
@@ -3241,7 +3241,7 @@ async function revokeReplacement(id) {
   const replacementRow = replacements().find((row) => String(row.id) === String(id));
   if (replacementRow && isBilledExtra(id)) { showToast('这笔补发已经开送货单并上传云端，不能撤回'); return; }
   if (replacementRow && isLockedRecord(replacementRow.createdAt)) { showToast('这笔补发已满 7 天，不能再撤回'); return; }
-  if (!window.confirm('要把这笔补发撤回吗？\n撤回后会归档，不再出现在当前列表；如果已经装车，历史单元里的关联仍会保留。')) return;
+  if (!window.confirm('要把这笔补发撤回吗？\n撤回后会从当前列表移除；如果已经装车，历史单元里的关联仍会保留。')) return;
   const result = await callRpc('board_revoke_replacement', { p_code: getAccessCode(), p_id: id });
   if (!result.response.ok) { showToast(result.data?.message || '撤回失败'); return; }
   showToast('已撤回这笔补发');
