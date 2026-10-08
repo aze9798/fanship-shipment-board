@@ -3471,10 +3471,10 @@ function renderOverDeliveryList() {
           <span>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}${row.ids.length > 1 ? `<br><em class="over-meta">合并 ${row.ids.length} 笔登记</em>` : ''}</span>
           <strong>${fmt(row.remaining)} 件</strong>
           ${row.locked
-            ? `<span class="row-locked" title="${row.billed ? '已开送货单并上传云端，不能撤回' : '登记满 7 天后不能再撤回'}">${row.billed ? '已开单' : '已归档'}</span>`
+            ? `<span class="row-locked" title="${row.billed ? '已开送货单，等待后续同料号订单冲抵；开单后不能撤回' : '登记满 7 天后不能再撤回'}">${row.billed ? '待冲抵' : '已归档'}</span>`
             : `<button type="button" class="row-revoke" data-revoke-over="${escapeHtml(row.ids.join(','))}">撤回</button>`}
         </div>`).join('')}
-      <p class="over-tip">这些货已经发出但没有对应采购单；点“撤回”可以撤销这笔登记，等出现同料号的新订单时导入新订单会提示你冲抵。</p>
+      <p class="over-tip">这些货已经发出但没有对应采购单；开送货单后显示“待冲抵”，等出现同料号的新订单会自动冲抵，冲抵后进入“冲抵记录”，这里就不再显示。</p>
     </section>`;
 }
 
