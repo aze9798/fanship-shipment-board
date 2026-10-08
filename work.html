@@ -1066,38 +1066,44 @@ function renderPiece() {
       if ($('networkCheckResult')) $('networkCheckResult').classList.add('hidden');
     }
   }
-  async function probeEndpoint(url, label, timeoutMs = 8000) {
+  async function probeFetch(label, url, init = {}, timeoutMs = 8000) {
     const started = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      await fetch(url, { method:'GET', headers:{ apikey:window.WORK_ANON_KEY, Authorization:`Bearer ${window.WORK_ANON_KEY}` }, signal:controller.signal, cache:'no-store' });
-      return { label, ok:true, ms:Date.now()-started };
+      const response = await fetch(url, { ...init, signal: controller.signal, cache: 'no-store' });
+      return { label, ok: true, status: response.status, ms: Date.now() - started };
     } catch (error) {
-      return { label, ok:false, ms:Date.now()-started, error:error?.name === 'AbortError' ? '超时' : (error?.message || '失败') };
+      return { label, ok: false, ms: Date.now() - started, error: error?.name === 'AbortError' ? '超时' : (error?.message || '失败') };
     } finally { clearTimeout(timer); }
   }
+  // 分段网络检测：分别验证 页面服务 / 接口域名(简单请求) / 接口域名(带密钥,需 CORS 预检) / 登录接口(POST)
   async function checkNetworkConnectivity() {
     const button = $('networkCheckButton');
     const result = $('networkCheckResult');
     if (!button || !result) return;
     button.disabled = true;
     result.classList.remove('hidden');
-    result.textContent = '正在检测页面服务和数据接口…';
+    result.textContent = '正在分段检测网络…';
     const apiOrigin = new URL(window.WORK_RPC_BASE).origin;
-    const [pageProbe, apiProbe] = await Promise.all([
-      probeEndpoint(location.href, '页面服务'),
-      probeEndpoint(apiOrigin + '/auth/v1/health', '数据接口'),
-    ]);
-    if (pageProbe.ok && apiProbe.ok) {
-      result.textContent = '当前网络检测正常，请再试一次；如果仍然登录不上，请切换到WiFi后重试。';
-    } else if (pageProbe.ok && !apiProbe.ok) {
-      result.textContent = '当前4G/5G网络连接不到服务器，请切换到WiFi后重新登录。';
-    } else if (!pageProbe.ok && apiProbe.ok) {
-      result.textContent = '当前页面网络不稳定，请切换到WiFi后刷新页面重试。';
-    } else {
-      result.textContent = '当前手机网络无法连接系统，请切换到WiFi后重新登录。';
-    }
+    const authHeaders = { apikey: window.WORK_ANON_KEY, Authorization: `Bearer ${window.WORK_ANON_KEY}` };
+    const steps = [];
+    steps.push(await probeFetch('① 本页页面服务', location.href));
+    steps.push(await probeFetch('② 接口域名（简单请求）', apiOrigin + '/rest/v1/'));
+    steps.push(await probeFetch('③ 接口域名（带密钥，需预检）', apiOrigin + '/rest/v1/', { headers: authHeaders }));
+    steps.push(await probeFetch('④ 登录接口（POST 提交）', `${window.WORK_RPC_BASE}/work_login`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_code: '__network_probe__' })
+    }));
+    const lines = steps.map((s) => `${s.label}：${s.ok ? '✅ 通' : '❌ 不通'}（${s.ms}ms${s.ok ? `，HTTP ${s.status}` : `，${s.error}`}）`);
+    let advice;
+    if (steps.every((s) => s.ok)) advice = '四步都通：网络正常，请返回重新登录。';
+    else if (!steps[0].ok) advice = '页面服务都不通：当前网络无法访问页面服务器，请切换 WiFi 或换网络后刷新。';
+    else if (!steps[1].ok) advice = '页面能开、接口域名连不上：这是运营商线路问题，请切换 WiFi 或换用其他手机卡。';
+    else if (!steps[2].ok || !steps[3].ok) advice = '接口域名能连、登录请求被挡：跨域预检被运营商拦截，请把本页截图发给管理员。';
+    else advice = '网络不稳定，请稍后重试或切换 WiFi。';
+    result.innerHTML = lines.map((line) => `<div>${line}</div>`).join('') + `<div style="margin-top:6px;font-weight:800">${advice}</div>`;
     button.disabled = false;
   }
   function currentMonth() {
