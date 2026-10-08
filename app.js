@@ -684,6 +684,58 @@ function materialHasPhoto(target) {
   return photosForTarget(target).length > 0;
 }
 
+function photoRowKey(row) {
+  return String(row?.id || row?.fileName || row?.localId || '').trim();
+}
+
+function photosForShipmentLine(item) {
+  const material = String(item?.material || '').trim();
+  if (!material) return [];
+  const shipmentId = String(item?.shipmentId || '').trim();
+  const itemOrderId = String(item?.orderId || '').trim();
+  const itemPlanId = String(item?.planId || '').trim();
+  const itemSpec = String(item?.spec || '').trim();
+  const matches = new Map();
+  for (const row of photoArchiveRows()) {
+    const key = photoRowKey(row);
+    if (!key) continue;
+    const rowShipmentId = String(row.shipmentId || '').trim();
+    for (const photoMaterial of (row.materials || [])) {
+      if (String(photoMaterial.material || '').trim() !== material) continue;
+      const photoSpec = String(photoMaterial.spec || '').trim();
+      if (photoSpec && itemSpec && photoSpec !== itemSpec) continue;
+      let score = 30;
+      if (rowShipmentId && shipmentId && rowShipmentId === shipmentId) score = 100;
+      else if (itemOrderId && String(photoMaterial.orderId || '').trim() === itemOrderId) score = 80;
+      else if (itemPlanId && String(photoMaterial.planId || '').trim() === itemPlanId) score = 80;
+      else if (photoSpec && itemSpec) score = 60;
+      const current = matches.get(key);
+      if (!current || score > current.score) matches.set(key, { row, score });
+    }
+  }
+  return [...matches.values()]
+    .sort((left, right) => right.score - left.score
+      || String(right.row.capturedAt || right.row.createdAt || '').localeCompare(String(left.row.capturedAt || left.row.createdAt || '')))
+    .map((entry) => entry.row);
+}
+
+function shipmentPhotoButtonHtml(item) {
+  const photos = photosForShipmentLine(item);
+  if (!photos.length) return '';
+  const key = photoRowKey(photos[0]);
+  if (!key) return '';
+  const label = photos.length > 1 ? `照片 ${photos.length}` : '照片';
+  return `<button type="button" class="shipment-photo-btn" data-shipment-photo="${escapeHtml(key)}" title="查看这笔发货的留档照片">${label}</button>`;
+}
+
+function openShipmentPhoto(key) {
+  const wanted = String(key || '').trim();
+  const row = photoArchiveRows().find((item) => photoRowKey(item) === wanted);
+  if (!row) { showToast('照片不存在或已经删除'); return; }
+  const target = (row.materials || [])[0] || null;
+  openPhotoViewerRow(row, target);
+}
+
 function photoPendingRows() {
   const rows = [];
   for (const order of (snapshot?.orders || [])) {
@@ -1013,7 +1065,22 @@ function dedupeShipmentUnits(units) {
 }
 
 function shipmentUnits() {
-  return dedupeShipmentUnits(Array.isArray(snapshot?.shipmentUnits) ? snapshot.shipmentUnits : []);
+  const units = dedupeShipmentUnits(Array.isArray(snapshot?.shipmentUnits) ? snapshot.shipmentUnits : []);
+  // 装车单元至少要有 2 个不同物料；少于 2 个的旧单元自动解除/隐藏
+  return units.filter((unit) => unitMaterialCount(unit) >= 2);
+}
+
+let invalidUnitsCleanupDone = false;
+async function cleanupInvalidShipmentUnits() {
+  if (invalidUnitsCleanupDone || !snapshot || !Array.isArray(snapshot.shipmentUnits)) return;
+  const invalid = snapshot.shipmentUnits.filter((unit) => String(unit.status || '') !== 'shipped' && unitMaterialCount(unit) < 2);
+  if (!invalid.length) { invalidUnitsCleanupDone = true; return; }
+  invalidUnitsCleanupDone = true;
+  let removed = false;
+  for (const unit of invalid) {
+    try { await dissolveShipmentUnit(unit); removed = true; } catch {}
+  }
+  if (removed) { renderMobileSummary(); renderMobileList(); renderDesktopLoading(); renderCart(); }
 }
 
 function normalizeUnitRow(row) {
@@ -1128,6 +1195,33 @@ async function updateShipmentUnit(unit, patch = {}) {
   return updated;
 }
 
+function detachUnitMembersFromCart(unit) {
+  for (const member of (unit?.members || [])) {
+    const planId = String(member.planId || '').trim();
+    const orderId = String(member.orderId || '').trim();
+    if (planId) {
+      const index = sessionReplacements.findIndex((item) => String(item.planId) === planId);
+      if (index >= 0) sessionReplacements.splice(index, 1);
+    }
+    if (orderId && !planId) selected.delete(orderId);
+  }
+}
+
+async function dissolveShipmentUnit(unit) {
+  if (!unit) return false;
+  if (unit.id) {
+    const result = await callRpc('board_delete_delivery_file', { p_code: getAccessCode(), p_id: unit.id });
+    if (!result.response.ok) throw new Error(result.data?.message || '解除装车单元失败');
+  }
+  if (snapshot && Array.isArray(snapshot.shipmentUnits)) {
+    snapshot.shipmentUnits = snapshot.shipmentUnits.filter((row) => {
+      if (unit.id && row.id) return String(row.id) !== String(unit.id);
+      return String(row.unitId || '') !== String(unit.unitId || '');
+    });
+  }
+  return true;
+}
+
 function unitCandidateOrders(row) {
   const material = String(row?.material || '').trim();
   const spec = String(row?.spec || '').trim();
@@ -1228,8 +1322,8 @@ function buildUnitMeta(unitId, materials, photoFileName, quantities = new Map())
 
 async function createUnitFromPhoto(unitId, materials, photoFileName, quantities = new Map()) {
   const members = buildUnitMembers(materials, quantities);
-  const explicit = quantities instanceof Map && quantities.size > 0;
-  if (!materials || !members.length || (!explicit && materials.length < 2)) return null;
+  const distinctMaterials = new Set((materials || []).map((row) => String(row?.material || '').trim()).filter(Boolean)).size;
+  if (!materials || !members.length || distinctMaterials < 2) return null;
   const unit = buildUnitMeta(unitId, materials, photoFileName, quantities);
   const fileName = 'unit-' + currentDeliveryDate().replace(/-/g, '') + '-' + unitId + '.json';
   return persistUnit({ ...unit, fileName });
@@ -1324,8 +1418,24 @@ async function removeUnitMember(unitId, memberIndex) {
   const member = (unit.members || [])[index];
   if (!member) return;
   if (!window.confirm(`要把 ${member.material} 从装车单元中移除吗？\n移除后需要重新拍照。`)) return;
-  if (member.orderId) selected.delete(String(member.orderId));
   const members = (unit.members || []).filter((_, i) => i !== index);
+  const remainingMaterials = new Set(members.map((row) => String(row.material || '').trim()).filter(Boolean)).size;
+  if (remainingMaterials < 2) {
+    detachUnitMembersFromCart(unit);
+    try {
+      await dissolveShipmentUnit(unit);
+    } catch (error) {
+      showToast(error.message || '解除装车单元失败');
+      return;
+    }
+    renderMobileSummary();
+    renderMobileList();
+    renderDesktopLoading();
+    renderCart();
+    showToast('已移除物料，装车单元不足 2 个物料，已自动解除');
+    return;
+  }
+  if (member.orderId && !member.planId) selected.delete(String(member.orderId));
   await updateShipmentUnit(unit, { members, status: 'needs_rephoto', photoFileNames: [] });
   showToast('已移除物料，请重新拍照后再确认整组装车');
 }
@@ -2078,6 +2188,7 @@ async function loadState({ quiet = false, fast = false } = {}) {
     const changed = !previous || nextSnapshot.revision !== previous.revision || (!fast && shouldRefreshAuxiliary);
     const stateChanged = !previous || nextSnapshot.revision !== previous.revision;
     snapshot = nextSnapshot;
+    if (!fast && shouldRefreshAuxiliary) void cleanupInvalidShipmentUnits();
     if (stateChanged) {
       if ('requestIdleCallback' in window) requestIdleCallback(saveCachedState, { timeout: 2000 });
       else setTimeout(saveCachedState, 0);
@@ -2097,6 +2208,7 @@ async function loadState({ quiet = false, fast = false } = {}) {
         rebuildAmountMap();
         rebuildDrawingMap();
         renderAll();
+        void cleanupInvalidShipmentUnits();
       }).catch(() => {});
     }
   } catch (error) {
@@ -5151,6 +5263,7 @@ function buildDeliveryGroups(shipments, queryText = '') {
           source: 'shipment',
           shipmentId: String(shipment.id),
           itemId: line.id,
+          orderId: String(line.orderId || ''),
           typeLabel: '',
           po: deliveryLineLabel(meta.po, '无'),
           seq: deliveryLineLabel(meta.seq, '无'),
@@ -5220,6 +5333,7 @@ function buildDeliveryGroups(shipments, queryText = '') {
         source: 'shipment',
         shipmentId: String(shipment.id),
         itemId: line.id,
+        orderId: String(line.orderId || ''),
         typeLabel: '',
         po: deliveryLineLabel(meta.po, '无'),
         seq: deliveryLineLabel(meta.seq, '无'),
@@ -5293,7 +5407,7 @@ function renderDeliveryGroups(groups) {
         ${shown.map((item) => `<div class="delivery-line">
           <span data-label="采购单号">${escapeHtml(item.po)}${item.typeLabel ? ` <em>${escapeHtml(item.typeLabel)}</em>` : ''}</span>
           <span data-label="料件编号">${escapeHtml(item.material)}</span>
-          <span data-label="品名">${escapeHtml(item.name)}${item.spec ? ` · ${escapeHtml(item.spec)}` : ''}${item.remark ? `<small>备注：${escapeHtml(item.remark)}</small>` : ''}</span>
+          <span data-label="品名"><span class="delivery-name-cell">${escapeHtml(item.name)}${item.spec ? ` · ${escapeHtml(item.spec)}` : ''}${item.remark ? `<small>备注：${escapeHtml(item.remark)}</small>` : ''}${shipmentPhotoButtonHtml(item)}</span></span>
           <strong data-label="发货数量" class="number"><span class="qty-value-with-edit">${fmt(item.quantity)} 件${qtyEditButtonHtml(item, item.billed)}</span></strong>
           <span data-label="项次" class="number">${escapeHtml(item.seq)}</span>
           <span data-label="未交" class="number">${escapeHtml(deliveryRemainingText(item.remaining, item.hasOrder))}</span>
@@ -5329,7 +5443,7 @@ function renderMergedDeliveryRows(groups) {
         ${rows.map((item) => `<div class="delivery-line">
           <span data-label="采购单号">${escapeHtml(item.po)}${item.typeLabel ? ` <em>${escapeHtml(item.typeLabel)}</em>` : ''}</span>
           <span data-label="料件编号">${escapeHtml(item.material)}</span>
-          <span data-label="品名">${escapeHtml(item.name)}${item.spec ? ` · ${escapeHtml(item.spec)}` : ''}${item.remark ? `<small>备注：${escapeHtml(item.remark)}</small>` : ''}</span>
+          <span data-label="品名"><span class="delivery-name-cell">${escapeHtml(item.name)}${item.spec ? ` · ${escapeHtml(item.spec)}` : ''}${item.remark ? `<small>备注：${escapeHtml(item.remark)}</small>` : ''}${shipmentPhotoButtonHtml(item)}</span></span>
           <strong data-label="发货数量" class="number"><span class="qty-value-with-edit">${fmt(item.quantity)} 件${qtyEditButtonHtml(item, item.billed)}</span></strong>
           <span data-label="项次" class="number">${escapeHtml(item.seq)}</span>
           <span data-label="未交" class="number">${escapeHtml(deliveryRemainingText(item.remaining, item.hasOrder))}</span>
@@ -7789,6 +7903,8 @@ if (els.shipmentHistory) els.shipmentHistory.addEventListener('click', (event) =
   if (button) revokeOffset(button.dataset.revokeOffset);
 });
 if (els.mobileRecordsPanel) els.mobileRecordsPanel.addEventListener('click', (event) => {
+  const shipmentPhoto = event.target.closest('[data-shipment-photo]');
+  if (shipmentPhoto) { openShipmentPhoto(shipmentPhoto.dataset.shipmentPhoto); return; }
   const unitPhoto = event.target.closest('[data-unit-view-photo]');
   if (unitPhoto) { viewUnitPhoto(unitPhoto.dataset.unitViewPhoto); return; }
   const fileButton = event.target.closest('[data-file-id]');
@@ -8153,6 +8269,8 @@ if (els.historyToday) els.historyToday.addEventListener('click', () => {
   showToast(historyDate ? ('只显示 ' + formatDate(today) + ' 的发货记录') : '已显示全部发货日期');
 });
 function handleHistoryClick(event) {
+  const shipmentPhoto = event.target.closest('[data-shipment-photo]');
+  if (shipmentPhoto) { openShipmentPhoto(shipmentPhoto.dataset.shipmentPhoto); return; }
   const unitPhoto = event.target.closest('[data-unit-view-photo]');
   if (unitPhoto) { viewUnitPhoto(unitPhoto.dataset.unitViewPhoto); return; }
   const fileButton = event.target.closest('[data-file-id]');

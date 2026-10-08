@@ -3411,3 +3411,26 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 /* 手机查询页默认选中项高对比度 */
 #mobileRecordsPanel .mobile-query-tabs .chip { color: #36545b; background: #fff; border-color: #d6e3e4; }
 #mobileRecordsPanel .mobile-query-tabs .chip.active { color: #fff !important; background: #0f766e !important; border-color: #0f766e !important; box-shadow: 0 3px 10px rgba(15,118,110,.18); }
+/* ===== 发货记录逐行留档照片入口 ===== */
+.shipment-photo-btn {
+  margin-left: 8px;
+  padding: 1px 9px;
+  min-height: 22px;
+  border: 1px solid #9fd5cf;
+  border-radius: 999px;
+  background: #eef8f6;
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.4;
+  cursor: pointer;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.shipment-photo-btn:hover { background: #def1ed; }
+.shipment-photo-btn:active { transform: translateY(1px); }
+.delivery-name-cell { display: inline; }
+@media (max-width: 900px) {
+  .delivery-name-cell { display: block; }
+  .shipment-photo-btn { display: inline-flex; align-items: center; margin: 6px 0 0; }
+}
