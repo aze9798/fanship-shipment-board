@@ -441,14 +441,34 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
     try { const value = localStorage.getItem(STORAGE_KEY) || ''; if (value) return value; } catch {}
     return readCookie(COOKIE_KEY) || '';
   }
+  function rpcFormBody(body) {
+    const form = new URLSearchParams();
+    Object.entries(body || {}).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      form.set(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
+    });
+    return form.toString();
+  }
+  // 带 null / undefined 参数的调用没法用表单体表达 SQL NULL，这类调用继续走原来的 JSON 方式。
+  function rpcNeedsJsonBody(body) {
+    return Object.values(body || {}).some((value) => value === null || value === undefined);
+  }
+  // 关键改动：能用表单体（application/x-www-form-urlencoded）+ URL 传 apikey 的调用属于浏览器"简单请求"，
+  // 不再触发跨域预检（OPTIONS）。移动卡等弱网环境下跨域预检最容易被运营商掐断，表现为 Failed to fetch。
   async function rpc(name, body) {
-    const url = `${window.WORK_RPC_BASE}/${name}`;
+    const useJson = rpcNeedsJsonBody(body);
+    const url = useJson
+      ? `${window.WORK_RPC_BASE}/${name}`
+      : `${window.WORK_RPC_BASE}/${name}?apikey=${encodeURIComponent(window.WORK_ANON_KEY)}`;
+    const init = useJson
+      ? { headers:{ apikey:window.WORK_ANON_KEY, Authorization:`Bearer ${window.WORK_ANON_KEY}`, 'Content-Type':'application/json' }, body:JSON.stringify(body) }
+      : { headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:rpcFormBody(body) };
     let lastError = null;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 12000);
       try {
-        const r = await fetch(url, { method:'POST', headers:{ apikey:window.WORK_ANON_KEY, Authorization:`Bearer ${window.WORK_ANON_KEY}`, 'Content-Type':'application/json' }, body:JSON.stringify(body), signal:controller.signal, cache:'no-store' });
+        const r = await fetch(url, { method:'POST', ...init, signal:controller.signal, cache:'no-store' });
         const data = await r.json().catch(() => null);
         if (!r.ok) { const httpError = new Error(data?.message || '请求失败'); httpError.noRetry = true; throw httpError; }
         return data;
@@ -1077,7 +1097,7 @@ function renderPiece() {
       return { label, ok: false, ms: Date.now() - started, error: error?.name === 'AbortError' ? '超时' : (error?.message || '失败') };
     } finally { clearTimeout(timer); }
   }
-  // 分段网络检测：分别验证 页面服务 / 接口域名(简单请求) / 接口域名(带密钥,需 CORS 预检) / 登录接口(POST)
+  // 分段网络检测：① 页面服务 ② 接口域名(简单请求) ③ 登录接口(表单式 POST，无预检)
   async function checkNetworkConnectivity() {
     const button = $('networkCheckButton');
     const result = $('networkCheckResult');
@@ -1086,23 +1106,16 @@ function renderPiece() {
     result.classList.remove('hidden');
     result.textContent = '正在分段检测网络…';
     const apiOrigin = new URL(window.WORK_RPC_BASE).origin;
-    const authHeaders = { apikey: window.WORK_ANON_KEY, Authorization: `Bearer ${window.WORK_ANON_KEY}` };
     const steps = [];
     steps.push(await probeFetch('① 本页页面服务', location.href));
-    steps.push(await probeFetch('② 接口域名（简单请求）', apiOrigin + '/rest/v1/'));
-    steps.push(await probeFetch('③ 接口域名（带密钥，需预检）', apiOrigin + '/rest/v1/', { headers: authHeaders }));
-    steps.push(await probeFetch('④ 登录接口（POST 提交）', `${window.WORK_RPC_BASE}/work_login`, {
-      method: 'POST',
-      headers: { ...authHeaders, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p_code: '__network_probe__' })
-    }));
+    steps.push(await probeFetch('② 接口域名（简单请求）', apiOrigin + '/rest/v1/?apikey=' + encodeURIComponent(window.WORK_ANON_KEY)));
+    steps.push(await probeFetch('③ 登录接口（简单 POST，无预检）', `${window.WORK_RPC_BASE}/work_login?apikey=${encodeURIComponent(window.WORK_ANON_KEY)}`, { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:'p_code=' + encodeURIComponent('__network_probe__') }));
     const lines = steps.map((s) => `${s.label}：${s.ok ? '✅ 通' : '❌ 不通'}（${s.ms}ms${s.ok ? `，HTTP ${s.status}` : `，${s.error}`}）`);
     let advice;
-    if (steps.every((s) => s.ok)) advice = '四步都通：网络正常，请返回重新登录。';
+    if (steps.every((s) => s.ok)) advice = '三步都通：网络正常，请返回重新登录。';
     else if (!steps[0].ok) advice = '页面服务都不通：当前网络无法访问页面服务器，请切换 WiFi 或换网络后刷新。';
-    else if (!steps[1].ok) advice = '页面能开、接口域名连不上：这是运营商线路问题，请切换 WiFi 或换用其他手机卡。';
-    else if (!steps[2].ok || !steps[3].ok) advice = '接口域名能连、登录请求被挡：跨域预检被运营商拦截，请把本页截图发给管理员。';
-    else advice = '网络不稳定，请稍后重试或切换 WiFi。';
+    else if (!steps[1].ok) advice = '页面能开、接口域名连不上：运营商线路问题，请切换 WiFi 或换用其他手机卡。';
+    else advice = '接口域名能连、登录请求被挡：请把本页截图发给管理员。';
     result.innerHTML = lines.map((line) => `<div>${line}</div>`).join('') + `<div style="margin-top:6px;font-weight:800">${advice}</div>`;
     button.disabled = false;
   }

@@ -488,7 +488,8 @@ function loadingItems(orderRows, options = {}) {
       selected: true,
       legacyIndex,
     })) : [];
-  const activeUnits = shipmentUnits().filter((unit) => String(unit.status || 'ready') !== 'shipped' && (typeof options.unitFilter !== 'function' || options.unitFilter(unit)));
+  const activeUnits = [...new Map(shipmentUnits().filter((unit) => String(unit.status || 'ready') !== 'shipped' && (typeof options.unitFilter !== 'function' || options.unitFilter(unit))).sort((left, right) => String(left.updatedAt || left.createdAt || '').localeCompare(String(right.updatedAt || right.createdAt || ''))).map((unit) => [String(unit.unitId || unit.id), unit])).values()];
+  const unitPlanIds = new Set(activeUnits.flatMap((unit) => (unit.members || []).map((member) => String(member.planId || (member.replacement ? member.orderId : '')).trim()).filter(Boolean)));
   const unitOrderIds = new Set(activeUnits.flatMap((unit) => (unit.members || []).map((member) => String(member.orderId || '')).filter(Boolean)));
   const visibleOrderRows = (orderRows || []).filter((order) => !unitOrderIds.has(String(order.id || '')));
   const unitItems = activeUnits.map((unit, index) => ({
@@ -511,9 +512,9 @@ function loadingItems(orderRows, options = {}) {
       seq: Number(order.seq || 0),
       order,
     })),
-    ...planItems,
+    ...planItems.filter((item) => !unitPlanIds.has(String(item.planId || item.item?.id || ''))),
     ...unitItems,
-    ...legacyItems,
+    ...legacyItems.filter((item) => !unitPlanIds.has(String(item.item?.planId || ''))),
   ].sort((left, right) =>
     String(left.dueDate || '9999-12-31').localeCompare(String(right.dueDate || '9999-12-31'))
     || Number(left.rank || 0) - Number(right.rank || 0)
