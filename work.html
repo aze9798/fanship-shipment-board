@@ -74,6 +74,12 @@
   .clock-action.is-result .ca-text{display:none}
   /* 结束状态沿用开始计时同一套配色（不做红色） */
   .clock-stop{background:inherit;color:inherit;border-color:inherit}
+.clock-card.is-running.just-started{animation:activeTimerPulse 2.1s ease-in-out infinite,clockStartPop .7s cubic-bezier(.22,1,.36,1) both}
+@keyframes clockStartPop{0%{transform:scale(.985)}45%{transform:scale(1.022)}100%{transform:scale(1)}}
+.clock-card.just-started .clock-time{animation:clockTimePop .9s cubic-bezier(.22,1,.36,1) both}
+@keyframes clockTimePop{0%{opacity:.35;transform:translateY(8px) scale(.94)}60%{opacity:1;transform:translateY(0) scale(1.04)}100%{transform:none}}
+.active-timer-banner.is-enter{animation:activeTimerEnter .5s cubic-bezier(.22,1,.36,1) both}
+@keyframes activeTimerEnter{from{opacity:0;transform:translateY(-12px) scale(.97)}to{opacity:1;transform:none}}
     .stats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}.stat{padding:14px 12px;border-radius:13px;background:var(--primary-soft)}.stat span{display:block;color:#315f5b;font-size:14px;font-weight:900;line-height:1.35}.stat strong{display:block;margin-top:5px;font-size:24px;font-weight:900}
     .rules{display:grid;gap:6px;font-size:11px;color:#60777d}.rules div{display:flex;justify-content:space-between;padding:7px 9px;border-radius:9px;background:#f6f9f9}.rules b{color:#294b52}
     .list-title{display:flex;justify-content:space-between;align-items:center;margin:14px 1px 8px}.list-title strong{font-size:13px}.list-title span{font-size:11px;color:var(--muted)}
@@ -1318,6 +1324,40 @@ function renderPiece() {
     // 先收成圆形，再走环形进度
     setTimeout(() => btn.classList.add('is-ring-run'), 480);
   }
+  // 开始计时成功后：先变 ✓ 再过渡到"计时中"，避免界面硬跳
+  function finishStartMorph(btn) {
+    const startedAt = state?.activeEntry?.startedAt || new Date().toISOString();
+    btn.classList.add('is-success');
+    setTimeout(() => {
+      const result = btn.querySelector('.ca-result');
+      if (result) result.textContent = `已开始 · ${fmtClock(startedAt)}`;
+      btn.classList.add('is-result');
+    }, 620);
+    setTimeout(() => {
+      btn.classList.remove('is-loading', 'is-ring-run', 'is-success', 'is-result');
+      btn.classList.add('clock-stop');
+      const label = btn.querySelector('.ca-text');
+      if (label) label.textContent = '结束本次计时';
+      btn.disabled = false;
+    }, 2100);
+  }
+  // 卡片与顶部横幅的入场动画（只在刚从"未计时"切到"计时中"时播一次）
+  function markJustStarted() {
+    const card = $('normalClockCard');
+    const banner = $('activeTimerBanner');
+    if (card) {
+      card.classList.remove('just-started');
+      void card.offsetWidth;
+      card.classList.add('just-started');
+      setTimeout(() => card.classList.remove('just-started'), 1400);
+    }
+    if (banner) {
+      banner.classList.remove('is-enter');
+      void banner.offsetWidth;
+      banner.classList.add('is-enter');
+      setTimeout(() => banner.classList.remove('is-enter'), 800);
+    }
+  }
   function finishClockMorph(btn, text) {
     btn.classList.add('is-success');
     setTimeout(() => {
@@ -1362,7 +1402,7 @@ function renderPiece() {
   async function runClockAction(active) {
     const btn = $('clockAction');
     btn.disabled = true;
-    if (active) playClockMorph(btn);
+    playClockMorph(btn);
     try {
       let result;
       try {
@@ -1403,8 +1443,9 @@ function renderPiece() {
           : result && result.endedAt ? `已结束 · ${clock(result.endedAt)}` : '本次计时已结束';
         finishClockMorph(btn, text);
       } else {
-        btn.disabled = false;
         clockLockUntil = Date.now() + 4000;
+        finishStartMorph(btn);
+        markJustStarted();
         navigator.vibrate?.(120);
       }
     } catch (e) {
