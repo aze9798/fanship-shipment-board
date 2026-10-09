@@ -5363,6 +5363,19 @@ function shipmentBatchForCompany(shipment, company) {
   return explicit === '历史已开单' ? '历史已开单' : '';
 }
 
+function deliveryBatchCompany(batch, at = '') {
+  const wanted = deliveryBatchText(batch);
+  if (!wanted) return '';
+  const stamp = Date.parse(String(at || '')) || 0;
+  const files = (snapshot?.deliveryFiles || [])
+    .filter((row) => /\.xlsx$/i.test(String(row.fileName || '')) && deliveryBatchText(row.batch) === wanted)
+    .map((row) => ({ kind: String(row.kind || '').trim(), at: Date.parse(String(row.createdAt || '')) || 0 }))
+    .filter((row) => row.kind);
+  if (!files.length) return '';
+  if (stamp) files.sort((a, b) => Math.abs(a.at - stamp) - Math.abs(b.at - stamp));
+  return files[0].kind;
+}
+
 function shipmentItemBatches(shipment) {
   const companies = new Set((shipment?.items || []).map((line) => deliveryItemCompany(line, shipment)));
   return [...companies].map((company) => shipmentBatchForCompany(shipment, company)).filter(Boolean);
@@ -5507,7 +5520,9 @@ function buildDeliveryGroups(shipments, queryText = '') {
   for (const row of extras) {
     const batch = deliveryBatchText(row.deliveryBatch);
     if (!batch || !selectedBatch.has(batch)) continue;
-    const group = ensureGroup(`batch:${batch}`, { batch, createdAt: row.billedAt || row.createdAt || row.deliveryDate });
+    const batchCompany = deliveryBatchCompany(batch, row.billedAt || row.createdAt || row.deliveryDate);
+    const groupKey = batchCompany ? `batch:${batch}:${batchCompany}` : `batch:${batch}`;
+    const group = ensureGroup(groupKey, { batch, createdAt: row.billedAt || row.createdAt || row.deliveryDate });
     group.billed = true;
     const isReplacement = row.source === 'replacement';
     group.items.push({
