@@ -4161,9 +4161,51 @@ function renderWorkTimeline() {
     const pieceQty = pieceRowsForShow.reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
     const approvedCount = pieceRowsForShow.filter((entry) => statusText(entry.status) === '已通过').length;
     const pieceItems = pieceRowsForShow.length ? pieceRowsForShow.map((entry) => `<div class="tl-item piece"><span>${escapeHtml(String(entry.createdAt || '').slice(5, 16).replace('T', ' '))} · ${escapeHtml(entry.material || '（无料号）')} · ${escapeHtml(entry.name || '')} · ${escapeHtml(entry.process || '')}${entry.variantLabel ? ' · ' + escapeHtml(entry.variantLabel) : ''}</span><b>${fmt(entry.quantity)} 件 · ${workReviewMoney(entry.amount, 2)} 元</b><em class="tl-status ${escapeHtml(entry.status || 'approved')}">${statusText(entry.status)}</em></div>`).join('') : '<div class="tl-empty">当天没有计件记录</div>';
+    const histEntries = (data.history && Array.isArray(data.history.entries)) ? data.history.entries : [];
+    const statusTextOf = (s) => s === 'submitted' ? '待审核' : s === 'rejected' ? '已退回' : s === 'revoked' ? '已撤回' : '已通过';
+    const matMap = new Map();
+    histEntries.forEach((entry) => {
+      const material = entry.material || '（无料号）';
+      const process = entry.process || '';
+      const groupKey = material + '|' + process;
+      const item = matMap.get(groupKey) || { material, process, quantity: 0, amount: 0, count: 0, days: {}, dayQty: {} };
+      item.quantity += Number(entry.quantity || 0);
+      item.amount += Number(entry.amount || 0);
+      item.count += 1;
+      item.days[entry.workDate] = (item.days[entry.workDate] || 0) + Number(entry.quantity || 0);
+      const dupKey = entry.workDate + '|' + Number(entry.quantity || 0);
+      item.dayQty[dupKey] = (item.dayQty[dupKey] || 0) + 1;
+      matMap.set(groupKey, item);
+    });
+    const matRows = [...matMap.values()].map((item) => {
+      const dayValues = Object.values(item.days).map(Number);
+      const avg = dayValues.length ? dayValues.reduce((a, b) => a + b, 0) / dayValues.length : 0;
+      const max = dayValues.length ? Math.max(...dayValues) : 0;
+      return {
+        ...item,
+        dayCount: dayValues.length,
+        dup: Object.values(item.dayQty).some((n) => Number(n) > 1),
+        high: dayValues.length >= 2 && avg > 0 && max > avg * 2,
+        detail: Object.entries(item.days).sort((a, b) => b[0].localeCompare(a[0])).map(([d, q]) => `${d.slice(5)}：${fmt(q)} 件`).join('   '),
+      };
+    }).sort((a, b) => b.quantity - a.quantity);
+    const matItems = matRows.length ? matRows.map((item) => `<div class="tl-item"><span>${item.dup || item.high ? '⚠ ' : ''}${escapeHtml(item.material)} · ${escapeHtml(item.process)}</span><b>合计 ${fmt(item.quantity)} 件 · ${item.dayCount} 天</b>${item.dup ? '<em class="tl-status rejected">有过重复</em>' : item.high ? '<em class="tl-status submitted">数量偏高</em>' : ''}<em class="tl-status plain">${escapeHtml(item.detail)}</em></div>`).join('') : '<div class="tl-empty">近 7 天没有计件</div>';
+    const dateMap = new Map();
+    histEntries.forEach((entry) => { if (!dateMap.has(entry.workDate)) dateMap.set(entry.workDate, []); dateMap.get(entry.workDate).push(entry); });
+    const todayStr = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+    const yesterdayStr = new Date(Date.now() + 8 * 3600 * 1000 - 86400000).toISOString().slice(0, 10);
+    const dateLabel = (d) => d === todayStr ? '今天' : d === yesterdayStr ? '昨天' : '';
+    const dateGroups = [...dateMap.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([date, list]) => {
+      const qty = list.reduce((sum, e) => sum + Number(e.quantity || 0), 0);
+      const amount = list.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+      const rows = list.map((e) => `<div class="tl-item piece"><span>${escapeHtml(String(e.createdAt || '').slice(5, 16).replace('T', ' '))} · ${escapeHtml(e.material || '')} · ${escapeHtml(e.name || '')} · ${escapeHtml(e.process || '')}</span><b>${fmt(e.quantity)} 件 · ${workReviewMoney(e.amount, 2)} 元</b><em class="tl-status ${escapeHtml(e.status || '')}">${statusTextOf(e.status)}</em></div>`).join('');
+      return `<div class="tl-line expandable" data-tl-detail="day"><div class="tl-line-main"><span>${escapeHtml(date)} ${dateLabel(date)}</span><strong>${list.length} 笔 · ${fmt(qty)} 件 · ${workReviewMoney(amount, 2)} 元</strong></div><div class="tl-detail">${rows}</div></div>`;
+    }).join('');
     const mobileHtml = `<div class="work-timeline-anomaly">${escapeHtml(data.employee.name)} · ${escapeHtml(data.date)}${data.monthClosed ? ' · 本月已封账' : ''}</div>
       <div class="tl-line expandable" data-tl-detail="time"><div class="tl-line-main"><span>计时工时</span><strong>${(data.timerEntries || []).length} 段 · ${fmt(salary.timerHours)} 小时</strong></div><div class="tl-detail">${timerItems}</div></div>
       <div class="tl-line expandable" data-tl-detail="piece"><div class="tl-line-main"><span>计件申报</span><strong>${pieceRowsForShow.length} 笔（已通过 ${approvedCount}）· ${fmt(pieceQty)} 件</strong></div><div class="tl-detail">${pieceItems}</div></div>
+      <div class="tl-line expandable" data-tl-detail="summary"><div class="tl-line-main"><span>同料号汇总（近 7 天）</span><strong>${matRows.length} 项</strong></div><div class="tl-detail">${matItems}</div></div>
+      <div class="tl-line expandable" data-tl-detail="history"><div class="tl-line-main"><span>按日期看（近 7 天）</span><strong>${dateMap.size} 天</strong></div><div class="tl-detail">${dateGroups}</div></div>
       <div class="tl-line"><div class="tl-line-main"><span>计时工资</span><strong>${workReviewMoney(salary.timerPay, 2)} 元</strong></div></div>
       <div class="tl-line"><div class="tl-line-main"><span>计件工资</span><strong>${workReviewMoney(salary.piecePay, 2)} 元</strong></div></div>
       <div class="tl-line"><div class="tl-line-main"><span>工资合计</span><strong>${workReviewMoney(salary.totalPay, 2)} 元</strong></div></div>
@@ -4191,14 +4233,16 @@ async function loadWorkTimeline() {
   }
   try {
     const day = workReportDate || todayShanghai();
-    const [result, pieces] = await Promise.all([
+    const [result, pieces, history] = await Promise.all([
       callRpc('work_admin_piece_timeline', { p_code:getAccessCode(), p_employee_id:employeeId, p_date:day }),
       callRpc('work_admin_report_list', { p_code:getAccessCode(), p_date:day, p_employee_id:employeeId, p_status:'all', p_query:'', p_limit:500 }).catch(() => null),
+      callRpc('work_admin_employee_piece_history', { p_code:getAccessCode(), p_employee_id:employeeId, p_days:7 }).catch(() => null),
     ]);
     if (!result.response.ok) throw new Error(result.data?.error || '工时时段加载失败');
     workTimeline = result.data || null;
     const pieceRowsRaw = pieces && pieces.response && pieces.response.ok ? (Array.isArray(pieces.data) ? pieces.data : (pieces.data?.rows || [])) : [];
     if (workTimeline) workTimeline.pieceRows = pieceRowsRaw;
+    if (workTimeline) workTimeline.history = history && history.response && history.response.ok ? history.data : null;
     renderWorkTimeline();
   } catch (error) {
     workTimeline = null;

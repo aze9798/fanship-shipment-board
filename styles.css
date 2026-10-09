@@ -3502,3 +3502,8 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .tl-status.revoked{background:#eef2f2;color:#6b7c80}
 .work-review-badge.dup{background:#fdecec;color:#b42318}
 .work-review-dup-warn{margin-top:8px;padding:9px 11px;border-radius:10px;background:#fff4d6;color:#8a5707;font-size:12px;font-weight:700;line-height:1.55}
+.tl-line[data-tl-detail="summary"] .tl-detail .tl-item{grid-template-columns:1fr auto;row-gap:4px}
+.tl-line[data-tl-detail="summary"] .tl-detail .tl-status{grid-column:1 / -1;justify-self:start;background:#f2f7f6;color:#5b757a}
+.tl-line.expanded[data-tl-detail="history"] .tl-detail{max-height:60vh}
+.tl-line[data-tl-detail="history"] .tl-line-main span{font-size:12.5px}
+.tl-status.plain{grid-column:1 / -1;background:#f2f7f6;color:#5b757a}
