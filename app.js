@@ -4487,7 +4487,11 @@ function openWorkReviewEditor(id) {
   els.workReviewPrice.value = row.submittedUnitPrice ?? row.unitPrice ?? '';
   els.workReviewNote.value = row.reviewNote || '';
   const editable = row.status === 'submitted';
-  [els.workReviewName, els.workReviewMaterial, els.workReviewSpec, els.workReviewProcess, els.workReviewQty, els.workReviewPrice, els.workReviewNote].forEach((input) => { if (input) input.disabled = !editable; });
+  const canRejectNow = row.status === 'submitted' || row.status === 'approved';
+  [els.workReviewName, els.workReviewMaterial, els.workReviewSpec, els.workReviewProcess, els.workReviewQty, els.workReviewPrice].forEach((input) => { if (input) input.disabled = !editable; });
+  // 退回原因：待审核和已通过都允许填写
+  if (els.workReviewNote) els.workReviewNote.disabled = !canRejectNow;
+  if (els.workReviewNote && row.status === 'approved') els.workReviewNote.placeholder = '填写回退原因（必填，例如：与昨日重复）';
   if (els.workReviewSave) els.workReviewSave.hidden = !editable;
   if (els.workReviewReject) {
     const canReject = row.status === 'submitted' || row.status === 'approved';
