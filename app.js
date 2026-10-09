@@ -2053,6 +2053,7 @@ const remainingTypeTagsHtml = (types, hasReplacement = false) => {
 };
 
 function filteredOrders(filter) {
+  if (!snapshot || !Array.isArray(snapshot.orders)) return [];
   const active = snapshot.orders.filter((order) => order.remaining > 0);
   if (filter === 'urgent') return active.filter((order) => order.dueDate <= TODAY);
   if (filter === 'dueToday') return active.filter((order) => order.dueDate === TODAY);
@@ -5977,7 +5978,7 @@ function renderMobileRemaining() {
     : '全部交期';
   const visibleGroups = groups.slice(0, remainingVisibleLimit);
   // 每个料号“所有交期”的未交合计（不受当前交期筛选影响），显示在「未交」下面
-  const materialTotals = labelRemainingAllDates();
+  const materialTotals = remainingMaterialTotals();
   els.remainingList.innerHTML = `
     <div class="remaining-list-summary">
       <div><strong>${fmt(groups.length)} 项物料</strong></div>
@@ -6005,7 +6006,7 @@ function renderMobileRemaining() {
           </div>
           <div class="remaining-cell meta-cell">
             <div class="meta-line"><span>未交</span><strong class="quantity-value">${escapeHtml(qtyText(group.total))}</strong></div>
-            <div class="meta-line total-line" title="该料号所有交期的未交合计"><span>总数</span><strong class="total-value">${escapeHtml(qtyText(materialTotals.get(String(group.material || '').trim()) ?? group.total))}</strong></div>
+            <div class="meta-line total-line" title="该料号所有交期的未交合计"><span>总数</span><strong class="total-value">${escapeHtml(qtyText(materialTotals.get(remainingMaterialKey(group.material, group.name)) ?? group.total))}</strong></div>
           </div>
           <div class="remaining-cell due-cell">
             <span>交期</span>
@@ -6193,6 +6194,25 @@ function labelPool() {
     // 打印习惯记忆：经常用这种标签的排前面
     .sort((a, b) => labelMaterialCount(b.group.material, mode) - labelMaterialCount(a.group.material, mode)
       || String(a.group.material || '').localeCompare(String(b.group.material || '')));
+}
+
+function remainingMaterialKey(material, name = '') {
+  const code = String(material || '').trim();
+  const base = code.replace(/[-_\s]*[A-Za-z]+$/, '') || code;
+  const normalizedName = normalizeSearchText(name);
+  return base + '\u0000' + normalizedName;
+}
+
+function remainingMaterialTotals() {
+  // 同料号的所有交期合计：基础料号 + 品名，兼容 614004014 / 614004014B 这类尾字母差异
+  const map = new Map();
+  for (const row of remainingBaseRows()) {
+    const remaining = Number(row.remaining || 0);
+    if (remaining <= 0) continue;
+    const key = remainingMaterialKey(row.material, row.name);
+    map.set(key, (map.get(key) || 0) + remaining);
+  }
+  return map;
 }
 
 function labelRemainingAllDates() {
