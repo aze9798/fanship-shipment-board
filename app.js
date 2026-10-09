@@ -57,6 +57,7 @@ let workReportStatus = 'all';
 let workReportQuery = '';
 let workEmployeesCache = null;
 let workTimeline = null;
+let workTimelineEmployeeId = '';
 let workLiveRows = [];
 let workEmployeeRates = null;
 let workLiveLoading = false;
@@ -4150,7 +4151,20 @@ function renderWorkTimeline() {
     document.getElementById('desktopWorkTimeline').innerHTML = html;
   }
   if (mobilePanel) {
-    const mobileHtml = `<div class="work-timeline-anomaly">${escapeHtml(data.employee.name)} · ${escapeHtml(data.date)}${data.monthClosed ? ' · 本月已封账' : ''}</div><div class="work-timeline-list">${html}</div><div class="work-timeline-actions">${actions}</div>`;
+    const timerItems = (data.timerEntries || []).map((entry) => `<div class="tl-item"><span>${escapeHtml(workTimelineTime(entry.startedAt))} → ${escapeHtml(entry.endedAt ? workTimelineTime(entry.endedAt) : '进行中')}</span><b>${fmt(entry.minutes)} 分钟</b><button type="button" data-work-time-edit="${escapeHtml(entry.id)}">修改</button></div>`).join('') || '<div class="tl-empty">当天没有计时记录</div>';
+    const pieceList = [];
+    (data.periods || []).forEach((period) => (period.entries || []).forEach((entry) => pieceList.push({ ...entry, periodStart: period.startedAt })));
+    (data.unassignedEntries || []).forEach((entry) => pieceList.push(entry));
+    const pieceApproved = pieceList.filter((entry) => (entry.status || 'approved') === 'approved');
+    const pieceQty = pieceApproved.reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
+    const pieceItems = pieceList.length ? pieceList.map((entry) => `<div class="tl-item"><span>${escapeHtml(entry.name || '')} · ${escapeHtml(entry.process || '')}${entry.variantLabel ? ' · ' + escapeHtml(entry.variantLabel) : ''}</span><b>${fmt(entry.quantity)} 件 · ${workReviewMoney(entry.amount, 2)} 元</b></div>`).join('') : '<div class="tl-empty">当天没有计件记录</div>';
+    const mobileHtml = `<div class="work-timeline-anomaly">${escapeHtml(data.employee.name)} · ${escapeHtml(data.date)}${data.monthClosed ? ' · 本月已封账' : ''}</div>
+      <div class="tl-line expandable" data-tl-detail="time"><div class="tl-line-main"><span>计时工时</span><strong>${(data.timerEntries || []).length} 段 · ${fmt(salary.timerHours)} 小时</strong></div><div class="tl-detail">${timerItems}</div></div>
+      <div class="tl-line expandable" data-tl-detail="piece"><div class="tl-line-main"><span>已审核计件</span><strong>${pieceApproved.length} 笔 · ${fmt(pieceQty)} 件</strong></div><div class="tl-detail">${pieceItems}</div></div>
+      <div class="tl-line"><div class="tl-line-main"><span>计时工资</span><strong>${workReviewMoney(salary.timerPay, 2)} 元</strong></div></div>
+      <div class="tl-line"><div class="tl-line-main"><span>计件工资</span><strong>${workReviewMoney(salary.piecePay, 2)} 元</strong></div></div>
+      <div class="tl-line"><div class="tl-line-main"><span>工资合计</span><strong>${workReviewMoney(salary.totalPay, 2)} 元</strong></div></div>
+      <div class="work-timeline-actions">${actions}</div>`;
     mobileWorkDetailEmployeeId = String(data.employee.id);
     mobileWorkDetailHtml = mobileHtml;
     clearMobileWorkDetails(data.employee.id);
@@ -4160,7 +4174,7 @@ function renderWorkTimeline() {
 }
 async function loadWorkTimeline() {
   if (boardRole !== 'admin') return;
-  const employeeId = workReportEmployeeId;
+  const employeeId = workTimelineEmployeeId;
   const desktopPanel = document.getElementById('desktopWorkTimelinePanel');
   const mobilePanel = document.getElementById('mobileWorkTimelinePanel');
   if (!employeeId) {
@@ -4265,7 +4279,7 @@ async function loadWorkReport(employees = null) {
     if (!result.response.ok) throw new Error(result.data?.error || '报工情况加载失败');
     workReportRows = result.data || { rows:[], summary:{} };
     renderWorkReport();
-    if (workReportEmployeeId) await loadWorkTimeline();
+    if (workTimelineEmployeeId) await loadWorkTimeline();
     else {
       workTimeline = null;
       const desktopTimeline = document.getElementById('desktopWorkTimelinePanel');
@@ -8242,7 +8256,7 @@ document.querySelectorAll('[data-mobile-attendance-tab]').forEach((b) => b.addEv
 if (els.mobileWorkReportDate) els.mobileWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReportWorkspace(); });
 if (els.desktopWorkReportEmployee) els.desktopWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; renderWorkLiveOverview(); loadWorkReport(); });
 if (els.mobileWorkReportEmployee) els.mobileWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; renderWorkLiveOverview(); loadWorkReport(); });
-[document.getElementById('desktopWorkTimeline'), document.getElementById('desktopWorkTimelineActions'), document.getElementById('mobileWorkTimeline')].forEach((panel) => {
+[document.getElementById('desktopWorkTimeline'), document.getElementById('desktopWorkTimelineActions'), document.getElementById('mobileWorkTimeline'), els.mobileWorkLiveList].forEach((panel) => {
   if (!panel) return;
   panel.addEventListener('change', (event) => {
     const select = event.target.closest('[data-work-timeline-entry]');
@@ -8253,8 +8267,11 @@ if (els.mobileWorkReportEmployee) els.mobileWorkReportEmployee.addEventListener(
   panel.addEventListener('click', (event) => {
     const editWorkTime = event.target.closest('[data-work-time-edit]');
     if (editWorkTime) { openWorkTimeEdit(editWorkTime.dataset.workTimeEdit); return; }
+    if (event.target.closest('[data-work-time-edit]')) return;
     const payroll = event.target.closest('[data-work-payroll]');
-    if (payroll) toggleWorkPayroll(payroll.dataset.workPayroll);
+    if (payroll) { toggleWorkPayroll(payroll.dataset.workPayroll); return; }
+    const tlLine = event.target.closest('[data-tl-detail]');
+    if (tlLine) { tlLine.classList.toggle('expanded'); return; }
   });
 });
 ['workTimeEditClose', 'workTimeEditCancel'].forEach((id) => { const el = document.getElementById(id); if (el) el.addEventListener('click', closeWorkTimeEdit); });
@@ -8274,17 +8291,17 @@ if (els.mobileWorkReportRefresh) els.mobileWorkReportRefresh.addEventListener('c
     const button = event.target.closest('[data-work-live-employee]');
     if (!button) return;
     const clickedId = button.dataset.workLiveEmployee;
-    if (list === els.mobileWorkLiveList && mobileWorkDetailEmployeeId && String(mobileWorkDetailEmployeeId) === String(clickedId)) {
+    if (list === els.mobileWorkLiveList && workTimelineEmployeeId && String(workTimelineEmployeeId) === String(clickedId)) {
+      workTimelineEmployeeId = '';
+      workTimeline = null;
       mobileWorkDetailEmployeeId = '';
       mobileWorkDetailHtml = '';
-      workTimeline = null;
+      clearMobileWorkDetails('');
       renderWorkLiveOverview();
       return;
     }
-    workReportEmployeeId = clickedId;
-    if (els.desktopWorkReportEmployee) els.desktopWorkReportEmployee.value = workReportEmployeeId;
-    if (els.mobileWorkReportEmployee) els.mobileWorkReportEmployee.value = workReportEmployeeId;
-    loadWorkReport().catch(() => {});
+    workTimelineEmployeeId = clickedId;
+    loadWorkTimeline().catch(() => {});
   });
 });
 [els.desktopWorkReportBody, els.mobileWorkReportList].forEach((list) => {
