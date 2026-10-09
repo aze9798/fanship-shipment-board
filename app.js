@@ -5033,7 +5033,7 @@ function shipmentDisplayBatch(shipment) {
 function recordAvailableDates(company = recordsCompany) {
   const dates = new Set();
   for (const shipment of (snapshot?.shipments || [])) {
-    if (company && shipmentCompany(shipment) !== company) continue;
+    if (company && !shipmentHasCompany(shipment, company)) continue;
     const date = shipShanghaiDate(shipment.createdAt);
     if (date) dates.add(date);
   }
@@ -5053,9 +5053,8 @@ function recordBatchOptions(company = recordsCompany) {
     if (batch) batches.add(batch);
   }
   for (const shipment of (snapshot?.shipments || [])) {
-    if (company && shipmentCompany(shipment) !== company) continue;
-    const batch = shipmentDisplayBatch(shipment);
-    if (batch && batch !== '历史已开单') batches.add(batch);
+    if (company && !shipmentHasCompany(shipment, company)) continue;
+    for (const batch of shipmentItemBatches(shipment)) { if (batch && batch !== '历史已开单') batches.add(batch); }
   }
   return [...batches].sort((a, b) => {
     const na = Number(a);
@@ -5174,7 +5173,7 @@ function shipmentMatches(shipment, query, lookup = null) {
   if (!query) return true;
   const map = lookup || orderLookupMap();
   const text = [
-    shipment.deliveryBatch, shipmentDisplayBatch(shipment), shipment.billedAt, shipment.vehicle, shipment.operator, shipment.note,
+    shipment.deliveryBatch, ...shipmentItemBatches(shipment), shipmentDisplayBatch(shipment), shipment.billedAt, shipment.vehicle, shipment.operator, shipment.note,
     ...shipment.items.flatMap((line) => [line.material, line.name, line.spec, orderMetaSearchText(line.orderId, line, map)]),
   ].join('|');
   return matchesSearchQuery(text, query);
@@ -5336,6 +5335,47 @@ function deliveryRemainingText(value, hasOrder) {
   const number = Number(value || 0);
   return number > 0 ? `${fmt(number)} 件` : '0';
 }
+function deliveryItemCompany(item, shipment) {
+  const material = String(item?.material || '');
+  const name = String(item?.name || '');
+  if (/^6140/.test(material) || /护栏|护脚栏/.test(name)) return '邦凡';
+  const explicit = String(shipment?.customer || '').trim();
+  if (explicit === '邦凡') return '邦凡';
+  return '艾沃意特';
+}
+
+function shipmentBatchForCompany(shipment, company) {
+  const explicit = deliveryBatchText(shipment?.deliveryBatch);
+  if (explicit && explicit !== '历史已开单') return explicit;
+  const day = shipShanghaiDate(shipment?.createdAt);
+  const at = Date.parse(String(shipment?.createdAt || '')) || 0;
+  const files = (snapshot?.deliveryFiles || [])
+    .filter((row) => /\.xlsx$/i.test(String(row.fileName || ''))
+      && String(row.deliveryDate || '') === day
+      && (!company || String(row.kind || '').trim() === company)
+      && deliveryBatchText(row.batch))
+    .map((row) => ({ batch: deliveryBatchText(row.batch), at: Date.parse(String(row.createdAt || '')) || 0 }))
+    .sort((a, b) => a.at - b.at);
+  if (files.length) {
+    const hit = files.find((file) => !at || file.at >= at) || files[files.length - 1];
+    if (hit?.batch) return hit.batch;
+  }
+  return explicit === '历史已开单' ? '历史已开单' : '';
+}
+
+function shipmentItemBatches(shipment) {
+  const companies = new Set((shipment?.items || []).map((line) => deliveryItemCompany(line, shipment)));
+  return [...companies].map((company) => shipmentBatchForCompany(shipment, company)).filter(Boolean);
+}
+
+function shipmentHasCompany(shipment, company) {
+  return (shipment?.items || []).some((line) => deliveryItemCompany(line, shipment) === company);
+}
+
+function shipmentHasBatch(shipment, batch) {
+  return shipmentItemBatches(shipment).includes(String(batch));
+}
+
 function buildDeliveryGroups(shipments, queryText = '') {
   const query = String(queryText || '').trim();
   const batchQuery = /^\d+$/.test(query) ? query : '';
@@ -5343,8 +5383,8 @@ function buildDeliveryGroups(shipments, queryText = '') {
   const selectedBatch = new Set((shipments || []).map((shipment) => shipmentDisplayBatch(shipment)).filter(Boolean));
   const selectedShipmentIds = new Set((shipments || []).map((shipment) => String(shipment.id)));
   const allShipments = (snapshot?.shipments || []).filter((shipment) => {
-    const batch = shipmentDisplayBatch(shipment);
-    return selectedShipmentIds.has(String(shipment.id)) || (batch && selectedBatch.has(batch));
+    if (selectedShipmentIds.has(String(shipment.id))) return true;
+    return shipmentItemBatches(shipment).some((batch) => selectedBatch.has(batch));
   });
 
   // 输入料件编号 / 品名时：只显示匹配的发货明细，按发货时间倒序，不合并整张送货单。
@@ -5355,11 +5395,13 @@ function buildDeliveryGroups(shipments, queryText = '') {
   if (query && (!(batchQuery && selectedBatch.has(batchQuery)) || hasItemMatch)) {
     const searchGroups = [];
     for (const shipment of allShipments) {
-      const items = [];
+      const itemsByCompany = new Map();
       for (const line of (shipment.items || [])) {
         const meta = orderMetaFor(line.orderId, line, orderLookup);
         if (!deliveryItemMatches(line, meta, query)) continue;
-        items.push({
+        const company = deliveryItemCompany(line, shipment);
+        if (!itemsByCompany.has(company)) itemsByCompany.set(company, []);
+        itemsByCompany.get(company).push({
           key: ['search', meta.po, meta.seq, line.material, line.name, line.spec].map((v) => String(v || '')).join('|'),
           source: 'shipment',
           shipmentId: String(shipment.id),
@@ -5377,18 +5419,20 @@ function buildDeliveryGroups(shipments, queryText = '') {
           remark: '',
         });
       }
-      if (!items.length) continue;
-      const displayBatch = shipmentDisplayBatch(shipment);
-      searchGroups.push({
-        key: `search:${shipment.id}`,
-        batch: displayBatch,
-        title: displayBatch ? `送货单 ${displayBatch} · ${deliveryStamp(shipment.createdAt)}` : `发货记录 · ${deliveryStamp(shipment.createdAt)}`,
-        billed: Boolean(shipment.deliveryBatch),
-        createdAt: shipment.createdAt,
-        shipmentIds: [String(shipment.id)],
-        items,
-        searchMode: true,
-      });
+      for (const [company, items] of itemsByCompany) {
+        if (!items.length) continue;
+        const displayBatch = shipmentBatchForCompany(shipment, company);
+        searchGroups.push({
+          key: `search:${shipment.id}:${company}`,
+          batch: displayBatch,
+          title: displayBatch ? `送货单 ${displayBatch} · ${deliveryStamp(shipment.createdAt)}` : `发货记录 · ${deliveryStamp(shipment.createdAt)}`,
+          billed: Boolean(displayBatch),
+          createdAt: shipment.createdAt,
+          shipmentIds: [String(shipment.id)],
+          items,
+          searchMode: true,
+        });
+      }
     }
     return searchGroups
       .map((group) => {
@@ -5405,7 +5449,6 @@ function buildDeliveryGroups(shipments, queryText = '') {
       })
       .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   }
-
   const map = new Map();
   const ensureGroup = (key, options = {}) => {
     if (!map.has(key)) {
@@ -5422,31 +5465,39 @@ function buildDeliveryGroups(shipments, queryText = '') {
     return map.get(key);
   };
   for (const shipment of allShipments) {
-    const batch = shipmentDisplayBatch(shipment);
-    const key = batch ? `batch:${batch}` : `shipment:${shipment.id}`;
-    const group = ensureGroup(key, { batch, createdAt: shipment.billedAt || shipment.createdAt });
-    group.billed = group.billed || Boolean(batch);
-    group.shipmentIds.push(String(shipment.id));
+    const itemsByCompany = new Map();
     for (const line of (shipment.items || [])) {
-      const meta = orderMetaFor(line.orderId, line, orderLookup);
-      group.items.push({
-        key: ['shipment', meta.po, meta.seq, line.material, line.name, line.spec].map((v) => String(v || '')).join('|'),
-        source: 'shipment',
-        shipmentId: String(shipment.id),
-        itemId: line.id,
-        orderId: String(line.orderId || ''),
-        typeLabel: '',
-        po: deliveryLineLabel(meta.po, '无'),
-        seq: deliveryLineLabel(meta.seq, '无'),
-        material: deliveryLineLabel(line.material),
-        name: deliveryLineLabel(line.name),
-        spec: deliveryLineLabel(line.spec, ''),
-        quantity: Number(line.quantity || 0),
-        remaining: Number(meta.remaining || 0),
-        hasOrder: Boolean(meta.po || meta.orderQty || meta.seq),
-        remark: '',
-        billed: Boolean(batch) || isBilledShipment(shipment.id),
-      });
+      const company = deliveryItemCompany(line, shipment);
+      if (!itemsByCompany.has(company)) itemsByCompany.set(company, []);
+      itemsByCompany.get(company).push(line);
+    }
+    for (const [company, lines] of itemsByCompany) {
+      const batch = shipmentBatchForCompany(shipment, company);
+      const key = batch ? `batch:${batch}:${company}` : `shipment:${shipment.id}:${company}`;
+      const group = ensureGroup(key, { batch, createdAt: shipment.billedAt || shipment.createdAt });
+      group.billed = group.billed || Boolean(batch);
+      group.shipmentIds.push(String(shipment.id));
+      for (const line of lines) {
+        const meta = orderMetaFor(line.orderId, line, orderLookup);
+        group.items.push({
+          key: ['shipment', meta.po, meta.seq, line.material, line.name, line.spec].map((v) => String(v || '')).join('|'),
+          source: 'shipment',
+          shipmentId: String(shipment.id),
+          itemId: line.id,
+          orderId: String(line.orderId || ''),
+          typeLabel: '',
+          po: deliveryLineLabel(meta.po, '无'),
+          seq: deliveryLineLabel(meta.seq, '无'),
+          material: deliveryLineLabel(line.material),
+          name: deliveryLineLabel(line.name),
+          spec: deliveryLineLabel(line.spec, ''),
+          quantity: Number(line.quantity || 0),
+          remaining: Number(meta.remaining || 0),
+          hasOrder: Boolean(meta.po || meta.orderQty || meta.seq),
+          remark: '',
+          billed: Boolean(batch) || isBilledShipment(shipment.id),
+        });
+      }
     }
   }
   const extras = [
@@ -6824,9 +6875,13 @@ function renderMobileRecords() {
   renderMobileRecordFilters();
   const query = String(recordsSearch || '').trim();
   const lookup = orderLookupMap();
-  const rows = (snapshot.shipments || []).filter((shipment) => {
-    if (recordsCompany && shipmentCompany(shipment) !== recordsCompany) return false;
-    if (recordsBatch && shipmentDisplayBatch(shipment) !== recordsBatch) return false;
+  const rows = (snapshot.shipments || []).map((shipment) => {
+    let items = shipment.items || [];
+    if (recordsCompany) items = items.filter((line) => deliveryItemCompany(line, shipment) === recordsCompany);
+    if (recordsBatch) items = items.filter((line) => shipmentBatchForCompany(shipment, deliveryItemCompany(line, shipment)) === recordsBatch);
+    if (!items.length) return null;
+    return { ...shipment, items };
+  }).filter(Boolean).filter((shipment) => {
     if (recordsDate && shipShanghaiDate(shipment.createdAt) !== recordsDate) return false;
     return shipmentMatches(shipment, query, lookup);
   });
