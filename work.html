@@ -456,14 +456,30 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
   }
   // 关键改动：能用表单体（application/x-www-form-urlencoded）+ URL 传 apikey 的调用属于浏览器"简单请求"，
   // 不再触发跨域预检（OPTIONS）。移动卡等弱网环境下跨域预检最容易被运营商掐断，表现为 Failed to fetch。
+  // 会新建计件记录的接口 → 走幂等版本：网络重试/连点不会写成两条
+  const IDEMPOTENT_RPCS = {
+    work_add_piece_entry: 'work_add_piece_entry_idem',
+    work_submit_custom_piece: 'work_submit_custom_piece_idem',
+    work_submit_piece_request: 'work_submit_piece_request_idem',
+    work_submit_price_change: 'work_submit_price_change_idem'
+  };
+  function newClientRef() {
+    try { return crypto.randomUUID(); } catch { return `ref-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`; }
+  }
   async function rpc(name, body) {
-    const useJson = rpcNeedsJsonBody(body);
+    let payload = body;
+    const idemName = IDEMPOTENT_RPCS[name];
+    if (idemName) {
+      name = idemName;
+      payload = { ...(body || {}), p_client_ref: newClientRef() };
+    }
+    const useJson = rpcNeedsJsonBody(payload);
     const url = useJson
       ? `${window.WORK_RPC_BASE}/${name}`
       : `${window.WORK_RPC_BASE}/${name}?apikey=${encodeURIComponent(window.WORK_ANON_KEY)}`;
     const init = useJson
-      ? { headers:{ apikey:window.WORK_ANON_KEY, Authorization:`Bearer ${window.WORK_ANON_KEY}`, 'Content-Type':'application/json' }, body:JSON.stringify(body) }
-      : { headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:rpcFormBody(body) };
+      ? { headers:{ apikey:window.WORK_ANON_KEY, Authorization:`Bearer ${window.WORK_ANON_KEY}`, 'Content-Type':'application/json' }, body:JSON.stringify(payload) }
+      : { headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:rpcFormBody(payload) };
     let lastError = null;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       const controller = new AbortController();
