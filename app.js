@@ -4160,7 +4160,7 @@ function renderWorkTimeline() {
     const pieceRowsForShow = reportedPieces.length ? reportedPieces : pieceList.map((entry) => ({ ...entry, status: entry.status || 'approved' }));
     const pieceQty = pieceRowsForShow.reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
     const approvedCount = pieceRowsForShow.filter((entry) => statusText(entry.status) === '已通过').length;
-    const pieceItems = pieceRowsForShow.length ? pieceRowsForShow.map((entry) => `<div class="tl-item piece"><span>${escapeHtml(entry.material || '（无料号）')} · ${escapeHtml(entry.name || '')} · ${escapeHtml(entry.process || '')}${entry.variantLabel ? ' · ' + escapeHtml(entry.variantLabel) : ''}</span><b>${fmt(entry.quantity)} 件 · ${workReviewMoney(entry.amount, 2)} 元</b><em class="tl-status ${escapeHtml(entry.status || 'approved')}">${statusText(entry.status)}</em></div>`).join('') : '<div class="tl-empty">当天没有计件记录</div>';
+    const pieceItems = pieceRowsForShow.length ? pieceRowsForShow.map((entry) => `<div class="tl-item piece"><span>${escapeHtml(String(entry.createdAt || '').slice(5, 16).replace('T', ' '))} · ${escapeHtml(entry.material || '（无料号）')} · ${escapeHtml(entry.name || '')} · ${escapeHtml(entry.process || '')}${entry.variantLabel ? ' · ' + escapeHtml(entry.variantLabel) : ''}</span><b>${fmt(entry.quantity)} 件 · ${workReviewMoney(entry.amount, 2)} 元</b><em class="tl-status ${escapeHtml(entry.status || 'approved')}">${statusText(entry.status)}</em></div>`).join('') : '<div class="tl-empty">当天没有计件记录</div>';
     const mobileHtml = `<div class="work-timeline-anomaly">${escapeHtml(data.employee.name)} · ${escapeHtml(data.date)}${data.monthClosed ? ' · 本月已封账' : ''}</div>
       <div class="tl-line expandable" data-tl-detail="time"><div class="tl-line-main"><span>计时工时</span><strong>${(data.timerEntries || []).length} 段 · ${fmt(salary.timerHours)} 小时</strong></div><div class="tl-detail">${timerItems}</div></div>
       <div class="tl-line expandable" data-tl-detail="piece"><div class="tl-line-main"><span>计件申报</span><strong>${pieceRowsForShow.length} 笔（已通过 ${approvedCount}）· ${fmt(pieceQty)} 件</strong></div><div class="tl-detail">${pieceItems}</div></div>
@@ -4369,21 +4369,36 @@ function workReviewCard(row, mobile = false) {
     <p class="review-money">${escapeHtml(price)}</p>`;
   if (mobile) {
     return `<article class="mobile-review-card" data-review-id="${escapeHtml(row.id)}">
-      <div><span class="work-review-badge ${escapeHtml(row.sourceType || '')}">${escapeHtml(source)}</span><span class="review-status ${escapeHtml(row.status || '')}">${escapeHtml(status)}</span></div>
+      <div><span class="work-review-badge ${escapeHtml(row.sourceType || '')}">${escapeHtml(source)}</span>${dupCount > 1 ? `<span class="work-review-badge dup">疑似重复 ${dupCount} 条</span>` : ''}<span class="review-status ${escapeHtml(row.status || '')}">${escapeHtml(status)}</span></div>
       ${fields}
       <button type="button" data-open-work-review="${escapeHtml(row.id)}">${row.status === 'submitted' ? '审核' : '查看'}</button>
     </article>`;
   }
   return `<article class="work-review-card" data-review-id="${escapeHtml(row.id)}">
-    <div><span class="work-review-badge ${escapeHtml(row.sourceType || '')}">${escapeHtml(source)}</span><span class="review-status ${escapeHtml(row.status || '')}">${escapeHtml(status)}</span>${fields}</div>
+    <div><span class="work-review-badge ${escapeHtml(row.sourceType || '')}">${escapeHtml(source)}</span>${dupCount > 1 ? `<span class="work-review-badge dup">疑似重复 ${dupCount} 条</span>` : ''}<span class="review-status ${escapeHtml(row.status || '')}">${escapeHtml(status)}</span>${fields}</div>
     <div><p>员工：<strong>${escapeHtml(row.employeeNo || '--')} · ${escapeHtml(row.employeeName || '--')}</strong></p><p>日期：${escapeHtml(row.workDate || '--')} · 提交：${escapeHtml(String(row.createdAt || '').slice(0, 16).replace('T', ' '))}</p><p>${escapeHtml(price)}</p></div>
     <div><p>当前目录：<strong>${escapeHtml(row.currentMaterial || row.submittedMaterial || '--')}</strong></p><p>${escapeHtml(row.currentName || row.submittedName || '--')}${row.currentSpec ? ` · ${escapeHtml(row.currentSpec)}` : ''}</p><p>${escapeHtml(row.currentProcessName || row.submittedProcessName || '--')}</p></div>
     <button type="button" data-open-work-review="${escapeHtml(row.id)}">${row.status === 'submitted' ? '审核' : '查看'}</button>
   </article>`;
 }
+function workReviewKey(row) {
+  return [row.employeeNo || '', (row.submittedMaterial || row.currentMaterial || '').trim(), (row.submittedProcessName || row.currentProcessName || '').trim(), Number(row.quantity || 0)].join('|');
+}
+function workReviewDuplicateGroups(rows) {
+  const map = new Map();
+  (rows || []).forEach((row) => {
+    const key = workReviewKey(row);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(row);
+  });
+  for (const [key, list] of [...map.entries()]) if (list.length < 2) map.delete(key);
+  return map;
+}
 function renderWorkReviews() {
-  if (els.desktopWorkReviewList) els.desktopWorkReviewList.innerHTML = workReviewRows.map((row) => workReviewCard(row, false)).join('');
-  if (els.mobileWorkReviewList) els.mobileWorkReviewList.innerHTML = workReviewRows.map((row) => workReviewCard(row, true)).join('');
+  const dupGroups = workReviewDuplicateGroups(workReviewRows);
+  const dupCountFor = (row) => (dupGroups.get(workReviewKey(row)) || []).length;
+  if (els.desktopWorkReviewList) els.desktopWorkReviewList.innerHTML = workReviewRows.map((row) => workReviewCard(row, false, dupCountFor(row))).join('');
+  if (els.mobileWorkReviewList) els.mobileWorkReviewList.innerHTML = workReviewRows.map((row) => workReviewCard(row, true, dupCountFor(row))).join('');
   if (els.desktopWorkReviewCount) els.desktopWorkReviewCount.textContent = String(workReviewRows.length);
   if (els.desktopWorkReviewEmpty) els.desktopWorkReviewEmpty.hidden = workReviewRows.length > 0;
 }
@@ -4416,6 +4431,10 @@ function openWorkReviewEditor(id) {
   workReviewEditing = row;
   els.workReviewId.value = row.id;
   els.workReviewInfo.innerHTML = `<strong>${escapeHtml(row.employeeName || '')}</strong> · ${escapeHtml(workReviewSourceText(row.sourceType))} · ${escapeHtml(workReviewStatusText(row.status))}<br>员工填报：${escapeHtml(row.submittedName || '')} · ${escapeHtml(row.submittedMaterial || '')} · ${escapeHtml(row.submittedProcessName || '')}${row.variantLabel ? ' · ' + escapeHtml(row.variantLabel) : ''}<br>当前目录：${escapeHtml(row.currentMaterial || '未入库')}${row.currentName ? ' · ' + escapeHtml(row.currentName) : ''}`;
+  const dupGroup = (workReviewDuplicateGroups(workReviewRows).get(workReviewKey(row)) || []).filter((item) => item.id !== row.id);
+  if (dupGroup.length) {
+    els.workReviewInfo.innerHTML += `<div class="work-review-dup-warn">⚠ 该员工当天还有 ${dupGroup.length} 条内容相同（料号+工序+数量一致）的报工：${dupGroup.map((item) => `${escapeHtml(String(item.createdAt || '').slice(5, 16).replace('T', ' '))}（${escapeHtml(workReviewStatusText(item.status))}）`).join('、')}。如需退回，请在下方填写退回原因后点“退回”。</div>`;
+  }
   els.workReviewName.value = row.submittedName || '';
   els.workReviewMaterial.value = row.submittedMaterial || '';
   els.workReviewSpec.value = row.submittedSpec || '';
@@ -9113,9 +9132,7 @@ function connectEvents() {
       if (document.visibilityState !== 'visible') return;
       void loadState({ quiet: true, fast: true });
       if (boardRole !== 'admin') return;
-      const desktopReportVisible = desktopModule === 'work' && desktopView === 'workReport' && els.desktopWorkReportView && !els.desktopWorkReportView.hidden;
-      const mobileReportVisible = mobileModule === 'workReview' && mobileWorkTab === 'report' && els.mobileWorkReportPanel && !els.mobileWorkReportPanel.hidden;
-      if ((desktopReportVisible || mobileReportVisible) && Date.now() - workLiveLoadedAt > 30000) loadWorkReportWorkspace().catch(() => {});
+      // 报工情况 / 报工审核页不再自动刷新（页面上有"刷新报工"按钮，避免打断管理员查看）
     };
     // 后台标签页完全停止轮询；前台 10 秒同步一次，减少频繁网络请求造成的卡顿。
     connectEvents.pollTimer = setInterval(poll, 10000);
