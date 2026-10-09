@@ -322,6 +322,7 @@
   <div class="modal-actions"><button id="qtyModalCancel" type="button">取消</button><button id="qtyModalSave" class="primary" type="button">保存</button></div>
 </div></div>
 <div id="revokeModal" class="modal-backdrop hidden"><div class="modal-card"><h3>确定撤回这条计件吗？</h3><p>撤回后不会参与工资统计，记录会保留为“已撤回”。</p><div class="modal-actions"><button id="revokeCancel" type="button">取消</button><button id="revokeConfirm" class="danger" type="button">确认撤回</button></div></div></div>
+<div id="clockStopModal" class="modal-backdrop hidden"><div class="modal-card"><h3>确定结束本次计时吗？</h3><p id="clockStopDetail"></p><div class="modal-actions"><button id="clockStopCancel" class="ghost" type="button">继续计时</button><button id="clockStopConfirm" class="primary" type="button">确认结束计时</button></div></div></div>
 <div id="reissueModal" class="modal-backdrop hidden">
   <div class="modal-card">
     <div class="modal-head"><h3>补卡申请</h3><button id="reissueClose" class="icon-button" type="button" aria-label="关闭">×</button></div>
@@ -1323,8 +1324,27 @@ function renderPiece() {
     btn.classList.toggle('clock-stop', Boolean(state?.activeEntry));
     btn.disabled = false;
   }
+  let clockLockUntil = 0;
   async function clockAction() {
-    const active = Boolean(state?.activeEntry); const btn = $('clockAction');
+    const btn = $('clockAction');
+    if (Date.now() < clockLockUntil) { toast('刚刚已开始计时，请稍候再操作'); return; }
+    if (state?.activeEntry) { openClockStopConfirm(); return; }
+    await runClockAction(false);
+  }
+  function openClockStopConfirm() {
+    const detail = $('clockStopDetail');
+    if (detail) {
+      const started = state?.activeEntry?.startedAt;
+      const elapsed = currentElapsedText();
+      detail.textContent = started
+        ? `开始时间 ${fmtClock(started)}，已计时 ${elapsed}。结束后如需继续工作，要重新点“开始计时”。`
+        : '结束后如需继续工作，要重新点“开始计时”。';
+    }
+    show($('clockStopModal'), true);
+  }
+  function closeClockStopConfirm() { show($('clockStopModal'), false); }
+  async function runClockAction(active) {
+    const btn = $('clockAction');
     btn.disabled = true;
     if (active) playClockMorph(btn);
     try {
@@ -1368,6 +1388,7 @@ function renderPiece() {
         finishClockMorph(btn, text);
       } else {
         btn.disabled = false;
+        clockLockUntil = Date.now() + 4000;
         navigator.vibrate?.(120);
       }
     } catch (e) {
@@ -1909,6 +1930,9 @@ function variantDisplay(processName, value) {
   const logoutButton = $('logoutButton');
   if (logoutButton) logoutButton.addEventListener('click', () => { state = null; salaryData = null; editEntry = null; code = ''; clearStoredCode(); render(); });
   $('clockAction').addEventListener('click', clockAction);
+$('clockStopConfirm').addEventListener('click', () => { closeClockStopConfirm(); runClockAction(true).catch((error) => toast(error.message || '结束失败')); });
+$('clockStopCancel').addEventListener('click', closeClockStopConfirm);
+$('clockStopModal').addEventListener('click', (e) => { if (e.target === $('clockStopModal')) closeClockStopConfirm(); });
   if ($('attendanceRefresh')) $('attendanceRefresh').addEventListener('click', () => loadMyAttendance().catch(() => {}));
   if ($('payrollRefresh')) $('payrollRefresh').addEventListener('click', () => loadMyPayroll().catch(() => {}));
   if ($('payrollMonth')) $('payrollMonth').addEventListener('change', () => loadMyPayroll().catch(() => {}));
