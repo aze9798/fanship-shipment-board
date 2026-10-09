@@ -58,6 +58,7 @@ let workReportQuery = '';
 let workEmployeesCache = null;
 let workTimeline = null;
 let workLiveRows = [];
+let workEmployeeRates = null;
 let workLiveLoading = false;
 let workLiveLoadedAt = 0;
 let remainingVisibleLimit = 60;
@@ -3850,6 +3851,16 @@ async function loadWorkEmployees() {
   fillEmployeeOptions(workEmployeesCache);
   return workEmployeesCache;
 }
+async function loadWorkEmployeeRates() {
+  if (workEmployeeRates) return workEmployeeRates;
+  try {
+    const result = await callRpc('work_admin_employee_rates', { p_code:getAccessCode() });
+    workEmployeeRates = (result.response.ok && result.data && typeof result.data === 'object') ? result.data : {};
+  } catch (error) {
+    workEmployeeRates = {};
+  }
+  return workEmployeeRates;
+}
 function workLiveMinuteText(value) {
   const minutes = Math.max(0, Math.round(Number(value || 0)));
   if (minutes < 60) return `${minutes} 分钟`;
@@ -3884,7 +3895,8 @@ function workLiveLatestText(row) {
   return `${workTimelineTime(row.latestPiece.submittedAt)} · ${escapeHtml(row.latestPiece.name || '')} · ${escapeHtml(row.latestPiece.process || '')} · ${fmt(row.latestPiece.quantity)} 件 · ${escapeHtml(workReviewStatusText(row.latestPiece.status))}${stale}`;
 }
 function renderWorkLiveOverview() {
-  const rows = Array.isArray(workLiveRows) ? workLiveRows : [];
+  const allRows = Array.isArray(workLiveRows) ? workLiveRows : [];
+  const rows = workReportEmployeeId ? allRows.filter((row) => String(row.id) === String(workReportEmployeeId)) : allRows;
   const timingNow = rows.filter((row) => row.activeTimer).length;
   const timedToday = rows.filter((row) => row.activeTimer || Number(row.timerMinutes || 0) > 0).length;
   const pieceTotal = rows.reduce((sum, row) => sum + Number(row.pieceCount || 0), 0);
@@ -3909,10 +3921,21 @@ function renderWorkLiveOverview() {
       const status = workLiveStatus(row);
       const timerText = row.activeTimer ? `进行中 · ${workLiveMinuteText(row.activeTimer.minutes)}` : Number(row.timerMinutes || 0) > 0 ? `${workLiveMinuteText(row.timerMinutes)}` : '未计时';
       const pieceText = Number(row.pieceCount || 0) > 0 ? `${fmt(row.pieceCount)} 笔 · ${fmt(row.pieceQuantity)} 件` : '暂无计件';
-      return `<article class="mobile-live-card"><div class="mobile-live-card-head"><h3>${escapeHtml(row.employeeNo || '')} · ${escapeHtml(row.name || '')}</h3><span class="work-live-status ${status.className}">${escapeHtml(status.text)}</span></div><div class="mobile-live-grid"><div><span>今日计时</span><strong>${escapeHtml(timerText)}</strong></div><div><span>今日计件</span><strong>${escapeHtml(pieceText)}</strong></div></div><div class="mobile-live-latest">最新动态：${workLiveLatestText(row)}</div><button type="button" data-work-live-employee="${escapeHtml(row.id)}">查看明细</button></article>`;
-    }).join('') : '<div class="empty-state"><strong>没有可显示的计时计件员工</strong></div>';
+      const rate = Number((workEmployeeRates || {})[row.id] || 0);
+      const paidHours = Number(row.timerPaidHours || 0);
+      const timerPay = paidHours > 0 && rate > 0 ? paidHours * rate : 0;
+      const piecePay = Number(row.pieceAmount || 0);
+      const totalPay = timerPay + piecePay;
+      const expanded = mobileWorkDetailEmployeeId && String(mobileWorkDetailEmployeeId) === String(row.id);
+      return `<article class="mobile-live-card${expanded ? ' is-expanded' : ''}"><div class="mobile-live-card-head"><h3>${escapeHtml(row.employeeNo || '')} · ${escapeHtml(row.name || '')}</h3><span class="work-live-status ${status.className}">${escapeHtml(status.text)}</span></div><div class="mobile-live-grid"><div><span>今日计时</span><strong>${escapeHtml(timerText)}</strong>${paidHours > 0 ? `<small>有效 ${Number(paidHours).toFixed(2)} 小时</small>` : ''}</div><div><span>计时工资</span><strong>${timerPay > 0 ? `${workReviewMoney(timerPay, 2)} 元` : '--'}</strong>${rate > 0 ? `<small>${rate} 元/小时</small>` : ''}</div><div><span>今日计件</span><strong>${escapeHtml(pieceText)}</strong></div><div><span>计件金额</span><strong>${piecePay > 0 ? `${workReviewMoney(piecePay, 2)} 元` : '--'}</strong>${Number(row.pending || 0) > 0 ? `<small>待审 ${fmt(row.pending)} 笔</small>` : ''}</div></div><div class="mobile-live-latest">最新动态：${workLiveLatestText(row)}${totalPay > 0 ? ` · 当天合计约 ${workReviewMoney(totalPay, 2)} 元` : ''}</div><button type="button" data-work-live-employee="${escapeHtml(row.id)}">${expanded ? '收起明细' : '查看明细'}</button><div class="mobile-live-detail" data-work-live-detail="${escapeHtml(row.id)}" hidden></div></article>`;
+    }).join('') : `<div class="empty-state"><strong>${workReportEmployeeId ? '该员工当天没有计时或计件记录' : '没有可显示的计时计件员工'}</strong></div>`;
   }
-  if (els.desktopWorkLiveEmpty) els.desktopWorkLiveEmpty.hidden = sorted.length > 0;
+  restoreMobileWorkDetail();
+  if (els.desktopWorkLiveEmpty) {
+    els.desktopWorkLiveEmpty.hidden = sorted.length > 0;
+    const strong = els.desktopWorkLiveEmpty.querySelector('strong');
+    if (strong) strong.textContent = workReportEmployeeId ? '该员工当天没有计时或计件记录' : '没有可显示的计时计件员工';
+  }
 }
 function normalizeWorkLiveRow(employee, data = {}) {
   const timerEntries = Array.isArray(data.timerEntries) ? data.timerEntries : [];
@@ -3955,6 +3978,7 @@ async function loadWorkLiveOverview(employees = null) {
   if (boardRole !== 'admin' || workLiveLoading) return;
   workLiveLoading = true;
   try {
+    await loadWorkEmployeeRates();
     const list = (employees || await loadWorkEmployees()).filter((employee) => employee.track === 'welding' || employee.track === 'back');
     const day = workReportDate || todayShanghai();
     const previous = new Map((workLiveRows || []).map((row) => [row.id, row]));
@@ -4069,6 +4093,34 @@ async function saveWorkTimeEdit() {
     showToast(error.message || '修改失败');
   }
 }
+let mobileWorkDetailEmployeeId = '';
+let mobileWorkDetailHtml = '';
+function clearMobileWorkDetails(keepId) {
+  document.querySelectorAll('#mobileWorkLiveList [data-work-live-detail]').forEach((el) => {
+    if (keepId && String(el.dataset.workLiveDetail) === String(keepId)) return;
+    el.hidden = true;
+    el.innerHTML = '';
+  });
+  document.querySelectorAll('#mobileWorkLiveList .mobile-live-card').forEach((card) => {
+    const btn = card.querySelector('[data-work-live-employee]');
+    if (keepId && btn && String(btn.dataset.workLiveEmployee) === String(keepId)) return;
+    card.classList.remove('is-expanded');
+    if (btn) btn.textContent = '查看明细';
+  });
+}
+function restoreMobileWorkDetail() {
+  if (!mobileWorkDetailEmployeeId || !mobileWorkDetailHtml) return;
+  const holder = document.querySelector(`#mobileWorkLiveList [data-work-live-detail="${mobileWorkDetailEmployeeId}"]`);
+  if (!holder) return;
+  holder.innerHTML = mobileWorkDetailHtml;
+  holder.hidden = false;
+  const card = holder.closest('.mobile-live-card');
+  if (card) {
+    card.classList.add('is-expanded');
+    const btn = card.querySelector('[data-work-live-employee]');
+    if (btn) btn.textContent = '收起明细';
+  }
+}
 function renderWorkTimeline() {
   const desktopPanel = document.getElementById('desktopWorkTimelinePanel');
   const mobilePanel = document.getElementById('mobileWorkTimelinePanel');
@@ -4098,9 +4150,12 @@ function renderWorkTimeline() {
     document.getElementById('desktopWorkTimeline').innerHTML = html;
   }
   if (mobilePanel) {
-    mobilePanel.hidden = false;
-    const mobileHtml = `<div class="work-timeline-anomaly">${data.employee.name} · ${data.date}${data.monthClosed ? ' · 本月已封账' : ''}</div><div class="work-timeline-list">${html}</div><div class="work-timeline-actions">${actions}</div>`;
-    document.getElementById('mobileWorkTimeline').innerHTML = mobileHtml;
+    const mobileHtml = `<div class="work-timeline-anomaly">${escapeHtml(data.employee.name)} · ${escapeHtml(data.date)}${data.monthClosed ? ' · 本月已封账' : ''}</div><div class="work-timeline-list">${html}</div><div class="work-timeline-actions">${actions}</div>`;
+    mobileWorkDetailEmployeeId = String(data.employee.id);
+    mobileWorkDetailHtml = mobileHtml;
+    clearMobileWorkDetails(data.employee.id);
+    restoreMobileWorkDetail();
+    mobilePanel.hidden = true;
   }
 }
 async function loadWorkTimeline() {
@@ -4110,6 +4165,9 @@ async function loadWorkTimeline() {
   const mobilePanel = document.getElementById('mobileWorkTimelinePanel');
   if (!employeeId) {
     workTimeline = null;
+    mobileWorkDetailEmployeeId = '';
+    mobileWorkDetailHtml = '';
+    clearMobileWorkDetails('');
     if (desktopPanel) desktopPanel.hidden = true;
     if (mobilePanel) mobilePanel.hidden = true;
     return;
@@ -4121,6 +4179,9 @@ async function loadWorkTimeline() {
     renderWorkTimeline();
   } catch (error) {
     workTimeline = null;
+    mobileWorkDetailEmployeeId = '';
+    mobileWorkDetailHtml = '';
+    clearMobileWorkDetails('');
     if (desktopPanel) desktopPanel.hidden = true;
     if (mobilePanel) mobilePanel.hidden = true;
     showToast(error.message || '工时时段加载失败');
@@ -8179,8 +8240,8 @@ if (els.desktopAttendanceTab) els.desktopAttendanceTab.addEventListener('change'
 document.querySelectorAll('[data-mobile-attendance-tab]').forEach((b) => b.addEventListener('click', () => { switchMobileAttendanceTab(b.dataset.mobileAttendanceTab); if (mobileAttendanceTab === 'reissue') loadAttendanceReissues().catch(() => {}); if (mobileAttendanceTab === 'leave') loadAttendanceLeaves().catch(() => {}); }));
 
 if (els.mobileWorkReportDate) els.mobileWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReportWorkspace(); });
-if (els.desktopWorkReportEmployee) els.desktopWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; loadWorkReport(); });
-if (els.mobileWorkReportEmployee) els.mobileWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; loadWorkReport(); });
+if (els.desktopWorkReportEmployee) els.desktopWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; renderWorkLiveOverview(); loadWorkReport(); });
+if (els.mobileWorkReportEmployee) els.mobileWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; renderWorkLiveOverview(); loadWorkReport(); });
 [document.getElementById('desktopWorkTimeline'), document.getElementById('desktopWorkTimelineActions'), document.getElementById('mobileWorkTimeline')].forEach((panel) => {
   if (!panel) return;
   panel.addEventListener('change', (event) => {
@@ -8212,7 +8273,15 @@ if (els.mobileWorkReportRefresh) els.mobileWorkReportRefresh.addEventListener('c
   list.addEventListener('click', (event) => {
     const button = event.target.closest('[data-work-live-employee]');
     if (!button) return;
-    workReportEmployeeId = button.dataset.workLiveEmployee;
+    const clickedId = button.dataset.workLiveEmployee;
+    if (list === els.mobileWorkLiveList && mobileWorkDetailEmployeeId && String(mobileWorkDetailEmployeeId) === String(clickedId)) {
+      mobileWorkDetailEmployeeId = '';
+      mobileWorkDetailHtml = '';
+      workTimeline = null;
+      renderWorkLiveOverview();
+      return;
+    }
+    workReportEmployeeId = clickedId;
     if (els.desktopWorkReportEmployee) els.desktopWorkReportEmployee.value = workReportEmployeeId;
     if (els.mobileWorkReportEmployee) els.mobileWorkReportEmployee.value = workReportEmployeeId;
     loadWorkReport().catch(() => {});

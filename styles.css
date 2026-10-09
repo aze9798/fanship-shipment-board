@@ -3203,6 +3203,11 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .mobile-live-grid strong{display:block;margin-top:3px;color:#164b52;font-size:13px}
 .mobile-live-latest{margin-top:9px;color:#60777d;font-size:11px;line-height:1.55}
 .mobile-live-card button{width:100%;min-height:40px;margin-top:9px;border:1px solid #b9ddd7;border-radius:10px;background:#f7fcfb;color:#0f766e;font-weight:900}
+.mobile-live-grid small{display:block;margin-top:2px;color:#8a9a9d;font-size:10px}
+.mobile-live-card.is-expanded{border-color:#0f766e;box-shadow:0 10px 26px rgba(15,118,110,.14)}
+.mobile-live-detail{margin-top:12px;padding:12px 12px 4px;border-radius:12px;background:#f7fcfb;border:1px solid #dcebe9}
+.mobile-live-detail .work-timeline-summary{margin-bottom:10px}
+.mobile-live-detail .work-timeline-list{display:grid;gap:8px}
 @media(max-width:900px){.work-live-summary{text-align:left}.work-live-table{min-width:760px}}
 .work-live-stale{color:#b45309!important;font-size:10px;font-weight:800}
 
