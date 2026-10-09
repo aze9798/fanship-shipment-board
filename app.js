@@ -4398,7 +4398,7 @@ function workReviewMoney(value, digits = 4) {
   if (value == null || value === '') return '--';
   return Number(value).toLocaleString('zh-CN', { maximumFractionDigits: digits });
 }
-function workReviewCard(row, mobile = false) {
+function workReviewCard(row, mobile = false, dupCount = 0) {
   const status = workReviewStatusText(row.status);
   const source = workReviewSourceText(row.sourceType);
   const price = row.unitPrice != null
