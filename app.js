@@ -4489,7 +4489,11 @@ function openWorkReviewEditor(id) {
   const editable = row.status === 'submitted';
   [els.workReviewName, els.workReviewMaterial, els.workReviewSpec, els.workReviewProcess, els.workReviewQty, els.workReviewPrice, els.workReviewNote].forEach((input) => { if (input) input.disabled = !editable; });
   if (els.workReviewSave) els.workReviewSave.hidden = !editable;
-  if (els.workReviewReject) els.workReviewReject.hidden = !editable;
+  if (els.workReviewReject) {
+    const canReject = row.status === 'submitted' || row.status === 'approved';
+    els.workReviewReject.hidden = !canReject;
+    els.workReviewReject.textContent = row.status === 'approved' ? '回退该报工' : '退回';
+  }
   if (els.workReviewApprove) els.workReviewApprove.hidden = !editable;
   els.workReviewModal.hidden = false;
 }
@@ -4520,13 +4524,15 @@ async function submitWorkReview(action) {
       result = await callRpc('work_admin_save_review', { p_code:getAccessCode(), p_id:row.id, p_payload:payload });
     } else {
       if (action === 'reject' && !payload.reviewNote) throw new Error('退回时必须填写原因');
-      result = await callRpc('work_admin_review_request', { p_code:getAccessCode(), p_id:row.id, p_action:action, p_payload:payload, p_reason:payload.reviewNote });
+      result = row.status === 'approved'
+        ? await callRpc('work_admin_revoke_piece', { p_code:getAccessCode(), p_id:row.id, p_reason:payload.reviewNote })
+        : await callRpc('work_admin_review_request', { p_code:getAccessCode(), p_id:row.id, p_action:action, p_payload:payload, p_reason:payload.reviewNote });
     }
     if (!result.response.ok) throw new Error(result.data?.error || '审核提交失败');
     closeWorkReviewEditor();
     await loadWorkReviews(workReviewStatus);
     if (desktopModule === 'work' || mobileModule === 'workReview') await loadWorkReportWorkspace();
-    showToast(action === 'approve' ? '审核通过，已更新产品和当前单价' : action === 'reject' ? '已退回员工报工' : '修改已保存');
+    showToast(action === 'approve' ? '审核通过，已更新产品和当前单价' : action === 'reject' ? '已回退该报工（不计入工资）' : '修改已保存');
   } catch (error) {
     setWorkReviewError(error.message || '审核提交失败');
   } finally {
