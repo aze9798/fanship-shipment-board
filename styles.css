@@ -3474,3 +3474,29 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .tl-item b{color:#14343c;font-weight:800;white-space:nowrap;text-align:right}
 .tl-item button{border:1px solid #b9ddd7;background:#fff;color:#0f766e;border-radius:8px;padding:4px 10px;font-size:11.5px;font-weight:800;white-space:nowrap}
 .tl-empty{padding:10px 0;color:#93a5a8;font-size:12px;font-weight:600}
+/* 手机端报工模块：紧凑版（2026-10-09） */
+#mobileWorkReportPanel{padding:10px 12px 0}
+#mobileWorkReportPanel .mobile-report-tools{grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+#mobileWorkReportPanel .mobile-report-tools label{gap:3px}
+#mobileWorkReportPanel .mobile-report-tools span{font-size:10px}
+#mobileWorkReportPanel .mobile-report-tools input,#mobileWorkReportPanel .mobile-report-tools select{height:38px;font-size:13px;border-radius:9px}
+#mobileWorkReportPanel #mobileWorkReportRefresh{grid-column:1 / -1;height:36px;min-height:36px;background:#f7fcfb;color:#0f766e;border:1px solid #b9ddd7;font-size:13px;font-weight:800}
+#mobileWorkReportPanel .mobile-report-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;padding:8px 4px;margin-bottom:8px;border-radius:12px;background:#fff;border:1px solid #e2eceb}
+#mobileWorkReportPanel .mobile-report-summary>div{padding:0 6px;border-left:1px solid #eef3f2}
+#mobileWorkReportPanel .mobile-report-summary>div:first-child{border-left:0}
+#mobileWorkReportPanel .mobile-report-summary span{font-size:10px;line-height:1.3}
+#mobileWorkReportPanel .mobile-report-summary strong{font-size:14px;line-height:1.35;white-space:nowrap}
+#mobileWorkReportPanel .mobile-live-card{padding:10px 11px}
+#mobileWorkReportPanel .mobile-live-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:8px}
+#mobileWorkReportPanel .mobile-live-grid>div{padding:6px 8px;border-radius:9px}
+#mobileWorkReportPanel .mobile-live-grid span{font-size:9.5px}
+#mobileWorkReportPanel .mobile-live-grid strong{font-size:13px;margin-top:2px}
+#mobileWorkReportPanel .mobile-live-grid small{font-size:9px}
+#mobileWorkReportPanel .mobile-live-latest{margin-top:7px;font-size:11px;line-height:1.45}
+#mobileWorkReportPanel .mobile-live-card button{min-height:34px;margin-top:7px;font-size:13px}
+#mobileWorkReportPanel .mobile-live-card-head h3{font-size:14.5px}
+.tl-item.piece{grid-template-columns:1fr auto auto}
+.tl-status{font-style:normal;font-size:10px;font-weight:800;padding:3px 7px;border-radius:999px;background:#e8f6f3;color:#0f766e;white-space:nowrap}
+.tl-status.submitted{background:#fff4d6;color:#b45309}
+.tl-status.rejected{background:#fde8e8;color:#b42318}
+.tl-status.revoked{background:#eef2f2;color:#6b7c80}

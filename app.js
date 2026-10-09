@@ -3928,7 +3928,7 @@ function renderWorkLiveOverview() {
       const piecePay = Number(row.pieceAmount || 0);
       const totalPay = timerPay + piecePay;
       const expanded = mobileWorkDetailEmployeeId && String(mobileWorkDetailEmployeeId) === String(row.id);
-      return `<article class="mobile-live-card${expanded ? ' is-expanded' : ''}"><div class="mobile-live-card-head"><h3>${escapeHtml(row.employeeNo || '')} · ${escapeHtml(row.name || '')}</h3><span class="work-live-status ${status.className}">${escapeHtml(status.text)}</span></div><div class="mobile-live-grid"><div><span>今日计时</span><strong>${escapeHtml(timerText)}</strong>${paidHours > 0 ? `<small>有效 ${Number(paidHours).toFixed(2)} 小时</small>` : ''}</div><div><span>计时工资</span><strong>${timerPay > 0 ? `${workReviewMoney(timerPay, 2)} 元` : '--'}</strong>${rate > 0 ? `<small>${rate} 元/小时</small>` : ''}</div><div><span>今日计件</span><strong>${escapeHtml(pieceText)}</strong></div><div><span>计件金额</span><strong>${piecePay > 0 ? `${workReviewMoney(piecePay, 2)} 元` : '--'}</strong>${Number(row.pending || 0) > 0 ? `<small>待审 ${fmt(row.pending)} 笔</small>` : ''}</div></div><div class="mobile-live-latest">最新动态：${workLiveLatestText(row)}${totalPay > 0 ? ` · 当天合计约 ${workReviewMoney(totalPay, 2)} 元` : ''}</div><button type="button" data-work-live-employee="${escapeHtml(row.id)}">${expanded ? '收起明细' : '查看明细'}</button><div class="mobile-live-detail" data-work-live-detail="${escapeHtml(row.id)}" hidden></div></article>`;
+      return `<article class="mobile-live-card${expanded ? ' is-expanded' : ''}"><div class="mobile-live-card-head"><h3>${escapeHtml(row.employeeNo || '')} · ${escapeHtml(row.name || '')}</h3><span class="work-live-status ${status.className}">${escapeHtml(status.text)}</span></div><div class="mobile-live-grid"><div><span>今日计时</span><strong>${escapeHtml(timerText)}</strong>${paidHours > 0 ? `<small>有效 ${Number(paidHours).toFixed(2)} 小时</small>` : ''}</div><div><span>计时工资</span><strong>${timerPay > 0 ? `${workReviewMoney(timerPay, 2)} 元` : '--'}</strong>${rate > 0 ? `<small>${rate} 元/小时</small>` : ''}</div><div><span>今日计件</span><strong>${escapeHtml(pieceText)}</strong><small>${piecePay > 0 ? `金额 ${workReviewMoney(piecePay, 2)} 元` : (Number(row.pending || 0) > 0 ? `待审 ${fmt(row.pending)} 笔` : '')}</small></div></div><div class="mobile-live-latest">最新动态：${workLiveLatestText(row)}${totalPay > 0 ? ` · 当天合计约 ${workReviewMoney(totalPay, 2)} 元` : ''}</div><button type="button" data-work-live-employee="${escapeHtml(row.id)}">${expanded ? '收起明细' : '查看明细'}</button><div class="mobile-live-detail" data-work-live-detail="${escapeHtml(row.id)}" hidden></div></article>`;
     }).join('') : `<div class="empty-state"><strong>${workReportEmployeeId ? '该员工当天没有计时或计件记录' : '没有可显示的计时计件员工'}</strong></div>`;
   }
   restoreMobileWorkDetail();
@@ -4155,12 +4155,15 @@ function renderWorkTimeline() {
     const pieceList = [];
     (data.periods || []).forEach((period) => (period.entries || []).forEach((entry) => pieceList.push({ ...entry, periodStart: period.startedAt })));
     (data.unassignedEntries || []).forEach((entry) => pieceList.push(entry));
-    const pieceApproved = pieceList.filter((entry) => (entry.status || 'approved') === 'approved');
-    const pieceQty = pieceApproved.reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
-    const pieceItems = pieceList.length ? pieceList.map((entry) => `<div class="tl-item"><span>${escapeHtml(entry.name || '')} · ${escapeHtml(entry.process || '')}${entry.variantLabel ? ' · ' + escapeHtml(entry.variantLabel) : ''}</span><b>${fmt(entry.quantity)} 件 · ${workReviewMoney(entry.amount, 2)} 元</b></div>`).join('') : '<div class="tl-empty">当天没有计件记录</div>';
+    const reportedPieces = Array.isArray(data.pieceRows) ? data.pieceRows : [];
+    const statusText = (status) => status === 'approved' ? '已通过' : status === 'submitted' ? '待审核' : status === 'rejected' ? '已退回' : status === 'revoked' ? '已撤回' : '已通过';
+    const pieceRowsForShow = reportedPieces.length ? reportedPieces : pieceList.map((entry) => ({ ...entry, status: entry.status || 'approved' }));
+    const pieceQty = pieceRowsForShow.reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
+    const approvedCount = pieceRowsForShow.filter((entry) => statusText(entry.status) === '已通过').length;
+    const pieceItems = pieceRowsForShow.length ? pieceRowsForShow.map((entry) => `<div class="tl-item piece"><span>${escapeHtml(entry.material || '（无料号）')} · ${escapeHtml(entry.name || '')} · ${escapeHtml(entry.process || '')}${entry.variantLabel ? ' · ' + escapeHtml(entry.variantLabel) : ''}</span><b>${fmt(entry.quantity)} 件 · ${workReviewMoney(entry.amount, 2)} 元</b><em class="tl-status ${escapeHtml(entry.status || 'approved')}">${statusText(entry.status)}</em></div>`).join('') : '<div class="tl-empty">当天没有计件记录</div>';
     const mobileHtml = `<div class="work-timeline-anomaly">${escapeHtml(data.employee.name)} · ${escapeHtml(data.date)}${data.monthClosed ? ' · 本月已封账' : ''}</div>
       <div class="tl-line expandable" data-tl-detail="time"><div class="tl-line-main"><span>计时工时</span><strong>${(data.timerEntries || []).length} 段 · ${fmt(salary.timerHours)} 小时</strong></div><div class="tl-detail">${timerItems}</div></div>
-      <div class="tl-line expandable" data-tl-detail="piece"><div class="tl-line-main"><span>已审核计件</span><strong>${pieceApproved.length} 笔 · ${fmt(pieceQty)} 件</strong></div><div class="tl-detail">${pieceItems}</div></div>
+      <div class="tl-line expandable" data-tl-detail="piece"><div class="tl-line-main"><span>计件申报</span><strong>${pieceRowsForShow.length} 笔（已通过 ${approvedCount}）· ${fmt(pieceQty)} 件</strong></div><div class="tl-detail">${pieceItems}</div></div>
       <div class="tl-line"><div class="tl-line-main"><span>计时工资</span><strong>${workReviewMoney(salary.timerPay, 2)} 元</strong></div></div>
       <div class="tl-line"><div class="tl-line-main"><span>计件工资</span><strong>${workReviewMoney(salary.piecePay, 2)} 元</strong></div></div>
       <div class="tl-line"><div class="tl-line-main"><span>工资合计</span><strong>${workReviewMoney(salary.totalPay, 2)} 元</strong></div></div>
@@ -4187,9 +4190,15 @@ async function loadWorkTimeline() {
     return;
   }
   try {
-    const result = await callRpc('work_admin_piece_timeline', { p_code:getAccessCode(), p_employee_id:employeeId, p_date:workReportDate || todayShanghai() });
+    const day = workReportDate || todayShanghai();
+    const [result, pieces] = await Promise.all([
+      callRpc('work_admin_piece_timeline', { p_code:getAccessCode(), p_employee_id:employeeId, p_date:day }),
+      callRpc('work_admin_report_list', { p_code:getAccessCode(), p_date:day, p_employee_id:employeeId, p_status:'all', p_query:'', p_limit:500 }).catch(() => null),
+    ]);
     if (!result.response.ok) throw new Error(result.data?.error || '工时时段加载失败');
     workTimeline = result.data || null;
+    const pieceRowsRaw = pieces && pieces.response && pieces.response.ok ? (Array.isArray(pieces.data) ? pieces.data : (pieces.data?.rows || [])) : [];
+    if (workTimeline) workTimeline.pieceRows = pieceRowsRaw;
     renderWorkTimeline();
   } catch (error) {
     workTimeline = null;
