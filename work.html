@@ -194,6 +194,17 @@
     .att-reissue{border:1px solid #b9ddd7;background:#fff;color:var(--primary);border-radius:9px;padding:5px 10px;font-size:11px;font-weight:800}
     .month-nav{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
     .month-nav button{border:1px solid #b9ddd7;background:#fff;color:var(--primary);border-radius:12px;min-height:42px;font-weight:800}
+    .att-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+    .att-cal .cal-head{text-align:center;color:var(--muted);font-size:11px;padding:4px 0}
+    .att-cal .cal-day{min-height:46px;border-radius:8px;padding:4px 2px;background:#f4f8f7;font-size:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#526b71}
+    .att-cal .cal-day .d{font-weight:800;font-size:12px}
+    .att-cal .cal-day.normal,.att-cal .cal-day.reissued{background:#e8f6f3;color:#0f766e}
+    .att-cal .cal-day.late,.att-cal .cal-day.early_leave{background:#fff4e5;color:#b54708}
+    .att-cal .cal-day.missing_once{background:#fff8e1;color:#8a6b22}
+    .att-cal .cal-day.missing_overdue,.att-cal .cal-day.absent{background:#fff1f0;color:#b42318}
+    .att-cal .cal-day.leave{background:#e8f0ff;color:#3b5bdb}
+    .att-cal .cal-day.manual{background:#eef3f3;color:#526b71}
+    .att-cal .cal-day.empty{background:transparent}
   </style>
 </head><body>
 <div class="page">
@@ -309,14 +320,22 @@
       <div id="payrollMonthDays" class="card hidden"></div>
     </section>
     <section id="attendancePanel" class="hidden">
+      <div id="attendanceToday" class="card clock-card"></div>
+      <div id="attendanceTodo" class="card hidden"></div>
       <div class="card">
         <div class="section-head"><div><h2>我的考勤</h2><p id="attendanceSub">当月考勤</p></div></div>
         <label class="field" id="attendanceMonthWrap"><span>查看月份</span><input id="attendanceMonth" type="month"></label>
+        <div class="month-nav" id="attendanceMonthNav"><button id="attendancePrevMonth" type="button">上个月</button><button id="attendanceNextMonth" type="button">下个月</button></div>
         <button id="attendanceRefresh" class="ghost wide" type="button">刷新考勤</button>
+        <button id="attendanceLeaveBtn" class="ghost wide" type="button">请假申请</button>
       </div>
       <div id="attendanceSummary" class="card"></div>
+      <div class="list-title"><strong>月历</strong></div>
+      <div id="attendanceCalendar" class="card"></div>
       <div class="list-title"><strong>每日明细</strong><span id="attendanceCount"></span></div>
       <div id="attendanceList" class="card"></div>
+      <div class="list-title"><strong>请假记录</strong><span id="leaveCount"></span></div>
+      <div id="attendanceLeaves" class="card"></div>
     </section>
   </section>
 </div>
@@ -337,6 +356,17 @@
     <label class="field"><span>补卡原因</span><input id="reissueReason" type="text" placeholder="请说明为什么漏刷"></label>
     <div id="reissueError" class="error hidden"></div>
     <div class="modal-actions"><button id="reissueCancel" type="button">取消</button><button id="reissueSubmit" class="primary" type="button">提交补卡</button></div>
+  </div>
+</div>
+<div id="leaveModal" class="modal-backdrop hidden">
+  <div class="modal-card">
+    <div class="modal-head"><h3>请假申请</h3><button id="leaveClose" class="icon-button" type="button" aria-label="关闭">×</button></div>
+    <label class="field"><span>请假类型</span><select id="leaveType"><option>事假</option><option>病假</option><option>年假</option><option>调休</option><option>其他</option></select></label>
+    <label class="field"><span>开始日期</span><input id="leaveFrom" type="date"></label>
+    <label class="field"><span>结束日期</span><input id="leaveTo" type="date"></label>
+    <label class="field"><span>原因</span><input id="leaveReason" type="text" placeholder="请填写请假原因"></label>
+    <div id="leaveError" class="error hidden"></div>
+    <div class="modal-actions"><button id="leaveCancel" type="button">取消</button><button id="leaveSubmit" class="primary" type="button">提交请假</button></div>
   </div>
 </div>
 <div id="variantModal" class="modal-backdrop hidden">
@@ -1164,7 +1194,7 @@ function renderPiece() {
       if (att && !att.classList.contains('active')) att.click();
     }
   }
-  const ATT_STATUS = { normal:'正常', late:'迟到', early_leave:'早退', missing_once:'漏刷1次', absent:'没上班', manual:'人工判定', leave:'请假', reissued:'已补卡' };
+  const ATT_STATUS = { normal:'正常', late:'迟到', early_leave:'早退', missing_once:'漏刷1次', missing_overdue:'漏刷未补', absent:'没上班', manual:'人工判定', leave:'请假', reissued:'已补卡' };
   function monthBounds(month) {
     const [y, m] = String(month).split('-').map(Number);
     const last = new Date(y, m, 0).getDate();
@@ -1174,8 +1204,10 @@ function renderPiece() {
     if (!code) return;
     const month = $('attendanceMonth')?.value || currentMonth();
     const { from, to } = monthBounds(month);
+    await rpc('attendance_refresh_overdue', {}).catch(() => {});
     attendanceData = await rpc('work_get_my_attendance', { p_code:code, p_from:from, p_to:to });
     renderMyAttendance(month);
+    loadMyLeaves().catch(() => {});
   }
   function renderMyAttendance(month) {
     const days = attendanceData?.days || [];
@@ -1184,7 +1216,8 @@ function renderPiece() {
     const absentDays = days.filter((d) => d.status === 'absent').length;
     const lateDays = days.filter((d) => d.isLate).length;
     const earlyDays = days.filter((d) => d.isEarlyLeave).length;
-    const missingDays = days.filter((d) => n(d.missingCount) === 1).length;
+    const missingDays = days.filter((d) => d.status === 'missing_once').length;
+    const overdueDays = days.filter((d) => d.status === 'missing_overdue').length;
     const otDays = days.filter((d) => n(d.overtimeMinutes) > 0).length;
     const otHours = Math.round(days.reduce((s, d) => s + n(d.overtimeMinutes), 0) / 60 * 10) / 10;
     const otAmount = days.reduce((s, d) => s + n(d.overtimeAmount), 0);
@@ -1195,6 +1228,7 @@ function renderPiece() {
       <div class="att-stat"><span>迟到</span><strong>${lateDays} 天</strong></div>
       <div class="att-stat"><span>早退</span><strong>${earlyDays} 天</strong></div>
       <div class="att-stat"><span>漏刷1次</span><strong>${missingDays} 天</strong></div>
+      ${overdueDays ? `<div class="att-stat"><span>漏刷未补</span><strong>${overdueDays} 天</strong></div>` : ''}
       <div class="att-stat"><span>加班</span><strong>${otDays} 天</strong><small>${otHours} 小时${otAmount ? ' · ' + otAmount.toFixed(0) + ' 元' : ''}</small></div>
     </div>`;
     $('attendanceCount').textContent = `${days.length} 天`;
@@ -1203,7 +1237,7 @@ function renderPiece() {
       const times = [d.checkInRaw || d.checkIn || '', d.checkOutRaw || d.checkOut || ''].filter(Boolean).join(' / ') || '无打卡';
       const extra = n(d.overtimeMinutes) > 0 ? ` · 加班 ${Math.round(n(d.overtimeMinutes) / 60 * 10) / 10}h` : '';
       let action = '';
-      if (n(d.missingCount) === 1) {
+      if (d.status === 'missing_once') {
         if (d.reissueStatus === 'submitted') action = '<span class="att-tag manual">补卡待审核</span>';
         else if (d.reissueStatus === 'approved' || d.status === 'reissued') action = '<span class="att-tag normal">已补卡</span>';
         else if (d.reissueStatus === 'rejected') action = `<button class="att-reissue" type="button" data-reissue="${esc(d.workDate)}">重新补卡</button>`;
@@ -1211,6 +1245,83 @@ function renderPiece() {
       }
       return `<div class="att-row"><div><div class="att-date">${esc(String(d.workDate || '').slice(5))}</div><div class="att-times">${esc(times)}${esc(extra)}</div></div><div class="att-right"><span class="att-tag ${esc(d.status || '')}">${esc(tag)}</span>${action}</div></div>`;
     }).join('') : '<div class="d-empty">这个月还没有考勤记录</div>';
+    renderAttendanceToday();
+    renderAttendanceTodo();
+    renderAttendanceCalendar(month);
+  }
+  function todayValue() { return new Date().toLocaleDateString('en-CA', { timeZone:'Asia/Shanghai' }); }
+  function renderAttendanceToday() {
+    const box = $('attendanceToday'); if (!box) return;
+    const today = todayValue();
+    const day = (attendanceData?.days || []).find((d) => d.workDate === today);
+    if (!day) { box.innerHTML = `<div class="clock-label">今日考勤</div><div class="clock-time" style="font-size:22px">${today.slice(5)}</div><div class="clock-note">今天暂无打卡记录</div>`; return; }
+    const hours = Math.round(n(day.overtimeMinutes) / 60 * 10) / 10;
+    box.innerHTML = `<div class="clock-label">今日考勤</div><div class="clock-time" style="font-size:22px">${esc(day.checkInRaw || day.checkIn || '--')} / ${esc(day.checkOutRaw || day.checkOut || '--')}</div><div class="clock-note">${esc(ATT_STATUS[day.status] || day.status || '')}${n(day.overtimeMinutes) > 0 ? ' · 加班 ' + hours + ' 小时' : ''}</div>`;
+  }
+  function renderAttendanceTodo() {
+    const box = $('attendanceTodo'); if (!box) return;
+    const days = attendanceData?.days || [];
+    const todo = days.filter((d) => d.status === 'missing_once' && !d.reissueStatus);
+    const overdue = days.filter((d) => d.status === 'missing_overdue');
+    if (!todo.length && !overdue.length) { show(box, false); return; }
+    show(box, true);
+    box.innerHTML = `<div class="section-head"><div><h2>待办</h2><p>这几件事需要你处理</p></div></div>` +
+      (todo.length ? `<div class="att-row"><div><div class="att-date">待补卡 ${todo.length} 天</div><div class="att-times">本月漏刷，请在下面的明细里补卡</div></div><span class="att-tag missing_once">待处理</span></div>` : '') +
+      (overdue.length ? `<div class="att-row"><div><div class="att-date">漏刷未补 ${overdue.length} 天</div><div class="att-times">已跨月，请联系管理员</div></div><span class="att-tag absent">异常</span></div>` : '');
+  }
+  function renderAttendanceCalendar(month) {
+    const box = $('attendanceCalendar'); if (!box) return;
+    const [y, m] = month.split('-').map(Number);
+    const startWeek = new Date(y, m - 1, 1).getDay();
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const byDate = new Map((attendanceData?.days || []).map((d) => [d.workDate, d]));
+    const heads = ['日','一','二','三','四','五','六'];
+    let html = '<div class="att-cal">' + heads.map((h) => `<div class="cal-head">${h}</div>`).join('');
+    for (let i = 0; i < startWeek; i += 1) html += '<div class="cal-day empty"></div>';
+    for (let d = 1; d <= daysInMonth; d += 1) {
+      const key = `${month}-${String(d).padStart(2, '0')}`;
+      const row = byDate.get(key);
+      html += `<div class="cal-day ${row ? esc(row.status || '') : ''}"><span class="d">${d}</span><span>${row ? esc(ATT_STATUS[row.status] || '') : ''}</span></div>`;
+    }
+    html += '</div>';
+    box.innerHTML = html;
+  }
+  async function loadMyLeaves() {
+    if (!code) return;
+    const month = $('attendanceMonth')?.value || currentMonth();
+    const { from, to } = monthBounds(month);
+    const data = await rpc('work_get_my_leaves', { p_code:code, p_from:from, p_to:to }).catch(() => ({ requests: [] }));
+    const rows = data.requests || [];
+    $('leaveCount').textContent = `${rows.length} 条`;
+    $('attendanceLeaves').innerHTML = rows.length ? rows.map((r) => `<div class="att-row"><div><div class="att-date">${esc(r.startDate)} ~ ${esc(r.endDate)}</div><div class="att-times">${esc(r.leaveType)} · ${esc(r.reason || '')}</div></div><span class="att-tag ${esc(r.status)}">${esc(({ submitted:'待审核', approved:'已通过', rejected:'已退回' })[r.status] || r.status)}</span></div>`).join('') : '<div class="d-empty">本月没有请假记录</div>';
+  }
+  function openLeaveModal() {
+    $('leaveFrom').value = $('leaveFrom').value || todayValue();
+    $('leaveTo').value = $('leaveTo').value || todayValue();
+    $('leaveReason').value = '';
+    show($('leaveError'), false);
+    show($('leaveModal'), true);
+  }
+  async function submitLeave() {
+    const type = $('leaveType').value;
+    const from = $('leaveFrom').value;
+    const to = $('leaveTo').value;
+    const reason = $('leaveReason').value.trim();
+    if (!from || !to) { show($('leaveError'), true); $('leaveError').textContent = '请选择请假日期'; return; }
+    if (!reason) { show($('leaveError'), true); $('leaveError').textContent = '请填写请假原因'; return; }
+    const btn = $('leaveSubmit'); btn.disabled = true;
+    try {
+      await rpc('work_submit_leave', { p_code:code, p_type:type, p_from:from, p_to:to, p_reason:reason });
+      show($('leaveModal'), false);
+      toast('请假申请已提交，等待管理员审核');
+      await loadMyLeaves();
+    } catch (e) { show($('leaveError'), true); $('leaveError').textContent = e.message || '提交失败'; }
+    finally { btn.disabled = false; }
+  }
+  function shiftMonthValue(value, delta) {
+    const [y, m] = String(value || currentMonth()).split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   }
   function shiftMonthInput(inputId, delta) {
     const el = $(inputId);
@@ -1991,6 +2102,12 @@ $('clockStopConfirm').addEventListener('click', () => { closeClockStopConfirm();
 $('clockStopCancel').addEventListener('click', closeClockStopConfirm);
 $('clockStopModal').addEventListener('click', (e) => { if (e.target === $('clockStopModal')) closeClockStopConfirm(); });
   if ($('attendanceRefresh')) $('attendanceRefresh').addEventListener('click', () => loadMyAttendance().catch(() => {}));
+  if ($('attendanceLeaveBtn')) $('attendanceLeaveBtn').addEventListener('click', openLeaveModal);
+  if ($('leaveClose')) $('leaveClose').addEventListener('click', () => show($('leaveModal'), false));
+  if ($('leaveCancel')) $('leaveCancel').addEventListener('click', () => show($('leaveModal'), false));
+  if ($('leaveSubmit')) $('leaveSubmit').addEventListener('click', submitLeave);
+  if ($('attendancePrevMonth')) $('attendancePrevMonth').addEventListener('click', () => { const m = $('attendanceMonth'); m.value = shiftMonthValue(m.value || currentMonth(), -1); loadMyAttendance().catch(() => {}); });
+  if ($('attendanceNextMonth')) $('attendanceNextMonth').addEventListener('click', () => { const m = $('attendanceMonth'); m.value = shiftMonthValue(m.value || currentMonth(), 1); loadMyAttendance().catch(() => {}); });
   if ($('payrollRefresh')) $('payrollRefresh').addEventListener('click', () => loadMyPayroll().catch(() => {}));
   if ($('payrollMonth')) $('payrollMonth').addEventListener('change', () => loadMyPayroll().catch(() => {}));
   if ($('payrollRangeSwitch')) $('payrollRangeSwitch').addEventListener('click', (e) => {

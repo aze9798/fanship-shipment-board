@@ -488,6 +488,7 @@
           <label><span>查看内容</span><select id="desktopAttendanceTab">
             <option value="summary">考勤汇总</option>
             <option value="reissue">补卡审核</option>
+            <option value="leave">请假审核</option>
           </select></label>
         </section>
         <section id="desktopAttendanceStats" class="work-review-stats">
@@ -512,7 +513,7 @@
           </div>
           <div class="table-wrap">
             <table class="orders-table work-report-table">
-              <thead><tr><th>日期</th><th>签到</th><th>签退</th><th>状态</th><th class="number">加班</th><th>备注</th></tr></thead>
+              <thead><tr><th>日期</th><th>签到</th><th>签退</th><th>状态</th><th class="number">加班</th><th>备注</th><th>操作</th></tr></thead>
               <tbody id="desktopAttendanceDetailBody"></tbody>
             </table>
           </div>
@@ -520,6 +521,10 @@
         <section id="desktopAttendanceReissuePanel" class="panel" hidden>
           <div id="desktopAttendanceReissueList" class="work-review-list"></div>
           <div id="desktopAttendanceReissueEmpty" class="empty-state" hidden><strong>没有待审核的补卡申请</strong></div>
+        </section>
+        <section id="desktopAttendanceLeavePanel" class="panel" hidden>
+          <div id="desktopAttendanceLeaveList" class="work-review-list"></div>
+          <div id="desktopAttendanceLeaveEmpty" class="empty-state" hidden><strong>没有待审核的请假申请</strong></div>
         </section>
       </section>
 
@@ -726,12 +731,16 @@
           <nav class="mobile-work-tabs">
             <button class="active" data-mobile-attendance-tab="summary" type="button">考勤汇总</button>
             <button data-mobile-attendance-tab="reissue" type="button">补卡审核</button>
+            <button data-mobile-attendance-tab="leave" type="button">请假审核</button>
           </nav>
           <section id="mobileAttendanceSummaryPanel" class="mobile-panel">
             <div id="mobileAttendanceList" class="mobile-work-review-list"></div>
           </section>
           <section id="mobileAttendanceReissuePanel" class="mobile-panel" hidden>
             <div id="mobileAttendanceReissueList" class="mobile-work-review-list"></div>
+          </section>
+          <section id="mobileAttendanceLeavePanel" class="mobile-panel" hidden>
+            <div id="mobileAttendanceLeaveList" class="mobile-work-review-list"></div>
           </section>
         </section>
       </section>

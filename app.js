@@ -47,6 +47,7 @@ let desktopView = 'overview';
 let attendanceMonth = '';
 let attendanceData = null;
 let attendanceReissueData = null;
+let attendanceLeaveData = null;
 let mobileAttendanceTab = 'summary';
 let mobileWorkTab = 'report';
 let workReportRows = [];
@@ -1791,6 +1792,11 @@ const els = {
   desktopAttendanceReissuePanel: $('#desktopAttendanceReissuePanel'),
   desktopAttendanceReissueList: $('#desktopAttendanceReissueList'),
   desktopAttendanceReissueEmpty: $('#desktopAttendanceReissueEmpty'),
+  desktopAttendanceLeavePanel: $('#desktopAttendanceLeavePanel'),
+  desktopAttendanceLeaveList: $('#desktopAttendanceLeaveList'),
+  desktopAttendanceLeaveEmpty: $('#desktopAttendanceLeaveEmpty'),
+  mobileAttendanceLeavePanel: $('#mobileAttendanceLeavePanel'),
+  mobileAttendanceLeaveList: $('#mobileAttendanceLeaveList'),
   mobileAttendanceModule: $('#mobileAttendanceModule'),
   mobileAttendanceMonth: $('#mobileAttendanceMonth'),
   mobileAttendancePrev: $('#mobileAttendancePrev'),
@@ -4340,11 +4346,21 @@ async function attendanceRpc(name, payload) {
   return result.data;
 }
 function applyAttendanceTab() {
-  const reissue = els.desktopAttendanceTab && els.desktopAttendanceTab.value === 'reissue';
-  if (els.desktopAttendanceStats) els.desktopAttendanceStats.hidden = reissue;
-  if (els.desktopAttendanceSummaryPanel) els.desktopAttendanceSummaryPanel.hidden = reissue;
+  const value = (els.desktopAttendanceTab && els.desktopAttendanceTab.value) || 'summary';
+  const reissue = value === 'reissue';
+  const leave = value === 'leave';
+  if (els.desktopAttendanceStats) els.desktopAttendanceStats.hidden = reissue || leave;
+  if (els.desktopAttendanceSummaryPanel) els.desktopAttendanceSummaryPanel.hidden = reissue || leave;
   if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = true;
   if (els.desktopAttendanceReissuePanel) els.desktopAttendanceReissuePanel.hidden = !reissue;
+  if (els.desktopAttendanceLeavePanel) els.desktopAttendanceLeavePanel.hidden = !leave;
+}
+function setAttendanceBadge(kind, count) {
+  const label = kind === 'reissue' ? '补卡审核' : '请假审核';
+  const text = count > 0 ? `${label} (${count})` : label;
+  const option = els.desktopAttendanceTab && els.desktopAttendanceTab.querySelector(`option[value="${kind}"]`);
+  if (option) option.textContent = text;
+  document.querySelectorAll(`[data-mobile-attendance-tab="${kind}"]`).forEach((button) => { button.textContent = text; });
 }
 async function loadAttendance() {
   if (boardRole !== 'admin' || !RPC_BASE) return;
@@ -4353,7 +4369,7 @@ async function loadAttendance() {
     if (els.desktopAttendanceMonth) els.desktopAttendanceMonth.value = attendanceMonth;
     if (els.mobileAttendanceMonth) els.mobileAttendanceMonth.value = attendanceMonth;
   }
-  await Promise.all([loadAttendanceSummary(), loadAttendanceReissues()]);
+  await Promise.all([loadAttendanceSummary(), loadAttendanceReissues(), loadAttendanceLeaves()]);
   applyAttendanceTab();
 }
 function attendanceShiftMonth(delta) {
@@ -4392,13 +4408,17 @@ async function loadAttendanceDetail(empNo) {
   const days = data.days || [];
   if (els.desktopAttendanceDetailTitle) els.desktopAttendanceDetailTitle.textContent = `${empNo} ${days[0]?.employeeName || ''} · ${attendanceMonth} 每日明细`;
   if (els.desktopAttendanceDetailHint) els.desktopAttendanceDetailHint.textContent = `共 ${days.length} 天`;
-  if (els.desktopAttendanceDetailBody) els.desktopAttendanceDetailBody.innerHTML = days.map((d) => `<tr><td>${escapeHtml(d.workDate)}</td><td>${escapeHtml(d.checkInRaw || d.checkIn || '')}</td><td>${escapeHtml(d.checkOutRaw || d.checkOut || '')}</td><td><span class="review-status ${escapeHtml(d.status)}">${escapeHtml(ATTENDANCE_STATUS_TEXT[d.status] || d.status)}</span></td><td class="number">${Number(d.overtimeMinutes || 0) > 0 ? attendanceHours(d.overtimeMinutes) + ' h' : ''}</td><td>${escapeHtml(d.note || '')}</td></tr>`).join('');
+  if (els.desktopAttendanceDetailBody) {
+    els.desktopAttendanceDetailBody.innerHTML = days.map((d) => `<tr><td>${escapeHtml(d.workDate)}</td><td>${escapeHtml(d.checkInRaw || d.checkIn || '')}</td><td>${escapeHtml(d.checkOutRaw || d.checkOut || '')}</td><td><span class="review-status ${escapeHtml(d.status)}">${escapeHtml(ATTENDANCE_STATUS_TEXT[d.status] || d.status)}</span></td><td class="number">${Number(d.overtimeMinutes || 0) > 0 ? attendanceHours(d.overtimeMinutes) + ' h' : ''}</td><td>${escapeHtml(d.note || '')}${d.manualOverride ? ' <span class="tag">人工</span>' : ''}</td><td><button type="button" class="button ghost" data-att-edit="${escapeHtml(empNo)}" data-att-date="${escapeHtml(d.workDate)}">改</button></td></tr>`).join('');
+    els.desktopAttendanceDetailBody.querySelectorAll('[data-att-edit]').forEach((b) => b.addEventListener('click', () => editAttendanceDay(b.dataset.attEdit, b.dataset.attDate)));
+  }
   if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = false;
 }
 async function loadAttendanceReissues() {
   const data = await attendanceRpc('board_reissue_requests', { p_code:getAccessCode(), p_status:'submitted' });
   const rows = data.requests || [];
   attendanceReissueData = rows;
+  setAttendanceBadge('reissue', rows.length);
   if (els.desktopAttendanceReissueList) {
     els.desktopAttendanceReissueList.innerHTML = rows.map((r) => `<article class="work-review-card"><div><span class="work-review-badge">补卡</span><span class="review-status submitted">待审核</span><h3>${escapeHtml(r.employeeNo)} ${escapeHtml(r.employeeName)} · ${escapeHtml(r.workDate)}</h3><p>${r.slot === 'check_in' ? '签到' : '签退'} · ${escapeHtml(String(r.reissueTime || '').slice(0,5))}</p><p>原因：${escapeHtml(r.reason || '')}</p></div><div><button type="button" class="button primary" data-reissue-approve="${escapeHtml(r.id)}">通过</button> <button type="button" class="button ghost" data-reissue-reject="${escapeHtml(r.id)}">退回</button></div></article>`).join('');
     els.desktopAttendanceReissueList.querySelectorAll('[data-reissue-approve]').forEach((b) => b.addEventListener('click', () => reviewAttendanceReissue(b.dataset.reissueApprove, true)));
@@ -4411,6 +4431,46 @@ async function loadAttendanceReissues() {
     els.mobileAttendanceReissueList.querySelectorAll('[data-mobi-reject]').forEach((b) => b.addEventListener('click', () => reviewAttendanceReissue(b.dataset.mobiReject, false)));
   }
 }
+async function loadAttendanceLeaves() {
+  const data = await attendanceRpc('board_leave_requests', { p_code:getAccessCode(), p_status:'submitted' });
+  const rows = data.requests || [];
+  attendanceLeaveData = rows;
+  setAttendanceBadge('leave', rows.length);
+  const desktopCard = (r) => `<article class="work-review-card"><div><span class="work-review-badge">请假</span><span class="review-status submitted">待审核</span><h3>${escapeHtml(r.employeeNo)} ${escapeHtml(r.employeeName)}</h3><p>${escapeHtml(r.leaveType)} · ${escapeHtml(r.startDate)} ~ ${escapeHtml(r.endDate)}</p><p>原因：${escapeHtml(r.reason || '')}</p></div><div><button type="button" class="button primary" data-leave-approve="${escapeHtml(r.id)}">通过</button> <button type="button" class="button ghost" data-leave-reject="${escapeHtml(r.id)}">退回</button></div></article>`;
+  if (els.desktopAttendanceLeaveList) {
+    els.desktopAttendanceLeaveList.innerHTML = rows.map(desktopCard).join('');
+    els.desktopAttendanceLeaveList.querySelectorAll('[data-leave-approve]').forEach((b) => b.addEventListener('click', () => reviewAttendanceLeave(b.dataset.leaveApprove, true)));
+    els.desktopAttendanceLeaveList.querySelectorAll('[data-leave-reject]').forEach((b) => b.addEventListener('click', () => reviewAttendanceLeave(b.dataset.leaveReject, false)));
+  }
+  if (els.desktopAttendanceLeaveEmpty) els.desktopAttendanceLeaveEmpty.hidden = rows.length > 0;
+  if (els.mobileAttendanceLeaveList) {
+    els.mobileAttendanceLeaveList.innerHTML = rows.length ? rows.map((r) => `<article class="mobile-review-card"><div><span class="review-status submitted">待审核</span></div><h3>${escapeHtml(r.employeeNo)} ${escapeHtml(r.employeeName)}</h3><p>${escapeHtml(r.leaveType)} · ${escapeHtml(r.startDate)} ~ ${escapeHtml(r.endDate)}</p><p>原因：${escapeHtml(r.reason || '')}</p><div class="mobile-reissue-actions"><button type="button" class="button primary" data-mobi-leave-approve="${escapeHtml(r.id)}">通过</button><button type="button" class="button ghost" data-mobi-leave-reject="${escapeHtml(r.id)}">退回</button></div></article>`).join('') : '<div class="empty-state"><strong>没有待审核的请假申请</strong></div>';
+    els.mobileAttendanceLeaveList.querySelectorAll('[data-mobi-leave-approve]').forEach((b) => b.addEventListener('click', () => reviewAttendanceLeave(b.dataset.mobiLeaveApprove, true)));
+    els.mobileAttendanceLeaveList.querySelectorAll('[data-mobi-leave-reject]').forEach((b) => b.addEventListener('click', () => reviewAttendanceLeave(b.dataset.mobiLeaveReject, false)));
+  }
+}
+async function editAttendanceDay(empNo, workDate) {
+  const status = prompt('改状态：normal 正常 / late 迟到 / early_leave 早退 / missing_once 漏刷1次 / missing_overdue 漏刷未补 / absent 没上班 / leave 请假 / reissued 已补卡 / manual 人工', 'normal');
+  if (status === null) return;
+  const ot = prompt('加班分钟（0 或 180）', '0');
+  if (ot === null) return;
+  const note = prompt('备注（可空）', '') || '';
+  try {
+    await attendanceRpc('board_attendance_set_day', { p_code:getAccessCode(), p_employee_no:empNo, p_work_date:workDate, p_status:String(status).trim(), p_overtime_minutes:Number(ot) || 0, p_note:note });
+    showToast('已修改并留痕');
+    await loadAttendance();
+    await loadAttendanceDetail(empNo);
+  } catch (error) { showToast(error.message || '修改失败'); }
+}
+async function reviewAttendanceLeave(id, approve) {
+  let note = '';
+  if (!approve) { note = prompt('退回原因：') || ''; if (!note) return; }
+  try {
+    await attendanceRpc('board_review_leave', { p_code:getAccessCode(), p_id:id, p_approve:approve, p_note:note });
+    showToast(approve ? '请假已通过，当天考勤已更新' : '请假已退回');
+    await loadAttendance();
+  } catch (error) { showToast(error.message || '操作失败'); }
+}
 async function reviewAttendanceReissue(id, approve) {
   let note = '';
   if (!approve) { note = prompt('退回原因：') || ''; if (!note) return; }
@@ -4421,10 +4481,11 @@ async function reviewAttendanceReissue(id, approve) {
   } catch (error) { showToast(error.message || '操作失败'); }
 }
 function switchMobileAttendanceTab(tab) {
-  mobileAttendanceTab = tab === 'reissue' ? 'reissue' : 'summary';
+  mobileAttendanceTab = (tab === 'reissue' || tab === 'leave') ? tab : 'summary';
   document.querySelectorAll('[data-mobile-attendance-tab]').forEach((b) => b.classList.toggle('active', b.dataset.mobileAttendanceTab === mobileAttendanceTab));
   if (els.mobileAttendanceSummaryPanel) els.mobileAttendanceSummaryPanel.hidden = mobileAttendanceTab !== 'summary';
   if (els.mobileAttendanceReissuePanel) els.mobileAttendanceReissuePanel.hidden = mobileAttendanceTab !== 'reissue';
+  if (els.mobileAttendanceLeavePanel) els.mobileAttendanceLeavePanel.hidden = mobileAttendanceTab !== 'leave';
 }
 function renderMobileModule() {
   const isAdmin = boardRole === 'admin';
@@ -8061,7 +8122,7 @@ if (els.mobileAttendancePrev) els.mobileAttendancePrev.addEventListener('click',
 if (els.mobileAttendanceNext) els.mobileAttendanceNext.addEventListener('click', () => attendanceShiftMonth(1));
 if (els.desktopAttendanceDetailClose) els.desktopAttendanceDetailClose.addEventListener('click', () => { if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = true; });
 if (els.desktopAttendanceTab) els.desktopAttendanceTab.addEventListener('change', applyAttendanceTab);
-document.querySelectorAll('[data-mobile-attendance-tab]').forEach((b) => b.addEventListener('click', () => { switchMobileAttendanceTab(b.dataset.mobileAttendanceTab); if (mobileAttendanceTab === 'reissue') loadAttendanceReissues().catch(() => {}); }));
+document.querySelectorAll('[data-mobile-attendance-tab]').forEach((b) => b.addEventListener('click', () => { switchMobileAttendanceTab(b.dataset.mobileAttendanceTab); if (mobileAttendanceTab === 'reissue') loadAttendanceReissues().catch(() => {}); if (mobileAttendanceTab === 'leave') loadAttendanceLeaves().catch(() => {}); }));
 
 if (els.mobileWorkReportDate) els.mobileWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReportWorkspace(); });
 if (els.desktopWorkReportEmployee) els.desktopWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; loadWorkReport(); });
