@@ -4015,6 +4015,60 @@ function workTimelinePeriodOptions(periods, currentId) {
 function workTimelineEntryOptions(entry, periods) {
   return `<select data-work-timeline-entry="${escapeHtml(entry.id)}">${workTimelinePeriodOptions(periods, entry.piecePeriodId || '')}</select>`;
 }
+let workTimeEditEntryId = '';
+function workTimeLocalInput(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone:'Asia/Shanghai', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false }).formatToParts(date);
+  const get = (type) => (parts.find((part) => part.type === type) || {}).value || '';
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+}
+function openWorkTimeEdit(entryId) {
+  const entry = (workTimeline?.timerEntries || []).find((item) => String(item.id) === String(entryId));
+  if (!entry) { showToast('找不到这条计时记录，请刷新后重试'); return; }
+  workTimeEditEntryId = entryId;
+  document.getElementById('workTimeEditStart').value = workTimeLocalInput(entry.startedAt);
+  document.getElementById('workTimeEditEnd').value = workTimeLocalInput(entry.endedAt);
+  document.getElementById('workTimeEditNote').value = entry.note || '';
+  document.getElementById('workTimeEditReason').value = '';
+  document.getElementById('workTimeEditHint').textContent = `${workTimeline?.employee?.name || ''} · ${workTimeline?.date || ''} · 当前 ${fmt(entry.minutes)} 分钟（结束时间留空＝继续保持"计时中"）`;
+  document.getElementById('workTimeEditModal').hidden = false;
+}
+function closeWorkTimeEdit() {
+  workTimeEditEntryId = '';
+  const modal = document.getElementById('workTimeEditModal');
+  if (modal) modal.hidden = true;
+}
+async function saveWorkTimeEdit() {
+  if (!workTimeEditEntryId) return;
+  const startValue = document.getElementById('workTimeEditStart').value;
+  const endValue = document.getElementById('workTimeEditEnd').value;
+  if (!startValue) { showToast('请填写开始时间'); return; }
+  const toIso = (value) => {
+    const date = new Date(`${value}:00+08:00`);
+    if (Number.isNaN(date.getTime())) throw new Error('时间格式不正确');
+    return date.toISOString();
+  };
+  try {
+    const result = await callRpc('work_admin_update_time_entry', {
+      p_code: getAccessCode(),
+      p_entry_id: workTimeEditEntryId,
+      p_started_at: toIso(startValue),
+      p_ended_at: endValue ? toIso(endValue) : null,
+      p_note: document.getElementById('workTimeEditNote').value.trim(),
+      p_reason: document.getElementById('workTimeEditReason').value.trim() || '管理员修改计时',
+    });
+    if (!result.response.ok) throw new Error(result.data?.error || result.data?.message || '修改失败');
+    showToast('计时记录已修改');
+    closeWorkTimeEdit();
+    await loadWorkTimeline();
+    const employees = await loadWorkEmployees();
+    await loadWorkLiveOverview(employees).catch(() => {});
+  } catch (error) {
+    showToast(error.message || '修改失败');
+  }
+}
 function renderWorkTimeline() {
   const desktopPanel = document.getElementById('desktopWorkTimelinePanel');
   const mobilePanel = document.getElementById('mobileWorkTimelinePanel');
@@ -4033,7 +4087,7 @@ function renderWorkTimeline() {
     return `<div class="work-timeline-row"><div class="work-timeline-time">${escapeHtml(workTimelineTime(period.startedAt))} → ${escapeHtml(workTimelineTime(period.endedAt))}<small>${period.source === 'admin' ? '管理员调整' : '自动计算'} · ${fmt(period.minutes)} 分钟</small></div><div><div class="work-timeline-meta"><span>产量 <b>${fmt(period.quantity)}</b></span><span>金额 <b>${workReviewMoney(period.amount, 2)}</b></span><span>每小时 <b>${fmt(period.efficiency)}</b> 件</span></div><div class="work-timeline-entries">${entries}</div></div></div>`;
   }).join('');
   const unassignedRows = unassigned.map((entry) => `<div class="work-timeline-row"><div class="work-timeline-time">未关联时段<small>${escapeHtml(entry.status === 'approved' ? '已通过' : '待审核')}</small></div><div><div class="work-timeline-meta"><span>${escapeHtml(entry.name || '')} · ${escapeHtml(entry.process || '')} · ${fmt(entry.quantity)} 件</span></div></div><div>${workTimelineEntryOptions({ ...entry, piecePeriodId:'' }, periods)}</div></div>`).join('');
-  const timerRows = (data.timerEntries || []).map((entry) => `<div class="work-timeline-row timer"><div class="work-timeline-time">${escapeHtml(workTimelineTime(entry.startedAt))} → ${escapeHtml(entry.endedAt ? workTimelineTime(entry.endedAt) : '进行中')}<small>已计时 ${fmt(entry.minutes)} 分钟</small></div><div class="work-timeline-meta"><span>状态 <b>${entry.status === 'closed' ? '已完成' : '进行中'}</b></span>${entry.note ? `<span>${escapeHtml(entry.note)}</span>` : ''}</div><div></div></div>`).join('');
+  const timerRows = (data.timerEntries || []).map((entry) => `<div class="work-timeline-row timer"><div class="work-timeline-time">${escapeHtml(workTimelineTime(entry.startedAt))} → ${escapeHtml(entry.endedAt ? workTimelineTime(entry.endedAt) : '进行中')}<small>已计时 ${fmt(entry.minutes)} 分钟</small></div><div class="work-timeline-meta"><span>状态 <b>${entry.status === 'closed' ? '已完成' : '进行中'}</b></span>${entry.note ? `<span>${escapeHtml(entry.note)}</span>` : ''}</div><div><button type="button" class="button ghost work-time-edit-btn" data-work-time-edit="${escapeHtml(entry.id)}">修改</button></div></div>`).join('');
   const anomalyHtml = anomalies.length ? `<div class="work-timeline-anomaly">${anomalies.map((item) => `⚠ ${escapeHtml(item)}`).join('<br>')}</div>` : '';
   const html = `${anomalyHtml}<div class="work-timeline-summary"><article><span>计时工时</span><strong>${fmt(salary.timerHours)}h</strong></article><article><span>计时工资</span><strong>${workReviewMoney(salary.timerPay, 2)} 元</strong></article><article><span>计件工时</span><strong>${fmt(salary.pieceHours)}h</strong></article><article><span>当天合计</span><strong>${workReviewMoney(salary.totalPay, 2)} 元</strong></article></div><div class="work-timeline-list">${timerRows}${periodRows}${unassignedRows}${!(timerRows || periodRows || unassignedRows) ? '<div class="work-timeline-empty">当天没有计时或计件记录</div>' : ''}</div>`;
   const actions = `<button type="button" data-work-payroll="${data.monthClosed ? 'open' : 'closed'}">${data.monthClosed ? '解封本月工资' : '封账本月工资'}</button>`;
@@ -8136,10 +8190,17 @@ if (els.mobileWorkReportEmployee) els.mobileWorkReportEmployee.addEventListener(
     updateWorkTimelineEntry(select.dataset.workTimelineEntry, value === '__auto__' ? null : value, value === '__auto__');
   });
   panel.addEventListener('click', (event) => {
+    const editWorkTime = event.target.closest('[data-work-time-edit]');
+    if (editWorkTime) { openWorkTimeEdit(editWorkTime.dataset.workTimeEdit); return; }
     const payroll = event.target.closest('[data-work-payroll]');
     if (payroll) toggleWorkPayroll(payroll.dataset.workPayroll);
   });
 });
+['workTimeEditClose', 'workTimeEditCancel'].forEach((id) => { const el = document.getElementById(id); if (el) el.addEventListener('click', closeWorkTimeEdit); });
+const workTimeEditSaveBtn = document.getElementById('workTimeEditSave');
+if (workTimeEditSaveBtn) workTimeEditSaveBtn.addEventListener('click', () => { saveWorkTimeEdit().catch(() => {}); });
+const workTimeEditModalEl = document.getElementById('workTimeEditModal');
+if (workTimeEditModalEl) workTimeEditModalEl.addEventListener('click', (event) => { if (event.target === workTimeEditModalEl) closeWorkTimeEdit(); });
 if (els.desktopWorkReportStatus) els.desktopWorkReportStatus.addEventListener('change', (event) => { workReportStatus = event.target.value; loadWorkReport(); });
 if (els.mobileWorkReportStatus) els.mobileWorkReportStatus.addEventListener('change', (event) => { workReportStatus = event.target.value; loadWorkReport(); });
 if (els.desktopWorkReportSearch) els.desktopWorkReportSearch.addEventListener('input', (event) => { workReportQuery = event.target.value; loadWorkReport(); });

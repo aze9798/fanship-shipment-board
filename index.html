@@ -779,6 +779,28 @@
     </section>
   </div>
 
+  <div id="workTimeEditModal" class="modal-backdrop" hidden>
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="workTimeEditTitle">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow">管理员修改</p>
+          <h2 id="workTimeEditTitle">修改计时记录</h2>
+        </div>
+        <button id="workTimeEditClose" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <p id="workTimeEditHint" class="work-time-edit-hint"></p>
+      <div class="form-grid">
+        <label><span>开始时间</span><input id="workTimeEditStart" type="datetime-local"></label>
+        <label><span>结束时间（留空 = 保持计时中）</span><input id="workTimeEditEnd" type="datetime-local"></label>
+        <label><span>备注</span><input id="workTimeEditNote" type="text" placeholder="选填"></label>
+        <label><span>修改原因</span><input id="workTimeEditReason" type="text" placeholder="例如：员工忘打卡，补记 07:30 开始"></label>
+      </div>
+      <div class="modal-actions">
+        <button id="workTimeEditCancel" class="button ghost" type="button">取消</button>
+        <button id="workTimeEditSave" class="button primary" type="button">保存修改</button>
+      </div>
+    </section>
+  </div>
   <div id="deliveryModal" class="modal-backdrop" hidden>
     <section class="modal-card delivery-modal" role="dialog" aria-modal="true" aria-labelledby="deliveryTitle">
       <div class="modal-head">
