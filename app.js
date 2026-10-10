@@ -1352,6 +1352,8 @@ function allocateUnitMember(row, totalQuantity) {
 function buildUnitMembers(materials, quantities = new Map()) {
   const explicit = quantities instanceof Map && quantities.size > 0;
   const members = [];
+  const allocationGroups = new Map();
+  const seenMaterialKeys = new Set();
   for (const row of (materials || [])) {
     const key = photoMaterialKey(row);
     const explicitQuantity = Number((quantities instanceof Map ? quantities.get(key) : 0) || 0);
@@ -1375,10 +1377,17 @@ function buildUnitMembers(materials, quantities = new Map()) {
       }
       continue;
     }
+    // 同料号+规格只分摊一次，避免自动关联多条时重复分配成 2+2+2。
+    const groupKey = [String(row.material || '').trim(), String(row.spec || '').trim()].join('|');
     if (explicit) {
-      if (explicitQuantity > 0) members.push(...allocateUnitMember(row, explicitQuantity));
+      if (explicitQuantity <= 0) continue;
+      const group = allocationGroups.get(groupKey);
+      if (group) group.total += explicitQuantity;
+      else allocationGroups.set(groupKey, { row, total: explicitQuantity });
       continue;
     }
+    if (seenMaterialKeys.has(groupKey)) continue;
+    seenMaterialKeys.add(groupKey);
     for (const order of unitCandidateOrders(row)) {
       members.push({
         orderId: String(order.id || ''),
@@ -1392,6 +1401,9 @@ function buildUnitMembers(materials, quantities = new Map()) {
         unit: '件',
       });
     }
+  }
+  for (const { row, total } of allocationGroups.values()) {
+    members.push(...allocateUnitMember(row, total));
   }
   return members;
 }
