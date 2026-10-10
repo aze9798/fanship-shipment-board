@@ -4469,6 +4469,7 @@ function openReportReview(id) {
 let staffMonthRows = null;
 let staffMonthEmployeeId = '';
 let staffMonthData = null;
+let staffMonthLoadedAt = '';
 const staffMoney = (n) => workReviewMoney(n, 2);
 const staffHours = (m) => (Number(m || 0) / 60).toFixed(1);
 async function loadStaffMonth(force = false) {
@@ -4478,26 +4479,36 @@ async function loadStaffMonth(force = false) {
     const result = await callRpc('work_admin_month_overview', { p_code:getAccessCode() });
     if (!result.response.ok) throw new Error(result.data?.error || '月度数据加载失败');
     staffMonthRows = Array.isArray(result.data) ? result.data : [];
+    staffMonthLoadedAt = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }).slice(5, 16).replace(' ', ' ');
     renderStaffMonth();
     if (staffMonthEmployeeId) await openStaffMonthDetail(staffMonthEmployeeId);
-  } catch (error) { showToast(error.message || '月度数据加载失败'); }
+  } catch (error) {
+    showToast(error.message || '月度数据加载失败');
+    const list = document.getElementById('mobileStaffMonthList');
+    if (list) list.innerHTML = '<div class="mobile-live-card"><div class="tl-empty">月度数据加载失败：' + String(error.message || '未知错误') + '</div><button type="button" data-staff-month-refresh="1">重试</button></div>';
+  }
 }
 function renderStaffMonth() {
   const todo = document.getElementById('mobileStaffMonthTodo');
   const list = document.getElementById('mobileStaffMonthList');
   if (!list) return;
-  const rows = (staffMonthRows || []).filter((r) => Number(r.timerMinutes || 0) > 0 || Number(r.pieceCount || 0) > 0 || Number(r.pendingCount || 0) > 0);
+  const all = staffMonthRows || [];
+  const rows = all.filter((r) => Number(r.timerMinutes || 0) > 0 || Number(r.pieceCount || 0) > 0 || Number(r.pendingCount || 0) > 0);
   const pending = (staffMonthRows || []).reduce((sum, r) => sum + Number(r.pendingCount || 0), 0);
   if (todo) {
     todo.innerHTML = pending > 0
       ? `<div class="staff-month-todo">本月有 <b>${pending}</b> 笔待审核，建议先去「报工审核」处理。</div>`
       : '';
   }
-  list.innerHTML = rows.length ? rows.map((r) => {
+  if (!rows.length) {
+    list.innerHTML = '<div class="mobile-live-card"><div class="tl-empty">本月暂时没有计时/计件记录</div><div style="font-size:11.5px;color:#93a5a8;margin-top:6px;line-height:1.6">已加载 ' + all.length + ' 名员工 · ' + (staffMonthLoadedAt || '尚未拿到数据') + '</div><button type="button" data-staff-month-refresh="1">重新加载</button></div>';
+    return;
+  }
+  list.innerHTML = rows.map((r) => {
     const total = Math.round((Number(r.timerPay || 0) + Number(r.piecePay || 0)) * 100) / 100;
     const on = String(r.id) === String(staffMonthEmployeeId);
     return `<article class="mobile-live-card${on ? ' is-expanded' : ''}" data-staff-month-emp="${escapeHtml(r.id)}"><div class="mobile-live-card-head"><h3>${escapeHtml(r.employeeNo || '')} · ${escapeHtml(r.name || '')}</h3><span class="work-live-status">${staffMoney(total)} 元</span></div><div class="mobile-live-grid"><div><span>本月计时</span><strong>${staffHours(r.timerMinutes)} 小时</strong><small>${staffMoney(r.timerPay)} 元</small></div><div><span>本月计件</span><strong>${fmt(r.pieceQty)} 件</strong><small>${fmt(r.pieceCount)} 笔 · ${staffMoney(r.piecePay)} 元</small></div><div><span>待审核</span><strong>${fmt(r.pendingCount)} 笔</strong><small>${Number(r.pendingCount || 0) > 0 ? '需处理' : '已处理'}</small></div></div><button type="button" data-staff-month-emp="${escapeHtml(r.id)}">${on ? '收起整月明细' : '看整月明细'}</button></article>`;
-  }).join('') : '<div class="empty-state"><strong>本月还没有报工记录</strong></div>';
+  }).join('');
 }
 async function openStaffMonthDetail(employeeId) {
   if (String(staffMonthEmployeeId) === String(employeeId) && staffMonthData) { staffMonthEmployeeId = ''; staffMonthData = null; renderStaffMonth(); return; }
@@ -8760,6 +8771,8 @@ if (els.mobileModuleSwitch) {
     staffMonthPanelEl.addEventListener('click', (event) => {
       const revoke = event.target.closest('[data-revoke-piece]');
       if (revoke) { revokePieceQuick(revoke.dataset.revokePiece, revoke.dataset.revokeLabel || '').catch(() => {}); return; }
+      const refresh = event.target.closest('[data-staff-month-refresh]');
+      if (refresh) { staffMonthRows = null; staffMonthData = null; loadStaffMonth(true).catch(() => {}); return; }
       const emp = event.target.closest('[data-staff-month-emp]');
       if (emp) { openStaffMonthDetail(emp.dataset.staffMonthEmp).catch(() => {}); return; }
       const line = event.target.closest('[data-tl-detail]');
