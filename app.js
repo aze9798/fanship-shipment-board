@@ -984,10 +984,43 @@ async function savePhotoCapture() {
   }
 }
 
-async function uploadSessionPhotos(shipmentId) {
+// 判断一张留档照片是否属于本次发货：以发货单里真实存在的物料为准，避免把照片挂到别的发货单上
+function photoMatchesShipmentTargets(materials, targets) {
+  const list = Array.isArray(targets) ? targets.filter((item) => String(item?.material || '').trim()) : [];
+  if (!list.length) return false;
+  return (Array.isArray(materials) ? materials : []).some((materialRow) => list.some((target) => {
+    if (String(materialRow?.material || '').trim() !== String(target.material || '').trim()) return false;
+    const materialSpec = String(materialRow?.spec || '').trim();
+    const targetSpec = String(target.spec || '').trim();
+    if (materialSpec && targetSpec && materialSpec !== targetSpec) return false;
+    const materialOrder = String(materialRow?.orderId || materialRow?.id || '').trim();
+    const materialPlan = String(materialRow?.planId || '').trim();
+    if (target.orderId) return materialOrder === String(target.orderId).trim();
+    if (target.planId) return materialPlan === String(target.planId).trim();
+    return true;
+  }));
+}
+
+// 从最新状态里取这张发货单真实装进去的物料，作为照片归属的判定依据
+function shipmentPhotoTargetsFromState(shipmentId) {
+  const sid = String(shipmentId || '').trim();
+  const shipment = (snapshot?.shipments || []).find((row) => String(row.id) === sid);
+  if (!shipment || !Array.isArray(shipment.items)) return [];
+  return shipment.items.map((item) => ({
+    material: String(item.material || '').trim(),
+    spec: String(item.spec || '').trim(),
+    orderId: String(item.orderId || '').trim(),
+    planId: String(item.planId || '').trim(),
+  })).filter((item) => item.material);
+}
+
+async function uploadSessionPhotos(shipmentId, targets = null) {
   const failed = [];
   const succeeded = new Set();
+  const list = Array.isArray(targets) ? targets.filter((item) => String(item?.material || '').trim()) : [];
   for (const photo of sessionPhotos) {
+    // 只有确实装进本次发货的照片才挂到这张发货单上，不属于本次的先留在本机，等它自己的发货单
+    if (list.length && !photoMatchesShipmentTargets(photo.materials, list)) continue;
     const meta = { ...photo.meta, shipmentId: String(shipmentId || ''), finalized: true };
     const payload = { date: photo.meta?.deliveryDate || currentDeliveryDate(), batch: JSON.stringify(meta), fileName: photo.fileName, kind: PHOTO_FILE_KIND, noteCount: photo.materials.length, contentBase64: String(photo.dataUrl || '').split(',')[1] || '' };
     try {
@@ -1014,18 +1047,7 @@ async function linkShipmentPhotos(shipmentId, targets, skipFileNames = new Set()
     if (skipFileNames.has(String(photo.fileName || ''))) continue;
     if (String(photoDateKey(photo) || '') !== photoDate) continue;
     const materials = Array.isArray(photo.materials) ? photo.materials : [];
-    const matched = materials.some((materialRow) => list.some((target) => {
-      if (String(materialRow.material || '').trim() !== String(target.material || '').trim()) return false;
-      const materialSpec = String(materialRow.spec || '').trim();
-      const targetSpec = String(target.spec || '').trim();
-      if (materialSpec && targetSpec && materialSpec !== targetSpec) return false;
-      const materialOrder = String(materialRow.orderId || '').trim();
-      const materialPlan = String(materialRow.planId || '').trim();
-      if (target.orderId && materialOrder && materialOrder !== String(target.orderId).trim()) return false;
-      if (target.planId && materialPlan && materialPlan !== String(target.planId).trim()) return false;
-      return true;
-    }));
-    if (!matched) continue;
+    if (!photoMatchesShipmentTargets(materials, list)) continue;
     try {
       const file = await callRpc('board_get_delivery_file', { p_code: getAccessCode(), p_id: photo.id });
       if (!file.response.ok) continue;
@@ -1049,13 +1071,21 @@ async function linkShipmentPhotos(shipmentId, targets, skipFileNames = new Set()
   return linked;
 }
 
-async function deletePhotoViewerAndRetake() {
+function refreshAfterPhotoRemoved() {
+  photoDataUrlCache.clear();
+  renderPhotoArchive();
+  renderMobileList();
+  renderMobileRecords();
+  renderCart();
+  refreshRemainingViews();
+  if (els.desktopLoadingView && !els.desktopLoadingView.hidden) renderDesktopLoading();
+}
+
+async function deletePhotoViewer() {
   const row = photoViewerRow;
-  const target = photoViewerTarget;
-  if (!row) return;
-  if (!window.confirm('确定删除这张照片吗？删除后可以重新拍照留档。')) return;
+  if (!row) { showToast('没有选中照片，请重新打开照片再删'); return; }
   const button = els.photoViewerDelete;
-  const originalText = button?.textContent || '删除并重拍';
+  if (!window.confirm('确定删除这张照片吗？')) return;
   if (button) { button.disabled = true; button.textContent = '删除中...'; }
   try {
     if (row.id) {
@@ -1063,23 +1093,31 @@ async function deletePhotoViewerAndRetake() {
       if (!result.response.ok) throw new Error(result.data?.message || '删除照片失败');
     }
     const fileName = String(row.fileName || '');
-    const localIndex = sessionPhotos.findIndex((photo) => (row.id && String(photo.id || '') === String(row.id)) || (fileName && String(photo.fileName || '') === fileName));
+    const samePhotoRow = (photo) => (row.id && String(photo.id || '') === String(row.id))
+      || (fileName && String(photo.fileName || '') === fileName)
+      || (!row.id && !fileName && photo === row);
+    const localIndex = sessionPhotos.findIndex(samePhotoRow);
     if (localIndex >= 0) sessionPhotos.splice(localIndex, 1);
     if (snapshot && Array.isArray(snapshot.shipmentPhotos)) {
-      snapshot.shipmentPhotos = snapshot.shipmentPhotos.filter((photo) => (row.id && String(photo.id || '') !== String(row.id)) && (!fileName || String(photo.fileName || '') !== fileName));
+      snapshot.shipmentPhotos = snapshot.shipmentPhotos.filter((photo) => !samePhotoRow(photo));
     }
     if (row.id) photoDataUrlCache.delete(String(row.id));
+    for (const unit of shipmentUnits()) {
+      if (String(unit.status || '') === 'shipped') continue;
+      if (!(unit.photoFileNames || []).includes(fileName)) continue;
+      try {
+        const saved = await persistUnit({ ...unit, photoFileNames: (unit.photoFileNames || []).filter((name) => name !== fileName), status: 'needs_rephoto' });
+        Object.assign(unit, saved);
+      } catch {}
+    }
     photoViewerRow = null;
     if (els.photoViewerModal) els.photoViewerModal.hidden = true;
-    renderPhotoArchive();
-    renderMobileList();
-    renderDesktopLoading();
-    showToast('照片已删除，可以重新拍照留档');
-    if (target) openPhotoCapture(target);
+    refreshAfterPhotoRemoved();
+    showToast('照片已删除，需要重拍再点一次“拍照留档”');
   } catch (error) {
     showToast(error.message || '删除照片失败');
   } finally {
-    if (button) { button.disabled = false; button.textContent = originalText; }
+    if (button) { button.disabled = false; button.textContent = '删除'; }
   }
 }
 
@@ -1943,6 +1981,7 @@ const els = {
   photoArchiveList: $('#photoArchiveList'),
   photoViewerModal: $('#photoViewerModal'),
   photoViewerClose: $('#photoViewerClose'),
+  photoViewerDelete: $('#photoViewerDelete'),
   photoViewerRetake: $('#photoViewerRetake'),
   photoViewerMeta: $('#photoViewerMeta'),
   photoViewerImage: $('#photoViewerImage'),
@@ -7891,10 +7930,7 @@ async function submitShipment() {
       if (Number(item.quantity) > 0) photoTargets.push({ material: String(material || '').trim(), spec: String(item.spec || '').trim() });
     }
     const sessionPhotoFileNames = new Set(sessionPhotos.map((photo) => String(photo.fileName || '')));
-    const linkedPhotoCount = await linkShipmentPhotos(shipmentId, photoTargets, sessionPhotoFileNames);
-    const photoUploadFailed = await uploadSessionPhotos(shipmentId);
     await markLoadedUnitsShipped(shipmentId, shipmentMemberKeys);
-    if (linkedPhotoCount) showToast(`已把 ${linkedPhotoCount} 张留档照片挂到本次发货`);
     selected.clear();
     els.shipmentForm.reset();
     closeSubmitModal();
@@ -7909,6 +7945,13 @@ await loadBoardRole();
 applyRoleUI();
 await loadState();
 applyRoleUI();
+    // 照片挂到哪张发货单，以发货单里真实装进去的物料为准，避免拍到一半的货张冠李戴
+    const savedPhotoTargets = shipmentPhotoTargetsFromState(shipmentId);
+    const photoTargetsForShipment = savedPhotoTargets.length ? savedPhotoTargets : photoTargets;
+    const linkedPhotoCount = await linkShipmentPhotos(shipmentId, photoTargetsForShipment, sessionPhotoFileNames);
+    const photoUploadFailed = await uploadSessionPhotos(shipmentId, photoTargetsForShipment);
+    renderPhotoArchive();
+    if (linkedPhotoCount) showToast(`已把 ${linkedPhotoCount} 张留档照片挂到本次发货`);
     if (replacementSaved.length) showToast(`补发已登记：${replacementSaved.join('、')}`);
     if (replacementWarnings.length) showToast(`补发已登记，但以下计划需要稍后清理：${replacementWarnings.join('、')}`, 7000);
     if (replacementFailed.length) showToast(`补发登记失败：${replacementFailed.join('、')}，请重新提交`);
@@ -8724,7 +8767,7 @@ if (els.sampleApprovalSelectConfirm) els.sampleApprovalSelectConfirm.addEventLis
 if (els.sampleApprovalPreviewClose) els.sampleApprovalPreviewClose.addEventListener('click', closeSampleApprovalPreview);
 if (els.sampleApprovalPreviewCancel) els.sampleApprovalPreviewCancel.addEventListener('click', closeSampleApprovalPreview);
 if (els.sampleApprovalPreviewPrint) els.sampleApprovalPreviewPrint.addEventListener('click', () => { void printSampleApprovalPreview(); });
-if (els.photoViewerDelete) els.photoViewerDelete.addEventListener('click', deletePhotoViewerAndRetake);
+if (els.photoViewerDelete) els.photoViewerDelete.addEventListener('click', deletePhotoViewer);
 if (els.photoViewerRetake) els.photoViewerRetake.addEventListener('click', () => { if (els.photoViewerModal) els.photoViewerModal.hidden = true; if (photoViewerTarget) openPhotoCapture(photoViewerTarget, { retake: true, existingPhoto: photoViewerRow }); });
 
 if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', (event) => {
