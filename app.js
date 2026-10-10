@@ -4473,17 +4473,21 @@ let staffMonthLoadedAt = '';
 const staffMoney = (n) => workReviewMoney(n, 2);
 const staffHours = (m) => (Number(m || 0) / 60).toFixed(1);
 async function loadStaffMonth(force = false) {
-  if (boardRole !== 'admin') return;
+  const mHint = document.getElementById('mobileStaffMonthHint');
+  if (mHint) mHint.textContent = '加载中…';
+  if (boardRole !== 'admin') { if (mHint) mHint.textContent = '需要管理员身份'; return; }
   if (staffMonthRows && !force) { renderStaffMonth(); return; }
   try {
     const result = await callRpc('work_admin_month_overview', { p_code:getAccessCode() });
     if (!result.response.ok) throw new Error(result.data?.error || '月度数据加载失败');
     staffMonthRows = Array.isArray(result.data) ? result.data : [];
     staffMonthLoadedAt = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }).slice(5, 16).replace(' ', ' ');
+    if (mHint) mHint.textContent = '接口正常 · ' + staffMonthRows.length + ' 人 · ' + staffMonthLoadedAt;
     renderStaffMonth();
     if (staffMonthEmployeeId) await openStaffMonthDetail(staffMonthEmployeeId);
   } catch (error) {
     showToast(error.message || '月度数据加载失败');
+    if (mHint) mHint.textContent = '接口失败 · ' + String(error.message || '未知错误').slice(0, 20);
     const list = document.getElementById('mobileStaffMonthList');
     if (list) list.innerHTML = '<div class="mobile-live-card"><div class="tl-empty">月度数据加载失败：' + String(error.message || '未知错误') + '</div><button type="button" data-staff-month-refresh="1">重试</button></div>';
   }
