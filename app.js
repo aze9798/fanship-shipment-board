@@ -724,10 +724,13 @@ function photosForShipmentLine(item) {
   const itemSpec = String(item?.spec || '').trim();
   const itemDate = shipShanghaiDate(item?.shippedAt || item?.createdAt || item?.deliveryDate || '');
   const matches = new Map();
+  // 照片挂的那张发货单如果已经被撤销，就当它没挂过（见下面的兜底匹配）
+  const existingShipmentIds = new Set((snapshot?.shipments || []).map((shipment) => String(shipment.id || '')));
   for (const row of (photoMaterialIndex().get(material) || [])) {
     const key = photoRowKey(row);
     if (!key) continue;
-    const rowShipmentId = String(row.shipmentId || '').trim();
+    const rawShipmentId = String(row.shipmentId || '').trim();
+    const rowShipmentId = rawShipmentId && existingShipmentIds.has(rawShipmentId) ? rawShipmentId : '';
     const rowDate = shipShanghaiDate(photoDateKey(row));
     const sameDate = !itemDate || !rowDate || itemDate === rowDate;
     for (const photoMaterial of (row.materials || [])) {
@@ -8217,6 +8220,37 @@ async function editShipmentQuantity(itemId, current) {
   }
 }
 
+// 撤销发货时：把这单挂着的留档照片解绑，避免照片指向一张已经不存在的发货单
+async function unlinkPhotosFromShipment(shipmentId) {
+  const sid = String(shipmentId || '').trim();
+  if (!sid) return 0;
+  let unlinked = 0;
+  for (const photo of shipmentPhotos()) {
+    if (String(photo.shipmentId || '').trim() !== sid) continue;
+    if (!photo.id || !photo.fileName) continue;
+    try {
+      const file = await callRpc('board_get_delivery_file', { p_code: getAccessCode(), p_id: photo.id });
+      if (!file.response.ok) continue;
+      const contentBase64 = String(file.data?.contentBase64 || '');
+      if (!contentBase64) continue;
+      const meta = { ...photo.meta, shipmentId: '', finalized: false };
+      const result = await callRpc('board_save_delivery_file', {
+        p_code: getAccessCode(),
+        p_payload: {
+          date: meta.deliveryDate || photoDateKey(photo) || currentDeliveryDate(),
+          batch: JSON.stringify(meta),
+          fileName: photo.fileName,
+          kind: PHOTO_FILE_KIND,
+          noteCount: (photo.materials || []).length,
+          contentBase64,
+        },
+      });
+      if (result.response.ok) unlinked += 1;
+    } catch { }
+  }
+  return unlinked;
+}
+
 async function undoShipment(id) {
   const shipmentRow = snapshot && snapshot.shipments.find((row) => String(row.id) === String(id));
   if (isBilledShipment(id)) { showToast('这笔发货已经开送货单并上传云端，不能撤回'); return; }
@@ -8226,7 +8260,10 @@ async function undoShipment(id) {
     const response = await requestWithAccessCode(apiUrl(`/api/shipments/${encodeURIComponent(id)}`), { method: 'DELETE' });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || '撤销失败');
-    showToast(`${id} 已撤销`);
+    const unlinkedPhotos = await unlinkPhotosFromShipment(id);
+    showToast(unlinkedPhotos
+      ? `${id} 已撤销，${unlinkedPhotos} 张留档照片已解绑，重新装车时会自动挂回`
+      : `${id} 已撤销`);
     await loadState();
   } catch (error) {
     showToast(error.message || '撤销失败');
