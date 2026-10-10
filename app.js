@@ -1557,13 +1557,52 @@ function retakeUnit(unitId) {
   openPhotoCapture(target, { retake: true, existingPhoto: { ...unit, materials: unit.members || [] }, unit });
 }
 
-async function markLoadedUnitsShipped(shipmentId) {
-  // 只把本次确实点过“整组装车”的单元挂到这张发货单上；sessionUnitIds 为空时保留旧的兜底行为。
-  const targets = shipmentUnits().filter((row) => row.status === 'loaded' && (sessionUnitIds.size === 0 || sessionUnitIds.has(String(row.unitId))));
+async function markLoadedUnitsShipped(shipmentId, shipmentMemberKeys = null) {
+  const sid = String(shipmentId || '');
+  const memberKeys = shipmentMemberKeys instanceof Set ? shipmentMemberKeys : new Set(shipmentMemberKeys || []);
+  // 标记条件：本次点过“整组装车”，或者单元成员全部出现在本次发货明细里。
+  const targets = shipmentUnits().filter((row) => {
+    if (row.status !== 'loaded') return false;
+    if (sessionUnitIds.has(String(row.unitId))) return true;
+    const unitKeys = (row.members || []).map((member) => String(member.planId || member.orderId || '').trim()).filter(Boolean);
+    if (!unitKeys.length || !memberKeys.size) return false;
+    return unitKeys.every((key) => memberKeys.has(key));
+  });
   for (const unit of targets) {
-    try { await persistUnit({ ...unit, status: 'shipped', shipmentId: String(shipmentId || '') }); } catch {}
+    try {
+      await persistUnit({ ...unit, status: 'shipped', shipmentId: sid });
+    } catch (error) {
+      console.error('装车单元标记已发货失败', unit.unitId, error);
+    }
   }
   sessionUnitIds.clear();
+}
+
+let orphanLoadedUnitCleanupDone = false;
+async function cleanupOrphanLoadedUnits() {
+  if (orphanLoadedUnitCleanupDone || !snapshot || !Array.isArray(snapshot.shipmentUnits)) return;
+  orphanLoadedUnitCleanupDone = true;
+  const shipments = snapshot.shipments || [];
+  if (!shipments.length) return;
+  let changed = false;
+  for (const unit of snapshot.shipmentUnits) {
+    if (String(unit.status || '') !== 'loaded' || String(unit.shipmentId || '')) continue;
+    const unitKeys = (unit.members || []).map((member) => String(member.planId || member.orderId || '').trim()).filter(Boolean);
+    if (!unitKeys.length) continue;
+    const hit = shipments.find((shipment) => {
+      const ids = new Set((shipment.items || []).map((item) => String(item.orderId || '').trim()).filter(Boolean));
+      return unitKeys.every((key) => ids.has(key));
+    });
+    if (!hit) continue;
+    try {
+      const saved = await persistUnit({ ...unit, status: 'shipped', shipmentId: String(hit.id) });
+      Object.assign(unit, saved);
+      changed = true;
+    } catch (error) {
+      console.error('清理已发货单元失败', unit.unitId, error);
+    }
+  }
+  if (changed) renderAll();
 }
 
 function removeSessionUnitByMember(memberKey) {
@@ -2298,7 +2337,7 @@ async function loadState({ quiet = false, fast = false } = {}) {
     snapshot = nextSnapshot;
     photoMaterialIndexCache = null;
     photoMaterialIndexKey = '';
-    if (!fast && shouldRefreshAuxiliary) void cleanupInvalidShipmentUnits();
+    if (!fast && shouldRefreshAuxiliary) { void cleanupInvalidShipmentUnits(); setTimeout(() => { void cleanupOrphanLoadedUnits(); }, 0); }
     if (stateChanged) {
       if ('requestIdleCallback' in window) requestIdleCallback(saveCachedState, { timeout: 2000 });
       else setTimeout(saveCachedState, 0);
@@ -2319,6 +2358,7 @@ async function loadState({ quiet = false, fast = false } = {}) {
         rebuildDrawingMap();
         renderAll();
         void cleanupInvalidShipmentUnits();
+        void cleanupOrphanLoadedUnits();
       }).catch(() => {});
     }
   } catch (error) {
@@ -7790,6 +7830,8 @@ async function submitShipment() {
     const replacementSaved = [];
     const replacementFailed = [];
     const replacementWarnings = [];
+    const shipmentMemberKeys = new Set(items.map((item) => String(item.orderId || '').trim()).filter(Boolean));
+    for (const item of sessionReplacements) shipmentMemberKeys.add(String(item.planId || item.orderId || '').trim());
     for (const item of [...sessionReplacements]) {
       try {
         const r = await callRpc('board_add_replacement', {
@@ -7833,7 +7875,7 @@ async function submitShipment() {
     const sessionPhotoFileNames = new Set(sessionPhotos.map((photo) => String(photo.fileName || '')));
     const linkedPhotoCount = await linkShipmentPhotos(shipmentId, photoTargets, sessionPhotoFileNames);
     const photoUploadFailed = await uploadSessionPhotos(shipmentId);
-    await markLoadedUnitsShipped(shipmentId);
+    await markLoadedUnitsShipped(shipmentId, shipmentMemberKeys);
     if (linkedPhotoCount) showToast(`已把 ${linkedPhotoCount} 张留档照片挂到本次发货`);
     selected.clear();
     els.shipmentForm.reset();
