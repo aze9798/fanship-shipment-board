@@ -8770,6 +8770,14 @@ if (els.mobileModuleSwitch) {
     if (els.mobileModuleSwitch.classList.contains('expanded')) closeMobileModuleSheet();
     else openMobileModuleSheet();
   };
+  // 月度面板原本嵌在"报工情况"面板里，切到月度时父面板被隐藏会导致整块空白 —— 提到同级
+  (function liftStaffMonthPanel() {
+    const monthPanel = document.getElementById('mobileStaffMonthPanel');
+    const reportPanel = document.getElementById('mobileWorkReportPanel');
+    if (monthPanel && reportPanel && reportPanel.parentNode && reportPanel.contains(monthPanel)) {
+      reportPanel.parentNode.insertBefore(monthPanel, reportPanel.nextSibling);
+    }
+  })();
   const staffMonthPanelEl = document.getElementById('mobileStaffMonthPanel');
   if (staffMonthPanelEl) {
     staffMonthPanelEl.addEventListener('click', (event) => {
