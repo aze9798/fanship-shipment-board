@@ -6811,9 +6811,25 @@ function handleLabelPrintInput(event) {
   const index = labelRowIndex(event.target);
   if (index < 0) return;
   const row = labelRows[index];
-  if (field === 'selected') row.selected = Boolean(event.target.checked);
-  else if (field === 'quantity') row.quantity = event.target.value === '' ? '' : event.target.value;
-  else row[field] = event.target.value;
+  if (field === 'selected') {
+    row.selected = Boolean(event.target.checked);
+  } else if (field === 'quantity') {
+    row.quantity = event.target.value === '' ? '' : event.target.value;
+  } else if (field === 'date') {
+    // 改日期时整页勾选要打印的行一起改，而不是只改一行
+    const value = event.target.value;
+    const targets = labelRows.filter((item) => item.selected);
+    if (!targets.length) targets.push(row);
+    targets.forEach((item) => { item.date = value; });
+    if (els.labelPrintRows) {
+      els.labelPrintRows.querySelectorAll('input[data-label-field="date"]').forEach((input) => {
+        const i = labelRowIndex(input);
+        if (i >= 0 && labelRows[i].selected) input.value = value;
+      });
+    }
+  } else {
+    row[field] = event.target.value;
+  }
   if (field === 'material' || field === 'name') {
     const rule = labelBoxRule(row.material, row.name);
     row.perBox = rule ? rule.perBox : 0;
