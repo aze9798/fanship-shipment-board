@@ -9751,39 +9751,56 @@ window.addEventListener('resize', () => {
   }, 160);
 });
 // ===== 版本更新提醒（电脑端）=====
-// 页面长期不刷新时会一直跑旧逻辑，这里定时比对线上版本号，发现更新就提醒刷新
-const PAGE_ASSET_VERSION = (() => {
-  try { return String(new URL(import.meta.url).searchParams.get('v') || ''); } catch { return ''; }
-})();
+// 页面长期不刷新时会一直跑旧逻辑：这里以「打开页面时的线上版本」为基准，
+// 定时比对，发现线上已经更新就提醒刷新（不自动刷新，免得打断正在录入的装车）。
 const PAGE_VERSION_URL = (() => {
   try { return new URL('./version.json', import.meta.url).toString(); } catch { return ''; }
 })();
+const PAGE_ASSET_VERSION = (() => {
+  try { return String(new URL(import.meta.url).searchParams.get('v') || ''); } catch { return ''; }
+})();
+let pageBaselineVersion = PAGE_ASSET_VERSION;
 let versionWarnSnoozeUntil = 0;
+let versionBarShownVersion = '';
+
+async function fetchLatestVersion() {
+  if (!PAGE_VERSION_URL) return '';
+  try {
+    const response = await fetch(PAGE_VERSION_URL + '?t=' + Date.now(), { cache: 'no-store' });
+    if (!response.ok) return '';
+    const data = await response.json();
+    return String((data && data.version) || '');
+  } catch { return ''; }
+}
 
 function showVersionUpdateBar(latest) {
   const bar = document.getElementById('versionUpdateBar');
   const text = document.getElementById('versionUpdateText');
   if (!bar || !text) return;
-  text.textContent = '看板已更新到新版本（当前页面 ' + PAGE_ASSET_VERSION + '，线上 ' + latest + '）：请刷新页面后再继续操作，刷新前先把正在填的装车提交掉。';
+  versionBarShownVersion = latest;
+  text.textContent = '看板已更新到新版本（本页还是 ' + (pageBaselineVersion || '旧版本') + '，线上已是 ' + latest + '）：请刷新页面（Ctrl+F5）后再继续操作，刷新前先把正在填的装车提交掉，避免用旧逻辑出错。';
   bar.hidden = false;
 }
 
 async function checkVersionUpdate() {
-  if (!PAGE_ASSET_VERSION || !PAGE_VERSION_URL) return;
   if (document.body.dataset.view === 'mobile') return;
+  const latest = await fetchLatestVersion();
+  if (!latest) return;
+  if (!pageBaselineVersion) { pageBaselineVersion = latest; return; }
+  if (latest === pageBaselineVersion) {
+    if (versionBarShownVersion && versionBarShownVersion !== latest) {
+      const bar = document.getElementById('versionUpdateBar');
+      if (bar) bar.hidden = true;
+      versionBarShownVersion = '';
+    }
+    return;
+  }
   if (Date.now() < versionWarnSnoozeUntil) return;
-  try {
-    const response = await fetch(PAGE_VERSION_URL + '?t=' + Date.now(), { cache: 'no-store' });
-    if (!response.ok) return;
-    const data = await response.json();
-    const latest = String(data && data.version ? data.version : '');
-    if (!latest || latest === PAGE_ASSET_VERSION) return;
-    showVersionUpdateBar(latest);
-  } catch { }
+  showVersionUpdateBar(latest);
 }
 
 function startVersionWatch() {
-  if (!PAGE_ASSET_VERSION || document.body.dataset.view === 'mobile') return;
+  if (document.body.dataset.view === 'mobile') return;
   const reloadButton = document.getElementById('versionUpdateReload');
   const laterButton = document.getElementById('versionUpdateLater');
   if (reloadButton) reloadButton.addEventListener('click', () => window.location.reload());
@@ -9792,13 +9809,12 @@ function startVersionWatch() {
     const bar = document.getElementById('versionUpdateBar');
     if (bar) bar.hidden = true;
   });
-  window.setTimeout(() => { void checkVersionUpdate(); }, 20000);
+  void checkVersionUpdate();                                      // 打开页面时先记下当前版本
   window.setInterval(() => { void checkVersionUpdate(); }, 3 * 60 * 1000);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') void checkVersionUpdate();
   });
 }
-
 setupRpcExportLink();
 if (!getAccessCode()) askAccessCode();
 await loadBoardRole();
