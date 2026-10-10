@@ -1892,6 +1892,15 @@ const els = {
   desktopAttendanceLeaveEmpty: $('#desktopAttendanceLeaveEmpty'),
   mobileAttendanceLeavePanel: $('#mobileAttendanceLeavePanel'),
   mobileAttendanceLeaveList: $('#mobileAttendanceLeaveList'),
+  desktopAttendanceTeamDateWrap: $('#desktopAttendanceTeamDateWrap'),
+  desktopAttendanceTeamDate: $('#desktopAttendanceTeamDate'),
+  desktopAttendanceTeamPanel: $('#desktopAttendanceTeamPanel'),
+  desktopAttendanceTeamList: $('#desktopAttendanceTeamList'),
+  desktopAttendanceTeamEmpty: $('#desktopAttendanceTeamEmpty'),
+  mobileAttendanceTeamPanel: $('#mobileAttendanceTeamPanel'),
+  mobileAttendanceTeamDate: $('#mobileAttendanceTeamDate'),
+  mobileAttendanceTeamRefresh: $('#mobileAttendanceTeamRefresh'),
+  mobileAttendanceTeamList: $('#mobileAttendanceTeamList'),
   mobileAttendanceModule: $('#mobileAttendanceModule'),
   mobileAttendanceMonth: $('#mobileAttendanceMonth'),
   mobileAttendancePrev: $('#mobileAttendancePrev'),
@@ -4448,11 +4457,114 @@ function openReportReview(id) {
   workReviewRows = [{ ...row, submittedName:row.submittedName || row.name || '', submittedMaterial:row.submittedMaterial || row.material || '', submittedSpec:row.submittedSpec || row.spec || '', submittedProcessName:row.submittedProcessName || row.process || '' }];
   openWorkReviewEditor(id);
 }
+// ===== 员工月度报工 =====
+let staffMonthRows = null;
+let staffMonthEmployeeId = '';
+let staffMonthData = null;
+const staffMoney = (n) => workReviewMoney(n, 2);
+const staffHours = (m) => (Number(m || 0) / 60).toFixed(1);
+async function loadStaffMonth(force = false) {
+  if (boardRole !== 'admin') return;
+  if (staffMonthRows && !force) { renderStaffMonth(); return; }
+  try {
+    const result = await callRpc('work_admin_month_overview', { p_code:getAccessCode() });
+    if (!result.response.ok) throw new Error(result.data?.error || '月度数据加载失败');
+    staffMonthRows = Array.isArray(result.data) ? result.data : [];
+    renderStaffMonth();
+    if (staffMonthEmployeeId) await openStaffMonthDetail(staffMonthEmployeeId);
+  } catch (error) { showToast(error.message || '月度数据加载失败'); }
+}
+function renderStaffMonth() {
+  const todo = document.getElementById('mobileStaffMonthTodo');
+  const list = document.getElementById('mobileStaffMonthList');
+  if (!list) return;
+  const rows = (staffMonthRows || []).filter((r) => Number(r.timerMinutes || 0) > 0 || Number(r.pieceCount || 0) > 0 || Number(r.pendingCount || 0) > 0);
+  const pending = (staffMonthRows || []).reduce((sum, r) => sum + Number(r.pendingCount || 0), 0);
+  if (todo) {
+    todo.innerHTML = pending > 0
+      ? `<div class="staff-month-todo">本月有 <b>${pending}</b> 笔待审核，建议先去「报工审核」处理。</div>`
+      : '';
+  }
+  list.innerHTML = rows.length ? rows.map((r) => {
+    const total = Math.round((Number(r.timerPay || 0) + Number(r.piecePay || 0)) * 100) / 100;
+    const on = String(r.id) === String(staffMonthEmployeeId);
+    return `<article class="mobile-live-card${on ? ' is-expanded' : ''}" data-staff-month-emp="${escapeHtml(r.id)}"><div class="mobile-live-card-head"><h3>${escapeHtml(r.employeeNo || '')} · ${escapeHtml(r.name || '')}</h3><span class="work-live-status">${staffMoney(total)} 元</span></div><div class="mobile-live-grid"><div><span>本月计时</span><strong>${staffHours(r.timerMinutes)} 小时</strong><small>${staffMoney(r.timerPay)} 元</small></div><div><span>本月计件</span><strong>${fmt(r.pieceQty)} 件</strong><small>${fmt(r.pieceCount)} 笔 · ${staffMoney(r.piecePay)} 元</small></div><div><span>待审核</span><strong>${fmt(r.pendingCount)} 笔</strong><small>${Number(r.pendingCount || 0) > 0 ? '需处理' : '已处理'}</small></div></div><button type="button" data-staff-month-emp="${escapeHtml(r.id)}">${on ? '收起整月明细' : '看整月明细'}</button></article>`;
+  }).join('') : '<div class="empty-state"><strong>本月还没有报工记录</strong></div>';
+}
+async function openStaffMonthDetail(employeeId) {
+  if (String(staffMonthEmployeeId) === String(employeeId) && staffMonthData) { staffMonthEmployeeId = ''; staffMonthData = null; renderStaffMonth(); return; }
+  staffMonthEmployeeId = employeeId;
+  renderStaffMonth();
+  const box = document.getElementById('mobileStaffMonthDetail');
+  if (box) box.innerHTML = '<div class="mobile-live-card"><div class="tl-empty">加载中…</div></div>';
+  try {
+    const result = await callRpc('work_admin_employee_month', { p_code:getAccessCode(), p_employee_id:employeeId });
+    if (!result.response.ok) throw new Error(result.data?.error || '整月明细加载失败');
+    staffMonthData = result.data;
+    renderStaffMonthDetail();
+  } catch (error) { showToast(error.message || '整月明细加载失败'); }
+}
+function renderStaffMonthDetail() {
+  const box = document.getElementById('mobileStaffMonthDetail');
+  if (!box || !staffMonthData) return;
+  const d = staffMonthData;
+  const pieces = Array.isArray(d.pieces) ? d.pieces : [];
+  const timers = Array.isArray(d.timers) ? d.timers : [];
+  const money = (v) => workReviewMoney(v, 2);
+  const statusText = (s) => s === 'approved' ? '已通过' : s === 'submitted' ? '待审核' : s === 'rejected' ? '已退回' : '已撤回';
+  const mats = new Map();
+  pieces.forEach((p) => {
+    const key = (p.material || '（无料号）') + '|' + (p.process || '');
+    const item = mats.get(key) || { material: p.material || '（无料号）', process: p.process || '', quantity: 0, amount: 0, count: 0, days: {} };
+    item.quantity += Number(p.quantity || 0);
+    item.amount += Number(p.amount || 0);
+    item.count += 1;
+    item.days[p.workDate] = (item.days[p.workDate] || 0) + Number(p.quantity || 0);
+    mats.set(key, item);
+  });
+  const matRows = [...mats.values()].sort((a, b) => b.quantity - a.quantity);
+  const matHtml = matRows.length ? matRows.map((m) => {
+    const dayTxt = Object.entries(m.days).sort((a, b) => b[0].localeCompare(a[0])).map(([day, q]) => `${day.slice(5)} ${fmt(q)}`).join('   ');
+    const dup = Object.values(m.days).some((q, i, arr) => false);
+    return `<div class="tl-item"><span>${escapeHtml(m.material)} · ${escapeHtml(m.process)}</span><b>合计 ${fmt(m.quantity)} 件 · ${money(m.amount)} 元</b><em class="tl-status plain">${escapeHtml(dayTxt)}</em></div>`;
+  }).join('') : '<div class="tl-empty">本月没有计件</div>';
+  const dayMap = new Map();
+  pieces.forEach((p) => { if (!dayMap.has(p.workDate)) dayMap.set(p.workDate, { pieces: [], timers: [] }); dayMap.get(p.workDate).pieces.push(p); });
+  timers.forEach((t) => { if (!dayMap.has(t.workDate)) dayMap.set(t.workDate, { pieces: [], timers: [] }); dayMap.get(t.workDate).timers.push(t); });
+  const dayHtml = [...dayMap.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([date, v]) => {
+    const pieceRows = v.pieces.map((p) => `<div class="tl-item piece"><span class="tl-code">${escapeHtml(p.material || '（无料号）')}</span><b>${fmt(p.quantity)} 件 · ${money(p.amount)} 元</b><em class="tl-status ${escapeHtml(p.status || '')}">${statusText(p.status)}</em><span class="tl-sub">${escapeHtml(String(p.createdAt || '').slice(5, 16).replace('T', ' '))} 提交 · ${escapeHtml(p.name || '')} · ${escapeHtml(p.process || '')}${p.variantLabel ? ' · ' + escapeHtml(p.variantLabel) : ''}${p.status !== 'revoked' ? ' ｜ 可回退' : ''}</span>${p.status === 'submitted' || p.status === 'approved' ? `<button type="button" class="btn-mini" data-revoke-piece="${escapeHtml(p.id)}" data-revoke-label="${escapeHtml((p.material || '') + ' ' + p.process + ' ' + fmt(p.quantity) + ' 件')}">回退</button>` : ''}</div>`).join('');
+    const timerRows = v.timers.map((t) => `<div class="tl-item"><span>${escapeHtml(new Date(t.startedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' }))} → ${t.endedAt ? escapeHtml(new Date(t.endedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' })) : '进行中'}</span><b>${fmt(t.minutes)} 分钟</b></div>`).join('');
+    const qty = v.pieces.reduce((s, p) => s + Number(p.quantity || 0), 0);
+    const amount = v.pieces.reduce((s, p) => s + Number(p.amount || 0), 0);
+    return `<div class="tl-line expandable" data-tl-detail="day"><div class="tl-line-main"><span>${escapeHtml(date)}</span><strong>${v.pieces.length} 笔 · ${fmt(qty)} 件 · ${money(amount)} 元</strong></div><div class="tl-detail">${pieceRows}${timerRows}</div></div>`;
+  }).join('');
+  const totalPay = Math.round((Number(d.timerPay || 0) + pieces.filter((p) => p.status === 'approved').reduce((s, p) => s + Number(p.amount || 0), 0)) * 100) / 100;
+  box.innerHTML = `<div class="mobile-live-card"><div class="mobile-live-card-head"><h3>${escapeHtml(d.employee?.employeeNo || '')} · ${escapeHtml(d.employee?.name || '')} · ${escapeHtml(d.month || '')}</h3></div><div class="mobile-live-grid"><div><span>本月计时</span><strong>${staffHours(d.timerMinutes)} 小时</strong><small>${money(d.timerPay)} 元</small></div><div><span>本月计件</span><strong>${fmt(pieces.reduce((s, p) => s + Number(p.quantity || 0), 0))} 件</strong><small>${pieces.length} 笔（已通过 ${pieces.filter((p) => p.status === 'approved').length}）</small></div><div><span>本月合计</span><strong>${money(totalPay)} 元</strong><small>计时+已通过计件</small></div></div>
+    <div class="tl-line expandable" data-tl-detail="summary"><div class="tl-line-main"><span>计件 · 按料号汇总（查重复/多报）</span><strong>${matRows.length} 项</strong></div><div class="tl-detail">${matHtml}</div></div>
+    <div class="tl-line expandable" data-tl-detail="history"><div class="tl-line-main"><span>按日期看（本月）</span><strong>${dayMap.size} 天</strong></div><div class="tl-detail">${dayHtml}</div></div>
+  </div>`;
+}
+async function revokePieceQuick(id, label) {
+  const reason = window.prompt(`回退这条报工（${label}）\n请填写原因：`, '重复申报');
+  if (reason === null) return;
+  if (!String(reason).trim()) { showToast('必须填写回退原因'); return; }
+  try {
+    const result = await callRpc('work_admin_revoke_piece', { p_code:getAccessCode(), p_id:id, p_reason:String(reason).trim() });
+    if (!result.response.ok) throw new Error(result.data?.error || '回退失败');
+    showToast('已回退该报工（不计入工资）');
+    staffMonthRows = null;
+    staffMonthData = null;
+    await loadStaffMonth(true);
+  } catch (error) { showToast(error.message || '回退失败'); }
+}
 function switchMobileWorkTab(tab) {
-  mobileWorkTab = tab === 'review' ? 'review' : 'report';
+  mobileWorkTab = tab === 'review' ? 'review' : (tab === 'month' ? 'month' : 'report');
   document.querySelectorAll('[data-mobile-work-tab]').forEach((button) => button.classList.toggle('active', button.dataset.mobileWorkTab === mobileWorkTab));
   if (els.mobileWorkReportPanel) els.mobileWorkReportPanel.hidden = mobileWorkTab !== 'report';
   if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = mobileWorkTab !== 'review';
+  const staffMonthPanel = document.getElementById('mobileStaffMonthPanel');
+  if (staffMonthPanel) staffMonthPanel.hidden = mobileWorkTab !== 'month';
+  if (mobileWorkTab === 'month') loadStaffMonth().catch(() => {});
   if (mobileWorkTab === 'report') loadWorkReportWorkspace().catch(() => {});
   else loadWorkReviews().catch(() => {});
 }
@@ -4657,11 +4769,15 @@ function applyAttendanceTab() {
   const value = (els.desktopAttendanceTab && els.desktopAttendanceTab.value) || 'summary';
   const reissue = value === 'reissue';
   const leave = value === 'leave';
-  if (els.desktopAttendanceStats) els.desktopAttendanceStats.hidden = reissue || leave;
-  if (els.desktopAttendanceSummaryPanel) els.desktopAttendanceSummaryPanel.hidden = reissue || leave;
+  const team = value === 'team';
+  if (els.desktopAttendanceStats) els.desktopAttendanceStats.hidden = reissue || leave || team;
+  if (els.desktopAttendanceSummaryPanel) els.desktopAttendanceSummaryPanel.hidden = reissue || leave || team;
   if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = true;
   if (els.desktopAttendanceReissuePanel) els.desktopAttendanceReissuePanel.hidden = !reissue;
   if (els.desktopAttendanceLeavePanel) els.desktopAttendanceLeavePanel.hidden = !leave;
+  if (els.desktopAttendanceTeamPanel) els.desktopAttendanceTeamPanel.hidden = !team;
+  if (els.desktopAttendanceTeamDateWrap) els.desktopAttendanceTeamDateWrap.hidden = !team;
+  if (team) loadTeamDay().catch(() => {});
 }
 function setAttendanceBadge(kind, count) {
   const label = kind === 'reissue' ? '补卡审核' : '请假审核';
@@ -4702,12 +4818,12 @@ function renderAttendanceSummary() {
   if (els.desktopAttendanceAbsent) els.desktopAttendanceAbsent.textContent = sum('absentDays');
   if (els.desktopAttendanceOvertime) els.desktopAttendanceOvertime.textContent = attendanceMoney(sum('overtimeAmount'));
   if (els.desktopAttendanceBody) {
-    els.desktopAttendanceBody.innerHTML = rows.map((r) => `<tr><td>${escapeHtml(r.employeeNo)}</td><td><strong>${escapeHtml(r.employeeName)}</strong></td><td>${escapeHtml(ATTENDANCE_TYPE_TEXT[r.salaryType] || r.salaryType)}</td><td class="number">${fmt(r.attendanceDays)}</td><td class="number">${fmt(r.absentDays)}</td><td class="number">${fmt(r.lateDays)}</td><td class="number">${fmt(r.earlyDays)}</td><td class="number">${fmt(r.missingOnceDays)}</td><td class="number">${fmt(r.overtimeDays)} 天</td><td class="number">${attendanceMoney(r.overtimeAmount)}</td><td><button type="button" class="button ghost" data-att-detail="${escapeHtml(r.employeeNo)}">明细</button></td></tr>`).join('');
+    els.desktopAttendanceBody.innerHTML = rows.map((r) => `<tr><td>${escapeHtml(r.employeeNo)}</td><td><strong>${escapeHtml(r.employeeName)}</strong></td><td>${escapeHtml(ATTENDANCE_TYPE_TEXT[r.salaryType] || r.salaryType)}</td><td>${escapeHtml(r.shiftName || "")}</td><td class="number">${fmt(r.shouldAttendDays)}</td><td class="number">${r.shouldAttendDays ? Math.round(Number(r.attendanceDays || 0) / Number(r.shouldAttendDays) * 1000) / 10 : 0}%</td><td class="number">${fmt(r.attendanceDays)}</td><td class="number">${fmt(r.absentDays)}</td><td class="number">${fmt(r.lateDays)}</td><td class="number">${fmt(r.earlyDays)}</td><td class="number">${fmt(r.missingOnceDays)}</td><td class="number">${fmt(r.overtimeDays)} 天</td><td class="number">${attendanceMoney(r.overtimeAmount)}</td><td><button type="button" class="button ghost" data-att-detail="${escapeHtml(r.employeeNo)}">明细</button></td></tr>`).join('');
     els.desktopAttendanceBody.querySelectorAll('[data-att-detail]').forEach((b) => b.addEventListener('click', () => loadAttendanceDetail(b.dataset.attDetail).catch(() => {})));
   }
   if (els.desktopAttendanceEmpty) els.desktopAttendanceEmpty.hidden = rows.length > 0;
   if (els.mobileAttendanceList) {
-    els.mobileAttendanceList.innerHTML = rows.length ? rows.map((r) => `<article class="mobile-review-card"><div><span class="work-review-badge">${escapeHtml(ATTENDANCE_TYPE_TEXT[r.salaryType] || r.salaryType)}</span></div><h3>${escapeHtml(r.employeeNo)} ${escapeHtml(r.employeeName)}</h3><p>出勤 ${fmt(r.attendanceDays)} 天 · 没上班 ${fmt(r.absentDays)} 天</p><p>迟到 ${fmt(r.lateDays)} · 早退 ${fmt(r.earlyDays)} · 漏刷1次 ${fmt(r.missingOnceDays)}</p><p class="review-money">加班 ${fmt(r.overtimeDays)} 天 · 加班费 ${attendanceMoney(r.overtimeAmount)} 元</p></article>`).join('') : '<div class="empty-state"><strong>这个月没有考勤数据</strong></div>';
+    els.mobileAttendanceList.innerHTML = rows.length ? rows.map((r) => `<article class="mobile-review-card"><div><span class="work-review-badge">${escapeHtml(ATTENDANCE_TYPE_TEXT[r.salaryType] || r.salaryType)}</span></div><h3>${escapeHtml(r.employeeNo)} ${escapeHtml(r.employeeName)}</h3><p>出勤 ${fmt(r.attendanceDays)} 天 · 没上班 ${fmt(r.absentDays)} 天 · 出勤率 ${r.shouldAttendDays ? Math.round(Number(r.attendanceDays || 0) / Number(r.shouldAttendDays) * 1000) / 10 : 0}%</p><p>迟到 ${fmt(r.lateDays)} · 早退 ${fmt(r.earlyDays)} · 漏刷1次 ${fmt(r.missingOnceDays)}</p><p class="review-money">加班 ${fmt(r.overtimeDays)} 天 · 加班费 ${attendanceMoney(r.overtimeAmount)} 元</p></article>`).join('') : '<div class="empty-state"><strong>这个月没有考勤数据</strong></div>';
   }
 }
 async function loadAttendanceDetail(empNo) {
@@ -4737,6 +4853,33 @@ async function loadAttendanceReissues() {
     els.mobileAttendanceReissueList.innerHTML = rows.length ? rows.map((r) => `<article class="mobile-review-card"><div><span class="review-status submitted">待审核</span></div><h3>${escapeHtml(r.employeeNo)} ${escapeHtml(r.employeeName)} · ${escapeHtml(r.workDate)}</h3><p>${r.slot === 'check_in' ? '签到' : '签退'} · ${escapeHtml(String(r.reissueTime || '').slice(0,5))}</p><p>原因：${escapeHtml(r.reason || '')}</p><div class="mobile-reissue-actions"><button type="button" class="button primary" data-mobi-approve="${escapeHtml(r.id)}">通过</button><button type="button" class="button ghost" data-mobi-reject="${escapeHtml(r.id)}">退回</button></div></article>`).join('') : '<div class="empty-state"><strong>没有待审核的补卡申请</strong></div>';
     els.mobileAttendanceReissueList.querySelectorAll('[data-mobi-approve]').forEach((b) => b.addEventListener('click', () => reviewAttendanceReissue(b.dataset.mobiApprove, true)));
     els.mobileAttendanceReissueList.querySelectorAll('[data-mobi-reject]').forEach((b) => b.addEventListener('click', () => reviewAttendanceReissue(b.dataset.mobiReject, false)));
+  }
+}
+function teamStatusText(status) {
+  return ({ normal:'正常', late:'迟到', early_leave:'早退', missing_once:'漏刷1次',
+    missing_overdue:'漏刷未补', absent:'没上班', leave:'请假', reissued:'已补卡',
+    manual:'人工判定', no_record:'无记录' })[status] || status || '--';
+}
+async function loadTeamDay() {
+  if (boardRole !== 'admin') return;
+  const dateInput = (els.desktopAttendanceTeamDate && !els.desktopAttendanceTeamDateWrap?.hidden)
+    ? els.desktopAttendanceTeamDate
+    : els.mobileAttendanceTeamDate;
+  const value = (dateInput && dateInput.value) || new Date().toLocaleDateString('en-CA', { timeZone:'Asia/Shanghai' });
+  if (els.desktopAttendanceTeamDate && !els.desktopAttendanceTeamDate.value) els.desktopAttendanceTeamDate.value = value;
+  if (els.mobileAttendanceTeamDate && !els.mobileAttendanceTeamDate.value) els.mobileAttendanceTeamDate.value = value;
+  const data = await attendanceRpc('board_team_day', { p_code:getAccessCode(), p_date:value });
+  const rows = data.team || [];
+  const counts = rows.reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc; }, {});
+  const summary = ['leave','absent','missing_overdue','missing_once','late','early_leave']
+    .filter((k) => counts[k]).map((k) => `${teamStatusText(k)} ${counts[k]}`).join(' · ') || '全部正常';
+  if (els.desktopAttendanceTeamList) {
+    els.desktopAttendanceTeamList.innerHTML = `<div class="work-review-card"><div><h3>${escapeHtml(value)}</h3><p>${escapeHtml(summary)}</p></div></div>` +
+      rows.map((r) => `<article class="work-review-card"><div><span class="review-status ${escapeHtml(r.status)}">${escapeHtml(teamStatusText(r.status))}</span><h3>${escapeHtml(r.employeeNo)} ${escapeHtml(r.employeeName)}</h3><p>${escapeHtml(r.shiftName || '')}${r.checkInRaw ? ' · ' + escapeHtml(r.checkInRaw) + ' / ' + escapeHtml(r.checkOutRaw || '') : ''}</p></div></article>`).join('');
+  }
+  if (els.mobileAttendanceTeamList) {
+    els.mobileAttendanceTeamList.innerHTML = `<div class="mobile-review-card"><div><h3>${escapeHtml(value)}</h3><p>${escapeHtml(summary)}</p></div></div>` +
+      rows.map((r) => `<article class="mobile-review-card"><div><span class="review-status ${escapeHtml(r.status)}">${escapeHtml(teamStatusText(r.status))}</span></div><h3>${escapeHtml(r.employeeNo)} ${escapeHtml(r.employeeName)}</h3><p>${escapeHtml(r.shiftName || '')}${r.checkInRaw ? ' · ' + escapeHtml(r.checkInRaw) + ' / ' + escapeHtml(r.checkOutRaw || '') : ''}</p></article>`).join('');
   }
 }
 async function loadAttendanceLeaves() {
@@ -4789,11 +4932,13 @@ async function reviewAttendanceReissue(id, approve) {
   } catch (error) { showToast(error.message || '操作失败'); }
 }
 function switchMobileAttendanceTab(tab) {
-  mobileAttendanceTab = (tab === 'reissue' || tab === 'leave') ? tab : 'summary';
+  mobileAttendanceTab = (tab === 'reissue' || tab === 'leave' || tab === 'team') ? tab : 'summary';
   document.querySelectorAll('[data-mobile-attendance-tab]').forEach((b) => b.classList.toggle('active', b.dataset.mobileAttendanceTab === mobileAttendanceTab));
   if (els.mobileAttendanceSummaryPanel) els.mobileAttendanceSummaryPanel.hidden = mobileAttendanceTab !== 'summary';
   if (els.mobileAttendanceReissuePanel) els.mobileAttendanceReissuePanel.hidden = mobileAttendanceTab !== 'reissue';
   if (els.mobileAttendanceLeavePanel) els.mobileAttendanceLeavePanel.hidden = mobileAttendanceTab !== 'leave';
+  if (els.mobileAttendanceTeamPanel) els.mobileAttendanceTeamPanel.hidden = mobileAttendanceTab !== 'team';
+  if (mobileAttendanceTab === 'team') loadTeamDay().catch(() => {});
 }
 function renderMobileModule() {
   const isAdmin = boardRole === 'admin';
@@ -8452,7 +8597,9 @@ if (els.mobileAttendancePrev) els.mobileAttendancePrev.addEventListener('click',
 if (els.mobileAttendanceNext) els.mobileAttendanceNext.addEventListener('click', () => attendanceShiftMonth(1));
 if (els.desktopAttendanceDetailClose) els.desktopAttendanceDetailClose.addEventListener('click', () => { if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = true; });
 if (els.desktopAttendanceTab) els.desktopAttendanceTab.addEventListener('change', applyAttendanceTab);
-document.querySelectorAll('[data-mobile-attendance-tab]').forEach((b) => b.addEventListener('click', () => { switchMobileAttendanceTab(b.dataset.mobileAttendanceTab); if (mobileAttendanceTab === 'reissue') loadAttendanceReissues().catch(() => {}); if (mobileAttendanceTab === 'leave') loadAttendanceLeaves().catch(() => {}); }));
+if (els.desktopAttendanceTeamDate) els.desktopAttendanceTeamDate.addEventListener('change', () => loadTeamDay().catch(() => {}));
+if (els.mobileAttendanceTeamRefresh) els.mobileAttendanceTeamRefresh.addEventListener('click', () => loadTeamDay().catch(() => {}));
+document.querySelectorAll('[data-mobile-attendance-tab]').forEach((b) => b.addEventListener('click', () => { switchMobileAttendanceTab(b.dataset.mobileAttendanceTab); if (mobileAttendanceTab === 'reissue') loadAttendanceReissues().catch(() => {}); if (mobileAttendanceTab === 'leave') loadAttendanceLeaves().catch(() => {}); if (mobileAttendanceTab === 'team') loadTeamDay().catch(() => {}); }));
 
 if (els.mobileWorkReportDate) els.mobileWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReportWorkspace(); });
 if (els.desktopWorkReportEmployee) els.desktopWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; renderWorkLiveOverview(); loadWorkReport(); });
@@ -8547,6 +8694,17 @@ if (els.mobileModuleSwitch) {
     if (els.mobileModuleSwitch.classList.contains('expanded')) closeMobileModuleSheet();
     else openMobileModuleSheet();
   };
+  const staffMonthPanelEl = document.getElementById('mobileStaffMonthPanel');
+  if (staffMonthPanelEl) {
+    staffMonthPanelEl.addEventListener('click', (event) => {
+      const revoke = event.target.closest('[data-revoke-piece]');
+      if (revoke) { revokePieceQuick(revoke.dataset.revokePiece, revoke.dataset.revokeLabel || '').catch(() => {}); return; }
+      const emp = event.target.closest('[data-staff-month-emp]');
+      if (emp) { openStaffMonthDetail(emp.dataset.staffMonthEmp).catch(() => {}); return; }
+      const line = event.target.closest('[data-tl-detail]');
+      if (line && event.target.closest('.tl-line-main')) { line.classList.toggle('expanded'); }
+    });
+  }
   els.mobileModuleSwitch.addEventListener('click', toggleModuleMenu);
   els.mobileModuleSwitch.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') toggleModuleMenu(event); });
 }

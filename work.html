@@ -205,6 +205,16 @@
     .att-cal .cal-day.leave{background:#e8f0ff;color:#3b5bdb}
     .att-cal .cal-day.manual{background:#eef3f3;color:#526b71}
     .att-cal .cal-day.empty{background:transparent}
+    .att-balance{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    @media print{
+      body{background:#fff}
+      body > div, body > section{display:none!important}
+      #mainView, #mainView *{visibility:visible}
+      #timePanel,#piecePanel,#attendancePanel,#salaryPanel{display:none!important}
+      #payrollPanel{display:block!important;visibility:visible}
+      #payrollPanel{position:absolute;left:0;top:0;width:100%;box-shadow:none}
+      #payrollPanel .ghost,#payrollRangeSwitch,.month-nav,#payrollRefresh,#payrollPrint{display:none!important}
+    }
   </style>
 </head><body>
 <div class="page">
@@ -312,6 +322,7 @@
         <label class="field" id="payrollMonthWrap"><span>查看月份</span><input id="payrollMonth" type="month"></label>
         <div class="month-nav" id="payrollMonthNav"><button id="payrollPrevMonth" type="button">上个月</button><button id="payrollNextMonth" type="button">下个月</button></div>
         <button id="payrollRefresh" class="ghost wide" type="button">刷新工资</button>
+        <button id="payrollPrint" class="ghost wide" type="button">打印工资单</button>
       </div>
       <div id="payrollHero" class="card salary-hero"><span>工资合计</span><strong>--</strong><small></small></div>
       <div class="list-title"><strong>工资构成</strong></div>
@@ -336,6 +347,8 @@
       <div id="attendanceList" class="card"></div>
       <div class="list-title"><strong>请假记录</strong><span id="leaveCount"></span></div>
       <div id="attendanceLeaves" class="card"></div>
+      <div class="list-title"><strong>假期余额</strong><span id="balanceYear"></span></div>
+      <div id="attendanceBalances" class="card"></div>
     </section>
   </section>
 </div>
@@ -1218,12 +1231,18 @@ function renderPiece() {
     const earlyDays = days.filter((d) => d.isEarlyLeave).length;
     const missingDays = days.filter((d) => d.status === 'missing_once').length;
     const overdueDays = days.filter((d) => d.status === 'missing_overdue').length;
+    const [yy, mm] = month.split('-').map(Number);
+    const nowDate = new Date();
+    const isCurrentMonth = yy === nowDate.getFullYear() && mm === nowDate.getMonth() + 1;
+    const shouldDays = isCurrentMonth ? nowDate.getDate() : new Date(yy, mm, 0).getDate();
+    const rate = shouldDays ? Math.round(attendanceDays / shouldDays * 1000) / 10 : 0;
     const otDays = days.filter((d) => n(d.overtimeMinutes) > 0).length;
     const otHours = Math.round(days.reduce((s, d) => s + n(d.overtimeMinutes), 0) / 60 * 10) / 10;
     const otAmount = days.reduce((s, d) => s + n(d.overtimeAmount), 0);
     $('attendanceSub').textContent = `${month} 考勤`;
     $('attendanceSummary').innerHTML = `<div class="att-grid">
       <div class="att-stat"><span>出勤</span><strong>${attendanceDays} 天</strong></div>
+      <div class="att-stat"><span>出勤率</span><strong>${rate}%</strong><small>应出勤 ${shouldDays} 天</small></div>
       <div class="att-stat"><span>没上班</span><strong>${absentDays} 天</strong></div>
       <div class="att-stat"><span>迟到</span><strong>${lateDays} 天</strong></div>
       <div class="att-stat"><span>早退</span><strong>${earlyDays} 天</strong></div>
@@ -1288,6 +1307,11 @@ function renderPiece() {
   }
   async function loadMyLeaves() {
     if (!code) return;
+    rpc('work_get_my_leave_balances', { p_code:code }).then((b) => {
+      if (!b || !b.balances) return;
+      $('balanceYear').textContent = `${b.year} 年`;
+      $('attendanceBalances').innerHTML = b.balances.map((x) => `<div class="att-row"><div><div class="att-date">${esc(x.name)}</div><div class="att-times">${x.requiresBalance ? '额度 ' + x.totalDays + ' 天 · 已用 ' + x.usedDays + ' 天' : '不限额'}</div></div><span class="att-tag normal">剩余 ${x.requiresBalance ? x.remainDays : '—'}${x.requiresBalance ? ' 天' : ''}</span></div>`).join('');
+    }).catch(() => {});
     const month = $('attendanceMonth')?.value || currentMonth();
     const { from, to } = monthBounds(month);
     const data = await rpc('work_get_my_leaves', { p_code:code, p_from:from, p_to:to }).catch(() => ({ requests: [] }));
@@ -2109,6 +2133,7 @@ $('clockStopModal').addEventListener('click', (e) => { if (e.target === $('clock
   if ($('attendancePrevMonth')) $('attendancePrevMonth').addEventListener('click', () => { const m = $('attendanceMonth'); m.value = shiftMonthValue(m.value || currentMonth(), -1); loadMyAttendance().catch(() => {}); });
   if ($('attendanceNextMonth')) $('attendanceNextMonth').addEventListener('click', () => { const m = $('attendanceMonth'); m.value = shiftMonthValue(m.value || currentMonth(), 1); loadMyAttendance().catch(() => {}); });
   if ($('payrollRefresh')) $('payrollRefresh').addEventListener('click', () => loadMyPayroll().catch(() => {}));
+  if ($('payrollPrint')) $('payrollPrint').addEventListener('click', () => window.print());
   if ($('payrollMonth')) $('payrollMonth').addEventListener('change', () => loadMyPayroll().catch(() => {}));
   if ($('payrollRangeSwitch')) $('payrollRangeSwitch').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-payroll-range]');

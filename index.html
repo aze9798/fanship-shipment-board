@@ -489,7 +489,9 @@
             <option value="summary">考勤汇总</option>
             <option value="reissue">补卡审核</option>
             <option value="leave">请假审核</option>
+            <option value="team">团队日历</option>
           </select></label>
+          <label id="desktopAttendanceTeamDateWrap" hidden><span>日期</span><input id="desktopAttendanceTeamDate" type="date"></label>
         </section>
         <section id="desktopAttendanceStats" class="work-review-stats">
           <article><span>在职员工</span><strong id="desktopAttendanceCount">0</strong></article>
@@ -500,7 +502,7 @@
         <section id="desktopAttendanceSummaryPanel" class="panel">
           <div class="table-wrap">
             <table class="orders-table work-report-table">
-              <thead><tr><th>工号</th><th>姓名</th><th>类型</th><th class="number">出勤</th><th class="number">没上班</th><th class="number">迟到</th><th class="number">早退</th><th class="number">漏刷1次</th><th class="number">加班</th><th class="number">加班费</th><th>操作</th></tr></thead>
+              <thead><tr><th>工号</th><th>姓名</th><th>类型</th><th>班次</th><th class="number">应出勤</th><th class="number">出勤率</th><th class="number">出勤</th><th class="number">没上班</th><th class="number">迟到</th><th class="number">早退</th><th class="number">漏刷1次</th><th class="number">加班</th><th class="number">加班费</th><th>操作</th></tr></thead>
               <tbody id="desktopAttendanceBody"></tbody>
             </table>
             <div id="desktopAttendanceEmpty" class="empty-state" hidden><strong>这个月没有考勤数据</strong><span>可以切换月份。</span></div>
@@ -525,6 +527,10 @@
         <section id="desktopAttendanceLeavePanel" class="panel" hidden>
           <div id="desktopAttendanceLeaveList" class="work-review-list"></div>
           <div id="desktopAttendanceLeaveEmpty" class="empty-state" hidden><strong>没有待审核的请假申请</strong></div>
+        </section>
+        <section id="desktopAttendanceTeamPanel" class="panel" hidden>
+          <div id="desktopAttendanceTeamList" class="work-review-list"></div>
+          <div id="desktopAttendanceTeamEmpty" class="empty-state" hidden><strong>这一天没有记录</strong></div>
         </section>
       </section>
 
@@ -681,6 +687,7 @@
           <nav class="mobile-work-tabs">
             <button class="active" data-mobile-work-tab="report" type="button">报工情况</button>
             <button data-mobile-work-tab="review" type="button">报工审核</button>
+            <button data-mobile-work-tab="month" type="button">月度</button>
           </nav>
           <section id="mobileWorkReportPanel" class="mobile-panel">
             <div class="mobile-work-review-tools mobile-report-tools">
@@ -701,6 +708,12 @@
               <div id="mobileWorkLiveList" class="mobile-work-review-list"></div>
             </section>
             <div id="mobileWorkReportList" class="mobile-work-review-list"></div>
+            <section id="mobileStaffMonthPanel" class="mobile-panel" hidden>
+              <div class="mobile-work-review-tools mobile-work-live-head"><strong>员工月度报工</strong><span id="mobileStaffMonthHint">本月</span></div>
+              <div id="mobileStaffMonthTodo"></div>
+              <div id="mobileStaffMonthList" class="mobile-work-review-list"></div>
+              <div id="mobileStaffMonthDetail"></div>
+            </section>
             <section id="mobileWorkTimelinePanel" class="mobile-panel work-timeline-panel" hidden>
               <div class="mobile-work-review-tools"><strong>计时 / 计件时段</strong></div>
               <div id="mobileWorkTimeline"></div>
@@ -732,6 +745,7 @@
             <button class="active" data-mobile-attendance-tab="summary" type="button">考勤汇总</button>
             <button data-mobile-attendance-tab="reissue" type="button">补卡审核</button>
             <button data-mobile-attendance-tab="leave" type="button">请假审核</button>
+            <button data-mobile-attendance-tab="team" type="button">团队日历</button>
           </nav>
           <section id="mobileAttendanceSummaryPanel" class="mobile-panel">
             <div id="mobileAttendanceList" class="mobile-work-review-list"></div>
@@ -741,6 +755,13 @@
           </section>
           <section id="mobileAttendanceLeavePanel" class="mobile-panel" hidden>
             <div id="mobileAttendanceLeaveList" class="mobile-work-review-list"></div>
+          </section>
+          <section id="mobileAttendanceTeamPanel" class="mobile-panel" hidden>
+            <div class="mobile-work-review-tools">
+              <label><span>日期</span><input id="mobileAttendanceTeamDate" type="date"></label>
+              <button id="mobileAttendanceTeamRefresh" class="button primary" type="button">刷新</button>
+            </div>
+            <div id="mobileAttendanceTeamList" class="mobile-work-review-list"></div>
           </section>
         </section>
       </section>
