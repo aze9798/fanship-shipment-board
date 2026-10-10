@@ -4753,7 +4753,7 @@ async function submitWorkReview(action) {
   }
 }
 // 考勤管理：电脑端和手机端共用
-const ATTENDANCE_STATUS_TEXT = { normal:'正常', late:'迟到', early_leave:'早退', missing_once:'漏刷1次', absent:'没上班', manual:'人工判定', leave:'请假', reissued:'已补卡' };
+const ATTENDANCE_STATUS_TEXT = { normal:'正常', late:'迟到', early_leave:'早退', missing_once:'漏刷1次', missing_overdue:'漏刷未补', absent:'没上班', manual:'人工判定', leave:'请假', reissued:'已补卡', working:'进行中' };
 const ATTENDANCE_TYPE_TEXT = { hourly_piece:'计时计件', daily:'固定日薪', monthly:'固定月薪', management:'管理' };
 function attendancePrevMonth() { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function attendanceCurrentMonth() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
@@ -4858,7 +4858,7 @@ async function loadAttendanceReissues() {
 function teamStatusText(status) {
   return ({ normal:'正常', late:'迟到', early_leave:'早退', missing_once:'漏刷1次',
     missing_overdue:'漏刷未补', absent:'没上班', leave:'请假', reissued:'已补卡',
-    manual:'人工判定', no_record:'无记录' })[status] || status || '--';
+    manual:'人工判定', working:'进行中', no_record:'无记录' })[status] || status || '--';
 }
 async function loadTeamDay() {
   if (boardRole !== 'admin') return;

@@ -203,7 +203,7 @@
     .att-cal .cal-day.missing_once{background:#fff8e1;color:#8a6b22}
     .att-cal .cal-day.missing_overdue,.att-cal .cal-day.absent{background:#fff1f0;color:#b42318}
     .att-cal .cal-day.leave{background:#e8f0ff;color:#3b5bdb}
-    .att-cal .cal-day.manual{background:#eef3f3;color:#526b71}
+    .att-cal .cal-day.manual,.att-cal .cal-day.working{background:#eef3f3;color:#526b71}
     .att-cal .cal-day.empty{background:transparent}
     .att-balance{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
     @media print{
@@ -1207,7 +1207,7 @@ function renderPiece() {
       if (att && !att.classList.contains('active')) att.click();
     }
   }
-  const ATT_STATUS = { normal:'正常', late:'迟到', early_leave:'早退', missing_once:'漏刷1次', missing_overdue:'漏刷未补', absent:'没上班', manual:'人工判定', leave:'请假', reissued:'已补卡' };
+  const ATT_STATUS = { normal:'正常', late:'迟到', early_leave:'早退', missing_once:'漏刷1次', missing_overdue:'漏刷未补', absent:'没上班', manual:'人工判定', leave:'请假', reissued:'已补卡', working:'进行中' };
   function monthBounds(month) {
     const [y, m] = String(month).split('-').map(Number);
     const last = new Date(y, m, 0).getDate();
