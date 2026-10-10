@@ -3521,3 +3521,36 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .btn-mini{border:1px solid #f0c4c0;background:#fff;color:#b42318;border-radius:8px;padding:4px 10px;font:800 11.5px/1 inherit;white-space:nowrap}
 .tl-item.piece .btn-mini{grid-column:3;justify-self:end;margin-top:6px}
 #mobileStaffMonthDetail .tl-item.piece{grid-template-columns:auto 1fr auto}
+
+/* 电脑端：页面长期不刷新时的版本更新提醒 */
+.version-update-bar {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 140;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  max-width: min(94vw, 780px);
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #8a3a06;
+  color: #fff6ec;
+  box-shadow: 0 16px 40px rgba(10, 33, 38, .32);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+.version-update-bar #versionUpdateText { flex: 1 1 340px; }
+.version-update-bar button {
+  border: 0;
+  border-radius: 9px;
+  padding: 8px 14px;
+  font: 800 12.5px/1 inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.version-update-bar #versionUpdateReload { background: #ffd9a8; color: #6b2f04; }
+.version-update-bar #versionUpdateLater { background: transparent; color: #ffe9d2; border: 1px solid rgba(255, 233, 210, .55); }

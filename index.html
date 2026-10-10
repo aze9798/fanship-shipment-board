@@ -18,6 +18,11 @@
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
+  <div id="versionUpdateBar" class="version-update-bar desktop-only" role="alert" hidden>
+    <span id="versionUpdateText"></span>
+    <button id="versionUpdateReload" type="button">立即刷新</button>
+    <button id="versionUpdateLater" type="button">稍后提醒</button>
+  </div>
   <div id="app" class="app-shell">
     <aside class="sidebar desktop-only">
       <div class="brand">
@@ -490,7 +495,9 @@
             <option value="reissue">补卡审核</option>
             <option value="leave">请假审核</option>
             <option value="team">团队日历</option>
+            <option value="logs">操作日志</option>
           </select></label>
+          <label><span>月度封账</span><span style="display:flex;gap:8px;align-items:center"><button id="desktopAttendanceClose" class="button ghost" type="button">封账</button><em id="desktopAttendanceCloseState" style="font-style:normal;color:#70858a;font-size:12px">未封账</em></span></label>
           <label id="desktopAttendanceTeamDateWrap" hidden><span>日期</span><input id="desktopAttendanceTeamDate" type="date"></label>
         </section>
         <section id="desktopAttendanceStats" class="work-review-stats">
@@ -527,6 +534,10 @@
         <section id="desktopAttendanceLeavePanel" class="panel" hidden>
           <div id="desktopAttendanceLeaveList" class="work-review-list"></div>
           <div id="desktopAttendanceLeaveEmpty" class="empty-state" hidden><strong>没有待审核的请假申请</strong></div>
+        </section>
+        <section id="desktopAttendanceLogsPanel" class="panel" hidden>
+          <div id="desktopAttendanceLogsList" class="work-review-list"></div>
+          <div id="desktopAttendanceLogsEmpty" class="empty-state" hidden><strong>这个时间段没有操作记录</strong></div>
         </section>
         <section id="desktopAttendanceTeamPanel" class="panel" hidden>
           <div id="desktopAttendanceTeamList" class="work-review-list"></div>
@@ -740,12 +751,14 @@
             <button id="mobileAttendancePrev" class="button ghost" type="button">上月</button>
             <button id="mobileAttendanceNext" class="button ghost" type="button">下月</button>
             <button id="mobileAttendanceRefresh" class="button primary" type="button">刷新</button>
+            <button id="mobileAttendanceClose" class="button ghost" type="button">封账</button>
           </div>
           <nav class="mobile-work-tabs">
             <button class="active" data-mobile-attendance-tab="summary" type="button">考勤汇总</button>
             <button data-mobile-attendance-tab="reissue" type="button">补卡审核</button>
             <button data-mobile-attendance-tab="leave" type="button">请假审核</button>
             <button data-mobile-attendance-tab="team" type="button">团队日历</button>
+            <button data-mobile-attendance-tab="logs" type="button">操作日志</button>
           </nav>
           <section id="mobileAttendanceSummaryPanel" class="mobile-panel">
             <div id="mobileAttendanceList" class="mobile-work-review-list"></div>
@@ -755,6 +768,9 @@
           </section>
           <section id="mobileAttendanceLeavePanel" class="mobile-panel" hidden>
             <div id="mobileAttendanceLeaveList" class="mobile-work-review-list"></div>
+          </section>
+          <section id="mobileAttendanceLogsPanel" class="mobile-panel" hidden>
+            <div id="mobileAttendanceLogsList" class="mobile-work-review-list"></div>
           </section>
           <section id="mobileAttendanceTeamPanel" class="mobile-panel" hidden>
             <div class="mobile-work-review-tools">

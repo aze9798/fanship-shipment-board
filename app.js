@@ -1901,6 +1901,14 @@ const els = {
   mobileAttendanceTeamDate: $('#mobileAttendanceTeamDate'),
   mobileAttendanceTeamRefresh: $('#mobileAttendanceTeamRefresh'),
   mobileAttendanceTeamList: $('#mobileAttendanceTeamList'),
+  desktopAttendanceClose: $('#desktopAttendanceClose'),
+  desktopAttendanceCloseState: $('#desktopAttendanceCloseState'),
+  mobileAttendanceClose: $('#mobileAttendanceClose'),
+  desktopAttendanceLogsPanel: $('#desktopAttendanceLogsPanel'),
+  desktopAttendanceLogsList: $('#desktopAttendanceLogsList'),
+  desktopAttendanceLogsEmpty: $('#desktopAttendanceLogsEmpty'),
+  mobileAttendanceLogsPanel: $('#mobileAttendanceLogsPanel'),
+  mobileAttendanceLogsList: $('#mobileAttendanceLogsList'),
   mobileAttendanceModule: $('#mobileAttendanceModule'),
   mobileAttendanceMonth: $('#mobileAttendanceMonth'),
   mobileAttendancePrev: $('#mobileAttendancePrev'),
@@ -4770,14 +4778,17 @@ function applyAttendanceTab() {
   const reissue = value === 'reissue';
   const leave = value === 'leave';
   const team = value === 'team';
-  if (els.desktopAttendanceStats) els.desktopAttendanceStats.hidden = reissue || leave || team;
-  if (els.desktopAttendanceSummaryPanel) els.desktopAttendanceSummaryPanel.hidden = reissue || leave || team;
+  const logs = value === 'logs';
+  if (els.desktopAttendanceStats) els.desktopAttendanceStats.hidden = reissue || leave || team || logs;
+  if (els.desktopAttendanceSummaryPanel) els.desktopAttendanceSummaryPanel.hidden = reissue || leave || team || logs;
   if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = true;
   if (els.desktopAttendanceReissuePanel) els.desktopAttendanceReissuePanel.hidden = !reissue;
   if (els.desktopAttendanceLeavePanel) els.desktopAttendanceLeavePanel.hidden = !leave;
   if (els.desktopAttendanceTeamPanel) els.desktopAttendanceTeamPanel.hidden = !team;
   if (els.desktopAttendanceTeamDateWrap) els.desktopAttendanceTeamDateWrap.hidden = !team;
+  if (els.desktopAttendanceLogsPanel) els.desktopAttendanceLogsPanel.hidden = !logs;
   if (team) loadTeamDay().catch(() => {});
+  if (logs) loadAttendanceLogs().catch(() => {});
 }
 function setAttendanceBadge(kind, count) {
   const label = kind === 'reissue' ? '补卡审核' : '请假审核';
@@ -4794,6 +4805,7 @@ async function loadAttendance() {
     if (els.mobileAttendanceMonth) els.mobileAttendanceMonth.value = attendanceMonth;
   }
   await Promise.all([loadAttendanceSummary(), loadAttendanceReissues(), loadAttendanceLeaves()]);
+  loadMonthStatus().catch(() => {});
   applyAttendanceTab();
 }
 function attendanceShiftMonth(delta) {
@@ -4859,6 +4871,51 @@ function teamStatusText(status) {
   return ({ normal:'正常', late:'迟到', early_leave:'早退', missing_once:'漏刷1次',
     missing_overdue:'漏刷未补', absent:'没上班', leave:'请假', reissued:'已补卡',
     manual:'人工判定', working:'进行中', no_record:'无记录' })[status] || status || '--';
+}
+async function loadMonthStatus() {
+  const month = attendanceMonth || attendanceCurrentMonth();
+  const status = await attendanceRpc('board_month_status', { p_code:getAccessCode(), p_month: month + '-01' }).catch(() => null);
+  const closed = Boolean(status && status.closed);
+  if (els.desktopAttendanceCloseState) els.desktopAttendanceCloseState.textContent = closed ? '已封账' : '未封账';
+  if (els.desktopAttendanceClose) els.desktopAttendanceClose.textContent = closed ? '解封' : '封账';
+  if (els.mobileAttendanceClose) els.mobileAttendanceClose.textContent = closed ? '解封' : '封账';
+}
+async function toggleMonthClose() {
+  const month = attendanceMonth || attendanceCurrentMonth();
+  const status = await attendanceRpc('board_month_status', { p_code:getAccessCode(), p_month: month + '-01' }).catch(() => null);
+  const closing = !(status && status.closed);
+  const note = prompt(closing ? `确定封账 ${month} 吗？封账后不能再改这个月的考勤。可填备注：` : `确定解封 ${month} 吗？解封后才能再改。可填备注：`, '');
+  if (note === null) return;
+  try {
+    await attendanceRpc('board_close_month', { p_code:getAccessCode(), p_month: month + '-01', p_close:closing, p_note:note });
+    showToast(closing ? `${month} 已封账` : `${month} 已解封`);
+    await loadAttendance();
+    await loadAttendanceLogs().catch(() => {});
+  } catch (error) { showToast(error.message || '操作失败'); }
+}
+const ATTENDANCE_LOG_ACTION = { close_month:'封账', open_month:'解封', reissue_approve:'补卡通过', reissue_reject:'补卡退回', leave_approve:'请假通过', leave_reject:'请假退回', set_day:'手工改考勤' };
+async function loadAttendanceLogs() {
+  const { from, to } = attendanceBounds(attendanceMonth);
+  const data = await attendanceRpc('board_attendance_logs', { p_code:getAccessCode(), p_from:from, p_to:to });
+  const rows = data.logs || [];
+  const describe = (r) => {
+    const d = r.detail || {};
+    const bits = [];
+    if (d.slot) bits.push(d.slot === 'check_in' ? '签到' : '签退');
+    if (d.time) bits.push(String(d.time).slice(0, 5));
+    if (d.type) bits.push(d.type);
+    if (d.start) bits.push(`${d.start} ~ ${d.end || ''}（${d.days || 1} 天）`);
+    if (d.status) bits.push('改为 ' + d.status);
+    if (d.overtimeMinutes) bits.push('加班 ' + d.overtimeMinutes + ' 分钟');
+    if (d.month) bits.push(d.month);
+    if (d.reason) bits.push('原因：' + d.reason);
+    if (d.note) bits.push(d.note);
+    return bits.join(' · ');
+  };
+  const html = rows.map((r) => `<article class="work-review-card"><div><span class="work-review-badge">${escapeHtml(ATTENDANCE_LOG_ACTION[r.action] || r.action)}</span><h3>${escapeHtml(r.employeeName || '系统')}${r.employeeNo ? ' · ' + escapeHtml(r.employeeNo) : ''}${r.workDate ? ' · ' + escapeHtml(r.workDate) : ''}</h3><p>${escapeHtml(describe(r))}</p><p>${escapeHtml(String(r.createdAt || '').slice(0, 16).replace('T', ' '))}</p></div></article>`).join('');
+  if (els.desktopAttendanceLogsList) els.desktopAttendanceLogsList.innerHTML = html;
+  if (els.desktopAttendanceLogsEmpty) els.desktopAttendanceLogsEmpty.hidden = rows.length > 0;
+  if (els.mobileAttendanceLogsList) els.mobileAttendanceLogsList.innerHTML = html || '<div class="empty-state"><strong>这个月没有操作记录</strong></div>';
 }
 async function loadTeamDay() {
   if (boardRole !== 'admin') return;
@@ -4932,13 +4989,15 @@ async function reviewAttendanceReissue(id, approve) {
   } catch (error) { showToast(error.message || '操作失败'); }
 }
 function switchMobileAttendanceTab(tab) {
-  mobileAttendanceTab = (tab === 'reissue' || tab === 'leave' || tab === 'team') ? tab : 'summary';
+  mobileAttendanceTab = ['reissue', 'leave', 'team', 'logs'].includes(tab) ? tab : 'summary';
   document.querySelectorAll('[data-mobile-attendance-tab]').forEach((b) => b.classList.toggle('active', b.dataset.mobileAttendanceTab === mobileAttendanceTab));
   if (els.mobileAttendanceSummaryPanel) els.mobileAttendanceSummaryPanel.hidden = mobileAttendanceTab !== 'summary';
   if (els.mobileAttendanceReissuePanel) els.mobileAttendanceReissuePanel.hidden = mobileAttendanceTab !== 'reissue';
   if (els.mobileAttendanceLeavePanel) els.mobileAttendanceLeavePanel.hidden = mobileAttendanceTab !== 'leave';
   if (els.mobileAttendanceTeamPanel) els.mobileAttendanceTeamPanel.hidden = mobileAttendanceTab !== 'team';
+  if (els.mobileAttendanceLogsPanel) els.mobileAttendanceLogsPanel.hidden = mobileAttendanceTab !== 'logs';
   if (mobileAttendanceTab === 'team') loadTeamDay().catch(() => {});
+  if (mobileAttendanceTab === 'logs') loadAttendanceLogs().catch(() => {});
 }
 function renderMobileModule() {
   const isAdmin = boardRole === 'admin';
@@ -8598,6 +8657,8 @@ if (els.mobileAttendanceNext) els.mobileAttendanceNext.addEventListener('click',
 if (els.desktopAttendanceDetailClose) els.desktopAttendanceDetailClose.addEventListener('click', () => { if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = true; });
 if (els.desktopAttendanceTab) els.desktopAttendanceTab.addEventListener('change', applyAttendanceTab);
 if (els.desktopAttendanceTeamDate) els.desktopAttendanceTeamDate.addEventListener('change', () => loadTeamDay().catch(() => {}));
+if (els.desktopAttendanceClose) els.desktopAttendanceClose.addEventListener('click', () => toggleMonthClose().catch(() => {}));
+if (els.mobileAttendanceClose) els.mobileAttendanceClose.addEventListener('click', () => toggleMonthClose().catch(() => {}));
 if (els.mobileAttendanceTeamRefresh) els.mobileAttendanceTeamRefresh.addEventListener('click', () => loadTeamDay().catch(() => {}));
 document.querySelectorAll('[data-mobile-attendance-tab]').forEach((b) => b.addEventListener('click', () => { switchMobileAttendanceTab(b.dataset.mobileAttendanceTab); if (mobileAttendanceTab === 'reissue') loadAttendanceReissues().catch(() => {}); if (mobileAttendanceTab === 'leave') loadAttendanceLeaves().catch(() => {}); if (mobileAttendanceTab === 'team') loadTeamDay().catch(() => {}); }));
 
@@ -9689,6 +9750,55 @@ window.addEventListener('resize', () => {
     applyDesktopRemainingColumnWidths();
   }, 160);
 });
+// ===== 版本更新提醒（电脑端）=====
+// 页面长期不刷新时会一直跑旧逻辑，这里定时比对线上版本号，发现更新就提醒刷新
+const PAGE_ASSET_VERSION = (() => {
+  try { return String(new URL(import.meta.url).searchParams.get('v') || ''); } catch { return ''; }
+})();
+const PAGE_VERSION_URL = (() => {
+  try { return new URL('./version.json', import.meta.url).toString(); } catch { return ''; }
+})();
+let versionWarnSnoozeUntil = 0;
+
+function showVersionUpdateBar(latest) {
+  const bar = document.getElementById('versionUpdateBar');
+  const text = document.getElementById('versionUpdateText');
+  if (!bar || !text) return;
+  text.textContent = '看板已更新到新版本（当前页面 ' + PAGE_ASSET_VERSION + '，线上 ' + latest + '）：请刷新页面后再继续操作，刷新前先把正在填的装车提交掉。';
+  bar.hidden = false;
+}
+
+async function checkVersionUpdate() {
+  if (!PAGE_ASSET_VERSION || !PAGE_VERSION_URL) return;
+  if (document.body.dataset.view === 'mobile') return;
+  if (Date.now() < versionWarnSnoozeUntil) return;
+  try {
+    const response = await fetch(PAGE_VERSION_URL + '?t=' + Date.now(), { cache: 'no-store' });
+    if (!response.ok) return;
+    const data = await response.json();
+    const latest = String(data && data.version ? data.version : '');
+    if (!latest || latest === PAGE_ASSET_VERSION) return;
+    showVersionUpdateBar(latest);
+  } catch { }
+}
+
+function startVersionWatch() {
+  if (!PAGE_ASSET_VERSION || document.body.dataset.view === 'mobile') return;
+  const reloadButton = document.getElementById('versionUpdateReload');
+  const laterButton = document.getElementById('versionUpdateLater');
+  if (reloadButton) reloadButton.addEventListener('click', () => window.location.reload());
+  if (laterButton) laterButton.addEventListener('click', () => {
+    versionWarnSnoozeUntil = Date.now() + 30 * 60 * 1000;
+    const bar = document.getElementById('versionUpdateBar');
+    if (bar) bar.hidden = true;
+  });
+  window.setTimeout(() => { void checkVersionUpdate(); }, 20000);
+  window.setInterval(() => { void checkVersionUpdate(); }, 3 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void checkVersionUpdate();
+  });
+}
+
 setupRpcExportLink();
 if (!getAccessCode()) askAccessCode();
 await loadBoardRole();
@@ -9696,6 +9806,7 @@ await loadMarkMaterials();
 restoreCachedState();
 await loadState({ fast: true });
 connectEvents();
+startVersionWatch();
 warmOptionalLibraries();
 if (els.printHelperStatus) els.printHelperStatus.addEventListener('click', () => void checkPrintHelper(true));
 if (els.mobilePrintHelperStatus) els.mobilePrintHelperStatus.addEventListener('click', () => void checkPrintHelper(true));
