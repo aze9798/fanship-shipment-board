@@ -5948,7 +5948,9 @@ function shipmentBatchForCompany(shipment, company) {
     .map((row) => ({ batch: deliveryBatchText(row.batch), at: Date.parse(String(row.createdAt || '')) || 0 }))
     .sort((a, b) => a.at - b.at);
   if (files.length) {
-    const hit = files.find((file) => !at || file.at >= at) || files[files.length - 1];
+    // 只认「这笔发货之后才开的那张送货单」；
+    // 开单时间比发货早的，说明这张单没包含这笔货，不能算到它头上（否则晚上发的货会被算进中午的单子）
+    const hit = at ? files.find((file) => file.at >= at) : files[files.length - 1];
     if (hit?.batch) return hit.batch;
   }
   return explicit === '历史已开单' ? '历史已开单' : '';
