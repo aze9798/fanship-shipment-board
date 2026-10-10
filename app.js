@@ -322,6 +322,7 @@ const photoDataLoadPromises = new Map();
 let replacementPick = null;
 let photoCaptureTarget = null;
 let photoPendingDataUrl = '';
+let photoPendingQueue = [];
 let photoCandidateRows = [];
 let photoSelectedMaterials = new Map();
 let photoUnitQuantities = new Map();
@@ -886,6 +887,9 @@ function openPhotoCapture(target, options = {}) {
   if (!target || !els.photoCaptureModal) return;
   photoCaptureTarget = target;
   photoPendingDataUrl = '';
+  photoPendingQueue = [];
+  if (els.photoChooseMore) els.photoChooseMore.hidden = true;
+  if (els.photoPendingCount) els.photoPendingCount.textContent = '';
   photoUnitQuantities = new Map();
   photoRetakeMode = Boolean(options.retake);
   photoUnitContext = options.unit || null;
@@ -905,7 +909,7 @@ function openPhotoCapture(target, options = {}) {
   els.photoCaptureModal.hidden = false;
 }
 
-function closePhotoCapture() { if (els.photoCaptureModal) els.photoCaptureModal.hidden = true; photoRetakeMode = false; photoRetakeAllowedKeys = new Set(); photoUnitContext = null; photoUnitQuantities = new Map(); }
+function closePhotoCapture() { if (els.photoCaptureModal) els.photoCaptureModal.hidden = true; photoRetakeMode = false; photoRetakeAllowedKeys = new Set(); photoUnitContext = null; photoUnitQuantities = new Map(); photoPendingQueue = []; }
 
 function compressPhotoFile(file) {
   return new Promise((resolve, reject) => {
@@ -932,26 +936,34 @@ function compressPhotoFile(file) {
 }
 
 async function savePhotoCapture() {
-  if (!photoPendingDataUrl) { showToast('请先拍照或选择照片'); return; }
+  const photos = photoPendingQueue.length ? [...photoPendingQueue] : (photoPendingDataUrl ? [photoPendingDataUrl] : []);
+  if (!photos.length) { showToast('请先拍照或选择照片'); return; }
   const materials = [...photoSelectedMaterials.values()];
   const unitContext = photoUnitContext;
   if (!materials.length) { showToast('请至少关联一个物料'); return; }
-  const photoId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2)).replace(/-/g, '');
-  const fileName = `photo-${currentDeliveryDate().replace(/-/g, '')}-${photoId}.jpg`;
   const note = String(els.photoNote?.value || '').trim();
-  const meta = { type: 'shipment_photo', photoId, deliveryDate: currentDeliveryDate(), materials, note, capturedAt: new Date().toISOString(), shipmentId: '' };
-  const payload = { date: currentDeliveryDate(), batch: JSON.stringify(meta), fileName, kind: PHOTO_FILE_KIND, noteCount: materials.length, contentBase64: photoPendingDataUrl.split(',')[1] || '' };
   if (els.photoSave) els.photoSave.disabled = true;
+  const savedFileNames = [];
+  let uploadedAny = false;
   try {
-    const result = await callRpc('board_save_delivery_file', { p_code: getAccessCode(), p_payload: payload });
-    const uploaded = result.response.ok;
-    sessionPhotos.push({ id: result.data?.id || '', fileName, dataUrl: photoPendingDataUrl, materials, note, meta, capturedAt: meta.capturedAt, uploaded });
+    for (const dataUrl of photos) {
+      const photoId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2)).replace(/-/g, '');
+      const fileName = `photo-${currentDeliveryDate().replace(/-/g, '')}-${photoId}.jpg`;
+      const meta = { type: 'shipment_photo', photoId, deliveryDate: currentDeliveryDate(), materials, note, capturedAt: new Date().toISOString(), shipmentId: '' };
+      const payload = { date: currentDeliveryDate(), batch: JSON.stringify(meta), fileName, kind: PHOTO_FILE_KIND, noteCount: materials.length, contentBase64: String(dataUrl).split(',')[1] || '' };
+      const result = await callRpc('board_save_delivery_file', { p_code: getAccessCode(), p_payload: payload });
+      const uploaded = result.response.ok;
+      if (uploaded) uploadedAny = true;
+      sessionPhotos.push({ id: result.data?.id || '', fileName, dataUrl, materials, note, meta, capturedAt: meta.capturedAt, uploaded });
+      savedFileNames.push(fileName);
+    }
     let unitUpdated = false;
-    if (uploaded && unitContext) {
+    if (uploadedAny && unitContext) {
       const nextMembers = buildUnitMembers(materials, photoUnitQuantities);
-      await persistUnit({ ...unitContext, members: nextMembers.length ? nextMembers : unitContext.members, photoFileNames: [fileName], status: 'ready' });
-    } else if (uploaded && materials.length > 1) {
-      await createUnitFromPhoto(photoId, materials, fileName, photoUnitQuantities);
+      await persistUnit({ ...unitContext, members: nextMembers.length ? nextMembers : unitContext.members, photoFileNames: savedFileNames, status: 'ready' });
+    } else if (uploadedAny && materials.length > 1) {
+      const unitId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2)).replace(/-/g, '');
+      await createUnitFromPhoto(unitId, materials, savedFileNames, photoUnitQuantities);
       unitUpdated = true;
     }
     if (unitUpdated) {
@@ -963,23 +975,13 @@ async function savePhotoCapture() {
       renderMobileList();
       renderDesktopLoading();
     }
-    showToast(uploaded ? '照片已保存到云端' : '照片已暂存在本机，确认装车时会重试上传');
-    if (window.confirm('照片已保存。要继续新增一张照片吗？')) {
-      photoPendingDataUrl = '';
-      if (els.photoFile) els.photoFile.value = '';
-      if (els.photoPreview) els.photoPreview.src = '';
-      if (els.photoPreviewWrap) els.photoPreviewWrap.hidden = true;
-      if (els.photoNote) els.photoNote.value = '';
-      renderPhotoMaterialList();
-      showToast('可以继续拍下一张，关联物料已保留');
-      return;
-    }
+    showToast(uploadedAny ? `已保存 ${photos.length} 张照片到云端` : `照片已暂存在本机（${photos.length} 张），确认装车时会重试上传`);
     closePhotoCapture();
-    showToast(uploaded ? '照片已保存到云端' : '照片已暂存在本机，确认装车时会重试上传');
   } finally {
     if (els.photoSave) els.photoSave.disabled = false;
   }
 }
+
 async function uploadSessionPhotos(shipmentId) {
   const failed = [];
   const succeeded = new Set();
@@ -1400,7 +1402,7 @@ function buildUnitMeta(unitId, materials, photoFileName, quantities = new Map())
     status: 'ready',
     deliveryDate: currentDeliveryDate(),
     members,
-    photoFileNames: [photoFileName].filter(Boolean),
+    photoFileNames: (Array.isArray(photoFileName) ? photoFileName : [photoFileName]).filter(Boolean),
     note: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -1912,6 +1914,8 @@ const els = {
   photoCaptureClose: $('#photoCaptureClose'),
   photoCaptureCancel: $('#photoCaptureCancel'),
   photoFile: $('#photoFile'),
+  photoChooseMore: $('#photoChooseMore'),
+  photoPendingCount: $('#photoPendingCount'),
   photoChoose: $('#photoChoose'),
   photoPreviewWrap: $('#photoPreviewWrap'),
   photoPreview: $('#photoPreview'),
@@ -8648,13 +8652,18 @@ if (els.photoArchiveClose) els.photoArchiveClose.addEventListener('click', close
 if (els.photoCaptureClose) els.photoCaptureClose.addEventListener('click', closePhotoCapture);
 if (els.photoCaptureCancel) els.photoCaptureCancel.addEventListener('click', closePhotoCapture);
 if (els.photoChoose) els.photoChoose.addEventListener('click', () => els.photoFile?.click());
+if (els.photoChooseMore) els.photoChooseMore.addEventListener('click', () => els.photoFile?.click());
 if (els.photoFile) els.photoFile.addEventListener('change', async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
   try {
     photoPendingDataUrl = await compressPhotoFile(file);
+    photoPendingQueue.push(photoPendingDataUrl);
     if (els.photoPreview) els.photoPreview.src = photoPendingDataUrl;
     if (els.photoPreviewWrap) els.photoPreviewWrap.hidden = false;
+    if (els.photoChooseMore) els.photoChooseMore.hidden = false;
+    if (els.photoPendingCount) els.photoPendingCount.textContent = `已拍 ${photoPendingQueue.length} 张，保存时会一起上传`;
+    event.target.value = '';
   } catch (error) {
     showToast(error.message || '照片处理失败');
   }

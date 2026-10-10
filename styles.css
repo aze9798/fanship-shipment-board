@@ -3513,3 +3513,7 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .tl-item.piece .tl-status{justify-self:end}
 .tl-item.piece .tl-sub{grid-column:1 / -1;font-size:11.5px;font-weight:600;color:#7d9296;line-height:1.5;white-space:normal;overflow:visible;text-overflow:clip}
 @media(max-width:900px){.modal-card{max-height:88vh;overflow:auto}.work-review-actions{position:sticky;bottom:0;background:#fff;padding-top:10px;margin-top:6px;border-top:1px solid #eef3f2}}
+
+/* ===== 拍照留档：多张照片 ===== */
+.photo-capture-actions { gap: 10px; flex-wrap: wrap; align-items: center; }
+.photo-pending-count { color: #60747a; font-size: 12px; font-weight: 700; }
