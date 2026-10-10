@@ -836,17 +836,19 @@ function photoMaterialCandidates(queryText) {
 
 function currentPhotoMaterials(target) {
   const rows = photoPendingRows();
-  const targetId = String(target?.id || target?.orderId || target?.planId || '').trim();
   const material = String(target?.material || '').trim();
   const spec = String(target?.spec || '').trim();
   const targetDate = String(target?.dueDate || target?.deliveryDate || target?.dueDates?.[0] || '').slice(0, 10);
   const selected = new Map();
+  // 自动关联同交期、同料号（同规格）的所有产品，而不是只关联当前这一条。
   for (const row of rows) {
-    const rowId = String(row.id || row.orderId || row.planId || '').trim();
-    if (targetId && rowId && rowId !== targetId) continue;
     if (String(row.material || '').trim() !== material) continue;
     if (spec && String(row.spec || '').trim() && String(row.spec || '').trim() !== spec) continue;
-    if (targetDate && row.dueDate && row.dueDate !== targetDate) continue;
+    if (targetDate) {
+      if (row.dueDate && row.dueDate !== targetDate) continue;
+    } else if (row.dueDate) {
+      continue;
+    }
     selected.set(photoMaterialKey(row), row);
   }
   if (!selected.size && target) selected.set(photoMaterialKey(target), target);
