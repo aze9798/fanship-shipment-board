@@ -681,7 +681,7 @@ function photoDateKey(row) {
   return String(row?.meta?.deliveryDate || row?.deliveryDate || row?.capturedAt || row?.createdAt || '').slice(0, 10);
 }
 
-function photoTargetMatches(item, target) {
+function photoTargetMatches(item, target, photoRow = null) {
   const itemMaterial = String(item?.material || '').trim();
   const targetMaterial = String(target?.material || '').trim();
   if (!itemMaterial || !targetMaterial || itemMaterial !== targetMaterial) return false;
@@ -690,17 +690,23 @@ function photoTargetMatches(item, target) {
   if (itemSpec && targetSpec && itemSpec !== targetSpec) return false;
   const itemDate = String(item?.dueDate || item?.deliveryDate || item?.dueDates?.[0] || '').slice(0, 10);
   const targetDate = String(target?.dueDate || target?.deliveryDate || target?.dueDates?.[0] || '').slice(0, 10);
-  if (itemDate && targetDate && itemDate !== targetDate) return false;
   const itemId = String(item?.id || item?.orderId || item?.planId || '').trim();
   const targetId = String(target?.id || target?.orderId || target?.planId || '').trim();
   if (itemId && targetId) return itemId === targetId;
-  return true;
+  if (itemDate && targetDate) return itemDate === targetDate;
+  // 照片这条记了订单号或交期，但目标对不上 -> 不是同一批货
+  if (itemId || itemDate) return false;
+  // 早期拍的照片没记订单号、也没记交期：只能用「拍照当天」去对目标的交期，
+  // 否则同一料号下一批货会被误判成「已留档」，沿用上一次的照片
+  const photoDay = photoRow ? String(photoDateKey(photoRow) || '').slice(0, 10) : '';
+  if (!photoDay || !targetDate) return true;
+  return photoDay === targetDate;
 }
 
 function photosForTarget(target) {
   const material = String(target?.material || '').trim();
   if (!material) return [];
-  return (photoMaterialIndex().get(material) || []).filter((row) => (row.materials || []).some((item) => photoTargetMatches(item, target)));
+  return (photoMaterialIndex().get(material) || []).filter((row) => (row.materials || []).some((item) => photoTargetMatches(item, target, row)));
 }
 
 function latestPhotoForTarget(target) {
