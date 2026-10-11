@@ -1050,11 +1050,18 @@ async function linkShipmentPhotos(shipmentId, targets, skipFileNames = new Set()
   const list = Array.isArray(targets) ? targets.filter((item) => String(item?.material || '').trim()) : [];
   if (!sid || !list.length) return 0;
   const photoDate = currentDeliveryDate();
+  const photoDateMs = Date.parse(photoDate) || Date.now();
   let linked = 0;
   for (const photo of photoArchiveRows()) {
     if (!photo?.id || String(photo.shipmentId || '').trim()) continue;
     if (skipFileNames.has(String(photo.fileName || ''))) continue;
-    if (String(photoDateKey(photo) || '') !== photoDate) continue;
+    // 当天拍的照片优先挂上；提前一两天拍好、今天才装车的也允许，
+    // 因为下面会按发货单里真实装进去的订单号严格核对，不会挂错。
+    const photoDay = String(photoDateKey(photo) || '').slice(0, 10);
+    if (photoDay) {
+      const diffDays = (photoDateMs - (Date.parse(photoDay) || photoDateMs)) / 86400000;
+      if (!(diffDays >= 0 && diffDays <= 3)) continue;
+    }
     const materials = Array.isArray(photo.materials) ? photo.materials : [];
     if (!photoMatchesShipmentTargets(materials, list)) continue;
     try {
