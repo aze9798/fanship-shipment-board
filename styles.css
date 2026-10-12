@@ -3591,3 +3591,14 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 @media(max-width:520px){
   .mobile-fab{width:52px;height:52px}
 }
+/* ===== 手机端收尾：月度面板与报工情况卡片样式统一 ===== */
+#mobileStaffMonthPanel .mobile-live-card{padding:9px 11px}
+#mobileStaffMonthPanel .mobile-live-grid{gap:6px;margin-top:8px}
+#mobileStaffMonthPanel .mobile-live-grid>div{padding:6px 8px;border-radius:9px}
+#mobileStaffMonthPanel .mobile-live-grid span{font-size:9.5px}
+#mobileStaffMonthPanel .mobile-live-grid strong{font-size:13px}
+#mobileStaffMonthPanel .mobile-live-grid small{font-size:9px}
+#mobileStaffMonthPanel .mobile-live-card button{min-height:34px;margin-top:7px;font-size:13px}
+#mobileStaffMonthPanel .mobile-live-card-head h3{font-size:14.5px}
+#mobileStaffMonthPanel .mobile-live-group{margin:12px 2px 6px;font-size:12px;font-weight:800;color:#5b757a}
+#mobileStaffMonthPanel .mobile-work-review-tools{margin-bottom:8px}
