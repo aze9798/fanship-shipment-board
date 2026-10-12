@@ -1887,6 +1887,9 @@ const els = {
   desktopAttendanceNext: $('#desktopAttendanceNext'),
   desktopAttendanceRefresh: $('#desktopAttendanceRefresh'),
   desktopAttendanceTab: $('#desktopAttendanceTab'),
+  desktopAttendanceTabs: $('#desktopAttendanceTabs'),
+  attBadgeReissue: $('#attBadgeReissue'),
+  attBadgeLeave: $('#attBadgeLeave'),
   desktopAttendanceStats: $('#desktopAttendanceStats'),
   desktopAttendanceCount: $('#desktopAttendanceCount'),
   desktopAttendanceDays: $('#desktopAttendanceDays'),
@@ -4822,6 +4825,7 @@ function applyAttendanceTab() {
   if (els.desktopAttendanceLeavePanel) els.desktopAttendanceLeavePanel.hidden = !leave;
   if (els.desktopAttendanceTeamPanel) els.desktopAttendanceTeamPanel.hidden = !team;
   if (els.desktopAttendanceTeamDateWrap) els.desktopAttendanceTeamDateWrap.hidden = !team;
+  document.querySelectorAll('#desktopAttendanceTabs [data-att-tab]').forEach((b) => b.classList.toggle('active', b.dataset.attTab === value));
   if (els.desktopAttendanceLogsPanel) els.desktopAttendanceLogsPanel.hidden = !logs;
   if (team) loadTeamDay().catch(() => {});
   if (logs) loadAttendanceLogs().catch(() => {});
@@ -4831,7 +4835,9 @@ function setAttendanceBadge(kind, count) {
   const text = count > 0 ? `${label} (${count})` : label;
   const option = els.desktopAttendanceTab && els.desktopAttendanceTab.querySelector(`option[value="${kind}"]`);
   if (option) option.textContent = text;
-  document.querySelectorAll(`[data-mobile-attendance-tab="${kind}"]`).forEach((button) => { button.textContent = text; });
+  const badge = kind === 'reissue' ? els.attBadgeReissue : els.attBadgeLeave;
+  if (badge) { badge.hidden = count <= 0; badge.textContent = count; }
+  document.querySelectorAll(`[data-mobile-attendance-tab="${kind}"]`).forEach((button) => { if (button.firstChild) button.firstChild.textContent = text; });
 }
 async function loadAttendance() {
   if (boardRole !== 'admin' || !RPC_BASE) return;
@@ -4866,7 +4872,10 @@ function renderAttendanceSummary() {
   if (els.desktopAttendanceAbsent) els.desktopAttendanceAbsent.textContent = sum('absentDays');
   if (els.desktopAttendanceOvertime) els.desktopAttendanceOvertime.textContent = attendanceMoney(sum('overtimeAmount'));
   if (els.desktopAttendanceBody) {
-    els.desktopAttendanceBody.innerHTML = rows.map((r) => `<tr><td>${escapeHtml(r.employeeNo)}</td><td><strong>${escapeHtml(r.employeeName)}</strong></td><td>${escapeHtml(ATTENDANCE_TYPE_TEXT[r.salaryType] || r.salaryType)}</td><td>${escapeHtml(r.shiftName || "")}</td><td class="number">${fmt(r.shouldAttendDays)}</td><td class="number">${r.shouldAttendDays ? Math.round(Number(r.attendanceDays || 0) / Number(r.shouldAttendDays) * 1000) / 10 : 0}%</td><td class="number">${fmt(r.attendanceDays)}</td><td class="number">${fmt(r.absentDays)}</td><td class="number">${fmt(r.lateDays)}</td><td class="number">${fmt(r.earlyDays)}</td><td class="number">${fmt(r.missingOnceDays)}</td><td class="number">${fmt(r.overtimeDays)} 天</td><td class="number">${attendanceMoney(r.overtimeAmount)}</td><td><button type="button" class="button ghost" data-att-detail="${escapeHtml(r.employeeNo)}">明细</button></td></tr>`).join('');
+    els.desktopAttendanceBody.innerHTML = rows.map((r) => {
+      const rate = r.shouldAttendDays ? Math.round(Number(r.attendanceDays || 0) / Number(r.shouldAttendDays) * 1000) / 10 : 0;
+      return `<tr><td>${escapeHtml(r.employeeNo)}</td><td><span class="att-avatar">${escapeHtml(String(r.employeeName || '').slice(0, 1))}</span><strong>${escapeHtml(r.employeeName)}</strong></td><td>${escapeHtml(ATTENDANCE_TYPE_TEXT[r.salaryType] || r.salaryType)}</td><td>${escapeHtml(r.shiftName || '')}</td><td class="number">${fmt(r.shouldAttendDays)}</td><td class="number"><span class="att-rate"><i><b style="width:${Math.min(100, rate)}%"></b></i>${rate}%</span></td><td class="number">${fmt(r.attendanceDays)}</td><td class="number">${fmt(r.absentDays)}</td><td class="number">${fmt(r.lateDays)}</td><td class="number">${fmt(r.earlyDays)}</td><td class="number">${fmt(r.missingOnceDays)}</td><td class="number">${fmt(r.overtimeDays)} 天</td><td class="number">${attendanceMoney(r.overtimeAmount)}</td><td><button type="button" class="button ghost" data-att-detail="${escapeHtml(r.employeeNo)}">明细</button></td></tr>`;
+    }).join('');
     els.desktopAttendanceBody.querySelectorAll('[data-att-detail]').forEach((b) => b.addEventListener('click', () => loadAttendanceDetail(b.dataset.attDetail).catch(() => {})));
   }
   if (els.desktopAttendanceEmpty) els.desktopAttendanceEmpty.hidden = rows.length > 0;
@@ -4881,7 +4890,7 @@ async function loadAttendanceDetail(empNo) {
   if (els.desktopAttendanceDetailTitle) els.desktopAttendanceDetailTitle.textContent = `${empNo} ${days[0]?.employeeName || ''} · ${attendanceMonth} 每日明细`;
   if (els.desktopAttendanceDetailHint) els.desktopAttendanceDetailHint.textContent = `共 ${days.length} 天`;
   if (els.desktopAttendanceDetailBody) {
-    els.desktopAttendanceDetailBody.innerHTML = days.map((d) => `<tr><td>${escapeHtml(d.workDate)}</td><td>${escapeHtml(d.checkInRaw || d.checkIn || '')}</td><td>${escapeHtml(d.checkOutRaw || d.checkOut || '')}</td><td><span class="review-status ${escapeHtml(d.status)}">${escapeHtml(ATTENDANCE_STATUS_TEXT[d.status] || d.status)}</span></td><td class="number">${Number(d.overtimeMinutes || 0) > 0 ? attendanceHours(d.overtimeMinutes) + ' h' : ''}</td><td>${escapeHtml(d.note || '')}${d.manualOverride ? ' <span class="tag">人工</span>' : ''}</td><td><button type="button" class="button ghost" data-att-edit="${escapeHtml(empNo)}" data-att-date="${escapeHtml(d.workDate)}">改</button></td></tr>`).join('');
+    els.desktopAttendanceDetailBody.innerHTML = days.map((d) => `<tr><td>${escapeHtml(d.workDate)}</td><td>${escapeHtml(d.checkInRaw || d.checkIn || '')}</td><td>${escapeHtml(d.checkOutRaw || d.checkOut || '')}</td><td><span class="att-pill ${escapeHtml(d.status)}">${escapeHtml(ATTENDANCE_STATUS_TEXT[d.status] || d.status)}</span></td><td class="number">${Number(d.overtimeMinutes || 0) > 0 ? attendanceHours(d.overtimeMinutes) + ' h' : ''}</td><td>${escapeHtml(d.note || '')}${d.manualOverride ? ' <span class="tag">人工</span>' : ''}</td><td><button type="button" class="button ghost" data-att-edit="${escapeHtml(empNo)}" data-att-date="${escapeHtml(d.workDate)}">改</button></td></tr>`).join('');
     els.desktopAttendanceDetailBody.querySelectorAll('[data-att-edit]').forEach((b) => b.addEventListener('click', () => editAttendanceDay(b.dataset.attEdit, b.dataset.attDate)));
   }
   if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = false;
@@ -4968,7 +4977,7 @@ async function loadTeamDay() {
     .filter((k) => counts[k]).map((k) => `${teamStatusText(k)} ${counts[k]}`).join(' · ') || '全部正常';
   if (els.desktopAttendanceTeamList) {
     els.desktopAttendanceTeamList.innerHTML = `<div class="work-review-card"><div><h3>${escapeHtml(value)}</h3><p>${escapeHtml(summary)}</p></div></div>` +
-      rows.map((r) => `<article class="work-review-card"><div><span class="review-status ${escapeHtml(r.status)}">${escapeHtml(teamStatusText(r.status))}</span><h3>${escapeHtml(r.employeeNo)} ${escapeHtml(r.employeeName)}</h3><p>${escapeHtml(r.shiftName || '')}${r.checkInRaw ? ' · ' + escapeHtml(r.checkInRaw) + ' / ' + escapeHtml(r.checkOutRaw || '') : ''}</p></div></article>`).join('');
+      rows.map((r) => `<article class="work-review-card"><div><span class="att-pill ${escapeHtml(r.status)}">${escapeHtml(teamStatusText(r.status))}</span><h3>${escapeHtml(r.employeeNo)} ${escapeHtml(r.employeeName)}</h3><p>${escapeHtml(r.shiftName || '')}${r.checkInRaw ? ' · ' + escapeHtml(r.checkInRaw) + ' / ' + escapeHtml(r.checkOutRaw || '') : ''}</p></div></article>`).join('');
   }
   if (els.mobileAttendanceTeamList) {
     els.mobileAttendanceTeamList.innerHTML = `<div class="mobile-review-card"><div><h3>${escapeHtml(value)}</h3><p>${escapeHtml(summary)}</p></div></div>` +
@@ -8728,6 +8737,12 @@ if (els.mobileAttendancePrev) els.mobileAttendancePrev.addEventListener('click',
 if (els.mobileAttendanceNext) els.mobileAttendanceNext.addEventListener('click', () => attendanceShiftMonth(1));
 if (els.desktopAttendanceDetailClose) els.desktopAttendanceDetailClose.addEventListener('click', () => { if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = true; });
 if (els.desktopAttendanceTab) els.desktopAttendanceTab.addEventListener('change', applyAttendanceTab);
+if (els.desktopAttendanceTabs) els.desktopAttendanceTabs.addEventListener('click', (event) => {
+  const btn = event.target.closest('[data-att-tab]');
+  if (!btn) return;
+  if (els.desktopAttendanceTab) els.desktopAttendanceTab.value = btn.dataset.attTab;
+  applyAttendanceTab();
+});
 if (els.desktopAttendanceTeamDate) els.desktopAttendanceTeamDate.addEventListener('change', () => loadTeamDay().catch(() => {}));
 if (els.desktopAttendanceClose) els.desktopAttendanceClose.addEventListener('click', () => toggleMonthClose().catch(() => {}));
 if (els.mobileAttendanceClose) els.mobileAttendanceClose.addEventListener('click', () => toggleMonthClose().catch(() => {}));

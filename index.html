@@ -15,6 +15,35 @@
   </script>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
+<style>
+/* ===== 考勤管理 视觉 ===== */
+.att-tabs{display:flex;gap:6px;padding:5px;background:#e3eeec;border-radius:14px;margin-bottom:12px;overflow-x:auto}
+.att-tabs button{border:0;background:transparent;color:#5e747a;font-weight:800;padding:9px 15px;border-radius:10px;white-space:nowrap;cursor:pointer;font-size:13px}
+.att-tabs button.active{background:#fff;color:#0f766e;box-shadow:0 4px 12px rgba(36,92,88,.1)}
+.att-badge{display:inline-block;margin-left:6px;min-width:18px;padding:0 6px;border-radius:999px;background:#b42318;color:#fff;font-size:11px;line-height:18px;text-align:center}
+.att-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
+.att-stats article{background:#fff;border:1px solid #d9e5e4;border-left:4px solid #0f766e;border-radius:14px;padding:14px 16px;box-shadow:0 10px 30px rgba(19,67,67,.06)}
+.att-stats article span{display:block;color:#70858a;font-size:12px}
+.att-stats article strong{font-size:24px;font-weight:900}
+.att-stats article.b{border-left-color:#b42318}
+.att-stats article.i{border-left-color:#3b5bdb}
+.att-stats article.w{border-left-color:#b54708}
+.att-avatar{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#e8f6f3;color:#0f766e;font-size:12px;font-weight:800;margin-right:8px;vertical-align:middle}
+.att-rate{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}
+.att-rate i{display:block;width:52px;height:6px;border-radius:999px;background:#eef3f3;overflow:hidden}
+.att-rate i b{display:block;height:100%;background:linear-gradient(90deg,#0f766e,#12a594);border-radius:999px}
+.att-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:800;background:#eef3f3;color:#526b71;white-space:nowrap}
+.att-pill.normal,.att-pill.reissued{background:#e8f6f3;color:#0f766e}
+.att-pill.late,.att-pill.early_leave{background:#fff4e5;color:#b54708}
+.att-pill.missing_once{background:#fff8e1;color:#8a6b22}
+.att-pill.missing_overdue,.att-pill.absent{background:#fff1f0;color:#b42318}
+.att-pill.leave{background:#e8f0ff;color:#3b5bdb}
+.att-table thead th{position:sticky;top:0;background:#f2f7f6;z-index:2}
+.att-table tbody tr:hover{background:#f5fbfa}
+.att-empty{padding:34px 16px;text-align:center;color:#70858a}
+.att-empty b{display:block;font-size:15px;color:#15363f;margin-bottom:4px}
+@media(max-width:760px){.att-stats{grid-template-columns:repeat(2,1fr)}}
+</style>
 </head>
 <body>
   <script>document.body.dataset.view = location.pathname.startsWith('/mobile') ? 'mobile' : 'desktop';</script>
@@ -489,8 +518,15 @@
             <button id="desktopAttendanceRefresh" class="button primary" type="button">刷新</button>
           </div>
         </header>
+        <nav id="desktopAttendanceTabs" class="att-tabs">
+          <button class="active" data-att-tab="summary" type="button">考勤汇总</button>
+          <button data-att-tab="reissue" type="button">补卡审核<span class="att-badge" id="attBadgeReissue" hidden>0</span></button>
+          <button data-att-tab="leave" type="button">请假审核<span class="att-badge" id="attBadgeLeave" hidden>0</span></button>
+          <button data-att-tab="team" type="button">团队日历</button>
+          <button data-att-tab="logs" type="button">操作日志</button>
+        </nav>
         <section class="work-report-filters panel">
-          <label><span>查看内容</span><select id="desktopAttendanceTab">
+          <label hidden><span>查看内容</span><select id="desktopAttendanceTab">
             <option value="summary">考勤汇总</option>
             <option value="reissue">补卡审核</option>
             <option value="leave">请假审核</option>
@@ -500,7 +536,7 @@
           <label><span>月度封账</span><span style="display:flex;gap:8px;align-items:center"><button id="desktopAttendanceClose" class="button ghost" type="button">封账</button><em id="desktopAttendanceCloseState" style="font-style:normal;color:#70858a;font-size:12px">未封账</em></span></label>
           <label id="desktopAttendanceTeamDateWrap" hidden><span>日期</span><input id="desktopAttendanceTeamDate" type="date"></label>
         </section>
-        <section id="desktopAttendanceStats" class="work-review-stats">
+        <section id="desktopAttendanceStats" class="att-stats">
           <article><span>在职员工</span><strong id="desktopAttendanceCount">0</strong></article>
           <article><span>出勤合计</span><strong id="desktopAttendanceDays">0</strong></article>
           <article><span>没上班合计</span><strong id="desktopAttendanceAbsent">0</strong></article>
@@ -508,7 +544,7 @@
         </section>
         <section id="desktopAttendanceSummaryPanel" class="panel">
           <div class="table-wrap">
-            <table class="orders-table work-report-table">
+            <table class="orders-table work-report-table att-table">
               <thead><tr><th>工号</th><th>姓名</th><th>类型</th><th>班次</th><th class="number">应出勤</th><th class="number">出勤率</th><th class="number">出勤</th><th class="number">没上班</th><th class="number">迟到</th><th class="number">早退</th><th class="number">漏刷1次</th><th class="number">加班</th><th class="number">加班费</th><th>操作</th></tr></thead>
               <tbody id="desktopAttendanceBody"></tbody>
             </table>

@@ -175,37 +175,78 @@
     #networkCheckButton{background:#fff4d6;border:1px solid #efcf86;color:#8a5707;border-radius:13px;min-height:48px;font-weight:900}
     .request-tip{font-size:13px;font-weight:700;color:#5d7479}.action-stack button{font-size:16px;font-weight:900}
   .tabs{display:flex}.tabs button{flex:1 1 0;min-width:0}
+
+    /* ===== 考勤视觉 ===== */
+    .att-hero{background:linear-gradient(150deg,#0b6b64,#10897c);color:#fff;border:0;padding:18px}
+    .att-hero-top{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;opacity:.88}
+    .att-hero-status{display:flex;align-items:center;gap:9px;font-size:22px;font-weight:900;margin:12px 0 14px}
+    .att-hero-status .dot{width:10px;height:10px;border-radius:50%;background:#ffd166;box-shadow:0 0 0 4px rgba(255,209,102,.22)}
+    .att-hero-status.ok .dot{background:#7ee2b8;box-shadow:0 0 0 4px rgba(126,226,184,.22)}
+    .att-hero-status.bad .dot{background:#ff9a9a;box-shadow:0 0 0 4px rgba(255,154,154,.22)}
+    .att-hero-times{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;background:rgba(255,255,255,.13);border-radius:14px;padding:12px 14px}
+    .att-hero-times span{display:block;font-size:11px;opacity:.82}
+    .att-hero-times strong{font-size:20px;font-weight:900;letter-spacing:.02em}
+    .att-hero-times .arrow{opacity:.65;font-size:14px}
+    .att-hero-foot{margin-top:12px;font-size:11px;opacity:.88}
+    .att-sec-title{display:flex;align-items:center;justify-content:space-between;margin:16px 2px 8px}
+    .att-sec-title strong{font-size:15px}
+    .att-sec-title span{color:var(--muted);font-size:11px}
     .att-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-    .att-stat{border:1px solid var(--line);border-radius:12px;padding:10px;background:#fbfdfd}
+    .att-stat{border:1px solid var(--line);border-left:4px solid #cbd8d6;border-radius:12px;padding:10px;background:#fff}
     .att-stat span{display:block;color:var(--muted);font-size:11px}
-    .att-stat strong{font-size:17px}
+    .att-stat strong{font-size:19px;font-weight:900;line-height:1.25}
     .att-stat small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
-    .att-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
-    .att-row:last-child{border-bottom:0}
-    .att-date{font-weight:800}
-    .att-times{color:var(--muted);font-size:12px;margin-top:2px}
-    .att-tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:800;background:#eef3f3;color:#526b71;white-space:nowrap}
-    .att-tag.normal{background:#e8f6f3;color:#0f766e}
-    .att-tag.late,.att-tag.early_leave{background:#fff4e5;color:#b54708}
-    .att-tag.missing_once{background:#fff8e1;color:#8a6b22}
-    .att-tag.absent{background:#fff1f0;color:#b42318}
-    .att-tag.manual{background:#e8f0ff;color:#3b5bdb}
-    .att-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
-    .att-reissue{border:1px solid #b9ddd7;background:#fff;color:var(--primary);border-radius:9px;padding:5px 10px;font-size:11px;font-weight:800}
-    .month-nav{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
-    .month-nav button{border:1px solid #b9ddd7;background:#fff;color:var(--primary);border-radius:12px;min-height:42px;font-weight:800}
+    .att-stat.good{border-left-color:#0f766e}
+    .att-stat.bad{border-left-color:#b42318}
+    .att-stat.warn{border-left-color:#b54708}
+    .att-stat.info{border-left-color:#3b5bdb}
+    .att-todo{border:1px solid #f0d9a8;background:#fffbf0}
+    .att-todo .t-row{display:flex;align-items:center;gap:10px;padding:8px 0}
+    .att-todo .t-row+.t-row{border-top:1px dashed #f0e0bb}
+    .att-todo .t-ico{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:13px;background:#ffe9b8;color:#8a6b22;flex:0 0 auto}
+    .att-todo .t-txt{font-weight:800;font-size:13px}
+    .att-todo .t-sub{color:#8a6b22;font-size:11px;margin-top:1px}
     .att-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
     .att-cal .cal-head{text-align:center;color:var(--muted);font-size:11px;padding:4px 0}
-    .att-cal .cal-day{min-height:46px;border-radius:8px;padding:4px 2px;background:#f4f8f7;font-size:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#526b71}
-    .att-cal .cal-day .d{font-weight:800;font-size:12px}
-    .att-cal .cal-day.normal,.att-cal .cal-day.reissued{background:#e8f6f3;color:#0f766e}
-    .att-cal .cal-day.late,.att-cal .cal-day.early_leave{background:#fff4e5;color:#b54708}
-    .att-cal .cal-day.missing_once{background:#fff8e1;color:#8a6b22}
-    .att-cal .cal-day.missing_overdue,.att-cal .cal-day.absent{background:#fff1f0;color:#b42318}
-    .att-cal .cal-day.leave{background:#e8f0ff;color:#3b5bdb}
-    .att-cal .cal-day.manual,.att-cal .cal-day.working{background:#eef3f3;color:#526b71}
+    .att-cal .cal-day{min-height:52px;border-radius:10px;padding:6px 0;background:#f4f8f7;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#5d7276}
+    .att-cal .cal-day .d{font-weight:800;font-size:13px}
+    .att-cal .cal-day .p{width:7px;height:7px;border-radius:50%;background:#cbd8d6}
+    .att-cal .cal-day.normal .p,.att-cal .cal-day.reissued .p{background:#0f766e}
+    .att-cal .cal-day.late .p,.att-cal .cal-day.early_leave .p{background:#e8871e}
+    .att-cal .cal-day.missing_once .p{background:#d9a520}
+    .att-cal .cal-day.missing_overdue .p,.att-cal .cal-day.absent .p{background:#c0392b}
+    .att-cal .cal-day.leave .p{background:#3b5bdb}
+    .att-cal .cal-day.manual .p,.att-cal .cal-day.working .p{background:#8a999d}
+    .att-cal .cal-day.today{outline:2px solid #0f766e;outline-offset:-2px;background:#e8f6f3}
     .att-cal .cal-day.empty{background:transparent}
-    .att-balance{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .att-legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+    .att-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
+    .att-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 11px;border-bottom:1px solid var(--line);border-left:3px solid transparent}
+    .att-item:last-child{border-bottom:0}
+    .att-item.abnormal{border-left-color:#e8a33d;background:#fffdf7}
+    .att-item.bad{border-left-color:#c0392b;background:#fff8f7}
+    .att-item.good{border-left-color:#0f766e}
+    .att-item .d1{font-weight:800;font-size:13px}
+    .att-item .d2{color:var(--muted);font-size:12px;margin-top:2px}
+    .att-item .d3{font-size:11px;color:#8a6b22;margin-top:2px}
+    .att-item .wk{color:var(--muted);font-size:11px;margin-left:6px;font-weight:400}
+    .att-tag{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:800;background:#eef3f3;color:#526b71;white-space:nowrap}
+    .att-tag.normal,.att-tag.reissued{background:#e8f6f3;color:#0f766e}
+    .att-tag.late,.att-tag.early_leave{background:#fff4e5;color:#b54708}
+    .att-tag.missing_once{background:#fff8e1;color:#8a6b22}
+    .att-tag.missing_overdue,.att-tag.absent{background:#fff1f0;color:#b42318}
+    .att-tag.leave{background:#e8f0ff;color:#3b5bdb}
+    .att-tag.manual,.att-tag.working{background:#eef3f3;color:#526b71}
+    .att-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+    .att-reissue{border:1px solid #b9ddd7;background:#fff;color:var(--primary);border-radius:9px;padding:5px 10px;font-size:11px;font-weight:800}
+    .att-bal{margin-bottom:14px}
+    .att-bal:last-child{margin-bottom:0}
+    .att-bal-top{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;margin-bottom:7px}
+    .att-bal-top em{font-style:normal;color:var(--muted);font-size:11px}
+    .att-bal-bar{height:8px;border-radius:999px;background:#eef3f3;overflow:hidden}
+    .att-bal-bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#0f766e,#12a594)}
+    .month-nav{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+    .month-nav button{border:1px solid #b9ddd7;background:#fff;color:var(--primary);border-radius:12px;min-height:42px;font-weight:800}
     @media print{
       body{background:#fff}
       body > div, body > section{display:none!important}
@@ -331,23 +372,24 @@
       <div id="payrollMonthDays" class="card hidden"></div>
     </section>
     <section id="attendancePanel" class="hidden">
-      <div id="attendanceToday" class="card clock-card"></div>
-      <div id="attendanceTodo" class="card hidden"></div>
+      <div id="attendanceToday" class="att-hero card"></div>
+      <div id="attendanceTodo" class="card att-todo hidden"></div>
       <div class="card">
-        <div class="section-head"><div><h2>我的考勤</h2><p id="attendanceSub">当月考勤</p></div></div>
+        <div class="section-head"><div><h2>我的考勤</h2><p>选月份看历史，往下看月历和明细</p></div></div>
         <label class="field" id="attendanceMonthWrap"><span>查看月份</span><input id="attendanceMonth" type="month"></label>
         <div class="month-nav" id="attendanceMonthNav"><button id="attendancePrevMonth" type="button">上个月</button><button id="attendanceNextMonth" type="button">下个月</button></div>
         <button id="attendanceRefresh" class="ghost wide" type="button">刷新考勤</button>
         <button id="attendanceLeaveBtn" class="ghost wide" type="button">请假申请</button>
       </div>
+      <div class="att-sec-title"><strong>本月概览</strong><span id="attendanceSub"></span></div>
       <div id="attendanceSummary" class="card"></div>
-      <div class="list-title"><strong>月历</strong></div>
+      <div class="att-sec-title"><strong>月历</strong><span>颜色=当天状态</span></div>
       <div id="attendanceCalendar" class="card"></div>
-      <div class="list-title"><strong>每日明细</strong><span id="attendanceCount"></span></div>
-      <div id="attendanceList" class="card"></div>
-      <div class="list-title"><strong>请假记录</strong><span id="leaveCount"></span></div>
+      <div class="att-sec-title"><strong>每日明细</strong><span id="attendanceCount"></span></div>
+      <div id="attendanceList" class="card att-timeline"></div>
+      <div class="att-sec-title"><strong>请假记录</strong><span id="leaveCount"></span></div>
       <div id="attendanceLeaves" class="card"></div>
-      <div class="list-title"><strong>假期余额</strong><span id="balanceYear"></span></div>
+      <div class="att-sec-title"><strong>假期余额</strong><span id="balanceYear"></span></div>
       <div id="attendanceBalances" class="card"></div>
     </section>
   </section>
@@ -1239,30 +1281,34 @@ function renderPiece() {
     const otDays = days.filter((d) => n(d.overtimeMinutes) > 0).length;
     const otHours = Math.round(days.reduce((s, d) => s + n(d.overtimeMinutes), 0) / 60 * 10) / 10;
     const otAmount = days.reduce((s, d) => s + n(d.overtimeAmount), 0);
-    $('attendanceSub').textContent = `${month} 考勤`;
+    $('attendanceSub').textContent = month;
     $('attendanceSummary').innerHTML = `<div class="att-grid">
-      <div class="att-stat"><span>出勤</span><strong>${attendanceDays} 天</strong></div>
-      <div class="att-stat"><span>出勤率</span><strong>${rate}%</strong><small>应出勤 ${shouldDays} 天</small></div>
-      <div class="att-stat"><span>没上班</span><strong>${absentDays} 天</strong></div>
-      <div class="att-stat"><span>迟到</span><strong>${lateDays} 天</strong></div>
-      <div class="att-stat"><span>早退</span><strong>${earlyDays} 天</strong></div>
-      <div class="att-stat"><span>漏刷1次</span><strong>${missingDays} 天</strong></div>
-      ${overdueDays ? `<div class="att-stat"><span>漏刷未补</span><strong>${overdueDays} 天</strong></div>` : ''}
-      <div class="att-stat"><span>加班</span><strong>${otDays} 天</strong><small>${otHours} 小时${otAmount ? ' · ' + otAmount.toFixed(0) + ' 元' : ''}</small></div>
+      <div class="att-stat good"><span>出勤</span><strong>${attendanceDays} 天</strong></div>
+      <div class="att-stat info"><span>出勤率</span><strong>${rate}%</strong><small>应出勤 ${shouldDays} 天</small></div>
+      <div class="att-stat bad"><span>没上班</span><strong>${absentDays} 天</strong></div>
+      <div class="att-stat warn"><span>迟到</span><strong>${lateDays} 天</strong></div>
+      <div class="att-stat warn"><span>早退</span><strong>${earlyDays} 天</strong></div>
+      <div class="att-stat warn"><span>漏刷1次</span><strong>${missingDays} 天</strong></div>
+      ${overdueDays ? `<div class="att-stat bad"><span>漏刷未补</span><strong>${overdueDays} 天</strong></div>` : ''}
+      <div class="att-stat info"><span>加班</span><strong>${otDays} 天</strong><small>${otHours} 小时${otAmount ? ' · ' + otAmount.toFixed(0) + ' 元' : ''}</small></div>
     </div>`;
     $('attendanceCount').textContent = `${days.length} 天`;
+    const WEEK = ['周日','周一','周二','周三','周四','周五','周六'];
     $('attendanceList').innerHTML = days.length ? days.map((d) => {
       const tag = ATT_STATUS[d.status] || d.status || '--';
       const times = [d.checkInRaw || d.checkIn || '', d.checkOutRaw || d.checkOut || ''].filter(Boolean).join(' / ') || '无打卡';
       const extra = n(d.overtimeMinutes) > 0 ? ` · 加班 ${Math.round(n(d.overtimeMinutes) / 60 * 10) / 10}h` : '';
+      const wk = WEEK[new Date(d.workDate + 'T00:00:00').getDay()] || '';
+      const cls = (d.status === 'absent' || d.status === 'missing_overdue') ? 'bad'
+        : (d.status === 'late' || d.status === 'early_leave' || d.status === 'missing_once') ? 'abnormal' : 'good';
       let action = '';
       if (d.status === 'missing_once') {
         if (d.reissueStatus === 'submitted') action = '<span class="att-tag manual">补卡待审核</span>';
-        else if (d.reissueStatus === 'approved' || d.status === 'reissued') action = '<span class="att-tag normal">已补卡</span>';
+        else if (d.reissueStatus === 'approved') action = '<span class="att-tag normal">已补卡</span>';
         else if (d.reissueStatus === 'rejected') action = `<button class="att-reissue" type="button" data-reissue="${esc(d.workDate)}">重新补卡</button>`;
         else action = `<button class="att-reissue" type="button" data-reissue="${esc(d.workDate)}">补卡申请</button>`;
       }
-      return `<div class="att-row"><div><div class="att-date">${esc(String(d.workDate || '').slice(5))}</div><div class="att-times">${esc(times)}${esc(extra)}</div></div><div class="att-right"><span class="att-tag ${esc(d.status || '')}">${esc(tag)}</span>${action}</div></div>`;
+      return `<div class="att-item ${cls}"><div><div class="d1">${esc(String(d.workDate || '').slice(5))}<span class="wk">${wk}</span></div><div class="d2">${esc(times)}${esc(extra)}</div>${d.note ? `<div class="d3">${esc(d.note)}</div>` : ''}</div><div class="att-right"><span class="att-tag ${esc(d.status || '')}">${esc(tag)}</span>${action}</div></div>`;
     }).join('') : '<div class="d-empty">这个月还没有考勤记录</div>';
     renderAttendanceToday();
     renderAttendanceTodo();
@@ -1272,10 +1318,28 @@ function renderPiece() {
   function renderAttendanceToday() {
     const box = $('attendanceToday'); if (!box) return;
     const today = todayValue();
+    const WEEK = ['周日','周一','周二','周三','周四','周五','周六'];
+    const label = `${Number(today.slice(5, 7))}月${Number(today.slice(8, 10))}日 ${WEEK[new Date(today + 'T00:00:00').getDay()]}`;
     const day = (attendanceData?.days || []).find((d) => d.workDate === today);
-    if (!day) { box.innerHTML = `<div class="clock-label">今日考勤</div><div class="clock-time" style="font-size:22px">${today.slice(5)}</div><div class="clock-note">今天暂无打卡记录</div>`; return; }
+    if (!day) {
+      box.innerHTML = `<div class="att-hero-top"><span>今日考勤</span><span>${esc(label)}</span></div>
+        <div class="att-hero-status"><span class="dot"></span>暂无打卡记录</div>
+        <div class="att-hero-times"><div><span>签到</span><strong>--:--</strong></div><div class="arrow">→</div><div><span>签退</span><strong>--:--</strong></div></div>
+        <div class="att-hero-foot">今天还没有考勤数据（未导入或未打卡）</div>`;
+      return;
+    }
+    const st = day.status || '';
+    const cls = (st === 'absent' || st === 'missing_overdue') ? 'bad' : (st === 'normal' || st === 'reissued' ? 'ok' : '');
     const hours = Math.round(n(day.overtimeMinutes) / 60 * 10) / 10;
-    box.innerHTML = `<div class="clock-label">今日考勤</div><div class="clock-time" style="font-size:22px">${esc(day.checkInRaw || day.checkIn || '--')} / ${esc(day.checkOutRaw || day.checkOut || '--')}</div><div class="clock-note">${esc(ATT_STATUS[day.status] || day.status || '')}${n(day.overtimeMinutes) > 0 ? ' · 加班 ' + hours + ' 小时' : ''}</div>`;
+    const foot = [day.shift === 'manual' ? '人工判定' : '白班', hours > 0 ? `加班 ${hours} 小时` : ''].filter(Boolean).join(' · ');
+    box.innerHTML = `<div class="att-hero-top"><span>今日考勤</span><span>${esc(label)}</span></div>
+      <div class="att-hero-status ${cls}"><span class="dot"></span>${esc(ATT_STATUS[st] || st || '无记录')}</div>
+      <div class="att-hero-times">
+        <div><span>签到</span><strong>${esc(day.checkInRaw || day.checkIn || '--:--')}</strong></div>
+        <div class="arrow">→</div>
+        <div><span>签退</span><strong>${esc(day.checkOutRaw || day.checkOut || '--:--')}</strong></div>
+      </div>
+      <div class="att-hero-foot">${esc(foot)}</div>`;
   }
   function renderAttendanceTodo() {
     const box = $('attendanceTodo'); if (!box) return;
@@ -1284,9 +1348,9 @@ function renderPiece() {
     const overdue = days.filter((d) => d.status === 'missing_overdue');
     if (!todo.length && !overdue.length) { show(box, false); return; }
     show(box, true);
-    box.innerHTML = `<div class="section-head"><div><h2>待办</h2><p>这几件事需要你处理</p></div></div>` +
-      (todo.length ? `<div class="att-row"><div><div class="att-date">待补卡 ${todo.length} 天</div><div class="att-times">本月漏刷，请在下面的明细里补卡</div></div><span class="att-tag missing_once">待处理</span></div>` : '') +
-      (overdue.length ? `<div class="att-row"><div><div class="att-date">漏刷未补 ${overdue.length} 天</div><div class="att-times">已跨月，请联系管理员</div></div><span class="att-tag absent">异常</span></div>` : '');
+    box.innerHTML = `<div class="att-sec-title" style="margin:0 0 4px"><strong>待办</strong><span>需要你处理</span></div>` +
+      (todo.length ? `<div class="t-row"><span class="t-ico">补</span><div><div class="t-txt">待补卡 ${todo.length} 天</div><div class="t-sub">本月漏刷，请在下面明细里点“补卡申请”</div></div></div>` : '') +
+      (overdue.length ? `<div class="t-row"><span class="t-ico">异</span><div><div class="t-txt">漏刷未补 ${overdue.length} 天</div><div class="t-sub">已跨月，请联系管理员处理</div></div></div>` : '');
   }
   function renderAttendanceCalendar(month) {
     const box = $('attendanceCalendar'); if (!box) return;
@@ -1295,14 +1359,24 @@ function renderPiece() {
     const daysInMonth = new Date(y, m, 0).getDate();
     const byDate = new Map((attendanceData?.days || []).map((d) => [d.workDate, d]));
     const heads = ['日','一','二','三','四','五','六'];
+    const today = todayValue();
     let html = '<div class="att-cal">' + heads.map((h) => `<div class="cal-head">${h}</div>`).join('');
     for (let i = 0; i < startWeek; i += 1) html += '<div class="cal-day empty"></div>';
     for (let d = 1; d <= daysInMonth; d += 1) {
       const key = `${month}-${String(d).padStart(2, '0')}`;
       const row = byDate.get(key);
-      html += `<div class="cal-day ${row ? esc(row.status || '') : ''}"><span class="d">${d}</span><span>${row ? esc(ATT_STATUS[row.status] || '') : ''}</span></div>`;
+      const cls = [row ? (row.status || '') : '', key === today ? 'today' : ''].filter(Boolean).join(' ');
+      html += `<div class="cal-day ${cls}"><span class="d">${d}</span><span class="p"></span></div>`;
     }
     html += '</div>';
+    html += `<div class="att-legend">
+      <span><i style="background:#0f766e"></i>正常</span>
+      <span><i style="background:#e8871e"></i>迟到/早退</span>
+      <span><i style="background:#d9a520"></i>漏刷1次</span>
+      <span><i style="background:#c0392b"></i>异常/没上班</span>
+      <span><i style="background:#3b5bdb"></i>请假</span>
+      <span><i style="background:#8a999d"></i>人工判定</span>
+    </div>`;
     box.innerHTML = html;
   }
   async function loadMyLeaves() {
@@ -1310,14 +1384,24 @@ function renderPiece() {
     rpc('work_get_my_leave_balances', { p_code:code }).then((b) => {
       if (!b || !b.balances) return;
       $('balanceYear').textContent = `${b.year} 年`;
-      $('attendanceBalances').innerHTML = b.balances.map((x) => `<div class="att-row"><div><div class="att-date">${esc(x.name)}</div><div class="att-times">${x.requiresBalance ? '额度 ' + x.totalDays + ' 天 · 已用 ' + x.usedDays + ' 天' : '不限额'}</div></div><span class="att-tag normal">剩余 ${x.requiresBalance ? x.remainDays : '—'}${x.requiresBalance ? ' 天' : ''}</span></div>`).join('');
+      const withBal = b.balances.filter((x) => x.requiresBalance);
+      $('attendanceBalances').innerHTML = withBal.length ? withBal.map((x) => {
+        const total = Number(x.totalDays) || 0;
+        const used = Number(x.usedDays) || 0;
+        const pct = total ? Math.min(100, Math.round(used / total * 100)) : 0;
+        return `<div class="att-bal"><div class="att-bal-top"><b>${esc(x.name)}</b><em>剩余 ${x.remainDays} 天 / 共 ${x.totalDays} 天</em></div><div class="att-bal-bar"><i style="width:${pct}%"></i></div></div>`;
+      }).join('') : '<div class="d-empty">没有需要额度的假别（事假、病假不限额）</div>';
     }).catch(() => {});
     const month = $('attendanceMonth')?.value || currentMonth();
     const { from, to } = monthBounds(month);
     const data = await rpc('work_get_my_leaves', { p_code:code, p_from:from, p_to:to }).catch(() => ({ requests: [] }));
     const rows = data.requests || [];
     $('leaveCount').textContent = `${rows.length} 条`;
-    $('attendanceLeaves').innerHTML = rows.length ? rows.map((r) => `<div class="att-row"><div><div class="att-date">${esc(r.startDate)} ~ ${esc(r.endDate)}</div><div class="att-times">${esc(r.leaveType)} · ${esc(r.reason || '')}</div></div><span class="att-tag ${esc(r.status)}">${esc(({ submitted:'待审核', approved:'已通过', rejected:'已退回' })[r.status] || r.status)}</span></div>`).join('') : '<div class="d-empty">本月没有请假记录</div>';
+    $('attendanceLeaves').innerHTML = rows.length ? rows.map((r) => {
+      const st = ({ submitted:'待审核', approved:'已通过', rejected:'已退回' })[r.status] || r.status;
+      const cls = r.status === 'approved' ? 'good' : (r.status === 'rejected' ? 'bad' : 'abnormal');
+      return `<div class="att-item ${cls}"><div><div class="d1">${esc(r.startDate)} ~ ${esc(r.endDate)}</div><div class="d2">${esc(r.leaveType)}${r.reason ? ' · ' + esc(r.reason) : ''}</div></div><span class="att-tag ${esc(r.status)}">${esc(st)}</span></div>`;
+    }).join('') : '<div class="d-empty">本月没有请假记录</div>';
   }
   function openLeaveModal() {
     $('leaveFrom').value = $('leaveFrom').value || todayValue();
@@ -1399,7 +1483,7 @@ function renderPiece() {
     if (showMonth) {
       const days = d.days || [];
       $('payrollMonthCount').textContent = `${days.length} 天`;
-      $('payrollMonthDays').innerHTML = days.length ? days.map((x) => `<div class="att-row"><div><div class="att-date">${esc(String(x.workDate || '').slice(5))}</div><div class="att-times">${esc([x.checkInRaw || x.checkIn || '', x.checkOutRaw || x.checkOut || ''].filter(Boolean).join(' / ') || '无打卡')}${n(x.overtimeMinutes) > 0 ? ' · 加班 ' + hours(x.overtimeMinutes) + 'h' : ''}</div></div><span class="att-tag ${esc(x.status || '')}">${esc(ATT_STATUS[x.status] || x.status || '')}</span></div>`).join('') : '<div class="d-empty">这个月还没有记录</div>';
+      $('payrollMonthDays').innerHTML = days.length ? days.map((x) => `<div class="att-item"><div><div class="d1">${esc(String(x.workDate || '').slice(5))}</div><div class="d2">${esc([x.checkInRaw || x.checkIn || '', x.checkOutRaw || x.checkOut || ''].filter(Boolean).join(' / ') || '无打卡')}${n(x.overtimeMinutes) > 0 ? ' · 加班 ' + hours(x.overtimeMinutes) + 'h' : ''}</div></div><span class="att-tag ${esc(x.status || '')}">${esc(ATT_STATUS[x.status] || x.status || '')}</span></div>`).join('') : '<div class="d-empty">这个月还没有记录</div>';
     }
   }
   let reissueDay = null;
