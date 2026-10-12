@@ -1273,10 +1273,8 @@ function renderPiece() {
     const earlyDays = days.filter((d) => d.isEarlyLeave).length;
     const missingDays = days.filter((d) => d.status === 'missing_once').length;
     const overdueDays = days.filter((d) => d.status === 'missing_overdue').length;
-    const [yy, mm] = month.split('-').map(Number);
-    const nowDate = new Date();
-    const isCurrentMonth = yy === nowDate.getFullYear() && mm === nowDate.getMonth() + 1;
-    const shouldDays = isCurrentMonth ? nowDate.getDate() : new Date(yy, mm, 0).getDate();
+    // 应出勤 = 有考勤记录的天数（休息日全厂无记录，自动排除）
+    const shouldDays = attendanceDays + absentDays;
     const rate = shouldDays ? Math.round(attendanceDays / shouldDays * 1000) / 10 : 0;
     const otDays = days.filter((d) => n(d.overtimeMinutes) > 0).length;
     const otHours = Math.round(days.reduce((s, d) => s + n(d.overtimeMinutes), 0) / 60 * 10) / 10;
