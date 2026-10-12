@@ -4975,14 +4975,10 @@ async function loadTeamDay() {
   const counts = rows.reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc; }, {});
   const summary = ['leave','absent','missing_overdue','missing_once','late','early_leave']
     .filter((k) => counts[k]).map((k) => `${teamStatusText(k)} ${counts[k]}`).join(' · ') || '全部正常';
-  if (els.desktopAttendanceTeamList) {
-    els.desktopAttendanceTeamList.innerHTML = `<div class="work-review-card"><div><h3>${escapeHtml(value)}</h3><p>${escapeHtml(summary)}</p></div></div>` +
-      rows.map((r) => `<article class="work-review-card"><div><span class="att-pill ${escapeHtml(r.status)}">${escapeHtml(teamStatusText(r.status))}</span><h3>${escapeHtml(r.employeeNo)} ${escapeHtml(r.employeeName)}</h3><p>${escapeHtml(r.shiftName || '')}${r.checkInRaw ? ' · ' + escapeHtml(r.checkInRaw) + ' / ' + escapeHtml(r.checkOutRaw || '') : ''}</p></div></article>`).join('');
-  }
-  if (els.mobileAttendanceTeamList) {
-    els.mobileAttendanceTeamList.innerHTML = `<div class="mobile-review-card"><div><h3>${escapeHtml(value)}</h3><p>${escapeHtml(summary)}</p></div></div>` +
-      rows.map((r) => `<article class="mobile-review-card"><div><span class="review-status ${escapeHtml(r.status)}">${escapeHtml(teamStatusText(r.status))}</span></div><h3>${escapeHtml(r.employeeNo)} ${escapeHtml(r.employeeName)}</h3><p>${escapeHtml(r.shiftName || '')}${r.checkInRaw ? ' · ' + escapeHtml(r.checkInRaw) + ' / ' + escapeHtml(r.checkOutRaw || '') : ''}</p></article>`).join('');
-  }
+  const teamHtml = `<div class="att-team-head"><b>${escapeHtml(value)}</b><span>${escapeHtml(summary)}</span></div>` +
+    `<div class="att-team-list">` + rows.map((r) => `<div class="att-team-row"><span class="att-pill ${escapeHtml(r.status)}">${escapeHtml(teamStatusText(r.status))}</span><span class="nm">${escapeHtml(r.employeeName)}<small>${escapeHtml(r.employeeNo)} · ${escapeHtml(r.shiftName || '')}</small></span><span class="tm">${escapeHtml(r.checkInRaw || '--')} / ${escapeHtml(r.checkOutRaw || '--')}</span></div>`).join('') + `</div>`;
+  if (els.desktopAttendanceTeamList) els.desktopAttendanceTeamList.innerHTML = teamHtml;
+  if (els.mobileAttendanceTeamList) els.mobileAttendanceTeamList.innerHTML = teamHtml;
 }
 async function loadAttendanceLeaves() {
   const data = await attendanceRpc('board_leave_requests', { p_code:getAccessCode(), p_status:'submitted' });
@@ -5066,6 +5062,7 @@ function renderMobileModule() {
   if (attendanceMode) {
     [els.mobileEntryPanel, els.mobileRemainingPanel, els.mobileRecordsPanel, els.mobileFilesPanel].forEach((panel) => { if (panel) panel.hidden = true; });
     switchMobileAttendanceTab(mobileAttendanceTab);
+    loadAttendance().catch(() => {});
   } else if (workMode) {
     [els.mobileEntryPanel, els.mobileRemainingPanel, els.mobileRecordsPanel, els.mobileFilesPanel].forEach((panel) => { if (panel) panel.hidden = true; });
     switchMobileWorkTab(mobileWorkTab);

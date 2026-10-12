@@ -1286,8 +1286,7 @@ function renderPiece() {
       <div class="att-stat good"><span>出勤</span><strong>${attendanceDays} 天</strong></div>
       <div class="att-stat info"><span>出勤率</span><strong>${rate}%</strong><small>应出勤 ${shouldDays} 天</small></div>
       <div class="att-stat bad"><span>没上班</span><strong>${absentDays} 天</strong></div>
-      <div class="att-stat warn"><span>迟到</span><strong>${lateDays} 天</strong></div>
-      <div class="att-stat warn"><span>早退</span><strong>${earlyDays} 天</strong></div>
+      <div class="att-stat warn"><span>迟到/早退</span><strong>${lateDays + earlyDays} 天</strong></div>
       <div class="att-stat warn"><span>漏刷1次</span><strong>${missingDays} 天</strong></div>
       ${overdueDays ? `<div class="att-stat bad"><span>漏刷未补</span><strong>${overdueDays} 天</strong></div>` : ''}
       <div class="att-stat info"><span>加班</span><strong>${otDays} 天</strong><small>${otHours} 小时${otAmount ? ' · ' + otAmount.toFixed(0) + ' 元' : ''}</small></div>
@@ -1325,7 +1324,7 @@ function renderPiece() {
       box.innerHTML = `<div class="att-hero-top"><span>今日考勤</span><span>${esc(label)}</span></div>
         <div class="att-hero-status"><span class="dot"></span>暂无打卡记录</div>
         <div class="att-hero-times"><div><span>签到</span><strong>--:--</strong></div><div class="arrow">→</div><div><span>签退</span><strong>--:--</strong></div></div>
-        <div class="att-hero-foot">今天还没有考勤数据（未导入或未打卡）</div>`;
+        <div class="att-hero-foot">今天还没有打卡记录 · 没打卡记得提交补卡</div>`;
       return;
     }
     const st = day.status || '';
@@ -1366,7 +1365,7 @@ function renderPiece() {
       const key = `${month}-${String(d).padStart(2, '0')}`;
       const row = byDate.get(key);
       const cls = [row ? (row.status || '') : '', key === today ? 'today' : ''].filter(Boolean).join(' ');
-      html += `<div class="cal-day ${cls}"><span class="d">${d}</span><span class="p"></span></div>`;
+      html += `<div class="cal-day ${cls}"><span class="d">${d}</span>${row ? '<span class="p"></span>' : ''}</div>`;
     }
     html += '</div>';
     html += `<div class="att-legend">
@@ -1384,7 +1383,7 @@ function renderPiece() {
     rpc('work_get_my_leave_balances', { p_code:code }).then((b) => {
       if (!b || !b.balances) return;
       $('balanceYear').textContent = `${b.year} 年`;
-      const withBal = b.balances.filter((x) => x.requiresBalance);
+      const withBal = b.balances.filter((x) => x.requiresBalance && Number(x.totalDays) > 0);
       $('attendanceBalances').innerHTML = withBal.length ? withBal.map((x) => {
         const total = Number(x.totalDays) || 0;
         const used = Number(x.usedDays) || 0;

@@ -43,6 +43,29 @@
 .att-empty{padding:34px 16px;text-align:center;color:#70858a}
 .att-empty b{display:block;font-size:15px;color:#15363f;margin-bottom:4px}
 @media(max-width:760px){.att-stats{grid-template-columns:repeat(2,1fr)}}
+.att-toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+.att-toolbar .att-tabs{margin-bottom:0;flex:1 1 auto}
+.att-toolbar-right{display:flex;gap:10px;align-items:center}
+.att-toolbar-right input[type=date]{height:36px;border:1px solid #d9e5e4;border-radius:10px;padding:0 8px}
+.att-close-wrap{display:flex;gap:8px;align-items:center}
+.att-close-wrap em{font-style:normal;font-size:12px;color:#70858a}
+.att-rate i{display:inline-block;width:60px;height:8px;border-radius:999px;background:#e3ecec;border:1px solid #d3e0df;overflow:hidden;vertical-align:middle}
+.att-team-head{display:flex;justify-content:space-between;align-items:baseline;padding:10px 14px;border-bottom:1px solid #eef3f3;background:#f7fbfa;border-radius:12px 12px 0 0}
+.att-team-head b{font-size:14px}.att-team-head span{font-size:12px;color:#70858a}
+.att-team-list{background:#fff;border:1px solid #d9e5e4;border-radius:12px;overflow:hidden}
+.att-team-row{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #f2f7f6}
+.att-team-row:last-child{border-bottom:0}
+.att-team-row .nm{flex:1;min-width:0;font-size:13px}
+.att-team-row .nm small{display:block;color:#70858a;font-size:11px}
+.att-team-row .tm{color:#70858a;font-size:12px;white-space:nowrap}
+.att-team-row .att-pill{flex:0 0 70px;text-align:center}
+.att-m-bar{display:grid;grid-template-columns:auto 1fr auto;gap:6px;align-items:center;margin-bottom:8px}
+.att-m-bar input[type=month]{height:38px;border:1px solid #d9e5e4;border-radius:10px;padding:0 8px;width:100%;min-width:0;font-size:13px}
+.att-m-bar .button{height:38px;padding:0 12px;font-size:13px}
+.att-m-bar2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+#mobileAttendanceModule .mobile-work-tabs{display:flex;gap:6px;overflow-x:auto;padding:4px;background:#e3eeec;border-radius:12px;margin-bottom:10px}
+#mobileAttendanceModule .mobile-work-tabs button{flex:0 0 auto;border:0;background:transparent;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:800;color:#5e747a;white-space:nowrap}
+#mobileAttendanceModule .mobile-work-tabs button.active{background:#fff;color:#0f766e;box-shadow:0 3px 10px rgba(36,92,88,.1)}
 </style>
 </head>
 <body>
@@ -518,6 +541,7 @@
             <button id="desktopAttendanceRefresh" class="button primary" type="button">刷新</button>
           </div>
         </header>
+        <div class="att-toolbar">
         <nav id="desktopAttendanceTabs" class="att-tabs">
           <button class="active" data-att-tab="summary" type="button">考勤汇总</button>
           <button data-att-tab="reissue" type="button">补卡审核<span class="att-badge" id="attBadgeReissue" hidden>0</span></button>
@@ -525,17 +549,20 @@
           <button data-att-tab="team" type="button">团队日历</button>
           <button data-att-tab="logs" type="button">操作日志</button>
         </nav>
-        <section class="work-report-filters panel">
-          <label hidden><span>查看内容</span><select id="desktopAttendanceTab">
+        <div class="att-toolbar-right">
+          <label id="desktopAttendanceTeamDateWrap" hidden><input id="desktopAttendanceTeamDate" type="date"></label>
+          <span class="att-close-wrap"><button id="desktopAttendanceClose" class="button ghost" type="button">封账</button><em id="desktopAttendanceCloseState">未封账</em></span>
+        </div>
+        </div>
+        <div style="display:none">
+          <select id="desktopAttendanceTab">
             <option value="summary">考勤汇总</option>
             <option value="reissue">补卡审核</option>
             <option value="leave">请假审核</option>
             <option value="team">团队日历</option>
             <option value="logs">操作日志</option>
-          </select></label>
-          <label><span>月度封账</span><span style="display:flex;gap:8px;align-items:center"><button id="desktopAttendanceClose" class="button ghost" type="button">封账</button><em id="desktopAttendanceCloseState" style="font-style:normal;color:#70858a;font-size:12px">未封账</em></span></label>
-          <label id="desktopAttendanceTeamDateWrap" hidden><span>日期</span><input id="desktopAttendanceTeamDate" type="date"></label>
-        </section>
+          </select>
+        </div>
         <section id="desktopAttendanceStats" class="att-stats">
           <article><span>在职员工</span><strong id="desktopAttendanceCount">0</strong></article>
           <article><span>出勤合计</span><strong id="desktopAttendanceDays">0</strong></article>
@@ -782,10 +809,12 @@
         </section>
 
         <section id="mobileAttendanceModule" class="mobile-work-module" hidden>
-          <div class="mobile-work-review-tools">
-            <label><span>月份</span><input id="mobileAttendanceMonth" type="month"></label>
+          <div class="att-m-bar">
             <button id="mobileAttendancePrev" class="button ghost" type="button">上月</button>
+            <input id="mobileAttendanceMonth" type="month">
             <button id="mobileAttendanceNext" class="button ghost" type="button">下月</button>
+          </div>
+          <div class="att-m-bar2">
             <button id="mobileAttendanceRefresh" class="button primary" type="button">刷新</button>
             <button id="mobileAttendanceClose" class="button ghost" type="button">封账</button>
           </div>
