@@ -4535,13 +4535,16 @@ async function openStaffMonthDetail(employeeId) {
   staffMonthEmployeeId = employeeId;
   renderStaffMonth();
   const box = document.getElementById('mobileStaffMonthDetail');
-  if (box) box.innerHTML = '<div class="mobile-live-card"><div class="tl-empty">加载中…</div></div>';
+  if (box) box.innerHTML = '<div class="mobile-live-card"><div class="tl-empty">正在加载整月明细…（页面会自动滚到这里）</div></div>';
   try {
     const result = await callRpc('work_admin_employee_month', { p_code:getAccessCode(), p_employee_id:employeeId });
     if (!result.response.ok) throw new Error(result.data?.error || '整月明细加载失败');
     staffMonthData = result.data;
     renderStaffMonthDetail();
-  } catch (error) { showToast(error.message || '整月明细加载失败'); }
+  } catch (error) {
+    showToast(error.message || '整月明细加载失败');
+    if (box) box.innerHTML = '<div class="mobile-live-card"><div class="tl-empty">整月明细加载失败：' + String(error.message || '未知错误') + '</div><button type="button" data-staff-month-emp="' + employeeId + '">重新加载</button></div>';
+  }
 }
 function renderStaffMonthDetail() {
   const box = document.getElementById('mobileStaffMonthDetail');
@@ -4578,10 +4581,12 @@ function renderStaffMonthDetail() {
     return `<div class="tl-line expandable" data-tl-detail="day"><div class="tl-line-main"><span>${escapeHtml(date)}</span><strong>${v.pieces.length} 笔 · ${fmt(qty)} 件 · ${money(amount)} 元</strong></div><div class="tl-detail">${pieceRows}${timerRows}</div></div>`;
   }).join('');
   const totalPay = Math.round((Number(d.timerPay || 0) + pieces.filter((p) => p.status === 'approved').reduce((s, p) => s + Number(p.amount || 0), 0)) * 100) / 100;
+  box.hidden = false;
   box.innerHTML = `<div class="mobile-live-card"><div class="mobile-live-card-head"><h3>${escapeHtml(d.employee?.employeeNo || '')} · ${escapeHtml(d.employee?.name || '')} · ${escapeHtml(d.month || '')}</h3></div><div class="mobile-live-grid"><div><span>本月计时</span><strong>${staffHours(d.timerMinutes)} 小时</strong><small>${money(d.timerPay)} 元</small></div><div><span>本月计件</span><strong>${fmt(pieces.reduce((s, p) => s + Number(p.quantity || 0), 0))} 件</strong><small>${pieces.length} 笔（已通过 ${pieces.filter((p) => p.status === 'approved').length}）</small></div><div><span>本月合计</span><strong>${money(totalPay)} 元</strong><small>计时+已通过计件</small></div></div>
     <div class="tl-line expandable" data-tl-detail="summary"><div class="tl-line-main"><span>计件 · 按料号汇总（查重复/多报）</span><strong>${matRows.length} 项</strong></div><div class="tl-detail">${matHtml}</div></div>
     <div class="tl-line expandable" data-tl-detail="history"><div class="tl-line-main"><span>按日期看（本月）</span><strong>${dayMap.size} 天</strong></div><div class="tl-detail">${dayHtml}</div></div>
   </div>`;
+  setTimeout(() => { try { box.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch {} }, 60);
 }
 async function revokePieceQuick(id, label) {
   const reason = window.prompt(`回退这条报工（${label}）\n请填写原因：`, '重复申报');
