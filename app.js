@@ -4922,7 +4922,13 @@ async function loadAttendanceDetail(empNo) {
   if (els.desktopAttendanceDetailTitle) els.desktopAttendanceDetailTitle.textContent = `${empNo} ${days[0]?.employeeName || ''} · ${attendanceMonth} 每日明细`;
   if (els.desktopAttendanceDetailHint) els.desktopAttendanceDetailHint.textContent = `共 ${days.length} 天`;
   if (els.desktopAttendanceDetailBody) {
-    els.desktopAttendanceDetailBody.innerHTML = days.map((d) => `<tr><td>${escapeHtml(d.workDate)}</td><td>${escapeHtml(d.checkInRaw || d.checkIn || '')}</td><td>${escapeHtml(d.checkOutRaw || d.checkOut || '')}</td><td><span class="att-pill ${escapeHtml(d.status)}">${escapeHtml(ATTENDANCE_STATUS_TEXT[d.status] || d.status)}</span></td><td class="number">${Number(d.overtimeMinutes || 0) > 0 ? attendanceHours(d.overtimeMinutes) + ' h' : ''}</td><td>${escapeHtml(d.note || '')}${d.manualOverride ? ' <span class="tag">人工</span>' : ''}</td><td><button type="button" class="button ghost" data-att-edit="${escapeHtml(empNo)}" data-att-date="${escapeHtml(d.workDate)}">改</button></td></tr>`).join('');
+    const WEEK = ['周日','周一','周二','周三','周四','周五','周六'];
+    els.desktopAttendanceDetailBody.innerHTML = days.map((d) => {
+      const wk = WEEK[new Date(d.workDate + 'T00:00:00').getDay()] || '';
+      const hi = Number(d.overtimeMinutes || 0) > 0 ? ` · 加班 ${attendanceHours(d.overtimeMinutes)}h` : '';
+      const manual = d.manualOverride ? ' <span class="att-pill">人工</span>' : '';
+      return `<div class="att-day"><span class="dt">${escapeHtml(String(d.workDate).slice(5))}<small>${wk}</small></span><span class="tm">${escapeHtml(d.checkInRaw || d.checkIn || '--')}<em>→</em>${escapeHtml(d.checkOutRaw || d.checkOut || '--')}${escapeHtml(hi)}${manual}${d.note ? `<span class="nt">${escapeHtml(d.note)}</span>` : ''}</span><span class="att-pill ${escapeHtml(d.status)}">${escapeHtml(ATTENDANCE_STATUS_TEXT[d.status] || d.status)}</span><button type="button" class="button ghost" data-att-edit="${escapeHtml(empNo)}" data-att-date="${escapeHtml(d.workDate)}">改</button></div>`;
+    }).join('');
     els.desktopAttendanceDetailBody.querySelectorAll('[data-att-edit]').forEach((b) => b.addEventListener('click', () => editAttendanceDay(b.dataset.attEdit, b.dataset.attDate)));
   }
   if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = false;

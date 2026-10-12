@@ -49,6 +49,16 @@
 #desktopAttendanceDetailPanel .section-head{position:sticky;top:0;background:#fff;padding:14px 16px;border-bottom:1px solid #eef3f3;margin:0;z-index:1}
 #desktopAttendanceDetailPanel .table-wrap{flex:1;overflow:auto;padding:0}
 #desktopAttendanceDetailPanel table{min-width:540px}
+.att-day-list{flex:1;overflow:auto;padding:0 0 18px}
+.att-day{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid #f2f7f6}
+.att-day:last-child{border-bottom:0}
+.att-day .dt{width:64px;flex:0 0 auto;font-weight:800;font-size:13px;color:#15363f}
+.att-day .dt small{display:block;color:#70858a;font-weight:400;font-size:11px;margin-top:1px}
+.att-day .tm{flex:1;min-width:0;color:#4a6267;font-size:13px}
+.att-day .tm em{font-style:normal;color:#9fb0b3;margin:0 2px}
+.att-day .nt{display:block;color:#8a6b22;font-size:11px;margin-top:3px}
+.att-day .att-pill{flex:0 0 auto}
+.att-day button{flex:0 0 auto;padding:5px 12px;min-height:34px}
 .att-mask{position:fixed;inset:0;background:rgba(9,32,38,.35);z-index:65}
 @media(max-width:760px){#desktopAttendanceDetailPanel{width:100vw}}
 /* 考勤日期/月份控件统一 */
@@ -609,12 +619,7 @@
             <div><h2 id="desktopAttendanceDetailTitle">每日明细</h2><p id="desktopAttendanceDetailHint"></p></div>
             <button id="desktopAttendanceDetailClose" class="button ghost" type="button">关闭</button>
           </div>
-          <div class="table-wrap">
-            <table class="orders-table work-report-table">
-              <thead><tr><th>日期</th><th>签到</th><th>签退</th><th>状态</th><th class="number">加班</th><th>备注</th><th>操作</th></tr></thead>
-              <tbody id="desktopAttendanceDetailBody"></tbody>
-            </table>
-          </div>
+          <div id="desktopAttendanceDetailBody" class="att-day-list"></div>
         </section>
         <div id="desktopAttendanceDetailMask" class="att-mask" hidden></div>
         <section id="desktopAttendanceReissuePanel" class="panel" hidden>
