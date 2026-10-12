@@ -1903,6 +1903,7 @@ const els = {
   desktopAttendanceDetailHint: $('#desktopAttendanceDetailHint'),
   desktopAttendanceDetailClose: $('#desktopAttendanceDetailClose'),
   desktopAttendanceDetailBody: $('#desktopAttendanceDetailBody'),
+  desktopAttendanceDetailMask: $('#desktopAttendanceDetailMask'),
   desktopAttendanceReissuePanel: $('#desktopAttendanceReissuePanel'),
   desktopAttendanceReissueList: $('#desktopAttendanceReissueList'),
   desktopAttendanceReissueEmpty: $('#desktopAttendanceReissueEmpty'),
@@ -4047,7 +4048,7 @@ function renderWorkLiveOverview() {
       const timerSub = Number(row.timerPaidHours || 0) > 0 ? `有效 ${Number(row.timerPaidHours).toFixed(2)} 小时` : '---';
       const pieceText = Number(row.pieceCount || 0) > 0 ? `${fmt(row.pieceCount)} 笔 · ${fmt(row.pieceQuantity)} 件` : '暂无计件';
       const pieceSub = Number(row.pieceCount || 0) > 0 ? `金额 ${workReviewMoney(row.pieceAmount, 2)} 元 · 待审 ${fmt(row.pending)} 笔` : '---';
-      return `<tr><td><div class="work-live-person"><strong>${escapeHtml(row.name || '')}</strong><small>${escapeHtml(row.employeeNo || '')}</small></div></td><td><span class="work-live-status ${status.className}">${escapeHtml(status.text)}</span></td><td><div class="work-live-metric">${escapeHtml(timerText)}<span>${escapeHtml(timerSub)}</span></div></td><td><div class="work-live-metric">${escapeHtml(pieceText)}<span>${escapeHtml(pieceSub)}</span></div></td><td><div class="work-live-metric">${workLiveLatestText(row)}</div></td><td><button class="work-live-action" type="button" data-work-live-employee="${escapeHtml(row.id)}">查看明细</button></td></tr>`;
+      return `<tr data-work-live-row="${escapeHtml(row.id)}"><td><div class="work-live-person"><strong>${escapeHtml(row.name || '')}</strong><small>${escapeHtml(row.employeeNo || '')}</small></div></td><td><span class="work-live-status ${status.className}">${escapeHtml(status.text)}</span></td><td><div class="work-live-metric">${escapeHtml(timerText)}<span>${escapeHtml(timerSub)}</span></div></td><td><div class="work-live-metric">${escapeHtml(pieceText)}<span>${escapeHtml(pieceSub)}</span></div></td><td><div class="work-live-metric">${workLiveLatestText(row)}</div></td><td><button class="work-live-action" type="button" data-work-live-employee="${escapeHtml(row.id)}">查看明细</button></td></tr>`;
     }).join('');
   }
   if (els.mobileWorkLiveList) {
@@ -4255,6 +4256,28 @@ function restoreMobileWorkDetail() {
     if (btn) btn.textContent = '收起明细';
   }
 }
+function injectDesktopWorkDetail(employeeId, html, actions) {
+  const tbody = document.getElementById('desktopWorkLiveBody');
+  if (!tbody) return;
+  const row = tbody.querySelector('tr[data-work-live-row="' + employeeId + '"]');
+  let detail = document.getElementById('desktopWorkInlineDetail');
+  if (!detail) {
+    detail = document.createElement('tr');
+    detail.id = 'desktopWorkInlineDetail';
+    detail.innerHTML = '<td colspan="6" class="work-inline-detail-cell"><div id="desktopWorkTimelineInline"></div><div id="desktopWorkTimelineInlineActions" class="work-timeline-actions"></div></td>';
+  }
+  if (row) row.insertAdjacentElement('afterend', detail); else tbody.appendChild(detail);
+  const box = document.getElementById('desktopWorkTimelineInline');
+  if (box) box.innerHTML = html;
+  const act = document.getElementById('desktopWorkTimelineInlineActions');
+  if (act) act.innerHTML = actions;
+  detail.hidden = false;
+  setTimeout(() => { try { detail.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch {} }, 60);
+}
+function clearDesktopWorkDetail() {
+  const detail = document.getElementById('desktopWorkInlineDetail');
+  if (detail) { detail.hidden = true; const box = document.getElementById('desktopWorkTimelineInline'); if (box) box.innerHTML = ''; }
+}
 function renderWorkTimeline() {
   const desktopPanel = document.getElementById('desktopWorkTimelinePanel');
   const mobilePanel = document.getElementById('mobileWorkTimelinePanel');
@@ -4278,10 +4301,8 @@ function renderWorkTimeline() {
   const html = `${anomalyHtml}<div class="work-timeline-summary"><article><span>计时工时</span><strong>${fmt(salary.timerHours)}h</strong></article><article><span>计时工资</span><strong>${workReviewMoney(salary.timerPay, 2)} 元</strong></article><article><span>计件工时</span><strong>${fmt(salary.pieceHours)}h</strong></article><article><span>当天合计</span><strong>${workReviewMoney(salary.totalPay, 2)} 元</strong></article></div><div class="work-timeline-list">${timerRows}${periodRows}${unassignedRows}${!(timerRows || periodRows || unassignedRows) ? '<div class="work-timeline-empty">当天没有计时或计件记录</div>' : ''}</div>`;
   const actions = `<button type="button" data-work-payroll="${data.monthClosed ? 'open' : 'closed'}">${data.monthClosed ? '解封本月工资' : '封账本月工资'}</button>`;
   if (desktopPanel) {
-    desktopPanel.hidden = false;
-    document.getElementById('desktopWorkTimelineHint').textContent = `${data.employee.employeeNo} · ${data.employee.name} · ${data.date}`;
-    document.getElementById('desktopWorkTimelineActions').innerHTML = actions;
-    document.getElementById('desktopWorkTimeline').innerHTML = html;
+    desktopPanel.hidden = true;
+    injectDesktopWorkDetail(String(data.employee.id), html, actions);
   }
   if (mobilePanel) {
     const timerItems = (data.timerEntries || []).map((entry) => `<div class="tl-item"><span>${escapeHtml(workTimelineTime(entry.startedAt))} → ${escapeHtml(entry.endedAt ? workTimelineTime(entry.endedAt) : '进行中')}</span><b>${fmt(entry.minutes)} 分钟</b><button type="button" data-work-time-edit="${escapeHtml(entry.id)}">修改</button></div>`).join('') || '<div class="tl-empty">当天没有计时记录</div>';
@@ -4357,6 +4378,7 @@ async function loadWorkTimeline() {
   const mobilePanel = document.getElementById('mobileWorkTimelinePanel');
   if (!employeeId) {
     workTimeline = null;
+    clearDesktopWorkDetail();
     mobileWorkDetailEmployeeId = '';
     mobileWorkDetailHtml = '';
     clearMobileWorkDetails('');
@@ -4379,6 +4401,7 @@ async function loadWorkTimeline() {
     renderWorkTimeline();
   } catch (error) {
     workTimeline = null;
+    clearDesktopWorkDetail();
     mobileWorkDetailEmployeeId = '';
     mobileWorkDetailHtml = '';
     clearMobileWorkDetails('');
@@ -4903,6 +4926,7 @@ async function loadAttendanceDetail(empNo) {
     els.desktopAttendanceDetailBody.querySelectorAll('[data-att-edit]').forEach((b) => b.addEventListener('click', () => editAttendanceDay(b.dataset.attEdit, b.dataset.attDate)));
   }
   if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = false;
+  if (els.desktopAttendanceDetailMask) els.desktopAttendanceDetailMask.hidden = false;
 }
 async function loadAttendanceReissues() {
   const data = await attendanceRpc('board_reissue_requests', { p_code:getAccessCode(), p_status:'submitted' });
@@ -8731,6 +8755,7 @@ document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
   closeDesktopModuleSheet();
   closeMobileModuleSheet();
+  closeAttendanceDetail();
 });
 if (els.desktopWorkReportDate) els.desktopWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReportWorkspace(); });
 if (els.desktopAttendanceRefresh) els.desktopAttendanceRefresh.addEventListener('click', () => loadAttendance().catch(() => {}));
@@ -8741,7 +8766,12 @@ if (els.desktopAttendancePrev) els.desktopAttendancePrev.addEventListener('click
 if (els.desktopAttendanceNext) els.desktopAttendanceNext.addEventListener('click', () => attendanceShiftMonth(1));
 if (els.mobileAttendancePrev) els.mobileAttendancePrev.addEventListener('click', () => attendanceShiftMonth(-1));
 if (els.mobileAttendanceNext) els.mobileAttendanceNext.addEventListener('click', () => attendanceShiftMonth(1));
-if (els.desktopAttendanceDetailClose) els.desktopAttendanceDetailClose.addEventListener('click', () => { if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = true; });
+function closeAttendanceDetail() {
+  if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = true;
+  if (els.desktopAttendanceDetailMask) els.desktopAttendanceDetailMask.hidden = true;
+}
+if (els.desktopAttendanceDetailClose) els.desktopAttendanceDetailClose.addEventListener('click', closeAttendanceDetail);
+if (els.desktopAttendanceDetailMask) els.desktopAttendanceDetailMask.addEventListener('click', closeAttendanceDetail);
 if (els.desktopAttendanceTab) els.desktopAttendanceTab.addEventListener('change', applyAttendanceTab);
 if (els.desktopAttendanceTabs) els.desktopAttendanceTabs.addEventListener('click', (event) => {
   const btn = event.target.closest('[data-att-tab]');
@@ -8758,7 +8788,7 @@ document.querySelectorAll('[data-mobile-attendance-tab]').forEach((b) => b.addEv
 if (els.mobileWorkReportDate) els.mobileWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReportWorkspace(); });
 if (els.desktopWorkReportEmployee) els.desktopWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; renderWorkLiveOverview(); loadWorkReport(); });
 if (els.mobileWorkReportEmployee) els.mobileWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; renderWorkLiveOverview(); loadWorkReport(); });
-[document.getElementById('desktopWorkTimeline'), document.getElementById('desktopWorkTimelineActions'), document.getElementById('mobileWorkTimeline'), els.mobileWorkLiveList].forEach((panel) => {
+[document.getElementById('desktopWorkTimeline'), document.getElementById('desktopWorkTimelineActions'), document.getElementById('mobileWorkTimeline'), els.mobileWorkLiveList, els.desktopWorkLiveBody].forEach((panel) => {
   if (!panel) return;
   panel.addEventListener('change', (event) => {
     const select = event.target.closest('[data-work-timeline-entry]');
@@ -8793,12 +8823,13 @@ if (els.mobileWorkReportRefresh) els.mobileWorkReportRefresh.addEventListener('c
     const button = event.target.closest('[data-work-live-employee]');
     if (!button) return;
     const clickedId = button.dataset.workLiveEmployee;
-    if (list === els.mobileWorkLiveList && workTimelineEmployeeId && String(workTimelineEmployeeId) === String(clickedId)) {
+    if (workTimelineEmployeeId && String(workTimelineEmployeeId) === String(clickedId)) {
       workTimelineEmployeeId = '';
       workTimeline = null;
       mobileWorkDetailEmployeeId = '';
       mobileWorkDetailHtml = '';
       clearMobileWorkDetails('');
+      clearDesktopWorkDetail();
       renderWorkLiveOverview();
       return;
     }

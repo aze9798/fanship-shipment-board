@@ -43,6 +43,14 @@
 .att-empty{padding:34px 16px;text-align:center;color:#70858a}
 .att-empty b{display:block;font-size:15px;color:#15363f;margin-bottom:4px}
 @media(max-width:760px){.att-stats{grid-template-columns:repeat(2,1fr)}}
+/* 明细抽屉 */
+#desktopAttendanceDetailPanel{position:fixed;top:0;right:0;height:100vh;width:min(600px,94vw);margin:0;border:0;border-radius:0;box-shadow:-14px 0 36px rgba(19,67,67,.22);z-index:70;display:flex;flex-direction:column;padding:0;animation:attSlide .22s ease}
+@keyframes attSlide{from{transform:translateX(28px);opacity:.35}to{transform:translateX(0);opacity:1}}
+#desktopAttendanceDetailPanel .section-head{position:sticky;top:0;background:#fff;padding:14px 16px;border-bottom:1px solid #eef3f3;margin:0;z-index:1}
+#desktopAttendanceDetailPanel .table-wrap{flex:1;overflow:auto;padding:0}
+#desktopAttendanceDetailPanel table{min-width:540px}
+.att-mask{position:fixed;inset:0;background:rgba(9,32,38,.35);z-index:65}
+@media(max-width:760px){#desktopAttendanceDetailPanel{width:100vw}}
 /* 考勤日期/月份控件统一 */
 #desktopAttendanceMonth,#desktopAttendanceTeamDate,#mobileAttendanceMonth,#mobileAttendanceTeamDate,
 .topbar-actions input[type=month],.topbar-actions input[type=date],
@@ -608,6 +616,7 @@
             </table>
           </div>
         </section>
+        <div id="desktopAttendanceDetailMask" class="att-mask" hidden></div>
         <section id="desktopAttendanceReissuePanel" class="panel" hidden>
           <div id="desktopAttendanceReissueList" class="work-review-list"></div>
           <div id="desktopAttendanceReissueEmpty" class="empty-state" hidden><strong>没有待审核的补卡申请</strong></div>

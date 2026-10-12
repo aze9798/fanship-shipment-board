@@ -3554,3 +3554,5 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 }
 .version-update-bar #versionUpdateReload { background: #ffd9a8; color: #6b2f04; }
 .version-update-bar #versionUpdateLater { background: transparent; color: #ffe9d2; border: 1px solid rgba(255, 233, 210, .55); }
+.work-inline-detail-cell{background:#f8fcfb;padding:14px 16px;border-top:1px solid #dbe9e7}
+.work-inline-detail-cell .work-timeline-list{margin-top:6px}
