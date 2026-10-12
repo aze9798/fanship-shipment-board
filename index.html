@@ -43,6 +43,24 @@
 .att-empty{padding:34px 16px;text-align:center;color:#70858a}
 .att-empty b{display:block;font-size:15px;color:#15363f;margin-bottom:4px}
 @media(max-width:760px){.att-stats{grid-template-columns:repeat(2,1fr)}}
+/* 考勤日期/月份控件统一 */
+#desktopAttendanceMonth,#desktopAttendanceTeamDate,#mobileAttendanceMonth,#mobileAttendanceTeamDate,
+.topbar-actions input[type=month],.topbar-actions input[type=date],
+.att-toolbar input[type=month],.att-toolbar input[type=date],
+.att-m-bar input[type=month],.att-m-bar input[type=date]{
+  height:42px;border:1px solid #cfe0de;border-radius:12px;background:#fff;color:#15363f;
+  padding:0 12px;font-weight:700;font-size:14px;box-shadow:0 1px 2px rgba(19,67,67,.05);
+  -webkit-appearance:none;appearance:none;outline:none;
+}
+#desktopAttendanceMonth:focus,#desktopAttendanceTeamDate:focus,#mobileAttendanceMonth:focus,#mobileAttendanceTeamDate:focus,
+.topbar-actions input[type=month]:focus,.att-toolbar input:focus,.att-m-bar input:focus{
+  border-color:#74c2b7;box-shadow:0 0 0 3px rgba(15,118,110,.12);
+}
+#desktopAttendanceMonth::-webkit-calendar-picker-indicator,#mobileAttendanceMonth::-webkit-calendar-picker-indicator,
+#desktopAttendanceTeamDate::-webkit-calendar-picker-indicator,#mobileAttendanceTeamDate::-webkit-calendar-picker-indicator{
+  opacity:.5;cursor:pointer;
+}
+.att-m-bar input[type=month]{height:40px;font-size:13px}
 .att-toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
 .att-toolbar .att-tabs{margin-bottom:0;flex:1 1 auto}
 .att-toolbar-right{display:flex;gap:10px;align-items:center}
