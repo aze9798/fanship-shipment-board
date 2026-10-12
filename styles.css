@@ -3583,3 +3583,11 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 #desktopWorkLiveBody tr.is-selected{background:#eef7f5}
 #desktopWorkLiveBody tr.is-selected td{border-bottom-color:#d7eae7}
 .work-live-split-left .work-live-table{margin-bottom:0}
+/* ===== 第 3 批：手机端列表分组 + 顶部微调 ===== */
+.mobile-live-group{margin:12px 2px 6px;font-size:12px;font-weight:800;color:#5b757a;letter-spacing:.02em}
+#mobileWorkLiveList .mobile-live-group:first-child{margin-top:2px}
+#mobileWorkReportPanel .mobile-live-card{padding:9px 11px}
+#mobileWorkReportPanel .mobile-live-latest{margin-top:6px}
+@media(max-width:520px){
+  .mobile-fab{width:52px;height:52px}
+}

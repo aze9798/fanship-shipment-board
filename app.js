@@ -4128,6 +4128,18 @@ function renderWorkLiveOverview() {
     }).join('') : `<div class="empty-state"><strong>${workReportEmployeeId ? '该员工当天没有计时或计件记录' : '没有可显示的计时计件员工'}</strong></div>`;
   }
   restoreMobileWorkDetail();
+  if (els.mobileWorkLiveList) {
+    const list = els.mobileWorkLiveList;
+    const cards = [...list.querySelectorAll('.mobile-live-card')];
+    if (cards.length) {
+      const isActive = (card) => /计时中/.test(card.textContent || '');
+      const activeCards = cards.filter(isActive);
+      const restCards = cards.filter((card) => !isActive(card));
+      const header = (text) => { const el = document.createElement('div'); el.className = 'mobile-live-group'; el.textContent = text; return el; };
+      if (activeCards.length) list.insertBefore(header('计时中（' + activeCards.length + '）'), activeCards[0]);
+      if (restCards.length) list.insertBefore(header('已结束 / 未计时（' + restCards.length + '）'), restCards[0]);
+    }
+  }
   if (els.desktopWorkLiveEmpty) {
     els.desktopWorkLiveEmpty.hidden = sorted.length > 0;
     const strong = els.desktopWorkLiveEmpty.querySelector('strong');
