@@ -4533,8 +4533,15 @@ function renderStaffMonth() {
     return `<article class="mobile-live-card${on ? ' is-expanded' : ''}" data-staff-month-emp="${escapeHtml(r.id)}"><div class="mobile-live-card-head"><h3>${escapeHtml(r.employeeNo || '')} · ${escapeHtml(r.name || '')}</h3><span class="work-live-status">${staffMoney(total)} 元</span></div><div class="mobile-live-grid"><div><span>本月计时</span><strong>${staffHours(r.timerMinutes)} 小时</strong><small>${staffMoney(r.timerPay)} 元</small></div><div><span>本月计件</span><strong>${fmt(r.pieceQty)} 件</strong><small>${fmt(r.pieceCount)} 笔 · ${staffMoney(r.piecePay)} 元</small></div><div><span>待审核</span><strong>${fmt(r.pendingCount)} 笔</strong><small>${Number(r.pendingCount || 0) > 0 ? '需处理' : '已处理'}</small></div></div><button type="button" data-staff-month-emp="${escapeHtml(r.id)}">${on ? '收起整月明细' : '看整月明细'}</button></article>`;
   }).join('');
 }
+function positionStaffMonthDetail() {
+  const box = document.getElementById('mobileStaffMonthDetail');
+  const list = document.getElementById('mobileStaffMonthList');
+  if (!box || !list || !staffMonthEmployeeId) return;
+  const card = list.querySelector('.mobile-live-card[data-staff-month-emp="' + staffMonthEmployeeId + '"]');
+  if (card && card.nextElementSibling !== box) card.insertAdjacentElement('afterend', box);
+}
 async function openStaffMonthDetail(employeeId) {
-  if (String(staffMonthEmployeeId) === String(employeeId) && staffMonthData) { staffMonthEmployeeId = ''; staffMonthData = null; renderStaffMonth(); return; }
+  if (String(staffMonthEmployeeId) === String(employeeId) && staffMonthData) { staffMonthEmployeeId = ''; staffMonthData = null; const b0 = document.getElementById('mobileStaffMonthDetail'); if (b0) b0.innerHTML = ''; renderStaffMonth(); return; }
   staffMonthEmployeeId = employeeId;
   renderStaffMonth();
   const box = document.getElementById('mobileStaffMonthDetail');
@@ -4589,7 +4596,8 @@ function renderStaffMonthDetail() {
     <div class="tl-line expandable" data-tl-detail="summary"><div class="tl-line-main"><span>计件 · 按料号汇总（查重复/多报）</span><strong>${matRows.length} 项</strong></div><div class="tl-detail">${matHtml}</div></div>
     <div class="tl-line expandable" data-tl-detail="history"><div class="tl-line-main"><span>按日期看（本月）</span><strong>${dayMap.size} 天</strong></div><div class="tl-detail">${dayHtml}</div></div>
   </div>`;
-  setTimeout(() => { try { box.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch {} }, 60);
+  positionStaffMonthDetail();
+  setTimeout(() => { try { box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch {} }, 60);
 }
 async function revokePieceQuick(id, label) {
   const reason = window.prompt(`回退这条报工（${label}）\n请填写原因：`, '重复申报');
