@@ -4319,26 +4319,26 @@ function restoreMobileWorkDetail() {
   }
 }
 function injectDesktopWorkDetail(employeeId, html, actions) {
-  const tbody = document.getElementById('desktopWorkLiveBody');
-  if (!tbody) return;
-  const row = tbody.querySelector('tr[data-work-live-row="' + employeeId + '"]');
-  let detail = document.getElementById('desktopWorkInlineDetail');
-  if (!detail) {
-    detail = document.createElement('tr');
-    detail.id = 'desktopWorkInlineDetail';
-    detail.innerHTML = '<td colspan="6" class="work-inline-detail-cell"><div id="desktopWorkTimelineInline"></div><div id="desktopWorkTimelineInlineActions" class="work-timeline-actions"></div></td>';
-  }
-  if (row) row.insertAdjacentElement('afterend', detail); else tbody.appendChild(detail);
+  const pane = document.getElementById('desktopWorkDetailPane');
   const box = document.getElementById('desktopWorkTimelineInline');
-  if (box) box.innerHTML = html;
   const act = document.getElementById('desktopWorkTimelineInlineActions');
+  const empty = document.getElementById('desktopWorkDetailEmpty');
+  if (empty) empty.hidden = true;
+  if (box) box.innerHTML = html;
   if (act) act.innerHTML = actions;
-  detail.hidden = false;
-  setTimeout(() => { try { detail.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch {} }, 60);
+  if (pane) pane.classList.add('is-active');
+  document.querySelectorAll('#desktopWorkLiveBody tr[data-work-live-row]').forEach((tr) => {
+    tr.classList.toggle('is-selected', tr.dataset.workLiveRow === String(employeeId));
+  });
 }
 function clearDesktopWorkDetail() {
-  const detail = document.getElementById('desktopWorkInlineDetail');
-  if (detail) { detail.hidden = true; const box = document.getElementById('desktopWorkTimelineInline'); if (box) box.innerHTML = ''; }
+  const box = document.getElementById('desktopWorkTimelineInline');
+  if (box) box.innerHTML = '';
+  const act = document.getElementById('desktopWorkTimelineInlineActions');
+  if (act) act.innerHTML = '';
+  const empty = document.getElementById('desktopWorkDetailEmpty');
+  if (empty) empty.hidden = false;
+  document.querySelectorAll('#desktopWorkLiveBody tr[data-work-live-row]').forEach((tr) => tr.classList.remove('is-selected'));
 }
 function renderWorkTimeline() {
   const desktopPanel = document.getElementById('desktopWorkTimelinePanel');
