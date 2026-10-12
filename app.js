@@ -3014,6 +3014,57 @@ function drawingPublicUrl(drawing) {
   return `${origin}/storage/v1/object/public/product-drawings/${storagePath.split('/').map(encodeURIComponent).join('/')}`;
 }
 
+const DRAWING_CHUNK_BYTES = 1.5 * 1024 * 1024;
+const drawingBlobCache = new Map();
+
+// 图纸走的是国内中转域名吗？（中转域名会把二进制当附件下载、且一次取大文件会超限）
+function drawingIsRelayed(url) {
+  const origin = String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
+  if (!origin || !String(url).startsWith(origin)) return false;
+  return !/supabase\.co$/i.test(origin.replace(/^https?:\/\//, ''));
+}
+
+async function probeDrawingByteSize(url) {
+  try {
+    const res = await fetch(url, { headers: { Range: 'bytes=0-0' } });
+    const range = res.headers.get('content-range') || '';
+    const total = Number((range.match(/\/(\d+)\s*$/) || [])[1]);
+    if (total > 0) return total;
+    return Number(res.headers.get('content-length') || 0) || 0;
+  } catch { return 0; }
+}
+
+// 把图纸分块取回来拼成本地 Blob：这样「新窗口打开」是预览而不是下载，大图纸也不会被中转截断
+async function fetchDrawingBlobUrl(url, byteSize = 0) {
+  const cached = drawingBlobCache.get(url);
+  if (cached) return cached;
+  const total = Number(byteSize) || await probeDrawingByteSize(url);
+  if (!total) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    drawingBlobCache.set(url, objectUrl);
+    return objectUrl;
+  }
+  const chunks = [];
+  const chunkCount = Math.ceil(total / DRAWING_CHUNK_BYTES);
+  for (let index = 0; index < chunkCount; index += 1) {
+    const start = index * DRAWING_CHUNK_BYTES;
+    const end = Math.min(total, start + DRAWING_CHUNK_BYTES) - 1;
+    if (chunkCount > 1) setTaskStatus(`正在读取图纸 ${index + 1}/${chunkCount} 段...`, 'info');
+    const res = await fetch(url, { headers: { Range: `bytes=${start}-${end}` } });
+    if (!res.ok && res.status !== 206) throw new Error('HTTP ' + res.status);
+    const buffer = await res.arrayBuffer();
+    if (!buffer.byteLength) throw new Error('图纸数据不完整（第 ' + (index + 1) + ' 段为空）');
+    chunks.push(buffer);
+  }
+  const blob = new Blob(chunks, { type: 'application/pdf' });
+  const objectUrl = URL.createObjectURL(blob);
+  drawingBlobCache.set(url, objectUrl);
+  return objectUrl;
+}
+
 let drawingViewerTask = null;
 let drawingViewerPdf = null;
 let drawingViewerBlobUrl = '';
@@ -3188,6 +3239,17 @@ async function openDrawing(id) {
   const cached = (snapshot?.drawings || []).find((row) => String(row.id) === String(id));
   const directUrl = drawingPublicUrl(cached);
   if (directUrl) {
+    if (drawingIsRelayed(directUrl)) {
+      try {
+        const blobUrl = await fetchDrawingBlobUrl(directUrl, cached?.byteSize);
+        clearTaskStatus();
+        await openDrawingViewer(cached, blobUrl);
+        return;
+      } catch (error) {
+        clearTaskStatus();
+        showToast('图纸下载不完整，改用直连方式打开：' + (error?.message || ''));
+      }
+    }
     await openDrawingViewer(cached, directUrl);
     return;
   }
