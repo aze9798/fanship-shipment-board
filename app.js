@@ -1457,6 +1457,22 @@ async function dissolveShipmentUnit(unit) {
   return true;
 }
 
+// 取消装车单元：解除单元，里面的物料回到普通未交清单，可以单独装车
+async function cancelShipmentUnit(unitId) {
+  const unit = shipmentUnits().find((row) => String(row.unitId) === String(unitId));
+  if (!unit) return;
+  const names = (unit.members || []).map((member) => String(member.material || '')).filter(Boolean).join('、');
+  if (!window.confirm(`要取消这个装车单元吗？\n${names || ''}\n取消后里面的物料会回到普通未交清单，可以单独装车。`)) return;
+  try {
+    await dissolveShipmentUnit(unit);
+    sessionUnitIds.delete(String(unit.unitId));
+    renderAll();
+    showToast('装车单元已取消，物料已回到未交清单');
+  } catch (error) {
+    showToast(error.message || '取消装车单元失败');
+  }
+}
+
 function unitCandidateOrders(row) {
   const material = String(row?.material || '').trim();
   const spec = String(row?.spec || '').trim();
@@ -1604,6 +1620,7 @@ function unitCardHtml(unit, index) {
   const retakeAction = status === 'needs_rephoto' ? `<button type="button" class="button primary" data-unit-retake="${escapeHtml(unit.unitId)}">重新拍照</button>` : '';
   const loadAction = status === 'needs_rephoto' ? '' : `<button type="button" class="button primary" data-unit-load="${escapeHtml(unit.unitId)}">${status === 'loaded' ? '更新装车数量' : '整组装车'}</button>`;
   const addAction = status === 'shipped' ? '' : `<button type="button" class="button ghost" data-unit-add="${escapeHtml(unit.unitId)}">增加物料</button>`;
+  const dissolveAction = status === 'shipped' ? '' : `<button type="button" class="button ghost danger-text" data-unit-dissolve="${escapeHtml(unit.unitId)}">取消装车单元</button>`;
   return `<article class="order-card shipment-unit-card" data-unit-card="${escapeHtml(unit.unitId)}">
     <div class="unit-card-head">
       <div>
@@ -1613,7 +1630,7 @@ function unitCardHtml(unit, index) {
       ${photo ? `<button type="button" class="unit-photo-button" data-unit-view-photo="${escapeHtml(unit.unitId)}">现场照片</button>` : '<span class="unit-photo-button empty">无照片</span>'}
     </div>
     <div class="unit-member-list">${memberHtml || '<div class="unit-member-empty">没有匹配到待发货订单</div>'}</div>
-    <div class="unit-card-actions">${addAction}${loadAction}${retakeAction}</div>
+    <div class="unit-card-actions">${addAction}${loadAction}${retakeAction}${dissolveAction}</div>
   </article>`;
 }
 
@@ -1694,7 +1711,29 @@ async function updateUnitMemberQuantity(unitId, memberIndex, value) {
   if (!unit) return;
   const index = Number(memberIndex);
   const quantity = Number(value);
-  const members = (unit.members || []).map((member, i) => i === index ? { ...member, quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 0 } : member);
+  const member = (unit.members || [])[index];
+  if (!member) return;
+  const safeQuantity = Number.isFinite(quantity) && quantity > 0 ? quantity : 0;
+  const sourceOrder = (snapshot?.orders || []).find((order) => String(order.id) === String(member.orderId));
+  const rowRemaining = Number(sourceOrder?.remaining || member.quantity || 0);
+  let members;
+  if (safeQuantity <= rowRemaining) {
+    members = (unit.members || []).map((item, i) => i === index ? { ...item, quantity: safeQuantity } : item);
+  } else {
+    // 跟普通订单一个逻辑：超过这一行未交，就按交期把总数分摊到该料号后面的采购单
+    const allocated = allocateUnitMember(member, safeQuantity);
+    if (!allocated.length) {
+      members = (unit.members || []).map((item, i) => i === index ? { ...item, quantity: safeQuantity } : item);
+    } else {
+      const others = (unit.members || []).filter((item) => String(item.material || '').trim() !== String(member.material || '').trim());
+      const position = Math.min(index, others.length);
+      members = [...others];
+      members.splice(position, 0, ...allocated);
+      const totalAllocated = allocated.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+      if (totalAllocated < safeQuantity) showToast(`${member.material} 未交只有 ${fmt(totalAllocated)} 件，已按未交分配`, 7000);
+      else showToast(`已按交期分配：${allocated.map((item) => fmt(item.quantity)).join(' + ')} = ${fmt(totalAllocated)} 件`, 5000);
+    }
+  }
   await updateShipmentUnit(unit, { members });
 }
 
@@ -8863,6 +8902,8 @@ if (els.desktopLoadingCardList) {
     if (unitAdd) { retakeUnit(unitAdd.dataset.unitAdd); return; }
     const unitRetake = event.target.closest('[data-unit-retake]');
     if (unitRetake) { retakeUnit(unitRetake.dataset.unitRetake); return; }
+    const unitDissolve = event.target.closest('[data-unit-dissolve]');
+    if (unitDissolve) { void cancelShipmentUnit(unitDissolve.dataset.unitDissolve); return; }
     const unitView = event.target.closest('[data-unit-view-photo]');
     if (unitView) { viewUnitPhoto(unitView.dataset.unitViewPhoto); return; }
     const unitRemove = event.target.closest('[data-unit-member-remove]');
@@ -9750,6 +9791,8 @@ els.mobileOrderList.addEventListener('click', (event) => {
     if (unitAdd) { retakeUnit(unitAdd.dataset.unitAdd); return; }
   const unitRetake = event.target.closest('[data-unit-retake]');
   if (unitRetake) { retakeUnit(unitRetake.dataset.unitRetake); return; }
+  const unitDissolve = event.target.closest('[data-unit-dissolve]');
+  if (unitDissolve) { void cancelShipmentUnit(unitDissolve.dataset.unitDissolve); return; }
   const unitView = event.target.closest('[data-unit-view-photo]');
   if (unitView) { viewUnitPhoto(unitView.dataset.unitViewPhoto); return; }
   const unitRemove = event.target.closest('[data-unit-member-remove]');
