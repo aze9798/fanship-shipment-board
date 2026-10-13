@@ -8853,6 +8853,13 @@ function closeAttendanceDetail() {
 if (els.desktopAttendanceDetailClose) els.desktopAttendanceDetailClose.addEventListener('click', closeAttendanceDetail);
 if (els.desktopAttendanceDetailMask) els.desktopAttendanceDetailMask.addEventListener('click', closeAttendanceDetail);
 if (els.desktopAttendanceTab) els.desktopAttendanceTab.addEventListener('change', applyAttendanceTab);
+// 明细抽屉必须挂在 body 上：外层 .desktop-view 带 transform，会让 position:fixed 失效
+if (els.desktopAttendanceDetailPanel && els.desktopAttendanceDetailPanel.parentElement !== document.body) {
+  document.body.appendChild(els.desktopAttendanceDetailPanel);
+}
+if (els.desktopAttendanceDetailMask && els.desktopAttendanceDetailMask.parentElement !== document.body) {
+  document.body.appendChild(els.desktopAttendanceDetailMask);
+}
 if (els.desktopAttendanceTabs) els.desktopAttendanceTabs.addEventListener('click', (event) => {
   const btn = event.target.closest('[data-att-tab]');
   if (!btn) return;
