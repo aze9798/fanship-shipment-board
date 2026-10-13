@@ -1188,7 +1188,24 @@
     <button id="taskStatusClose" class="task-status-close" type="button" aria-label="关闭">×</button>
   </div>
   <div id="toast" class="toast" hidden></div>
-  <script src="app.js" type="module"></script>
+    <script>
+    (() => {
+      const fallbackVersion = "d7b5b43076bc";
+      const stylesheet = document.querySelector('link[href*="styles.css"]');
+      const start = (version) => {
+        const safeVersion = encodeURIComponent(version || fallbackVersion);
+        if (stylesheet) stylesheet.href = './styles.css?v=' + safeVersion;
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = './app.js?v=' + safeVersion;
+        document.body.appendChild(script);
+      };
+      fetch('./version.json?t=' + Date.now(), { cache: 'no-store' })
+        .then((response) => response.ok ? response.json() : Promise.reject(new Error('version unavailable')))
+        .then((data) => start(data && data.version))
+        .catch(() => start(fallbackVersion));
+    })();
+  </script>
 </body>
 </html>
 

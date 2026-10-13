@@ -988,6 +988,10 @@ async function savePhotoCapture() {
     }
     showToast(uploadedAny ? `已保存 ${photos.length} 张照片到云端` : `照片已暂存在本机（${photos.length} 张），确认装车时会重试上传`);
     closePhotoCapture();
+  } catch (error) {
+    // 以前这里没有 catch：某些手机上出错会"点了没反应"，现在一律给出提示
+    const detail = String(error?.message || error || '').trim();
+    showToast(`照片保存失败：${detail || '请重试'}（照片还留在本机，可以再点一次保存）`, 9000);
   } finally {
     if (els.photoSave) els.photoSave.disabled = false;
   }
@@ -2382,23 +2386,112 @@ async function waitForStateIdle(maxMs = 5000) {
   }
 }
 
+// ===== 大块数据（金额 / 图纸清单）本地缓存：首屏不等它们，先出内容再后台刷新 =====
+const SLOW_AUX_CACHE_KEY = 'shipmentSlowAux';
+const SLOW_AUX_MAX_AGE = 6 * 60 * 60 * 1000;   // 缓存最长用 6 小时，之后必须重拉
+
+function readSlowAuxCache() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SLOW_AUX_CACHE_KEY) || 'null');
+    if (!raw || raw.code !== getAccessCode()) return null;
+    if (Date.now() - Number(raw.at || 0) > SLOW_AUX_MAX_AGE) return null;
+    return raw;
+  } catch { return null; }
+}
+
+function writeSlowAuxCache(patch) {
+  try {
+    const previous = readSlowAuxCache() || {};
+    localStorage.setItem(SLOW_AUX_CACHE_KEY, JSON.stringify({ ...previous, ...patch, code: getAccessCode(), at: Date.now() }));
+  } catch { }
+}
+
+let slowAuxRefreshing = null;
+let amountsFetchedAt = 0;
+let drawingsFetchedAt = 0;
+// 后台刷新金额 + 图纸清单（不阻塞界面）
+function refreshSlowAux() {
+  if (slowAuxRefreshing || !snapshot) return slowAuxRefreshing;
+  const FRESH = 5 * 60 * 1000;
+  const needAmounts = boardRole === 'admin' && Date.now() - amountsFetchedAt > FRESH;
+  const needDrawings = Date.now() - drawingsFetchedAt > FRESH;
+  if (!needAmounts && !needDrawings) return null;
+  slowAuxRefreshing = (async () => {
+    const jobs = [];
+    if (needAmounts) {
+      jobs.push(loadAmounts().then((rows) => {
+        if (!snapshot || !rows.length) return;
+        snapshot.amounts = rows;
+        rebuildAmountMap();
+        amountsFetchedAt = Date.now();
+        writeSlowAuxCache({ amounts: rows });
+      }));
+    }
+    if (needDrawings) {
+      jobs.push(loadDrawings().then((rows) => {
+        if (!snapshot || !rows.length) return;
+        snapshot.drawings = rows;
+        rebuildDrawingMap();
+        drawingsFetchedAt = Date.now();
+        writeSlowAuxCache({ drawings: rows });
+      }));
+    }
+    await Promise.all(jobs);
+    renderAll();
+  })().catch(() => { }).finally(() => { slowAuxRefreshing = null; });
+  return slowAuxRefreshing;
+}
+
+// 限制并发：云函数一次接太多请求会互相排队
+async function mapLimit(items, limit, worker) {
+  const list = [...items];
+  const results = new Array(list.length);
+  let cursor = 0;
+  const runners = Array.from({ length: Math.max(1, Math.min(limit, list.length)) }, async () => {
+    while (true) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= list.length) return;
+      results[index] = await worker(list[index], index);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
+
 function fetchAuxiliaryState() {
   if (auxiliaryPromise) return auxiliaryPromise;
   const promise = (async () => {
     deliveryFilesPromise = null;
-    const [amounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings] = await Promise.all([
-      boardRole === 'admin' ? loadAmounts() : Promise.resolve([]),
-      loadOverDeliveries(),
-      loadOverOffsets(),
-      loadDeliveryFiles(),
-      loadShipmentPhotos(),
-      loadShipmentUnits(),
-      loadReplacements(),
-      loadDrawings(),
-      loadBilledStatus(),
-    ]);
+    const cached = readSlowAuxCache();
+    // 10 分钟内的金额/图纸清单直接用缓存，省掉两个大接口（国内中转下各要 1-5 秒）
+    const cacheIsFresh = Boolean(cached) && (Date.now() - Number(cached.at || 0) < 10 * 60 * 1000);
+    // 缓存里有的直接用（角色可能还没回来，先按缓存渲染，角色回来后再决定要不要显示金额列）
+    const useAmountsCache = cacheIsFresh && Array.isArray(cached.amounts) && cached.amounts.length > 0;
+    const useDrawingsCache = cacheIsFresh && Array.isArray(cached.drawings) && cached.drawings.length > 0;
+    // 用了缓存就把"最近拉取时间"记成缓存时间，避免 6 秒后又立刻重拉一遍
+    if (useAmountsCache) amountsFetchedAt = Number(cached.at) || Date.now();
+    if (useDrawingsCache) drawingsFetchedAt = Number(cached.at) || Date.now();
+    const tasks = [
+      () => (useAmountsCache ? Promise.resolve(cached.amounts) : (boardRole === 'admin' ? loadAmounts().then((rows) => { if (rows.length) amountsFetchedAt = Date.now(); return rows; }) : Promise.resolve([]))),   // 0 金额
+      () => loadOverDeliveries(),      // 1
+      () => loadOverOffsets(),         // 2
+      () => loadDeliveryFiles(),       // 3
+      () => loadShipmentPhotos(),      // 4
+      () => loadShipmentUnits(),       // 5
+      () => loadReplacements(),        // 6
+      () => (useDrawingsCache ? Promise.resolve(cached.drawings) : loadDrawings().then((rows) => { if (rows.length) drawingsFetchedAt = Date.now(); return rows; })),   // 7 图纸清单
+      () => loadBilledStatus(),        // 8
+    ];
+    const results = await mapLimit(tasks, 3, (task) => task());
+    const [amounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings] = results;
+    // 首屏能拿到缓存就用缓存，避免为了金额/图纸多等好几秒
+    const finalAmounts = amounts.length ? amounts : (cacheIsFresh && Array.isArray(cached.amounts) ? cached.amounts : amounts);
+    const finalDrawings = drawings.length ? drawings : (cacheIsFresh && Array.isArray(cached.drawings) ? cached.drawings : drawings);
+    if (amounts.length) writeSlowAuxCache({ amounts });
+    if (drawings.length) writeSlowAuxCache({ drawings });
     auxiliaryLoadedAt = Date.now();
-    return { amounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings };
+    return { amounts: finalAmounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings: finalDrawings };
   })();
   auxiliaryPromise = promise.finally(() => { auxiliaryPromise = null; });
   return auxiliaryPromise;
@@ -10038,10 +10131,16 @@ function startVersionWatch() {
 }
 setupRpcExportLink();
 if (!getAccessCode()) askAccessCode();
-await loadBoardRole();
+// 身份校验放到后台跑：首屏只需要 state，不必先等 whoami（国内中转下 whoami 也要 1-3 秒）
+const roleReady = loadBoardRole().then(() => { applyRoleUI(); }).catch(() => { });
 await loadMarkMaterials();
 restoreCachedState();
 await loadState({ fast: true });
+roleReady.then(() => {
+  applyRoleUI();
+  // 角色确定后再后台补金额（含被网关缓存下来的旧数据），以及图纸清单
+  window.setTimeout(() => { void refreshSlowAux(); }, 6000);
+});
 connectEvents();
 startVersionWatch();
 warmOptionalLibraries();
