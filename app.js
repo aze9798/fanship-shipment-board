@@ -2285,6 +2285,7 @@ function formatDate(dateText) {
 
 function dueBadge(order) {
   if (order.remaining <= 0) return { className: 'done', text: '已交清' };
+  if (!String(order.dueDate || '').trim()) return { className: '', text: '未定交期' };
   const diff = dayDiff(order.dueDate);
   if (Number.isFinite(diff) && diff < 0) return { className: 'overdue', text: `逾期${Math.abs(diff)}天` };
   if (diff === 0) return { className: 'today', text: '今天到期' };
@@ -2299,15 +2300,17 @@ const COMPANY_NAMES = {
   '4137': '无锡市帆顺金属科技有限公司',
 };
 const orderCompany = (order) => String(order.customer || '').trim();
+// 手工调整的未交没有采购单号：界面上统一显示成「无采购单号」，不留空
+const orderPoLabel = (order) => String((order && order.po) || '').trim() || '无采购单号';
 const companyName = (code) => COMPANY_NAMES[code] || code || '未标注公司';
 
 // 同一个交货日期内，特殊订单排在普通订单前面（承样 → 试制 → 工装），方便一眼看到
-const ORDER_TYPE_LABELS = { trial: '试制', sample: '承样', tooling: '工装' };
+const ORDER_TYPE_LABELS = { trial: '试制', sample: '承样', tooling: '工装', adjust: '调整' };
 const normalizeOrderType = (order) => {
   const type = String((order && order.orderType) || 'normal');
   return Object.prototype.hasOwnProperty.call(ORDER_TYPE_LABELS, type) ? type : 'normal';
 };
-const ORDER_TYPE_RANK = { sample: 0, trial: 1, tooling: 2 };
+const ORDER_TYPE_RANK = { sample: 0, trial: 1, tooling: 2, adjust: 3 };
 const orderTypeRank = (order) => {
   const type = normalizeOrderType(order);
   return Object.prototype.hasOwnProperty.call(ORDER_TYPE_RANK, type) ? ORDER_TYPE_RANK[type] : 9;
@@ -5757,7 +5760,7 @@ function renderDesktopTable() {
     const amountText = boardRole === 'admin' && amount && amount.amount != null ? fmt(amount.amount) : '--';
     return `
       <tr>
-        <td><span class="order-id">${escapeHtml(order.po)}</span><span class="company-tag" title="${escapeHtml(companyName(orderCompany(order)))}">${escapeHtml(orderCompany(order) || '—')}</span>${orderTypeTagHtml(order.orderType)}${boardRole === 'admin' ? `<button type="button" class="order-edit-link" data-edit-order="${escapeHtml(order.id)}">变更</button>` : ''}</td>
+        <td><span class="order-id">${escapeHtml(orderPoLabel(order))}</span><span class="company-tag" title="${escapeHtml(companyName(orderCompany(order)))}">${escapeHtml(orderCompany(order) || '—')}</span>${orderTypeTagHtml(order.orderType)}${boardRole === 'admin' ? `<button type="button" class="order-edit-link" data-edit-order="${escapeHtml(order.id)}">变更</button>` : ''}</td>
         <td><span class="material-code mono">${escapeHtml(order.material)}</span>${(() => { const info = materialSummary(order); return info.count > 1 ? `<span class="material-total-tag" title="同一物料编号所有采购单合计未交">共${fmt(info.total)}/${info.count}单</span>` : ''; })()}${(() => { const d = drawingFor(order); return d ? drawingLinkHtml(d) : ''; })()}</td>
         <td><span class="item-name">${escapeHtml(order.name)}</span></td>
         <td><span class="spec-code mono">${escapeHtml(order.spec || '—')}</span></td>
@@ -5790,7 +5793,7 @@ function openOrderEdit(orderId) {
   orderEditBaseRevision = snapshot?.revision ?? null;
   if (els.orderEditInfo) {
     els.orderEditInfo.innerHTML = `<strong>${escapeHtml(order.material)} · ${escapeHtml(order.name || '')}</strong>`
-      + `<span>${escapeHtml(order.po)} · 项次 ${escapeHtml(order.seq)} · 已发货 ${fmt(order.shipped)} 件</span>`
+      + `<span>${escapeHtml(orderPoLabel(order))} · 项次 ${escapeHtml(order.seq)} · 已发货 ${fmt(order.shipped)} 件</span>`
       + `${order.spec ? `<span>图号：${escapeHtml(order.spec)}</span>` : ''}`;
   }
   if (els.orderEditQty) els.orderEditQty.value = String(Number(order.orderQty || order.openingRemaining || 0));
@@ -6713,7 +6716,7 @@ function searchExtraRows(queryText) {
       quantity: remaining,
       remaining: 0,
       hasOrder: false,
-      batch: String(over.deliveryBatch || ''),
+      batch: extraRowBatch(over.deliveryBatch, shippedAt, material, name),
       shippedAt,
       billed: isBilledExtra(over.id),
       typeLabel: '无订单',
@@ -6850,7 +6853,7 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
         <div class="order-title">
           <div class="order-name-line"><strong>${escapeHtml(order.name)}</strong>${orderTypeTagHtml(order.orderType)}</div>
           <span class="mono">${escapeHtml(order.material)} · ${escapeHtml(order.spec)}${(() => { const d = drawingFor(order); return d ? ' ' + drawingLinkHtml(d) : ''; })()}</span>
-          <span>${escapeHtml(order.po)} · 项次 ${escapeHtml(order.seq)}</span>
+          <span>${escapeHtml(orderPoLabel(order))} · 项次 ${escapeHtml(order.seq)}</span>
         </div>
         <span class="due-badge ${badge.className}">${escapeHtml(badge.text)}</span>
       </div>
