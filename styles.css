@@ -3602,3 +3602,6 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 #mobileStaffMonthPanel .mobile-live-card-head h3{font-size:14.5px}
 #mobileStaffMonthPanel .mobile-live-group{margin:12px 2px 6px;font-size:12px;font-weight:800;color:#5b757a}
 #mobileStaffMonthPanel .mobile-work-review-tools{margin-bottom:8px}
+/* 模块面板防遮挡：内容多时内部滚动，不遮住最下方模块 */
+.module-fab-sheet{max-height:calc(100vh - 130px);overflow-y:auto;overscroll-behavior:contain}
+@media(max-height:720px){.module-fab-sheet{max-height:calc(100vh - 96px)}}
