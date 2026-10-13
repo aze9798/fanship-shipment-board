@@ -939,14 +939,16 @@ function compressPhotoFile(file) {
       const image = new Image();
       image.onerror = () => reject(new Error('照片解析失败'));
       image.onload = () => {
-        const maxSide = 1600;
+        // 留档照片只要看得清货物和标签即可：1400px 长边 + 0.62 质量，
+        // 一张通常 250-400KB（原来 1600px/0.72 约 600KB），上传时间差不多减半
+        const maxSide = 1400;
         const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.round(image.width * scale));
         canvas.height = Math.max(1, Math.round(image.height * scale));
         const context = canvas.getContext('2d');
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.72));
+        resolve(canvas.toDataURL('image/jpeg', 0.62));
       };
       image.src = String(reader.result || '');
     };
@@ -965,16 +967,23 @@ async function savePhotoCapture() {
   const savedFileNames = [];
   let uploadedAny = false;
   try {
-    for (const dataUrl of photos) {
+    // 多张一起传（并行），拍 3 张不用等 3 倍时间
+    const uploadedPhotos = await Promise.all(photos.map(async (dataUrl) => {
       const photoId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2)).replace(/-/g, '');
       const fileName = `photo-${currentDeliveryDate().replace(/-/g, '')}-${photoId}.jpg`;
       const meta = { type: 'shipment_photo', photoId, deliveryDate: currentDeliveryDate(), materials, note, capturedAt: new Date().toISOString(), shipmentId: '' };
       const payload = { date: currentDeliveryDate(), batch: JSON.stringify(meta), fileName, kind: PHOTO_FILE_KIND, noteCount: materials.length, contentBase64: String(dataUrl).split(',')[1] || '' };
-      const result = await callRpc('board_save_delivery_file', { p_code: getAccessCode(), p_payload: payload });
-      const uploaded = result.response.ok;
-      if (uploaded) uploadedAny = true;
-      sessionPhotos.push({ id: result.data?.id || '', fileName, dataUrl, materials, note, meta, capturedAt: meta.capturedAt, uploaded });
-      savedFileNames.push(fileName);
+      try {
+        const result = await callRpc('board_save_delivery_file', { p_code: getAccessCode(), p_payload: payload });
+        return { id: result?.data?.id || '', fileName, uploaded: Boolean(result?.response?.ok), dataUrl, meta };
+      } catch {
+        return { id: '', fileName, uploaded: false, dataUrl, meta };
+      }
+    }));
+    for (const item of uploadedPhotos) {
+      if (item.uploaded) uploadedAny = true;
+      sessionPhotos.push({ id: item.id, fileName: item.fileName, dataUrl: item.dataUrl, materials, note, meta: item.meta, capturedAt: item.meta.capturedAt, uploaded: item.uploaded });
+      savedFileNames.push(item.fileName);
     }
     let unitUpdated = false;
     if (uploadedAny && unitContext) {
