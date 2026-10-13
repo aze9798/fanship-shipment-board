@@ -164,6 +164,11 @@
           <span class="nav-dot"></span>
           报工审核
         </a>
+
+        <a id="desktopWorkEditLink" class="side-link" href="#work-edit" data-desktop-view="workEdit" data-module="work" hidden>
+          <span class="nav-dot"></span>
+          报工修改
+        </a>
         <a id="desktopAttendanceLink" class="side-link" href="#attendance" data-desktop-view="attendance" data-module="attendance" hidden>
           <span class="nav-dot"></span>
           考勤管理
@@ -570,6 +575,71 @@
         </section>
       </section>
 
+      <section id="desktopWorkEditView" class="desktop-view desktop-only" hidden>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">管理员专用 · 全程留痕</p>
+            <h1>报工修改</h1>
+            <p class="subhead">可选任意日期，新增 / 修改 / 删除员工的计时与计件报工；每次改动都会记入下方日志。已封账月份会被拒绝。</p>
+          </div>
+          <div class="topbar-actions">
+            <button class="button ghost" type="button" data-work-edit-add="time">＋ 新增计时</button>
+            <button class="button primary" type="button" data-work-edit-add="piece">＋ 新增计件</button>
+          </div>
+        </header>
+        <section class="work-report-filters panel work-edit-filters">
+          <label><span>日期（可选任意一天）</span><input id="desktopWorkEditDate" type="date"></label>
+          <label><span>员工</span><select id="desktopWorkEditEmployee"><option value="">请选择员工</option></select></label>
+          <label><span>工资封账</span><div id="desktopWorkEditLock" class="work-edit-lock">先选员工</div></label>
+          <label><span>&nbsp;</span><button id="desktopWorkEditRefresh" class="button primary" type="button">刷新</button></label>
+        </section>
+        <section class="work-review-stats work-edit-stats">
+          <article><span>计时段数</span><strong id="desktopWorkEditTimerCount">0</strong></article>
+          <article><span>计时工时</span><strong id="desktopWorkEditTimerHours">0.0</strong></article>
+          <article><span>计件笔数</span><strong id="desktopWorkEditPieceCount">0</strong></article>
+          <article><span>计件金额</span><strong id="desktopWorkEditPieceAmount">0.00</strong></article>
+        </section>
+        <section class="panel">
+          <div class="section-head">
+            <div><h2>计时记录</h2><p id="desktopWorkEditTimerHint">选择员工后显示当天全部计时记录。</p></div>
+            <button class="button ghost" type="button" data-work-edit-add="time">＋ 新增计时</button>
+          </div>
+          <div class="table-wrap">
+            <table class="orders-table work-report-table">
+              <thead><tr><th>开始</th><th>结束</th><th class="number">时长</th><th>状态</th><th>备注</th><th>操作</th></tr></thead>
+              <tbody id="desktopWorkEditTimerBody"></tbody>
+            </table>
+            <div id="desktopWorkEditTimerEmpty" class="empty-state" hidden><strong>当天没有计时记录</strong><span>点「＋ 新增计时」可以补记一段。</span></div>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="section-head">
+            <div><h2>计件记录</h2><p id="desktopWorkEditPieceHint">包含待审核 / 已通过 / 已退回 / 已撤回的全部申报。</p></div>
+            <button class="button primary" type="button" data-work-edit-add="piece">＋ 新增计件</button>
+          </div>
+          <div class="table-wrap">
+            <table class="orders-table work-report-table">
+              <thead><tr><th>料号</th><th>品名 / 规格</th><th>工序</th><th class="number">数量</th><th class="number">单价</th><th class="number">金额</th><th>状态</th><th>操作</th></tr></thead>
+              <tbody id="desktopWorkEditPieceBody"></tbody>
+            </table>
+            <div id="desktopWorkEditPieceEmpty" class="empty-state" hidden><strong>当天没有计件记录</strong><span>点「＋ 新增计件」可以补一笔。</span></div>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="section-head">
+            <div><h2>改动日志</h2><p id="desktopWorkEditLogHint">所选日期由管理端做出过的全部改动。</p></div>
+            <button id="desktopWorkEditLogRefresh" class="button ghost" type="button">刷新日志</button>
+          </div>
+          <div class="table-wrap">
+            <table class="orders-table work-report-table">
+              <thead><tr><th>时间</th><th>员工</th><th>类型</th><th>动作</th><th>原因</th></tr></thead>
+              <tbody id="desktopWorkEditLogBody"></tbody>
+            </table>
+            <div id="desktopWorkEditLogEmpty" class="empty-state" hidden><strong>当天还没有改动记录</strong><span>新增或修改一次后这里会出现。</span></div>
+          </div>
+        </section>
+      </section>
+
       <section id="desktopAttendanceView" class="desktop-view desktop-only" hidden>
         <header class="topbar">
           <div>
@@ -801,6 +871,8 @@
             <button class="active" data-mobile-work-tab="report" type="button">报工情况</button>
             <button data-mobile-work-tab="review" type="button">报工审核</button>
             <button data-mobile-work-tab="month" type="button">月度</button>
+            <button data-mobile-work-tab="edit" type="button">报工修改</button>
+
           </nav>
           <section id="mobileWorkReportPanel" class="mobile-panel">
             <div class="mobile-work-review-tools mobile-report-tools">
@@ -846,6 +918,37 @@
             <div id="mobileWorkReviewList" class="mobile-work-review-list"></div>
           </section>
         </section>
+
+          <section id="mobileWorkEditPanel" class="mobile-panel" hidden>
+            <div class="mobile-work-review-tools mobile-report-tools">
+              <label><span>日期</span><input id="mobileWorkEditDate" type="date"></label>
+              <label><span>员工</span><select id="mobileWorkEditEmployee"><option value="">请选择员工</option></select></label>
+              <button id="mobileWorkEditRefresh" class="button primary" type="button">刷新</button>
+            </div>
+            <div class="mobile-report-summary">
+              <div><span>计时段</span><strong id="mobileWorkEditTimerCount">0</strong></div>
+              <div><span>计时工时</span><strong id="mobileWorkEditTimerHours">0.0</strong></div>
+              <div><span>计件笔数</span><strong id="mobileWorkEditPieceCount">0</strong></div>
+              <div><span>计件金额</span><strong id="mobileWorkEditPieceAmount">0.00</strong></div>
+            </div>
+            <div class="work-edit-actions">
+              <button class="button ghost" type="button" data-work-edit-add="time">＋ 新增计时</button>
+              <button class="button primary" type="button" data-work-edit-add="piece">＋ 新增计件</button>
+            </div>
+            <div id="mobileWorkEditLock" class="work-edit-lock" >先选员工</div>
+            <section class="mobile-work-live-card">
+              <div class="mobile-work-review-tools mobile-work-live-head"><strong>计时记录</strong><span id="mobileWorkEditTimerHint"></span></div>
+              <div id="mobileWorkEditTimerList" class="mobile-work-review-list"></div>
+            </section>
+            <section class="mobile-work-live-card">
+              <div class="mobile-work-review-tools mobile-work-live-head"><strong>计件记录</strong><span id="mobileWorkEditPieceHint"></span></div>
+              <div id="mobileWorkEditPieceList" class="mobile-work-review-list"></div>
+            </section>
+            <section class="mobile-work-live-card">
+              <div class="mobile-work-review-tools mobile-work-live-head"><strong>改动日志</strong><span id="mobileWorkEditLogHint"></span></div>
+              <div id="mobileWorkEditLogList" class="mobile-work-review-list"></div>
+            </section>
+          </section>
 
         <section id="mobileAttendanceModule" class="mobile-work-module" hidden>
           <div class="att-m-bar">
@@ -939,6 +1042,49 @@
       <div class="modal-actions">
         <button id="workTimeEditCancel" class="button ghost" type="button">取消</button>
         <button id="workTimeEditSave" class="button primary" type="button">保存修改</button>
+      </div>
+    </section>
+  </div>
+  <div id="workEntryEditModal" class="modal-backdrop" hidden>
+    <section class="modal-card work-entry-edit-card" role="dialog" aria-modal="true" aria-labelledby="workEntryEditTitle">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow" id="workEntryEditEyebrow">管理员修改</p>
+          <h2 id="workEntryEditTitle">计时记录</h2>
+        </div>
+        <button id="workEntryEditClose" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <p id="workEntryEditHint" class="work-time-edit-hint"></p>
+      <div id="workEntryEditTimeFields" class="form-grid">
+        <label><span>开始时间</span><input id="workEntryEditStart" type="datetime-local"></label>
+        <label><span>结束时间（留空＝计时中）</span><input id="workEntryEditEnd" type="datetime-local"></label>
+        <label><span>备注</span><input id="workEntryEditNote" type="text" placeholder="选填"></label>
+        <label class="work-entry-overtime"><span>加班确认</span><i class="work-entry-check"><input id="workEntryEditOvertime" type="checkbox"><b>这段计入加班（17:30 后按加班价）</b></i></label>
+      </div>
+      <div id="workEntryEditPieceFields" class="form-grid" hidden>
+        <label><span>工作日期</span><input id="workEntryEditDate" type="date"></label>
+        <label><span>料号</span><input id="workEntryEditMaterial" type="text" list="workEditMaterialList" placeholder="如 8745 或 611908745" autocomplete="off"><datalist id="workEditMaterialList"></datalist></label>
+        <label><span>工序</span><input id="workEntryEditProcess" type="text" list="workEditProcessList" placeholder="如 攻丝 / 折弯" autocomplete="off"><datalist id="workEditProcessList"></datalist></label>
+        <label><span>品名</span><input id="workEntryEditName" type="text" placeholder="留空＝按料号自动带出"></label>
+        <label><span>规格</span><input id="workEntryEditSpec" type="text" placeholder="选填，内梁/外梁等以此为准"></label>
+        <label><span>数量</span><input id="workEntryEditQuantity" type="number" min="1" step="1" inputmode="numeric"></label>
+        <label><span>单价（元）</span><input id="workEntryEditPrice" type="number" min="0.0001" step="0.0001" inputmode="decimal"></label>
+        <label><span>状态</span><select id="workEntryEditStatus">
+          <option value="approved" selected>已通过（计入工资）</option>
+          <option value="submitted">待审核（暂不计入工资）</option>
+          <option value="rejected">已退回</option>
+          <option value="revoked">已撤回</option>
+        </select></label>
+        <label><span>金额（自动）</span><input id="workEntryEditAmount" type="text" value="0.00" readonly></label>
+      </div>
+      <div class="form-grid">
+        <label><span>改动原因</span><input id="workEntryEditReason" type="text" placeholder="例如：员工漏报，管理员补记"></label>
+      </div>
+      <div id="workEntryEditError" class="form-error" hidden></div>
+      <div class="modal-actions">
+        <button id="workEntryEditDelete" class="button work-entry-edit-delete" type="button" hidden>删除这条</button>
+        <button id="workEntryEditCancel" class="button ghost" type="button">取消</button>
+        <button id="workEntryEditSave" class="button primary" type="button">保存</button>
       </div>
     </section>
   </div>
@@ -1196,7 +1342,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "bce65763f41d";
+      const fallbackVersion = "f7f7cbe20200";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);

@@ -3614,3 +3614,26 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .photo-viewer-arrow[hidden]{display:none}
 .photo-viewer-counter{margin-top:6px;text-align:center;color:#5d7377;font-size:12px;font-weight:700}
 .photo-viewer-counter[hidden]{display:none}
+
+/* ===== 管理端「报工修改」 ===== */
+.work-edit-lock{display:flex;align-items:center;height:42px;padding:0 12px;border-radius:10px;border:1px solid #cfe6e1;background:#f2fbf8;color:#0f766e;font-size:12px;font-weight:800}
+.work-edit-lock.is-locked{border-color:#f3cfc9;background:#fff4f2;color:#b42318}
+.work-edit-actions{display:flex;gap:10px;margin:12px 0}
+.work-edit-actions .button{flex:1}
+.work-edit-remove{border:1px solid #f0c4c0;background:#fff;color:#b42318;border-radius:8px;padding:0 10px;min-height:32px;font:800 12px/1 inherit;white-space:nowrap;margin-left:6px}
+.work-edit-card{padding:12px 14px}
+.work-edit-card-actions{display:flex;gap:8px;margin-top:10px}
+.work-edit-card-actions button{flex:1;min-height:34px;border:1px solid #b9ddd7;border-radius:9px;background:#fff;color:#0f766e;font:800 12.5px/1 inherit}
+.work-edit-card-actions .work-edit-remove{border-color:#f0c4c0;color:#b42318;margin-left:0}
+.work-entry-edit-card{max-width:640px}
+.work-entry-overtime span{color:#667d82}
+.work-entry-check{display:flex;align-items:center;gap:8px;height:42px;padding:0 12px;border:1px solid #d9e5e4;border-radius:10px;background:#fff;font-style:normal}
+.work-entry-check input{width:16px;height:16px;margin:0}
+.work-entry-check b{font-size:12px;font-weight:700;color:#31565d}
+.work-entry-edit-delete{border:1px solid #f0c4c0;background:#fff;color:#b42318;font-weight:800}
+.work-entry-edit-delete:hover{background:#fff5f4}
+@media (max-width:720px){
+  .work-edit-filters{grid-template-columns:1fr 1fr}
+  .work-edit-stats{grid-template-columns:1fr 1fr}
+  .work-entry-edit-card{max-width:none}
+}

@@ -1887,6 +1887,31 @@ async function markAutoOffset(overId, enabled) {
     await callRpc('board_set_auto_offset', { p_code: getAccessCode(), p_over_id: overId, p_enabled: enabled });
   } catch { /* 云端脚本还没跑时忽略，本地仍然生效 */ }
 }
+// 护栏/护脚栏走邦凡喷涂单，不单独开送货单：这类「冲抵」本身就是已开单，冲完就锁死。
+// 其他品类维持原规则（冲抵后要等开送货单并上传云端才算已开单）。
+const isBangfanExtra = (material, name) => isBangfanName(name) || /^6140/.test(String(material || '').trim());
+async function markBangfanOffsetsBilled(overIds) {
+  const ids = new Set((Array.isArray(overIds) ? overIds : [overIds]).map((value) => String(value || '').trim()).filter(Boolean));
+  if (!ids.size || !RPC_BASE) return;
+  const accessCode = getAccessCode();
+  if (!accessCode) return;
+  const targets = overOffsets()
+    .filter((row) => ids.has(String(row.overId || '').trim()))
+    .filter((row) => isBangfanExtra(row.material, row.name))
+    .filter((row) => !isBilledExtra(row.id));
+  if (!targets.length) return;
+  let marked = 0;
+  for (const row of targets) {
+    try {
+      const result = await callRpc('board_mark_billed', {
+        p_code: accessCode,
+        p_payload: { batch: '', shipmentIds: [], extraIds: [String(row.id)] },
+      });
+      if (result.response.ok) marked += 1;
+    } catch { /* 忽略：下次冲抵/打开页面还会补上 */ }
+  }
+  if (marked) await loadBilledStatus();
+}
 let autoOffsetRunning = false;
 const isBangfanName = (name) => /护栏|护脚栏/.test(String(name || ''));
 let eventSource = null;
@@ -2001,6 +2026,40 @@ const els = {
   mobileWorkReportAmount: $('#mobileWorkReportAmount'),
   mobileWorkReportPending: $('#mobileWorkReportPending'),
   mobileWorkReportList: $('#mobileWorkReportList'),
+  desktopWorkEditLink: $('#desktopWorkEditLink'),
+  desktopWorkEditView: $('#desktopWorkEditView'),
+  desktopWorkEditDate: $('#desktopWorkEditDate'),
+  desktopWorkEditEmployee: $('#desktopWorkEditEmployee'),
+  desktopWorkEditRefresh: $('#desktopWorkEditRefresh'),
+  desktopWorkEditLock: $('#desktopWorkEditLock'),
+  desktopWorkEditTimerCount: $('#desktopWorkEditTimerCount'),
+  desktopWorkEditTimerHours: $('#desktopWorkEditTimerHours'),
+  desktopWorkEditPieceCount: $('#desktopWorkEditPieceCount'),
+  desktopWorkEditPieceAmount: $('#desktopWorkEditPieceAmount'),
+  desktopWorkEditTimerHint: $('#desktopWorkEditTimerHint'),
+  desktopWorkEditPieceHint: $('#desktopWorkEditPieceHint'),
+  desktopWorkEditLogHint: $('#desktopWorkEditLogHint'),
+  desktopWorkEditTimerBody: $('#desktopWorkEditTimerBody'),
+  desktopWorkEditPieceBody: $('#desktopWorkEditPieceBody'),
+  desktopWorkEditLogBody: $('#desktopWorkEditLogBody'),
+  desktopWorkEditTimerEmpty: $('#desktopWorkEditTimerEmpty'),
+  desktopWorkEditPieceEmpty: $('#desktopWorkEditPieceEmpty'),
+  desktopWorkEditLogEmpty: $('#desktopWorkEditLogEmpty'),
+  mobileWorkEditPanel: $('#mobileWorkEditPanel'),
+  mobileWorkEditDate: $('#mobileWorkEditDate'),
+  mobileWorkEditEmployee: $('#mobileWorkEditEmployee'),
+  mobileWorkEditRefresh: $('#mobileWorkEditRefresh'),
+  mobileWorkEditLock: $('#mobileWorkEditLock'),
+  mobileWorkEditTimerCount: $('#mobileWorkEditTimerCount'),
+  mobileWorkEditTimerHours: $('#mobileWorkEditTimerHours'),
+  mobileWorkEditPieceCount: $('#mobileWorkEditPieceCount'),
+  mobileWorkEditPieceAmount: $('#mobileWorkEditPieceAmount'),
+  mobileWorkEditTimerHint: $('#mobileWorkEditTimerHint'),
+  mobileWorkEditPieceHint: $('#mobileWorkEditPieceHint'),
+  mobileWorkEditLogHint: $('#mobileWorkEditLogHint'),
+  mobileWorkEditTimerList: $('#mobileWorkEditTimerList'),
+  mobileWorkEditPieceList: $('#mobileWorkEditPieceList'),
+  mobileWorkEditLogList: $('#mobileWorkEditLogList'),
   mobileWorkLiveSummary: $('#mobileWorkLiveSummary'),
   mobileWorkLiveList: $('#mobileWorkLiveList'),
   desktopWorkReviewLink: $('#desktopWorkReviewLink'),
@@ -4035,6 +4094,7 @@ async function autoOffsetReadyDeliveries() {
   if (!list.length) return;
   autoOffsetRunning = true;
   const done = [];
+  const touchedOvers = [];
   try {
     for (const item of list) {
       let over = item.over;
@@ -4051,6 +4111,7 @@ async function autoOffsetReadyDeliveries() {
         const applied = Number(result.data?.applied || 0);
         if (applied <= 0) break;
         done.push({ material: over.material, quantity: applied });
+        touchedOvers.push(String(over.id || ''));
         over = Object.assign({}, over, { remaining: remaining - applied });
       }
     }
@@ -4064,6 +4125,7 @@ async function autoOffsetReadyDeliveries() {
   autoOffsetNote = `已自动冲抵前期多送：${summary}（不影响送货单）`;
   showToast(autoOffsetNote);
   await loadState({ quiet: true });
+  await markBangfanOffsetsBilled(touchedOvers);
   renderAll();
 }
 
@@ -4934,15 +4996,397 @@ async function revokePieceQuick(id, label) {
     await loadStaffMonth(true);
   } catch (error) { showToast(error.message || '回退失败'); }
 }
+// ===== 管理端「报工修改」：任意日期 新增 / 修改 / 删除 计时与计件 =====
+let workEditDate = '';
+let workEditEmployeeId = '';
+let workEditTimers = [];
+let workEditPieces = [];
+let workEditLogs = [];
+let workEditMonthClosed = false;
+let workEditMode = '';
+let workEditEditingId = '';
+let workEditBusy = false;
+let workEditHistory = null;
+let workEditHistoryEmployeeId = '';
+const WORK_EDIT_ACTION_TEXT = { insert: '新增', update: '修改', delete: '删除' };
+const WORK_EDIT_TAB_LABEL = { report: '报工情况', review: '报工审核', month: '月度报工', edit: '报工修改' };
+
+function workEditEmployeeLabel(id) {
+  const row = (workEmployeesCache || []).find((item) => String(item.id) === String(id));
+  if (!row) return id ? '已选员工' : '未选择员工';
+  return `${row.employeeNo || ''} · ${row.name || ''}`;
+}
+function fillWorkEditEmployeeOptions(rows) {
+  const list = (rows || []).filter((row) => row.track === 'welding' || row.track === 'back');
+  const options = '<option value="">请选择员工</option>' + list.map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.employeeNo || '')} · ${escapeHtml(row.name || '')}</option>`).join('');
+  [els.desktopWorkEditEmployee, els.mobileWorkEditEmployee].forEach((select) => { if (select) select.innerHTML = options; });
+}
+function syncWorkEditControls() {
+  if (!workEditDate) workEditDate = todayShanghai();
+  [els.desktopWorkEditDate, els.mobileWorkEditDate].forEach((input) => { if (input && input.value !== workEditDate) input.value = workEditDate; });
+  [els.desktopWorkEditEmployee, els.mobileWorkEditEmployee].forEach((select) => { if (select) select.value = workEditEmployeeId; });
+  document.querySelectorAll('[data-work-edit-add]').forEach((button) => { button.disabled = !workEditEmployeeId; });
+  const locked = Boolean(workEditEmployeeId) && workEditMonthClosed;
+  const text = !workEditEmployeeId ? '先选员工' : (workEditMonthClosed ? '本月已封账 · 改动会被拒绝' : '未封账 · 可以修改');
+  [els.desktopWorkEditLock, els.mobileWorkEditLock].forEach((box) => {
+    if (!box) return;
+    box.textContent = text;
+    box.classList.toggle('is-locked', locked);
+  });
+}
+function renderWorkEdit() {
+  const timersRaw = Array.isArray(workEditTimers) ? workEditTimers : [];
+  const pieces = Array.isArray(workEditPieces) ? workEditPieces : [];
+  const logs = Array.isArray(workEditLogs) ? workEditLogs : [];
+  const timers = timersRaw.slice().sort((a, b) => String(a.startedAt || '').localeCompare(String(b.startedAt || '')));
+  const timerMinutes = timers.reduce((sum, entry) => sum + Number(entry.minutes || 0), 0);
+  const pieceAmount = pieces.filter((row) => row.status === 'approved').reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const setText = (el, value) => { if (el) el.textContent = value; };
+  setText(els.desktopWorkEditTimerCount, fmt(timers.length));
+  setText(els.mobileWorkEditTimerCount, fmt(timers.length));
+  setText(els.desktopWorkEditTimerHours, (timerMinutes / 60).toFixed(1));
+  setText(els.mobileWorkEditTimerHours, (timerMinutes / 60).toFixed(1));
+  setText(els.desktopWorkEditPieceCount, fmt(pieces.length));
+  setText(els.mobileWorkEditPieceCount, fmt(pieces.length));
+  setText(els.desktopWorkEditPieceAmount, workReviewMoney(pieceAmount, 2));
+  setText(els.mobileWorkEditPieceAmount, workReviewMoney(pieceAmount, 2));
+  const head = workEditEmployeeId ? `${workEditEmployeeLabel(workEditEmployeeId)} · ${workEditDate || ''}` : '';
+  setText(els.desktopWorkEditTimerHint, head ? `${head} · 共 ${timers.length} 段计时` : '选择员工后显示当天全部计时记录。');
+  setText(els.desktopWorkEditPieceHint, head ? `${head} · 共 ${pieces.length} 笔计件` : '选择员工后显示当天全部计件申报。');
+  setText(els.desktopWorkEditLogHint, workEditDate ? `${workEditDate} 的管理端改动记录` : '所选日期的管理端改动记录。');
+  setText(els.mobileWorkEditTimerHint, `${timers.length} 段`);
+  setText(els.mobileWorkEditPieceHint, `${pieces.length} 笔`);
+  setText(els.mobileWorkEditLogHint, `${logs.length} 条`);
+
+  const timerRowHtml = (entry) => {
+    const closed = entry.status === 'closed' || Boolean(entry.endedAt);
+    return `<tr>
+      <td>${escapeHtml(workTimelineTime(entry.startedAt))}<small>${escapeHtml(entry.workDate || workEditDate || '')}</small></td>
+      <td>${entry.endedAt ? escapeHtml(workTimelineTime(entry.endedAt)) : '<b>计时中</b>'}</td>
+      <td class="number">${fmt(entry.minutes)} 分</td>
+      <td>${closed ? '已完成' : '计时中'}${entry.overtimeConfirmed ? '<small>已确认加班</small>' : ''}</td>
+      <td>${escapeHtml(entry.note || '')}</td>
+      <td><button class="work-report-action" type="button" data-work-edit-time="${escapeHtml(entry.id)}">修改</button><button class="work-edit-remove" type="button" data-work-edit-time-del="${escapeHtml(entry.id)}">删除</button></td>
+    </tr>`;
+  };
+  const pieceRowHtml = (row) => `<tr>
+    <td><b>${escapeHtml(row.material || '（无料号）')}</b></td>
+    <td>${escapeHtml(row.name || '')}<small>${escapeHtml(row.spec || '')}</small></td>
+    <td>${escapeHtml(row.process || '')}${row.variantLabel ? `<small>${escapeHtml(row.variantLabel)}</small>` : ''}</td>
+    <td class="number">${fmt(row.quantity)}</td>
+    <td class="number">${row.unitPrice != null ? workReviewMoney(row.unitPrice) : '--'}</td>
+    <td class="number">${workReviewMoney(row.amount, 2)}</td>
+    <td><span class="review-status ${escapeHtml(row.status || '')}">${escapeHtml(workReviewStatusText(row.status))}</span></td>
+    <td><button class="work-report-action" type="button" data-work-edit-piece="${escapeHtml(row.id)}">修改</button><button class="work-edit-remove" type="button" data-work-edit-piece-del="${escapeHtml(row.id)}">删除</button></td>
+  </tr>`;
+  const logRowHtml = (log) => `<tr>
+    <td>${escapeHtml(String(log.createdAt || '').slice(5, 16).replace('T', ' '))}</td>
+    <td>${escapeHtml(log.employeeName || '')}<small>${escapeHtml(log.employeeNo || '')}</small></td>
+    <td>${log.kind === 'time' ? '计时' : '计件'}</td>
+    <td>${escapeHtml(WORK_EDIT_ACTION_TEXT[log.action] || log.action || '')}</td>
+    <td>${escapeHtml(log.reason || '')}</td>
+  </tr>`;
+
+  if (els.desktopWorkEditTimerBody) els.desktopWorkEditTimerBody.innerHTML = timers.map(timerRowHtml).join('');
+  if (els.desktopWorkEditPieceBody) els.desktopWorkEditPieceBody.innerHTML = pieces.map(pieceRowHtml).join('');
+  if (els.desktopWorkEditLogBody) els.desktopWorkEditLogBody.innerHTML = logs.map(logRowHtml).join('');
+  if (els.desktopWorkEditTimerEmpty) els.desktopWorkEditTimerEmpty.hidden = timers.length > 0 || !workEditEmployeeId;
+  if (els.desktopWorkEditPieceEmpty) els.desktopWorkEditPieceEmpty.hidden = pieces.length > 0 || !workEditEmployeeId;
+  if (els.desktopWorkEditLogEmpty) els.desktopWorkEditLogEmpty.hidden = logs.length > 0;
+
+  const emptyCard = (text) => `<div class="empty-state"><strong>${escapeHtml(text)}</strong><span>可以点上方按钮新增，或换日期看看。</span></div>`;
+  if (els.mobileWorkEditTimerList) {
+    els.mobileWorkEditTimerList.innerHTML = timers.length ? timers.map((entry) => `<article class="mobile-review-card work-edit-card">
+      <div><strong>${escapeHtml(workTimelineTime(entry.startedAt))} → ${entry.endedAt ? escapeHtml(workTimelineTime(entry.endedAt)) : '计时中'}</strong><span>${fmt(entry.minutes)} 分</span></div>
+      <p>${entry.status === 'closed' || entry.endedAt ? '已完成' : '计时中'}${entry.overtimeConfirmed ? ' · 已确认加班' : ''}${entry.note ? ' · ' + escapeHtml(entry.note) : ''}</p>
+      <div class="work-edit-card-actions"><button type="button" data-work-edit-time="${escapeHtml(entry.id)}">修改</button><button type="button" class="work-edit-remove" data-work-edit-time-del="${escapeHtml(entry.id)}">删除</button></div>
+    </article>`).join('') : (workEditEmployeeId ? emptyCard('当天没有计时记录') : emptyCard('请先选择员工'));
+  }
+  if (els.mobileWorkEditPieceList) {
+    els.mobileWorkEditPieceList.innerHTML = pieces.length ? pieces.map((row) => `<article class="mobile-review-card work-edit-card">
+      <div><span class="review-status ${escapeHtml(row.status || '')}">${escapeHtml(workReviewStatusText(row.status))}</span><span>${escapeHtml(row.process || '')}</span></div>
+      <h3>${escapeHtml(row.material || '（无料号）')} · ${escapeHtml(row.name || '')}</h3>
+      <p>${fmt(row.quantity)} 件 × ${row.unitPrice != null ? workReviewMoney(row.unitPrice) : '--'} 元 = ${workReviewMoney(row.amount, 2)} 元</p>
+      <div class="work-edit-card-actions"><button type="button" data-work-edit-piece="${escapeHtml(row.id)}">修改</button><button type="button" class="work-edit-remove" data-work-edit-piece-del="${escapeHtml(row.id)}">删除</button></div>
+    </article>`).join('') : (workEditEmployeeId ? emptyCard('当天没有计件记录') : emptyCard('请先选择员工'));
+  }
+  if (els.mobileWorkEditLogList) {
+    els.mobileWorkEditLogList.innerHTML = logs.length ? logs.map((log) => `<article class="mobile-review-card work-edit-card">
+      <div><strong>${escapeHtml(log.employeeName || '')}</strong><span>${escapeHtml(String(log.createdAt || '').slice(5, 16).replace('T', ' '))}</span></div>
+      <p>${log.kind === 'time' ? '计时' : '计件'} · ${escapeHtml(WORK_EDIT_ACTION_TEXT[log.action] || log.action || '')}${log.reason ? ' · ' + escapeHtml(log.reason) : ''}</p>
+    </article>`).join('') : '<div class="empty-state"><strong>还没有改动记录</strong></div>';
+  }
+}
+async function loadWorkEdit(force = false) {
+  if (boardRole !== 'admin') return;
+  try { fillWorkEditEmployeeOptions(await loadWorkEmployees()); } catch (error) {}
+  syncWorkEditControls();
+  if (!workEditEmployeeId) {
+    workEditTimers = [];
+    workEditPieces = [];
+    workEditLogs = [];
+    workEditMonthClosed = false;
+    renderWorkEdit();
+    return;
+  }
+  if (workEditBusy) return;
+  workEditBusy = true;
+  const day = workEditDate || todayShanghai();
+  try {
+    const [timers, pieces, logs, timeline] = await Promise.all([
+      callRpc('work_admin_time_entries', { p_code:getAccessCode(), p_date:day, p_employee_id:workEditEmployeeId }),
+      callRpc('work_admin_report_list', { p_code:getAccessCode(), p_date:day, p_employee_id:workEditEmployeeId, p_status:'all', p_query:'', p_limit:500 }),
+      callRpc('work_admin_edit_logs', { p_code:getAccessCode(), p_date:day, p_limit:200 }).catch(() => null),
+      callRpc('work_admin_piece_timeline', { p_code:getAccessCode(), p_employee_id:workEditEmployeeId, p_date:day }).catch(() => null),
+    ]);
+    if (!timers.response.ok) throw new Error(timers.data?.error || '计时记录加载失败');
+    if (!pieces.response.ok) throw new Error(pieces.data?.error || '计件记录加载失败');
+    workEditTimers = Array.isArray(timers.data) ? timers.data : [];
+    workEditPieces = Array.isArray(pieces.data) ? pieces.data : (pieces.data?.rows || []);
+    workEditLogs = logs && logs.response && logs.response.ok && Array.isArray(logs.data) ? logs.data : [];
+    workEditMonthClosed = Boolean(timeline && timeline.response && timeline.response.ok && timeline.data && timeline.data.monthClosed);
+    renderWorkEdit();
+    syncWorkEditControls();
+  } catch (error) {
+    workEditTimers = [];
+    workEditPieces = [];
+    workEditLogs = [];
+    renderWorkEdit();
+    showToast(error.message || '报工修改数据加载失败');
+  } finally {
+    workEditBusy = false;
+  }
+}
+async function loadWorkEditHistory() {
+  if (!workEditEmployeeId) {
+    workEditHistory = null;
+    workEditHistoryEmployeeId = '';
+    return;
+  }
+  if (workEditHistoryEmployeeId === workEditEmployeeId && Array.isArray(workEditHistory)) return;
+  try {
+    const result = await callRpc('work_admin_employee_piece_history', { p_code:getAccessCode(), p_employee_id:workEditEmployeeId, p_days:31 });
+    workEditHistory = result.response.ok && result.data && Array.isArray(result.data.entries) ? result.data.entries : [];
+  } catch (error) {
+    workEditHistory = [];
+  }
+  workEditHistoryEmployeeId = workEditEmployeeId;
+}
+function refreshWorkEditSuggestions() {
+  const entries = Array.isArray(workEditHistory) ? workEditHistory : [];
+  const materials = [...new Set(entries.map((row) => String(row.material || '').trim()).filter(Boolean))];
+  const processes = [...new Set(entries.map((row) => String(row.process || '').trim()).filter(Boolean))];
+  const matList = document.getElementById('workEditMaterialList');
+  const proList = document.getElementById('workEditProcessList');
+  if (matList) matList.innerHTML = materials.map((value) => `<option value="${escapeHtml(value)}"></option>`).join('');
+  if (proList) proList.innerHTML = processes.map((value) => `<option value="${escapeHtml(value)}"></option>`).join('');
+}
+function workEditHistoryMatch(material, process) {
+  const entries = Array.isArray(workEditHistory) ? workEditHistory : [];
+  const key = String(material || '').trim();
+  if (!key) return null;
+  const same = entries.filter((row) => String(row.material || '').trim() === key);
+  if (!same.length) return null;
+  const wanted = String(process || '').trim();
+  if (wanted) {
+    const exact = same.find((row) => String(row.process || '').trim() === wanted);
+    if (exact) return exact;
+  }
+  return same[0];
+}
+function workEditModalEl(id) {
+  return document.getElementById(id);
+}
+function calcWorkEditAmount() {
+  const quantity = Number(workEditModalEl('workEntryEditQuantity')?.value || 0);
+  const price = Number(workEditModalEl('workEntryEditPrice')?.value || 0);
+  const box = workEditModalEl('workEntryEditAmount');
+  if (box) box.value = quantity > 0 && price > 0 ? (Math.round(quantity * price * 100) / 100).toFixed(2) : '0.00';
+}
+function autofillWorkEditPiece(force = false) {
+  const materialEl = workEditModalEl('workEntryEditMaterial');
+  const processEl = workEditModalEl('workEntryEditProcess');
+  if (!materialEl) return;
+  const match = workEditHistoryMatch(materialEl.value, processEl ? processEl.value : '');
+  if (!match) return;
+  const nameEl = workEditModalEl('workEntryEditName');
+  const priceEl = workEditModalEl('workEntryEditPrice');
+  if (nameEl && (force || !nameEl.value.trim())) nameEl.value = match.name || '';
+  if (priceEl && (force || !priceEl.value.trim())) priceEl.value = match.unitPrice != null ? String(match.unitPrice) : '';
+  if (processEl && !processEl.value.trim() && match.process) processEl.value = match.process;
+  calcWorkEditAmount();
+}
+function openWorkEditEditor(mode, id = '') {
+  if (boardRole !== 'admin') { showToast('只对管理员开放'); return; }
+  if (!workEditEmployeeId) { showToast('请先选择员工'); return; }
+  const modal = workEditModalEl('workEntryEditModal');
+  if (!modal) return;
+  workEditMode = mode === 'piece' ? 'piece' : 'time';
+  workEditEditingId = id || '';
+  const isPiece = workEditMode === 'piece';
+  const timer = isPiece ? null : (workEditTimers || []).find((row) => String(row.id) === String(id));
+  const piece = isPiece ? (workEditPieces || []).find((row) => String(row.id) === String(id)) : null;
+  if (id && isPiece && !piece) { showToast('找不到这条计件记录，请刷新后重试'); return; }
+  if (id && !isPiece && !timer) { showToast('找不到这条计时记录，请刷新后重试'); return; }
+  const setValue = (fieldId, value) => { const el = workEditModalEl(fieldId); if (el) el.value = value == null ? '' : value; };
+  const show = (fieldId, visible) => { const el = workEditModalEl(fieldId); if (el) el.hidden = !visible; };
+  const errEl = workEditModalEl('workEntryEditError');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  show('workEntryEditTimeFields', !isPiece);
+  show('workEntryEditPieceFields', isPiece);
+  show('workEntryEditDelete', Boolean(workEditEditingId));
+  setValue('workEntryEditReason', '');
+  const title = workEditModalEl('workEntryEditTitle');
+  const eyebrow = workEditModalEl('workEntryEditEyebrow');
+  const hint = workEditModalEl('workEntryEditHint');
+  if (eyebrow) eyebrow.textContent = `${workEditEmployeeLabel(workEditEmployeeId)} · ${workEditDate || ''}`;
+  if (isPiece) {
+    if (title) title.textContent = workEditEditingId ? '修改计件报工' : '新增计件报工';
+    setValue('workEntryEditDate', piece ? (piece.workDate || workEditDate) : workEditDate);
+    setValue('workEntryEditMaterial', piece ? (piece.material || '') : '');
+    setValue('workEntryEditProcess', piece ? (piece.process || '') : '');
+    setValue('workEntryEditName', piece ? (piece.name || '') : '');
+    setValue('workEntryEditSpec', piece ? (piece.spec || '') : '');
+    setValue('workEntryEditQuantity', piece ? piece.quantity : '');
+    setValue('workEntryEditPrice', piece && piece.unitPrice != null ? piece.unitPrice : '');
+    setValue('workEntryEditStatus', piece && piece.status ? piece.status : 'approved');
+    calcWorkEditAmount();
+    if (hint) hint.textContent = workEditEditingId
+      ? '改完直接生效：数量 × 单价 = 金额，状态决定是否计入工资。'
+      : '料号要能在产品库里对上，工序名称要能对上；保存后立即计入对应状态。';
+    loadWorkEditHistory().then(() => { refreshWorkEditSuggestions(); autofillWorkEditPiece(true); }).catch(() => {});
+  } else {
+    if (title) title.textContent = workEditEditingId ? '修改计时记录' : '新增计时记录';
+    setValue('workEntryEditStart', timer ? workTimeLocalInput(timer.startedAt) : `${workEditDate || todayShanghai()}T07:30`);
+    setValue('workEntryEditEnd', timer ? workTimeLocalInput(timer.endedAt) : '');
+    setValue('workEntryEditNote', timer ? (timer.note || '') : '');
+    const overtimeEl = workEditModalEl('workEntryEditOvertime');
+    if (overtimeEl) overtimeEl.checked = timer ? Boolean(timer.overtimeConfirmed) : false;
+    if (hint) hint.textContent = workEditEditingId
+      ? `当前 ${fmt(timer.minutes)} 分钟（结束时间留空＝继续保持「计时中」）`
+      : '默认 07:30 开始；结束时间留空就是「计时中」。';
+  }
+  modal.hidden = false;
+}
+function closeWorkEditEditor() {
+  workEditMode = '';
+  workEditEditingId = '';
+  const modal = workEditModalEl('workEntryEditModal');
+  if (modal) modal.hidden = true;
+}
+function workEditFail(message) {
+  const errEl = workEditModalEl('workEntryEditError');
+  if (errEl) { errEl.textContent = message; errEl.hidden = false; }
+  showToast(message);
+}
+async function saveWorkEditEntry() {
+  if (!workEditEditingId && !workEditMode) return;
+  const isPiece = workEditMode === 'piece';
+  const errEl = workEditModalEl('workEntryEditError');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  const reasonEl = workEditModalEl('workEntryEditReason');
+  const reason = (reasonEl ? reasonEl.value : '').trim();
+  try {
+    let result = null;
+    if (isPiece) {
+      const material = (workEditModalEl('workEntryEditMaterial')?.value || '').trim();
+      const processName = (workEditModalEl('workEntryEditProcess')?.value || '').trim();
+      const quantity = Number(workEditModalEl('workEntryEditQuantity')?.value || 0);
+      const price = Number(workEditModalEl('workEntryEditPrice')?.value || 0);
+      const date = (workEditModalEl('workEntryEditDate')?.value || workEditDate || '').trim();
+      if (!material) throw new Error('请填写料号');
+      if (!processName) throw new Error('请填写工序');
+      if (!date) throw new Error('请选择工作日期');
+      if (!(quantity > 0) || quantity !== Math.floor(quantity)) throw new Error('数量必须是大于 0 的整数');
+      if (!(price > 0)) throw new Error('单价必须大于 0');
+      const payload = {
+        p_code: getAccessCode(),
+        p_employee_id: workEditEmployeeId,
+        p_work_date: date,
+        p_material: material,
+        p_process_name: processName,
+        p_quantity: quantity,
+        p_unit_price: price,
+        p_status: workEditModalEl('workEntryEditStatus')?.value || 'approved',
+        p_name: (workEditModalEl('workEntryEditName')?.value || '').trim(),
+        p_spec: (workEditModalEl('workEntryEditSpec')?.value || '').trim(),
+        p_reason: reason || '管理员修改报工',
+      };
+      if (workEditEditingId) payload.p_id = workEditEditingId;
+      result = await callRpc('work_admin_save_piece_entry', payload);
+      if (date !== workEditDate) workEditDate = date;
+    } else {
+      const startValue = workEditModalEl('workEntryEditStart')?.value || '';
+      const endValue = workEditModalEl('workEntryEditEnd')?.value || '';
+      if (!startValue) throw new Error('请填写开始时间');
+      const toIso = (value) => {
+        const date = new Date(`${value}:00+08:00`);
+        if (Number.isNaN(date.getTime())) throw new Error('时间格式不正确');
+        return date.toISOString();
+      };
+      const payload = {
+        p_code: getAccessCode(),
+        p_employee_id: workEditEmployeeId,
+        p_started_at: toIso(startValue),
+        p_ended_at: endValue ? toIso(endValue) : null,
+        p_reason: reason || '管理员修改计时',
+        p_overtime_confirmed: Boolean(workEditModalEl('workEntryEditOvertime')?.checked),
+      };
+      if (workEditEditingId) payload.p_id = workEditEditingId;
+      result = await callRpc('work_admin_save_time_entry', payload);
+      if (result && result.response && result.response.status === 404) {
+        const fallback = { ...payload };
+        delete fallback.p_overtime_confirmed;
+        result = await callRpc('work_admin_save_time_entry', fallback);
+        if (result.response.ok) showToast('已保存；加班确认需要先执行新版 SQL', 6000);
+      }
+      workEditDate = startValue.slice(0, 10) || workEditDate;
+    }
+    if (!result || !result.response.ok) throw new Error(result?.data?.error || result?.data?.message || '保存失败');
+    showToast(isPiece ? '计件报工已保存' : '计时记录已保存');
+    closeWorkEditEditor();
+    syncWorkEditControls();
+    await loadWorkEdit(true);
+  } catch (error) {
+    workEditFail(error.message || '保存失败');
+  }
+}
+async function deleteWorkEditEntry(mode, id) {
+  if (!id) return;
+  const isPiece = mode === 'piece';
+  const timer = isPiece ? null : (workEditTimers || []).find((row) => String(row.id) === String(id));
+  const piece = isPiece ? (workEditPieces || []).find((row) => String(row.id) === String(id)) : null;
+  const label = isPiece
+    ? `${piece?.material || ''} ${piece?.process || ''} ${piece && piece.quantity != null ? fmt(piece.quantity) + ' 件' : ''}`.trim()
+    : `${workTimelineTime(timer?.startedAt)} → ${timer?.endedAt ? workTimelineTime(timer.endedAt) : '计时中'}`;
+  const reason = window.prompt(`确认删除这条${isPiece ? '计件' : '计时'}记录？\n${label}\n删除后不计工资，但会留下日志。\n\n请填写删除原因：`, '管理员核对后删除');
+  if (reason === null) return;
+  if (!String(reason).trim()) { showToast('必须填写删除原因'); return; }
+  try {
+    const result = isPiece
+      ? await callRpc('work_admin_delete_piece_entry', { p_code:getAccessCode(), p_id:id, p_reason:String(reason).trim() })
+      : await callRpc('work_admin_delete_time_entry', { p_code:getAccessCode(), p_id:id, p_reason:String(reason).trim() });
+    if (!result.response.ok) throw new Error(result.data?.error || result.data?.message || '删除失败');
+    showToast(isPiece ? '已删除该计件报工' : '已删除该计时记录');
+    closeWorkEditEditor();
+    await loadWorkEdit(true);
+  } catch (error) {
+    workEditFail(error.message || '删除失败');
+  }
+}
 function switchMobileWorkTab(tab) {
-  mobileWorkTab = tab === 'review' ? 'review' : (tab === 'month' ? 'month' : 'report');
+  mobileWorkTab = ['review', 'month', 'edit'].includes(tab) ? tab : 'report';
   document.querySelectorAll('[data-mobile-work-tab]').forEach((button) => button.classList.toggle('active', button.dataset.mobileWorkTab === mobileWorkTab));
   if (els.mobileWorkReportPanel) els.mobileWorkReportPanel.hidden = mobileWorkTab !== 'report';
   if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = mobileWorkTab !== 'review';
+  if (els.mobileWorkEditPanel) els.mobileWorkEditPanel.hidden = mobileWorkTab !== 'edit';
   const staffMonthPanel = document.getElementById('mobileStaffMonthPanel');
   if (staffMonthPanel) staffMonthPanel.hidden = mobileWorkTab !== 'month';
+  const moduleLabel = document.getElementById('mobileBrandModule');
+  if (moduleLabel && mobileModule === 'workReview') moduleLabel.textContent = WORK_EDIT_TAB_LABEL[mobileWorkTab] || '报工情况';
   if (mobileWorkTab === 'month') loadStaffMonth().catch(() => {});
-  if (mobileWorkTab === 'report') loadWorkReportWorkspace().catch(() => {});
+  else if (mobileWorkTab === 'edit') loadWorkEdit().catch(() => {});
+  else if (mobileWorkTab === 'report') loadWorkReportWorkspace().catch(() => {});
   else loadWorkReviews().catch(() => {});
 }
 function setDesktopModule(module, view = '') {
@@ -4962,10 +5406,11 @@ function setDesktopModule(module, view = '') {
     els.moduleSwitchButton.setAttribute('aria-label', boardRole === 'admin' ? '切换模块' : '帆顺科技');
   }
   if (els.moduleSwitchLabel) {
+    const moduleViewText = String(view || desktopView || '');
     els.moduleSwitchLabel.textContent = desktopModule === 'attendance'
       ? '考勤管理'
       : desktopModule === 'work'
-        ? (String(view || '').includes('Review') || (!view && String(desktopView).includes('Review')) ? '报工审核' : '报工情况')
+        ? (moduleViewText.includes('Edit') ? '报工修改' : (moduleViewText.includes('Review') ? '报工审核' : '报工情况'))
         : '装车登记';
   }
   if (desktopModule === 'attendance') showDesktopView(view || 'attendance');
@@ -5407,6 +5852,7 @@ function renderMobileModule() {
   } else {
     if (els.mobileWorkReportPanel) els.mobileWorkReportPanel.hidden = true;
     if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = true;
+    if (els.mobileWorkEditPanel) els.mobileWorkEditPanel.hidden = true;
   }
 }
 function switchMobileModule(module) {
@@ -5419,6 +5865,7 @@ function switchMobileModule(module) {
     renderMobileModule();
   } else {
     if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = true;
+    if (els.mobileWorkEditPanel) els.mobileWorkEditPanel.hidden = true;
     if (els.mobileAttendanceModule) els.mobileAttendanceModule.hidden = true;
     switchMobileTab('entry');
   }
@@ -5426,7 +5873,7 @@ function switchMobileModule(module) {
 }
 // 电脑端两个页面：实时总览 / 发货记录
 function showDesktopView(name) {
-  if ((name === 'workReview' || name === 'attendance') && boardRole !== 'admin') {
+  if ((name === 'workReview' || name === 'workEdit' || name === 'attendance') && boardRole !== 'admin') {
     showToast('只对管理员开放');
     name = 'overview';
   }
@@ -5439,6 +5886,7 @@ function showDesktopView(name) {
     loading: document.getElementById('desktopLoadingView'),
     workReport: document.getElementById('desktopWorkReportView'),
     workReview: document.getElementById('desktopWorkReviewView'),
+    workEdit: document.getElementById('desktopWorkEditView'),
     attendance: document.getElementById('desktopAttendanceView'),
   };
   if (!pages.overview || !pages.shipments) return;
@@ -5457,6 +5905,7 @@ function showDesktopView(name) {
   if (target === 'loading') renderDesktopLoading();
   if (target === 'workReport') loadWorkReportWorkspace().catch(() => {});
   if (target === 'workReview') loadWorkReviews().catch(() => {});
+  if (target === 'workEdit') loadWorkEdit(true).catch(() => {});
   if (target === 'attendance') loadAttendance().catch(() => {});
   window.scrollTo({ top: 0 });
   refreshElasticTabs();
@@ -9266,6 +9715,70 @@ if (els.mobileWorkReportRefresh) els.mobileWorkReportRefresh.addEventListener('c
   });
 });
 document.querySelectorAll('[data-mobile-work-tab]').forEach((button) => button.addEventListener('click', () => switchMobileWorkTab(button.dataset.mobileWorkTab)));
+
+// ===== 报工修改：事件 =====
+[els.desktopWorkEditDate, els.mobileWorkEditDate].forEach((input) => {
+  if (!input) return;
+  input.addEventListener('change', (event) => {
+    workEditDate = event.target.value || todayShanghai();
+    syncWorkEditControls();
+    loadWorkEdit(true).catch(() => {});
+  });
+});
+[els.desktopWorkEditEmployee, els.mobileWorkEditEmployee].forEach((select) => {
+  if (!select) return;
+  select.addEventListener('change', (event) => {
+    workEditEmployeeId = event.target.value;
+    workEditTimers = [];
+    workEditPieces = [];
+    workEditLogs = [];
+    workEditMonthClosed = false;
+    workEditHistory = null;
+    workEditHistoryEmployeeId = '';
+    syncWorkEditControls();
+    renderWorkEdit();
+    if (!workEditEmployeeId) return;
+    loadWorkEditHistory().then(() => { refreshWorkEditSuggestions(); }).catch(() => {});
+    loadWorkEdit(true).catch(() => {});
+  });
+});
+[els.desktopWorkEditRefresh, els.mobileWorkEditRefresh].forEach((button) => {
+  if (button) button.addEventListener('click', () => { loadWorkEdit(true).catch(() => {}); });
+});
+const workEditLogRefreshButton = document.getElementById('desktopWorkEditLogRefresh');
+if (workEditLogRefreshButton) workEditLogRefreshButton.addEventListener('click', () => { loadWorkEdit(true).catch(() => {}); });
+document.addEventListener('click', (event) => {
+  const target = event.target;
+  if (!target || !target.closest) return;
+  const addButton = target.closest('[data-work-edit-add]');
+  if (addButton) { openWorkEditEditor(addButton.dataset.workEditAdd); return; }
+  const editTimer = target.closest('[data-work-edit-time]');
+  if (editTimer) { openWorkEditEditor('time', editTimer.dataset.workEditTime); return; }
+  const editPiece = target.closest('[data-work-edit-piece]');
+  if (editPiece) { openWorkEditEditor('piece', editPiece.dataset.workEditPiece); return; }
+  const removeTimer = target.closest('[data-work-edit-time-del]');
+  if (removeTimer) { deleteWorkEditEntry('time', removeTimer.dataset.workEditTimeDel).catch(() => {}); return; }
+  const removePiece = target.closest('[data-work-edit-piece-del]');
+  if (removePiece) { deleteWorkEditEntry('piece', removePiece.dataset.workEditPieceDel).catch(() => {}); return; }
+});
+[['workEntryEditClose', closeWorkEditEditor], ['workEntryEditCancel', closeWorkEditEditor]].forEach(([id, handler]) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('click', handler);
+});
+const workEntryEditSaveButton = document.getElementById('workEntryEditSave');
+if (workEntryEditSaveButton) workEntryEditSaveButton.addEventListener('click', () => { saveWorkEditEntry().catch(() => {}); });
+const workEntryEditDeleteButton = document.getElementById('workEntryEditDelete');
+if (workEntryEditDeleteButton) workEntryEditDeleteButton.addEventListener('click', () => { deleteWorkEditEntry(workEditMode, workEditEditingId).catch(() => {}); });
+const workEntryEditModalEl = document.getElementById('workEntryEditModal');
+if (workEntryEditModalEl) workEntryEditModalEl.addEventListener('click', (event) => { if (event.target === workEntryEditModalEl) closeWorkEditEditor(); });
+['workEntryEditQuantity', 'workEntryEditPrice'].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', calcWorkEditAmount);
+});
+['workEntryEditMaterial', 'workEntryEditProcess'].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', () => autofillWorkEditPiece());
+});
 if (els.desktopWorkReviewStatus) els.desktopWorkReviewStatus.addEventListener('change', (event) => loadWorkReviews(event.target.value));
 if (els.mobileWorkReviewStatus) els.mobileWorkReviewStatus.addEventListener('change', (event) => loadWorkReviews(event.target.value));
 if (els.desktopWorkReviewRefresh) els.desktopWorkReviewRefresh.addEventListener('click', () => loadWorkReviews(workReviewStatus));
@@ -9442,6 +9955,7 @@ async function handleOffsetOverClick(event) {
     await markAutoOffset(overId, true);
     showToast(`已冲抵 ${fmt(applied)} 件到 ${target.po} 项次${target.seq}`);
     await loadState({ quiet: true });
+    await markBangfanOffsetsBilled([overId]);
     renderAll();
   } catch (error) {
     showToast(error.message || '冲抵失败');
