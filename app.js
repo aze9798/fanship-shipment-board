@@ -1405,7 +1405,20 @@ async function persistUnit(unit) {
     },
   });
   if (!result.response.ok) throw new Error(result.data?.message || '装车单元保存失败');
-  return { ...unit, ...meta, fileName };
+  const saved = { ...unit, ...meta, fileName, id: result.data?.id || unit.id || '' };
+  upsertLocalUnit(saved);   // 立刻反映到界面，避免装车单元慢半拍
+  return saved;
+}
+
+// 把装车单元写进本地快照（新增或覆盖），界面立刻能看到/消失
+function upsertLocalUnit(unit) {
+  if (!snapshot || !unit) return;
+  if (!Array.isArray(snapshot.shipmentUnits)) snapshot.shipmentUnits = [];
+  const key = String(unit.unitId || unit.id || '');
+  const list = snapshot.shipmentUnits;
+  const index = list.findIndex((row) => String(row.unitId || row.id || '') === key);
+  if (index >= 0) list[index] = { ...list[index], ...unit };
+  else list.push(unit);
 }
 
 async function updateShipmentUnit(unit, patch = {}) {
@@ -1709,7 +1722,8 @@ async function markLoadedUnitsShipped(shipmentId, shipmentMemberKeys = null) {
   const memberKeys = shipmentMemberKeys instanceof Set ? shipmentMemberKeys : new Set(shipmentMemberKeys || []);
   // 标记条件：本次点过“整组装车”，或者单元成员全部出现在本次发货明细里。
   const targets = shipmentUnits().filter((row) => {
-    if (row.status !== 'loaded') return false;
+    const status = String(row.status || 'ready');
+    if (status === 'shipped' || status === 'archived') return false;
     if (sessionUnitIds.has(String(row.unitId))) return true;
     const unitKeys = (row.members || []).map((member) => String(member.planId || member.orderId || '').trim()).filter(Boolean);
     if (!unitKeys.length || !memberKeys.size) return false;
@@ -8461,6 +8475,9 @@ async function submitShipment() {
     }
     const sessionPhotoFileNames = new Set(sessionPhotos.map((photo) => String(photo.fileName || '')));
     await markLoadedUnitsShipped(shipmentId, shipmentMemberKeys);
+    // 本次发货后重新允许清理，保证已发货的单元立刻从装车清单消失
+    invalidUnitsCleanupDone = false;
+    orphanLoadedUnitCleanupDone = false;
     selected.clear();
     els.shipmentForm.reset();
     closeSubmitModal();
