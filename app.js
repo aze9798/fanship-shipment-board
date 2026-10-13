@@ -5960,6 +5960,8 @@ function shipmentDisplayBatch(shipment) {
     return '历史已开单';
   }
   if (explicit) return explicit;
+  // 云端没标记“已开单”的，一律按未开单显示，不能因为当天上传过一张单就算已开
+  if (!isBilledShipment(shipment?.id)) return '';
   const date = shipShanghaiDate(shipment?.createdAt);
   const company = shipmentCompany(shipment);
   const assignedBatches = new Set((snapshot?.shipments || [])
@@ -6297,6 +6299,8 @@ function deliveryItemCompany(item, shipment) {
 function shipmentBatchForCompany(shipment, company) {
   const explicit = deliveryBatchText(shipment?.deliveryBatch);
   if (explicit && explicit !== '历史已开单') return explicit;
+  // 云端没标记“已开单”的，一律按未开单显示，不能因为当天上传过一张单就算已开
+  if (!explicit && !isBilledShipment(shipment?.id)) return '';
   const day = shipShanghaiDate(shipment?.createdAt);
   const at = Date.parse(String(shipment?.createdAt || '')) || 0;
   const files = (snapshot?.deliveryFiles || [])
@@ -6412,7 +6416,12 @@ function buildDeliveryGroups(shipments, queryText = '') {
         group.total = group.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
         return group;
       })
-      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+      .sort((a, b) => {
+        // 未开单的排最前面，方便先开单
+        const billedDiff = Number(Boolean(a.billed)) - Number(Boolean(b.billed));
+        if (billedDiff) return billedDiff;
+        return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+      });
   }
   const map = new Map();
   const ensureGroup = (key, options = {}) => {
@@ -6504,7 +6513,12 @@ function buildDeliveryGroups(shipments, queryText = '') {
     group.items = [...merged.values()];
     group.total = group.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
     return group;
-  }).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  }).sort((a, b) => {
+    // 未开单的排最前面，方便先开单
+    const billedDiff = Number(Boolean(a.billed)) - Number(Boolean(b.billed));
+    if (billedDiff) return billedDiff;
+    return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+  });
 }
 function qtyEditButtonHtml(item, billed) {
   if (boardRole !== 'admin' || !item || !item.itemId) return '';
