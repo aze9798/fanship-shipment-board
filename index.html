@@ -1179,7 +1179,12 @@
         <button id="photoViewerClose" class="icon-button" type="button" aria-label="关闭">×</button>
       </div>
       <div class="photo-viewer-meta" id="photoViewerMeta"></div>
-      <img id="photoViewerImage" alt="现场照片">
+      <div class="photo-viewer-stage">
+        <button id="photoViewerPrev" class="photo-viewer-arrow" type="button" aria-label="上一张" hidden>‹</button>
+        <img id="photoViewerImage" alt="现场照片">
+        <button id="photoViewerNext" class="photo-viewer-arrow" type="button" aria-label="下一张" hidden>›</button>
+      </div>
+      <div class="photo-viewer-counter" id="photoViewerCounter" hidden></div>
       <div class="modal-actions"><button id="photoViewerDelete" class="button ghost danger-text" type="button">删除</button><button id="photoViewerRetake" class="button primary" type="button">再拍一张</button></div>
     </section>
   </div>
@@ -1191,7 +1196,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "1c5290776449";
+      const fallbackVersion = "16fd25ba1000";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);

@@ -789,10 +789,18 @@ function shipmentPhotoButtonHtml(item) {
 
 function openShipmentPhoto(key) {
   const wanted = String(key || '').trim();
-  const row = photoArchiveRows().find((item) => photoRowKey(item) === wanted);
+  const rows = photoArchiveRows();
+  const row = rows.find((item) => photoRowKey(item) === wanted);
   if (!row) { showToast('照片不存在或已经删除'); return; }
-  const target = (row.materials || [])[0] || null;
-  openPhotoViewerRow(row, target);
+  // 同一批发货的其它留档照片一起带上，方便左右翻看
+  const sameBatch = rows.filter((item) => {
+    const meta = item.meta || {};
+    const a = String(meta.shipmentId || '');
+    const b = String(row.meta?.shipmentId || '');
+    return a && b && a === b;
+  });
+  const list = sameBatch.length > 1 ? sameBatch : [row];
+  openPhotoViewerList(list, Math.max(0, list.indexOf(row)), (row.materials || [])[0] || null);
 }
 
 function photoPendingRows() {
@@ -871,12 +879,52 @@ function currentPhotoMaterials(target) {
   if (!selected.size && target) selected.set(photoMaterialKey(target), target);
   return selected;
 }
-function openPhotoViewerRow(row, target) {
+// ===== 照片查看器：支持多张左右切换（滑动 / 箭头 / 键盘）=====
+let photoViewerRows = [];
+let photoViewerIndex = 0;
+
+function renderPhotoViewerCurrent() {
+  const total = photoViewerRows.length;
+  const row = photoViewerRows[photoViewerIndex];
+  const multi = total > 1;
+  if (els.photoViewerCounter) {
+    els.photoViewerCounter.hidden = !multi;
+    els.photoViewerCounter.textContent = multi ? `第 ${photoViewerIndex + 1} / ${total} 张` : '';
+  }
+  if (els.photoViewerPrev) {
+    els.photoViewerPrev.hidden = !multi;
+    els.photoViewerPrev.disabled = !multi || photoViewerIndex <= 0;
+  }
+  if (els.photoViewerNext) {
+    els.photoViewerNext.hidden = !multi;
+    els.photoViewerNext.disabled = !multi || photoViewerIndex >= total - 1;
+  }
   if (!row) return;
-  photoViewerTarget = target || null;
   photoViewerRow = row;
   if (row.dataUrl) openLocalPhoto(row);
   else if (row.id) openCloudPhoto(row.id, row);
+}
+
+function openPhotoViewerList(rows, index = 0, target = null) {
+  const list = (rows || []).filter(Boolean);
+  if (!list.length) return;
+  photoViewerRows = list;
+  photoViewerIndex = Math.max(0, Math.min(Number(index) || 0, list.length - 1));
+  photoViewerTarget = target || list[photoViewerIndex]?.materials?.[0] || null;
+  if (els.photoViewerModal) els.photoViewerModal.hidden = false;
+  renderPhotoViewerCurrent();
+}
+
+function showPhotoViewerBy(delta) {
+  const next = photoViewerIndex + Number(delta || 0);
+  if (photoViewerRows.length < 2 || next < 0 || next >= photoViewerRows.length) return;
+  photoViewerIndex = next;
+  renderPhotoViewerCurrent();
+}
+
+function openPhotoViewerRow(row, target) {
+  if (!row) return;
+  openPhotoViewerList([row], 0, target);
 }
 
 function openPhotoCaptureFromButton(button) {
@@ -1147,8 +1195,15 @@ async function deletePhotoViewer() {
         Object.assign(unit, saved);
       } catch {}
     }
+    const removedIndex = photoViewerIndex;
+    photoViewerRows = photoViewerRows.filter((item) => !samePhotoRow(item));
     photoViewerRow = null;
-    if (els.photoViewerModal) els.photoViewerModal.hidden = true;
+    if (photoViewerRows.length) {
+      photoViewerIndex = Math.min(removedIndex, photoViewerRows.length - 1);
+      renderPhotoViewerCurrent();
+    } else if (els.photoViewerModal) {
+      els.photoViewerModal.hidden = true;
+    }
     refreshAfterPhotoRemoved();
     showToast('照片已删除，需要重拍再点一次“拍照留档”');
   } catch (error) {
@@ -1633,12 +1688,12 @@ async function updateUnitMemberQuantity(unitId, memberIndex, value) {
 function viewUnitPhoto(unitId) {
   const unit = shipmentUnits().find((row) => String(row.unitId) === String(unitId));
   if (!unit) return;
-  const photo = unitPhoto(unit);
-  if (!photo) { showToast('这个装车单元还没有照片'); return; }
-  photoViewerTarget = unit.members?.[0] || unit;
-  photoViewerRow = photo;
-  if (photo.dataUrl) openLocalPhoto(photo);
-  else if (photo.id) openCloudPhoto(photo.id, photo);
+  const names = (unit.photoFileNames || []).map((name) => String(name || '')).filter(Boolean);
+  const rows = names
+    .map((name) => photoArchiveRows().find((row) => String(row.fileName || '') === name))
+    .filter(Boolean);
+  if (!rows.length) { showToast('这个装车单元还没有照片'); return; }
+  openPhotoViewerList(rows, 0, unit.members?.[0] || unit);
 }
 
 function retakeUnit(unitId) {
@@ -2040,6 +2095,9 @@ const els = {
   photoArchiveList: $('#photoArchiveList'),
   photoViewerModal: $('#photoViewerModal'),
   photoViewerClose: $('#photoViewerClose'),
+  photoViewerPrev: $('#photoViewerPrev'),
+  photoViewerNext: $('#photoViewerNext'),
+  photoViewerCounter: $('#photoViewerCounter'),
   photoViewerDelete: $('#photoViewerDelete'),
   photoViewerRetake: $('#photoViewerRetake'),
   photoViewerMeta: $('#photoViewerMeta'),
@@ -9305,6 +9363,31 @@ if (els.photoArchiveList) els.photoArchiveList.addEventListener('click', (event)
   else if (row.id) openCloudPhoto(row.id, row);
 });
 if (els.photoViewerClose) els.photoViewerClose.addEventListener('click', () => { if (els.photoViewerModal) els.photoViewerModal.hidden = true; });
+if (els.photoViewerPrev) els.photoViewerPrev.addEventListener('click', () => showPhotoViewerBy(-1));
+if (els.photoViewerNext) els.photoViewerNext.addEventListener('click', () => showPhotoViewerBy(1));
+if (els.photoViewerImage) {
+  let touchStartX = 0;
+  let touchStartY = 0;
+  els.photoViewerImage.addEventListener('touchstart', (event) => {
+    const touch = event.changedTouches && event.changedTouches[0];
+    if (!touch) return;
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+  }, { passive: true });
+  els.photoViewerImage.addEventListener('touchend', (event) => {
+    const touch = event.changedTouches && event.changedTouches[0];
+    if (!touch) return;
+    const dx = touch.clientX - touchStartX;
+    const dy = touch.clientY - touchStartY;
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+    showPhotoViewerBy(dx < 0 ? 1 : -1);
+  }, { passive: true });
+}
+document.addEventListener('keydown', (event) => {
+  if (els.photoViewerModal && els.photoViewerModal.hidden) return;
+  if (event.key === 'ArrowLeft') showPhotoViewerBy(-1);
+  if (event.key === 'ArrowRight') showPhotoViewerBy(1);
+});
 if (els.sampleApprovalSelectClose) els.sampleApprovalSelectClose.addEventListener('click', closeSampleApprovalSelector);
 if (els.sampleApprovalSelectCancel) els.sampleApprovalSelectCancel.addEventListener('click', closeSampleApprovalSelector);
 if (els.sampleApprovalSelectSearch) els.sampleApprovalSelectSearch.addEventListener('input', renderSampleApprovalSelectList);

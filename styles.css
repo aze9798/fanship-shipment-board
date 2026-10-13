@@ -3605,3 +3605,11 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 /* 模块面板防遮挡：内容多时内部滚动，不遮住最下方模块 */
 .module-fab-sheet{max-height:calc(100vh - 130px);overflow-y:auto;overscroll-behavior:contain}
 @media(max-height:720px){.module-fab-sheet{max-height:calc(100vh - 96px)}}
+
+/* 照片查看器：多张时左右滑动/点击箭头翻页 */
+.photo-viewer-stage{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;touch-action:pan-y}
+.photo-viewer-arrow{flex:0 0 auto;width:38px;height:38px;border-radius:50%;border:1px solid #d7e3e4;background:#fff;color:#0f766e;font-size:22px;font-weight:800;line-height:1;cursor:pointer;box-shadow:0 4px 12px rgba(15,54,60,.08)}
+.photo-viewer-arrow[disabled]{opacity:.35;cursor:default}
+.photo-viewer-arrow[hidden]{display:none}
+.photo-viewer-counter{margin-top:6px;text-align:center;color:#5d7377;font-size:12px;font-weight:700}
+.photo-viewer-counter[hidden]{display:none}
