@@ -1452,30 +1452,31 @@ function buildUnitMembers(materials, quantities = new Map()) {
       }
       continue;
     }
-    // 同料号+规格只分摊一次，避免自动关联多条时重复分配成 2+2+2。
-    const groupKey = [String(row.material || '').trim(), String(row.spec || '').trim()].join('|');
-    if (explicit) {
-      if (explicitQuantity <= 0) continue;
-      const group = allocationGroups.get(groupKey);
-      if (group) group.total += explicitQuantity;
-      else allocationGroups.set(groupKey, { row, total: explicitQuantity });
-      continue;
-    }
-    if (seenMaterialKeys.has(groupKey)) continue;
-    seenMaterialKeys.add(groupKey);
-    for (const order of unitCandidateOrders(row)) {
+    // 没填"本框数量"时：装车单元只放这次关联的这几行，
+    // 不要把同料号其它交期的采购单也一起拉进来
+    if (!explicit) {
+      const memberKey = [String(row.orderId || row.id || row.planId || '').trim(), String(row.material || '').trim(), String(row.spec || '').trim(), String(row.dueDate || '')].join('|');
+      if (seenMaterialKeys.has(memberKey)) continue;
+      seenMaterialKeys.add(memberKey);
       members.push({
-        orderId: String(order.id || ''),
-        po: order.po || '',
-        seq: order.seq || '',
-        material: order.material || '',
-        name: order.name || '',
-        spec: order.spec || '',
-        dueDate: String(order.dueDate || ''),
-        quantity: Number(order.remaining || 0),
+        orderId: String(row.orderId || row.id || row.planId || ''),
+        po: String(row.po || ''),
+        seq: String(row.seq || ''),
+        material: String(row.material || ''),
+        name: String(row.name || ''),
+        spec: String(row.spec || ''),
+        dueDate: String(row.dueDate || ''),
+        quantity: Number(row.remaining || row.planQty || row.quantity || 0),
         unit: '件',
       });
+      continue;
     }
+    // 填了"本框数量"：按料号+规格合并总量，再按交期分摊到该料号的各采购单
+    const groupKey = [String(row.material || '').trim(), String(row.spec || '').trim()].join('|');
+    if (explicitQuantity <= 0) continue;
+    const group = allocationGroups.get(groupKey);
+    if (group) group.total += explicitQuantity;
+    else allocationGroups.set(groupKey, { row, total: explicitQuantity });
   }
   for (const { row, total } of allocationGroups.values()) {
     members.push(...allocateUnitMember(row, total));
