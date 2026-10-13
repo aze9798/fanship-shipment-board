@@ -3587,7 +3587,7 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 /* 内联明细里的汇总卡也和内容等宽 */
 .work-inline-detail-cell .work-timeline-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
 /* ===== 第 2 批：电脑端"左列表 + 右详情" ===== */
-.work-live-split{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px;align-items:start}
+.work-live-split{display:grid;grid-template-columns:minmax(0,1.85fr) minmax(300px,1fr);gap:14px;align-items:start}
 @media(max-width:1180px){.work-live-split{grid-template-columns:1fr}}
 .work-detail-pane{position:sticky;top:92px;background:#fff;border:1px solid #e6efee;border-radius:14px;padding:14px 14px 10px;max-height:calc(100vh - 128px);overflow:auto}
 .work-detail-pane .work-detail-empty{color:#8a9a9d;font-size:12.5px;font-weight:600;line-height:1.7;padding:26px 8px;text-align:center}
