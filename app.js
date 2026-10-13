@@ -4365,6 +4365,20 @@ function workLiveEntries(data) {
 function workLiveLatestPiece(entries) {
   return entries.slice().sort((a, b) => new Date(b.submittedAt || b.createdAt || 0).getTime() - new Date(a.submittedAt || a.createdAt || 0).getTime())[0] || null;
 }
+function workLivePay(row) {
+  const rate = Number((workEmployeeRates || {})[row.id] || 0);
+  const hours = Number(row.timerPaidHours || 0);
+  const timerPay = hours > 0 && rate > 0 ? Math.round(hours * rate * 100) / 100 : 0;
+  const piecePay = Number(row.pieceAmount || 0);
+  return { rate, hours, timerPay, piecePay, total:Math.round((timerPay + piecePay) * 100) / 100 };
+}
+function workLivePayCell(row) {
+  const pay = workLivePay(row);
+  return '<div class="work-live-pay">'
+    + '<span class="is-total">合计<b>' + workReviewMoney(pay.total, 2) + '</b></span>'
+    + '<span>计时<b>' + (pay.rate > 0 ? workReviewMoney(pay.timerPay, 2) : '--') + '</b> · 计件<b>' + workReviewMoney(pay.piecePay, 2) + '</b></span>'
+    + '</div>';
+}
 function workLiveStatus(row) {
   if (row.error) return { text:'加载失败', className:'error' };
   if (row.activeTimer) return { text:'计时中', className:'active' };
@@ -4378,6 +4392,12 @@ function workLiveLatestText(row) {
   if (!row.latestPiece) return `暂无计件动态${stale}`;
   return `${workTimelineTime(row.latestPiece.submittedAt)} · ${escapeHtml(row.latestPiece.name || '')} · ${escapeHtml(row.latestPiece.process || '')} · ${fmt(row.latestPiece.quantity)} 件 · ${escapeHtml(workReviewStatusText(row.latestPiece.status))}${stale}`;
 }
+function workLiveLatestShortText(row) {
+  if (row.error) return escapeHtml(row.error);
+  const stale = row.stale ? '（上次数据）' : '';
+  if (!row.latestPiece) return '暂无动态' + stale;
+  return workTimelineTime(row.latestPiece.submittedAt) + ' · ' + escapeHtml(row.latestPiece.process || '') + ' · ' + fmt(row.latestPiece.quantity) + ' 件' + escapeHtml(stale);
+}
 function renderWorkLiveOverview() {
   const allRows = Array.isArray(workLiveRows) ? workLiveRows : [];
   const rows = workReportEmployeeId ? allRows.filter((row) => String(row.id) === String(workReportEmployeeId)) : allRows;
@@ -4386,7 +4406,8 @@ function renderWorkLiveOverview() {
   const pieceTotal = rows.reduce((sum, row) => sum + Number(row.pieceCount || 0), 0);
   const pendingTotal = rows.reduce((sum, row) => sum + Number(row.pending || 0), 0);
   const staleTotal = rows.filter((row) => row.stale).length;
-  const summary = `计时中 ${timingNow} 人 · 今日计时 ${timedToday} 人 · 今日计件 ${pieceTotal} 笔 · 待审 ${pendingTotal} 笔${staleTotal ? ` · 刷新失败 ${staleTotal} 人` : ''}`;
+  const payTotal = rows.reduce((sum, row) => sum + workLivePay(row).total, 0);
+  const summary = `计时中 ${timingNow} 人 · 今日计时 ${timedToday} 人 · 今日计件 ${pieceTotal} 笔 · 待审 ${pendingTotal} 笔 · 当日合计 ${workReviewMoney(payTotal, 2)} 元${staleTotal ? ` · 刷新失败 ${staleTotal} 人` : ''}`;
   if (els.desktopWorkLiveSummary) els.desktopWorkLiveSummary.textContent = summary;
   if (els.mobileWorkLiveSummary) els.mobileWorkLiveSummary.textContent = summary;
   const sorted = rows.slice().sort((a, b) => (Number(Boolean(b.activeTimer)) - Number(Boolean(a.activeTimer))) || (Number(b.pieceCount || 0) - Number(a.pieceCount || 0)) || String(a.employeeNo).localeCompare(String(b.employeeNo), 'zh-CN', { numeric:true }));
@@ -4397,7 +4418,8 @@ function renderWorkLiveOverview() {
       const timerSub = Number(row.timerPaidHours || 0) > 0 ? `有效 ${Number(row.timerPaidHours).toFixed(2)} 小时` : '---';
       const pieceText = Number(row.pieceCount || 0) > 0 ? `${fmt(row.pieceCount)} 笔 · ${fmt(row.pieceQuantity)} 件` : '暂无计件';
       const pieceSub = Number(row.pieceCount || 0) > 0 ? `金额 ${workReviewMoney(row.pieceAmount, 2)} 元 · 待审 ${fmt(row.pending)} 笔` : '---';
-      return `<tr data-work-live-row="${escapeHtml(row.id)}"><td><div class="work-live-person"><strong>${escapeHtml(row.name || '')}</strong><small>${escapeHtml(row.employeeNo || '')}</small></div></td><td><span class="work-live-status ${status.className}">${escapeHtml(status.text)}</span></td><td><div class="work-live-metric">${escapeHtml(timerText)}<span>${escapeHtml(timerSub)}</span></div></td><td><div class="work-live-metric">${escapeHtml(pieceText)}<span>${escapeHtml(pieceSub)}</span></div></td><td><div class="work-live-metric">${workLiveLatestText(row)}</div></td><td><button class="work-live-action" type="button" data-work-live-employee="${escapeHtml(row.id)}">查看明细</button></td></tr>`;
+      const payCell = workLivePayCell(row);
+      return `<tr data-work-live-row="${escapeHtml(row.id)}"><td><div class="work-live-person"><strong>${escapeHtml(row.name || '')}</strong><small>${escapeHtml(row.employeeNo || '')}</small></div></td><td><span class="work-live-status ${status.className}">${escapeHtml(status.text)}</span></td><td><div class="work-live-metric">${escapeHtml(timerText)}<span>${escapeHtml(timerSub)}</span></div></td><td><div class="work-live-metric">${escapeHtml(pieceText)}<span>${escapeHtml(pieceSub)}</span></div></td><td>${payCell}</td><td class="work-live-latest-cell">${workLiveLatestShortText(row)}</td><td><button class="work-live-action" type="button" data-work-live-employee="${escapeHtml(row.id)}">查看明细</button></td></tr>`;
     }).join('');
   }
   if (els.mobileWorkLiveList) {
@@ -4405,13 +4427,15 @@ function renderWorkLiveOverview() {
       const status = workLiveStatus(row);
       const timerText = row.activeTimer ? `进行中 · ${workLiveMinuteText(row.activeTimer.minutes)}` : Number(row.timerMinutes || 0) > 0 ? `${workLiveMinuteText(row.timerMinutes)}` : '未计时';
       const pieceText = Number(row.pieceCount || 0) > 0 ? `${fmt(row.pieceCount)} 笔 · ${fmt(row.pieceQuantity)} 件` : '暂无计件';
-      const rate = Number((workEmployeeRates || {})[row.id] || 0);
-      const paidHours = Number(row.timerPaidHours || 0);
-      const timerPay = paidHours > 0 && rate > 0 ? paidHours * rate : 0;
-      const piecePay = Number(row.pieceAmount || 0);
-      const totalPay = timerPay + piecePay;
+      const pay = workLivePay(row);
+      const rate = pay.rate;
+      const paidHours = pay.hours;
+      const timerPay = pay.timerPay;
+      const piecePay = pay.piecePay;
+      const totalPay = pay.total;
+      const approvedCount = (row.pieceEntries || []).filter((entry) => entry.status === 'approved').length;
       const expanded = mobileWorkDetailEmployeeId && String(mobileWorkDetailEmployeeId) === String(row.id);
-      return `<article class="mobile-live-card${expanded ? ' is-expanded' : ''}"><div class="mobile-live-card-head"><h3>${escapeHtml(row.employeeNo || '')} · ${escapeHtml(row.name || '')}</h3><span class="work-live-status ${status.className}">${escapeHtml(status.text)}</span></div><div class="mobile-live-grid"><div><span>今日计时</span><strong>${escapeHtml(timerText)}</strong>${paidHours > 0 ? `<small>有效 ${Number(paidHours).toFixed(2)} 小时</small>` : ''}</div><div><span>计时工资</span><strong>${timerPay > 0 ? `${workReviewMoney(timerPay, 2)} 元` : '--'}</strong>${rate > 0 ? `<small>${rate} 元/小时</small>` : ''}</div><div><span>今日计件</span><strong>${escapeHtml(pieceText)}</strong><small>${piecePay > 0 ? `金额 ${workReviewMoney(piecePay, 2)} 元` : (Number(row.pending || 0) > 0 ? `待审 ${fmt(row.pending)} 笔` : '')}</small></div></div><div class="mobile-live-latest">最新动态：${workLiveLatestText(row)}${totalPay > 0 ? ` · 当天合计约 ${workReviewMoney(totalPay, 2)} 元` : ''}</div><button type="button" data-work-live-employee="${escapeHtml(row.id)}">${expanded ? '收起明细' : '查看明细'}</button><div class="mobile-live-detail" data-work-live-detail="${escapeHtml(row.id)}" hidden></div></article>`;
+      return `<article class="mobile-live-card${expanded ? ' is-expanded' : ''}"><div class="mobile-live-card-head"><h3>${escapeHtml(row.employeeNo || '')} · ${escapeHtml(row.name || '')}</h3><span class="work-live-status ${status.className}">${escapeHtml(status.text)}</span></div><div class="mobile-live-grid"><div><span>今日计时</span><strong>${escapeHtml(timerText)}</strong>${paidHours > 0 ? `<small>有效 ${Number(paidHours).toFixed(2)} 小时</small>` : ''}</div><div><span>计时工资</span><strong>${timerPay > 0 ? `${workReviewMoney(timerPay, 2)} 元` : '--'}</strong>${rate > 0 ? `<small>${rate} 元/小时</small>` : ''}</div><div><span>今日计件</span><strong>${escapeHtml(pieceText)}</strong><small>已通过 ${fmt(approvedCount)} 笔 · 待审 ${fmt(row.pending)} 笔</small></div></div><div class="mobile-live-pay"><span>计时工资 <b>${rate > 0 ? workReviewMoney(timerPay, 2) + ' 元' : '--'}</b></span><span>计件工资 <b>${workReviewMoney(piecePay, 2)} 元</b></span><span class="is-total">当日汇总 <b>${workReviewMoney(totalPay, 2)} 元</b></span></div><div class="mobile-live-latest">最新动态：${workLiveLatestText(row)}</div><button type="button" data-work-live-employee="${escapeHtml(row.id)}">${expanded ? '收起明细' : '查看明细'}</button><div class="mobile-live-detail" data-work-live-detail="${escapeHtml(row.id)}" hidden></div></article>`;
     }).join('') : `<div class="empty-state"><strong>${workReportEmployeeId ? '该员工当天没有计时或计件记录' : '没有可显示的计时计件员工'}</strong></div>`;
   }
   restoreMobileWorkDetail();
@@ -5203,17 +5227,87 @@ function calcWorkEditAmount() {
   const box = workEditModalEl('workEntryEditAmount');
   if (box) box.value = quantity > 0 && price > 0 ? (Math.round(quantity * price * 100) / 100).toFixed(2) : '0.00';
 }
-function autofillWorkEditPiece(force = false) {
+function workEditPickedInfo(material, process) {
+  const picked = workEditPickedProduct;
+  if (!picked) return null;
+  if (String(picked.material || '').trim() !== String(material || '').trim()) return null;
+  const wanted = String(process || '').trim();
+  const hit = wanted ? (picked.processes || []).find((item) => item && item.name === wanted) : null;
+  return { name:picked.name || '', spec:picked.spec || '', unitPrice:hit && hit.unitPrice != null ? Number(hit.unitPrice) : null };
+}
+function autofillWorkEditPiece(force = false, overwritePrice = false) {
   const materialEl = workEditModalEl('workEntryEditMaterial');
   const processEl = workEditModalEl('workEntryEditProcess');
   if (!materialEl) return;
-  const match = workEditHistoryMatch(materialEl.value, processEl ? processEl.value : '');
-  if (!match) return;
+  const material = String(materialEl.value || '').trim();
+  const process = processEl ? String(processEl.value || '').trim() : '';
+  const match = workEditHistoryMatch(material, process);
+  const picked = workEditPickedInfo(material, process);
   const nameEl = workEditModalEl('workEntryEditName');
+  const specEl = workEditModalEl('workEntryEditSpec');
   const priceEl = workEditModalEl('workEntryEditPrice');
-  if (nameEl && (force || !nameEl.value.trim())) nameEl.value = match.name || '';
-  if (priceEl && (force || !priceEl.value.trim())) priceEl.value = match.unitPrice != null ? String(match.unitPrice) : '';
-  if (processEl && !processEl.value.trim() && match.process) processEl.value = match.process;
+  const name = (match && match.name) || (picked && picked.name) || '';
+  const spec = (picked && picked.spec) || (match && match.spec) || '';
+  const priceValue = match && match.unitPrice != null ? Number(match.unitPrice) : (picked && picked.unitPrice != null ? picked.unitPrice : null);
+  if (nameEl && name && (force || overwritePrice || !nameEl.value.trim())) nameEl.value = name;
+  if (specEl && spec && (force || overwritePrice || !specEl.value.trim())) specEl.value = spec;
+  if (priceEl && priceValue != null && !Number.isNaN(priceValue) && (force || overwritePrice || !priceEl.value.trim())) priceEl.value = String(priceValue);
+  if (processEl && !processEl.value.trim() && match && match.process) processEl.value = match.process;
+  calcWorkEditAmount();
+}
+let workEditProductHits = [];
+let workEditSearchTimer = 0;
+let workEditPickedProduct = null;
+function renderWorkEditSuggest() {
+  const box = document.getElementById('workEntryEditSuggest');
+  if (!box) return;
+  const hits = Array.isArray(workEditProductHits) ? workEditProductHits : [];
+  if (!hits.length) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  box.innerHTML = hits.map((row, index) => {
+    const processes = (row.processes || []).filter((item) => item && item.name)
+      .map((item) => item.name + (item.unitPrice != null ? ' ' + item.unitPrice + '元' : '')).join(' · ');
+    return '<button type="button" data-work-edit-pick="' + index + '"><b>' + escapeHtml(row.material || '') + ' · ' + escapeHtml(row.name || '') + '</b><small>' + escapeHtml(row.spec || '') + (processes ? ' ｜ ' + escapeHtml(processes) : '') + '</small></button>';
+  }).join('');
+}
+async function searchWorkEditProducts(query) {
+  const text = String(query || '').trim();
+  if (text.length < 2) { workEditProductHits = []; renderWorkEditSuggest(); return; }
+  try {
+    const result = await callRpc('work_admin_search_products', { p_code:getAccessCode(), p_query:text, p_limit:20 });
+    if (!result.response.ok) { workEditProductHits = []; renderWorkEditSuggest(); return; }
+    workEditProductHits = Array.isArray(result.data) ? result.data : [];
+    renderWorkEditSuggest();
+  } catch (error) {
+    workEditProductHits = [];
+    renderWorkEditSuggest();
+  }
+}
+function scheduleWorkEditProductSearch() {
+  clearTimeout(workEditSearchTimer);
+  workEditSearchTimer = setTimeout(() => { searchWorkEditProducts(workEditModalEl('workEntryEditMaterial')?.value || '').catch(() => {}); }, 350);
+}
+function pickWorkEditProduct(index) {
+  const row = (workEditProductHits || [])[Number(index)];
+  if (!row) return;
+  const setValue = (fieldId, value) => { const el = workEditModalEl(fieldId); if (el) el.value = value == null ? '' : value; };
+  setValue('workEntryEditMaterial', row.material || '');
+  setValue('workEntryEditName', row.name || '');
+  setValue('workEntryEditSpec', row.spec || '');
+  const processes = (row.processes || []).filter((item) => item && item.name);
+  const proList = document.getElementById('workEditProcessList');
+  if (proList) proList.innerHTML = processes.map((item) => '<option value="' + escapeHtml(item.name) + '"></option>').join('');
+  const processEl = workEditModalEl('workEntryEditProcess');
+  let current = processEl ? String(processEl.value || '').trim() : '';
+  if (!processes.some((item) => item.name === current)) {
+    current = processes.length ? processes[0].name : current;
+    if (processEl) processEl.value = current;
+  }
+  const match = processes.find((item) => item.name === current);
+  workEditPickedProduct = row;
+  workEditProductHits = [];
+  renderWorkEditSuggest();
+  autofillWorkEditPiece();
   calcWorkEditAmount();
 }
 function openWorkEditEditor(mode, id = '') {
@@ -5232,6 +5326,9 @@ function openWorkEditEditor(mode, id = '') {
   const show = (fieldId, visible) => { const el = workEditModalEl(fieldId); if (el) el.hidden = !visible; };
   const errEl = workEditModalEl('workEntryEditError');
   if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  workEditProductHits = [];
+  workEditPickedProduct = null;
+  renderWorkEditSuggest();
   show('workEntryEditTimeFields', !isPiece);
   show('workEntryEditPieceFields', isPiece);
   show('workEntryEditDelete', Boolean(workEditEditingId));
@@ -5254,7 +5351,7 @@ function openWorkEditEditor(mode, id = '') {
     if (hint) hint.textContent = workEditEditingId
       ? '改完直接生效：数量 × 单价 = 金额，状态决定是否计入工资。'
       : '料号要能在产品库里对上，工序名称要能对上；保存后立即计入对应状态。';
-    loadWorkEditHistory().then(() => { refreshWorkEditSuggestions(); autofillWorkEditPiece(true); }).catch(() => {});
+    loadWorkEditHistory().then(() => { refreshWorkEditSuggestions(); autofillWorkEditPiece(); }).catch(() => {});
   } else {
     if (title) title.textContent = workEditEditingId ? '修改计时记录' : '新增计时记录';
     setValue('workEntryEditStart', timer ? workTimeLocalInput(timer.startedAt) : `${workEditDate || todayShanghai()}T07:30`);
@@ -5278,6 +5375,16 @@ function workEditFail(message) {
   const errEl = workEditModalEl('workEntryEditError');
   if (errEl) { errEl.textContent = message; errEl.hidden = false; }
   showToast(message);
+}
+async function workEditErrorMessage(result, fallback) {
+  const direct = result && result.data ? (result.data.error || result.data.message) : '';
+  if (direct) return String(direct);
+  try {
+    const body = await result.response.clone().json();
+    const message = body && (body.error || body.message);
+    if (message) return String(message);
+  } catch (error) {}
+  return fallback;
 }
 async function saveWorkEditEntry() {
   if (!workEditEditingId && !workEditMode) return;
@@ -5342,7 +5449,7 @@ async function saveWorkEditEntry() {
       }
       workEditDate = startValue.slice(0, 10) || workEditDate;
     }
-    if (!result || !result.response.ok) throw new Error(result?.data?.error || result?.data?.message || '保存失败');
+    if (!result || !result.response.ok) throw new Error(await workEditErrorMessage(result, '保存失败'));
     showToast(isPiece ? '计件报工已保存' : '计时记录已保存');
     closeWorkEditEditor();
     syncWorkEditControls();
@@ -5366,7 +5473,7 @@ async function deleteWorkEditEntry(mode, id) {
     const result = isPiece
       ? await callRpc('work_admin_delete_piece_entry', { p_code:getAccessCode(), p_id:id, p_reason:String(reason).trim() })
       : await callRpc('work_admin_delete_time_entry', { p_code:getAccessCode(), p_id:id, p_reason:String(reason).trim() });
-    if (!result.response.ok) throw new Error(result.data?.error || result.data?.message || '删除失败');
+    if (!result.response.ok) throw new Error(await workEditErrorMessage(result, '删除失败'));
     showToast(isPiece ? '已删除该计件报工' : '已删除该计时记录');
     closeWorkEditEditor();
     await loadWorkEdit(true);
@@ -6108,8 +6215,8 @@ function setupDesktopRemainingColumnResize() {
 const DELIVERY_GROUPED_COLUMN_WIDTH_KEY = 'shipmentDeliveryGroupedColumnWidths';
 const DELIVERY_MERGED_COLUMN_WIDTH_KEY = 'shipmentDeliveryMergedColumnWidths';
 const DELIVERY_COLUMN_DEFAULT_WIDTHS = {
-  grouped: [150, 130, 220, 82, 58, 76],
-  merged: [135, 112, 180, 76, 52, 70, 106, 92],
+  grouped: [150, 130, 220, 76, 58, 86, 82, 76],
+  merged: [135, 112, 180, 76, 52, 86, 82, 70, 106],
 };
 
 function deliveryColumnWidthKey(kind) {
@@ -6347,6 +6454,7 @@ function orderMetaFor(orderId, fallback = {}, lookup = null) {
     po: String(order?.po || poPart || fallback.po || '').trim(),
     seq: String(order?.seq ?? seqPart ?? fallback.seq ?? '').trim(),
     orderQty: Number.isFinite(orderQty) ? orderQty : 0,
+    dueDate: String(order?.dueDate || fallback.dueDate || '').trim(),
     shipped: Number(order?.shipped ?? fallback.shipped ?? 0),
     remaining: Number(order?.remaining ?? fallback.remaining ?? 0),
     material: String(order?.material || fallback.material || '').trim(),
@@ -6739,6 +6847,14 @@ function deliveryRemainingText(value, hasOrder) {
   const number = Number(value || 0);
   return number > 0 ? `${fmt(number)} 件` : '0';
 }
+// 「数量」= 该订单的订单数量；「交期」= 该订单的交货日期（无订单/订单已归档时显示 —）
+function deliveryOrderQtyText(item) {
+  return item && item.orderQty != null ? fmt(item.orderQty) : '—';
+}
+function deliveryOrderDueText(item) {
+  const due = String((item && item.orderDue) || '').trim();
+  return due ? formatDate(due) : '—';
+}
 function deliveryItemCompany(item, shipment) {
   const material = String(item?.material || '');
   const name = String(item?.name || '');
@@ -6836,6 +6952,8 @@ function buildDeliveryGroups(shipments, queryText = '') {
           spec: deliveryLineLabel(line.spec, ''),
           quantity: Number(line.quantity || 0),
           remaining: Number(meta.remaining || 0),
+          orderQty: meta.order ? Number(meta.orderQty || 0) : null,
+          orderDue: meta.order ? String(meta.order.dueDate || '') : '',
           hasOrder: Boolean(meta.po || meta.orderQty || meta.seq),
           remark: '',
         });
@@ -6919,6 +7037,8 @@ function buildDeliveryGroups(shipments, queryText = '') {
           spec: deliveryLineLabel(line.spec, ''),
           quantity: Number(line.quantity || 0),
           remaining: Number(meta.remaining || 0),
+          orderQty: meta.order ? Number(meta.orderQty || 0) : null,
+          orderDue: meta.order ? String(meta.order.dueDate || '') : '',
           hasOrder: Boolean(meta.po || meta.orderQty || meta.seq),
           remark: '',
           billed: Boolean(batch) || isBilledShipment(shipment.id),
@@ -6949,6 +7069,8 @@ function buildDeliveryGroups(shipments, queryText = '') {
       spec: deliveryLineLabel(row.spec, ''),
       quantity: Number(row.quantity || 0),
       remaining: 0,
+      orderQty: null,
+      orderDue: '',
       hasOrder: false,
       remark: row.remark || row.note || '',
       billed: true,
@@ -6977,6 +7099,14 @@ function qtyEditButtonHtml(item, billed) {
   if (billed) return '<button type="button" class="qty-edit-btn" disabled title="已开单，不能修改发货数量">改</button>';
   return `<button type="button" class="qty-edit-btn" data-edit-qty="${escapeHtml(String(item.itemId))}" data-edit-value="${Number(item.quantity) || 0}" title="修改发货数量">改</button>`;
 }
+// 查询页「按送货单/未开单」表格的表头（列顺序：采购单号 料件编号 品名 数量 项次 交期 发货数量 未交）
+const groupedHeadHtml = (() => {
+  const cols = [['采购单号','',''],['料件编号','',''],['品名','',''],['数量','number',''],['项次','number',''],['交期','number',''],['发货数量','number',''],['未交','number','']];
+  return cols.map(([label, cls, extra], index) => {
+    const classes = [cls, extra].filter(Boolean).join(' ');
+    return `<span${classes ? ` class="${classes}"` : ''}>${label}<i class="history-col-resizer" data-delivery-kind="grouped" data-delivery-col="${index}" role="separator" title="拖动调整列宽，双击恢复默认"></i></span>`;
+  }).join('');
+})();
 function renderDeliveryGroups(groups) {
   if (!groups.length) return '<div class="empty-state"><strong>没有符合条件的发货记录</strong><span>可以搜索送货单号、采购单号、料件编号或品名。</span></div>';
   return groups.map((group) => {
@@ -6988,17 +7118,18 @@ function renderDeliveryGroups(groups) {
         <strong>${escapeHtml(group.title)}</strong>
       </div>
       <div class="delivery-lines grouped">
-        <div class="delivery-lines-head"><span>采购单号<i class="history-col-resizer" data-delivery-kind="grouped" data-delivery-col="0" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span>料件编号<i class="history-col-resizer" data-delivery-kind="grouped" data-delivery-col="1" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span>品名<i class="history-col-resizer" data-delivery-kind="grouped" data-delivery-col="2" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">发货数量<i class="history-col-resizer" data-delivery-kind="grouped" data-delivery-col="3" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">项次<i class="history-col-resizer" data-delivery-kind="grouped" data-delivery-col="4" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">未交<i class="history-col-resizer" data-delivery-kind="grouped" data-delivery-col="5" role="separator" title="拖动调整列宽，双击恢复默认"></i></span></div>
-        ${shown.map((item) => `<div class="delivery-line">
+        <div class="delivery-lines-head">${groupedHeadHtml}</div>
+      ${shown.map((item) => `<div class="delivery-line">
           <span data-label="采购单号">${escapeHtml(item.po)}${item.typeLabel ? ` <em>${escapeHtml(item.typeLabel)}</em>` : ''}</span>
           <span data-label="料件编号">${escapeHtml(item.material)}</span>
           <span data-label="品名"><span class="delivery-name-cell">${escapeHtml(item.name)}${item.spec ? ` · ${escapeHtml(item.spec)}` : ''}${item.remark ? `<small>备注：${escapeHtml(item.remark)}</small>` : ''}${shipmentPhotoButtonHtml(item)}</span></span>
-          <strong data-label="发货数量" class="number"><span class="qty-value-with-edit">${fmt(item.quantity)} 件${qtyEditButtonHtml(item, item.billed)}</span></strong>
+          <span data-label="数量" class="number">${escapeHtml(deliveryOrderQtyText(item))}</span>
           <span data-label="项次" class="number">${escapeHtml(item.seq)}</span>
+          <span data-label="交期" class="number">${escapeHtml(deliveryOrderDueText(item))}</span>
+          <strong data-label="发货数量" class="number"><span class="qty-value-with-edit">${fmt(item.quantity)} 件${qtyEditButtonHtml(item, item.billed)}</span></strong>
           <span data-label="未交" class="number">${escapeHtml(deliveryRemainingText(item.remaining, item.hasOrder))}</span>
         </div>`).join('')}
-      </div>
-      ${group.items.length > 6 ? `<button class="history-expand" type="button" data-expand="${escapeHtml(group.key)}">${expanded ? '收起明细' : `展开全部 ${group.items.length} 项（还有 ${hidden} 项）`}</button>` : ''}
+      </div>      ${group.items.length > 6 ? `<button class="history-expand" type="button" data-expand="${escapeHtml(group.key)}">${expanded ? '收起明细' : `展开全部 ${group.items.length} 项（还有 ${hidden} 项）`}</button>` : ''}
       ${unitHistoryHtml(group.shipmentIds)}
       <div class="history-foot">
         <span class="history-total">合计 ${fmt(group.total)} 件 · ${group.items.length} 项</span>
@@ -7015,17 +7146,23 @@ function deliveryStampText(value) {
   return text.replace('T', ' ').slice(0, 10);
 }
 function mergedDeliveryTableHtml(rows) {
+  const headCell = (label, cls, index, extra = '') => {
+    const classes = [cls, extra].filter(Boolean).join(' ');
+    return `<span${classes ? ` class="${classes}"` : ''}>${label}<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="${index}" role="separator" title="拖动调整列宽，双击恢复默认"></i></span>`;
+  };
+  const headHtml = [["采购单号","",""],["料件编号","",""],["品名","",""],["数量","number",""],["项次","number",""],["交期","number",""],["发货数量","number",""],["未交","number",""],["送货单编号","","ship-batch-head"]].map(([label, cls, extra], index) => headCell(label, cls, index, extra)).join('');
   return `<div class="delivery-lines merged">
-        <div class="delivery-lines-head"><span>采购单号<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="0" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span>料件编号<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="1" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span>品名<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="2" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">发货数量<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="3" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">项次<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="4" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="number">未交<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="5" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="ship-batch-head">送货单编号<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="6" role="separator" title="拖动调整列宽，双击恢复默认"></i></span><span class="ship-date-head">发货日期<i class="history-col-resizer" data-delivery-kind="merged" data-delivery-col="7" role="separator" title="拖动调整列宽，双击恢复默认"></i></span></div>
+        <div class="delivery-lines-head">${headHtml}</div>
         ${rows.map((item) => `<div class="delivery-line">
           <span data-label="采购单号">${escapeHtml(item.po)}${item.typeLabel ? ` <em>${escapeHtml(item.typeLabel)}</em>` : ''}</span>
           <span data-label="料件编号">${escapeHtml(item.material)}</span>
           <span data-label="品名"><span class="delivery-name-cell">${escapeHtml(item.name)}${item.spec ? ` · ${escapeHtml(item.spec)}` : ''}${item.remark ? `<small>备注：${escapeHtml(item.remark)}</small>` : ''}</span></span>
-          <strong data-label="发货数量" class="number"><span class="qty-value-with-edit">${fmt(item.quantity)} 件${qtyEditButtonHtml(item, item.billed)}</span></strong>
+          <span data-label="数量" class="number">${escapeHtml(deliveryOrderQtyText(item))}</span>
           <span data-label="项次" class="number">${escapeHtml(item.seq)}</span>
+          <span data-label="交期" class="number">${escapeHtml(deliveryOrderDueText(item))}</span>
+          <strong data-label="发货数量" class="number"><span class="qty-value-with-edit">${fmt(item.quantity)} 件${qtyEditButtonHtml(item, item.billed)}</span></strong>
           <span data-label="未交" class="number">${escapeHtml(deliveryRemainingText(item.remaining, item.hasOrder))}</span>
           <span data-label="送货单编号" class="ship-batch">${escapeHtml(item.batch || '未开单')}</span>
-          <span data-label="发货日期" class="ship-date">${escapeHtml(deliveryStampText(item.shippedAt))}</span>
         </div>`).join('')}
       </div>`;
 }
@@ -7136,6 +7273,8 @@ function searchExtraRows(queryText) {
       spec,
       quantity: Number(row.quantity || 0),
       remaining: Number(meta.remaining || 0),
+      orderQty: meta.order ? Number(meta.orderQty || 0) : null,
+      orderDue: meta.order ? String(meta.order.dueDate || '') : '',
       hasOrder: Boolean(meta.po || meta.seq),
       batch: extraRowBatch(row.deliveryBatch, shippedAt, material, name),
       shippedAt,
@@ -7164,6 +7303,8 @@ function searchExtraRows(queryText) {
       spec,
       quantity: remaining,
       remaining: 0,
+      orderQty: null,
+      orderDue: '',
       hasOrder: false,
       batch: extraRowBatch(over.deliveryBatch, shippedAt, material, name),
       shippedAt,
@@ -7181,7 +7322,7 @@ function searchExtraRows(queryText) {
   for (const row of confirmedReplacements()) {
     const haystack = [row.material, row.name, row.spec, row.remark, row.po, '补发'].join(' ').toLowerCase();
     if (!haystack.includes(query)) continue;
-    rows.push({ source: 'replacement', po: row.po || '无', seq: row.seq || '无', material: String(row.material || ''), name: String(row.name || ''), spec: String(row.spec || ''), quantity: Number(row.quantity || 0), remaining: 0, hasOrder: false, batch: String(row.deliveryBatch || ''), shippedAt: row.deliveryDate || row.createdAt || '', billed: isBilledExtra(row.id), typeLabel: '补发', remark: row.remark || '' });
+    rows.push({ source: 'replacement', po: row.po || '无', seq: row.seq || '无', material: String(row.material || ''), name: String(row.name || ''), spec: String(row.spec || ''), quantity: Number(row.quantity || 0), remaining: 0, orderQty: null, orderDue: '', hasOrder: false, batch: String(row.deliveryBatch || ''), shippedAt: row.deliveryDate || row.createdAt || '', billed: isBilledExtra(row.id), typeLabel: '补发', remark: row.remark || '' });
   }
   return rows;
 }
@@ -9760,6 +9901,8 @@ document.addEventListener('click', (event) => {
   if (removeTimer) { deleteWorkEditEntry('time', removeTimer.dataset.workEditTimeDel).catch(() => {}); return; }
   const removePiece = target.closest('[data-work-edit-piece-del]');
   if (removePiece) { deleteWorkEditEntry('piece', removePiece.dataset.workEditPieceDel).catch(() => {}); return; }
+  const pickProduct = target.closest('[data-work-edit-pick]');
+  if (pickProduct) { event.preventDefault(); pickWorkEditProduct(pickProduct.dataset.workEditPick); return; }
 });
 [['workEntryEditClose', closeWorkEditEditor], ['workEntryEditCancel', closeWorkEditEditor]].forEach(([id, handler]) => {
   const el = document.getElementById(id);
@@ -9777,8 +9920,12 @@ if (workEntryEditModalEl) workEntryEditModalEl.addEventListener('click', (event)
 });
 ['workEntryEditMaterial', 'workEntryEditProcess'].forEach((id) => {
   const el = document.getElementById(id);
-  if (el) el.addEventListener('change', () => autofillWorkEditPiece());
+  if (el) el.addEventListener('change', () => autofillWorkEditPiece(false, true));
 });
+const workEntryEditProcessInput = document.getElementById('workEntryEditProcess');
+if (workEntryEditProcessInput) workEntryEditProcessInput.addEventListener('input', () => autofillWorkEditPiece(false, true));
+const workEntryEditMaterialInput = document.getElementById('workEntryEditMaterial');
+if (workEntryEditMaterialInput) workEntryEditMaterialInput.addEventListener('input', scheduleWorkEditProductSearch);
 if (els.desktopWorkReviewStatus) els.desktopWorkReviewStatus.addEventListener('change', (event) => loadWorkReviews(event.target.value));
 if (els.mobileWorkReviewStatus) els.mobileWorkReviewStatus.addEventListener('change', (event) => loadWorkReviews(event.target.value));
 if (els.desktopWorkReviewRefresh) els.desktopWorkReviewRefresh.addEventListener('click', () => loadWorkReviews(workReviewStatus));

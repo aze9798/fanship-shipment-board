@@ -517,7 +517,7 @@
           <div class="work-live-split">
             <div class="table-wrap work-live-split-left">
               <table class="orders-table work-live-table">
-                <thead><tr><th>员工</th><th>当前状态</th><th>今日计时</th><th>今日计件</th><th>最新动态</th><th>操作</th></tr></thead>
+                <thead><tr><th>员工</th><th>当前状态</th><th>今日计时</th><th>今日计件</th><th>当日工资</th><th>最新动态</th><th>操作</th></tr></thead>
                 <tbody id="desktopWorkLiveBody"></tbody>
               </table>
               <div id="desktopWorkLiveEmpty" class="empty-state" hidden><strong>没有可显示的计时计件员工</strong><span>请检查员工工种配置。</span></div>
@@ -1063,7 +1063,8 @@
       </div>
       <div id="workEntryEditPieceFields" class="form-grid" hidden>
         <label><span>工作日期</span><input id="workEntryEditDate" type="date"></label>
-        <label><span>料号</span><input id="workEntryEditMaterial" type="text" list="workEditMaterialList" placeholder="如 8745 或 611908745" autocomplete="off"><datalist id="workEditMaterialList"></datalist></label>
+        <label><span>料号（输入编号或品名可搜）</span><input id="workEntryEditMaterial" type="text" placeholder="如 3013 / 包装架 / 611013013" autocomplete="off"><datalist id="workEditMaterialList"></datalist></label>
+        <div id="workEntryEditSuggest" class="work-edit-suggest" hidden></div>
         <label><span>工序</span><input id="workEntryEditProcess" type="text" list="workEditProcessList" placeholder="如 攻丝 / 折弯" autocomplete="off"><datalist id="workEditProcessList"></datalist></label>
         <label><span>品名</span><input id="workEntryEditName" type="text" placeholder="留空＝按料号自动带出"></label>
         <label><span>规格</span><input id="workEntryEditSpec" type="text" placeholder="选填，内梁/外梁等以此为准"></label>
@@ -1342,7 +1343,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "f7f7cbe20200";
+      const fallbackVersion = "5630a4481c79";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
