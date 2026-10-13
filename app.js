@@ -6619,22 +6619,112 @@ function dateGroupPhotos(group) {
   return photos;
 }
 
+// 无订单发货/冲抵在查询页里要显示的送货单编号：
+// 云端记了真实编号就直接用；遇到「历史已开单」这种占位值，再按「发货日期 + 公司」
+// 去找当天那张送货单。系统里最早的送货单是 2026-09-24，之前的日期不去猜。
+const EARLIEST_DELIVERY_DAY = '2026-09-24';
+function extraRowCompany(material, name) {
+  const materialKey = String(material || '').trim();
+  const text = `${materialKey} ${String(name || '')}`;
+  return /^6140/.test(materialKey) || /护栏|护脚栏/.test(text) ? '邦凡' : '艾沃意特';
+}
+function extraRowDeliveryBatch(day, company, at = 0) {
+  if (!day || day < EARLIEST_DELIVERY_DAY) return '';
+  const files = (snapshot?.deliveryFiles || [])
+    .filter((row) => /\.xlsx$/i.test(String(row.fileName || ''))
+      && String(row.deliveryDate || '') === day
+      && (!company || String(row.kind || '').trim() === company)
+      && deliveryBatchText(row.deliveryBatch != null ? row.deliveryBatch : row.batch))
+    .map((row) => ({
+      batch: deliveryBatchText(row.deliveryBatch != null ? row.deliveryBatch : row.batch),
+      at: Date.parse(String(row.createdAt || '')) || 0,
+    }))
+    .sort((a, b) => a.at - b.at);
+  if (!files.length) return '';
+  const hit = at ? files.find((file) => file.at >= at) || files[files.length - 1] : files[files.length - 1];
+  return hit?.batch || '';
+}
+function extraRowBatch(explicitBatch, shippedAt, material, name) {
+  const explicit = deliveryBatchText(explicitBatch);
+  if (explicit && explicit !== '历史已开单') return explicit;
+  const day = shipShanghaiDate(shippedAt);
+  const resolved = extraRowDeliveryBatch(day, extraRowCompany(material, name), Date.parse(String(shippedAt || '')) || 0);
+  if (resolved) return resolved;
+  return explicit === '历史已开单' ? '历史已开单' : '';
+}
+
 function searchExtraRows(queryText) {
   const query = String(queryText || '').trim().toLowerCase();
   if (!query) return [];
   const rows = [];
-  const activeOverIds = new Set(overDeliveries().map((row) => String(row.id || '').trim()).filter(Boolean));
-  for (const row of overDeliveries()) {
-    const haystack = [row.material, row.name, row.spec, row.note, row.deliveryBatch, '无订单', '无订单发货'].join(' ').toLowerCase();
-    if (!haystack.includes(query)) continue;
-    rows.push({ source: 'over', po: '无', seq: '无', material: String(row.material || ''), name: String(row.name || ''), spec: String(row.spec || ''), quantity: Number(row.quantity || 0), remaining: 0, hasOrder: false, batch: String(row.deliveryBatch || ''), shippedAt: row.billedAt || row.createdAt || '', billed: isBilledExtra(row.id), typeLabel: '无订单', remark: '' });
+  const overs = overDeliveries();
+  const overById = new Map(overs.map((row) => [String(row.id || '').trim(), row]));
+  const offsetsByOver = new Map();
+  for (const row of overOffsets()) {
+    const key = String(row.overId || '').trim();
+    if (!key) continue;
+    if (!offsetsByOver.has(key)) offsetsByOver.set(key, []);
+    offsetsByOver.get(key).push(row);
   }
+  // 已经被后续订单冲抵掉的那部分：直接显示成「冲抵后那张订单的采购单号 + 项次 + 当天送货单编号」
+  const pushOffsetRow = (row, over) => {
+    const material = String(row.material || over?.material || '').trim();
+    const name = String(row.name || over?.name || '');
+    const spec = String(row.spec || over?.spec || '');
+    const meta = orderMetaFor(row.orderId, { material, name, spec });
+    const haystack = [material, name, spec, meta.po, meta.seq, row.orderId, over?.note, '无订单', '无订单发货', '冲抵'].join(' ').toLowerCase();
+    if (!haystack.includes(query)) return;
+    const shippedAt = row.deliveredAt || row.appliedAt || over?.createdAt || '';
+    rows.push({
+      source: 'over-offset',
+      po: deliveryLineLabel(meta.po, '无'),
+      seq: deliveryLineLabel(meta.seq, '无'),
+      material,
+      name,
+      spec,
+      quantity: Number(row.quantity || 0),
+      remaining: Number(meta.remaining || 0),
+      hasOrder: Boolean(meta.po || meta.seq),
+      batch: extraRowBatch(row.deliveryBatch, shippedAt, material, name),
+      shippedAt,
+      billed: true,
+      typeLabel: '冲抵',
+      remark: '',
+    });
+  };
+  for (const over of overs) {
+    for (const row of offsetsByOver.get(String(over.id || '').trim()) || []) pushOffsetRow(row, over);
+    // 还没被冲抵掉的部分：继续按「无订单发货」显示，数量按剩余量算，避免和上面的冲抵行重复计算
+    const remaining = Number(over.remaining || 0);
+    if (remaining <= 0) continue;
+    const material = String(over.material || '').trim();
+    const name = String(over.name || '');
+    const spec = String(over.spec || '');
+    const haystack = [material, name, spec, over.note, over.deliveryBatch, '无订单', '无订单发货'].join(' ').toLowerCase();
+    if (!haystack.includes(query)) continue;
+    const shippedAt = over.billedAt || over.createdAt || '';
+    rows.push({
+      source: 'over',
+      po: '无',
+      seq: '无',
+      material,
+      name,
+      spec,
+      quantity: remaining,
+      remaining: 0,
+      hasOrder: false,
+      batch: String(over.deliveryBatch || ''),
+      shippedAt,
+      billed: isBilledExtra(over.id),
+      typeLabel: '无订单',
+      remark: '',
+    });
+  }
+  // 已经冲抵完、当前清单里看不到的无订单发货：按历史回头补上
   for (const row of overOffsets()) {
     const overId = String(row.overId || '').trim();
-    if (overId && activeOverIds.has(overId)) continue;
-    const haystack = [row.material, row.name, row.spec, row.orderId, '无订单', '无订单发货', '冲抵'].join(' ').toLowerCase();
-    if (!haystack.includes(query)) continue;
-    rows.push({ source: 'over-offset', po: '无', seq: '无', material: String(row.material || ''), name: String(row.name || ''), spec: String(row.spec || ''), quantity: Number(row.quantity || 0), remaining: 0, hasOrder: false, batch: '', shippedAt: row.deliveredAt || row.appliedAt || '', billed: true, typeLabel: '无订单', remark: '' });
+    if (overId && overById.has(overId)) continue;
+    pushOffsetRow(row, overById.get(overId) || null);
   }
   for (const row of confirmedReplacements()) {
     const haystack = [row.material, row.name, row.spec, row.remark, row.po, '补发'].join(' ').toLowerCase();
@@ -6644,8 +6734,8 @@ function searchExtraRows(queryText) {
   return rows;
 }
 
-function addSearchExtrasToDateGroups(dateGroups, queryText) {
-  const extras = searchExtraRows(queryText);
+function addSearchExtrasToDateGroups(dateGroups, queryText, dateFilter = '') {
+  const extras = searchExtraRows(queryText).filter((row) => !dateFilter || shipShanghaiDate(row.shippedAt) === dateFilter);
   if (!extras.length) return;
   const map = new Map(dateGroups.map((group) => [group.date, group]));
   for (const row of extras) {
@@ -6663,9 +6753,9 @@ function addSearchExtrasToDateGroups(dateGroups, queryText) {
   dateGroups.sort((a, b) => String(b.date).localeCompare(String(a.date)));
 }
 
-function renderSearchByDate(groups, queryText = '') {
+function renderSearchByDate(groups, queryText = '', dateFilter = '') {
   const dateGroups = buildSearchDateGroups(groups);
-  addSearchExtrasToDateGroups(dateGroups, queryText);
+  addSearchExtrasToDateGroups(dateGroups, queryText, dateFilter);
   if (!dateGroups.length) return '<div class="empty-state"><strong>没有符合条件的发货记录</strong><span>可以搜索送货单号、采购单号、料件编号或品名。</span></div>';
   return dateGroups.map((group) => {
     const key = 'date:' + group.date;
@@ -6692,12 +6782,12 @@ function renderSearchByDate(groups, queryText = '') {
     </article>`;
   }).join('');
 }
-function renderShipmentSection(shipments, queryText = '') {
+function renderShipmentSection(shipments, queryText = '', dateFilter = '') {
   const groups = buildDeliveryGroups(shipments, queryText);
   // 按料件编号/品名搜索时：先按发货日期汇总，点日期再展开订单/项次明细。
   // 按送货单号搜索时仍按送货单分卡展示，保留送货单标题和撤回入口。
-  if (String(queryText || '').trim() && groups.length && groups.every((group) => group.searchMode)) {
-    return renderSearchByDate(groups, queryText);
+  if (String(queryText || '').trim() && groups.every((group) => group.searchMode)) {
+    return renderSearchByDate(groups, queryText, dateFilter);
   }
   return renderDeliveryGroups(groups);
 }function renderDesktopHistory() {
@@ -6709,7 +6799,7 @@ function renderShipmentSection(shipments, queryText = '') {
       ? `共 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`
       : `筛选出 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`;
   }
-  renderQueryPanes(els.shipmentHistory, els.offsetHistory, els.overHistory, renderShipmentSection(rows, historyQuery), els.replacementHistory);
+  renderQueryPanes(els.shipmentHistory, els.offsetHistory, els.overHistory, renderShipmentSection(rows, historyQuery, historyDate), els.replacementHistory);
   void renderCloudFiles();
   requestAnimationFrame(() => { applyDeliveryColumnWidths('grouped'); applyDeliveryColumnWidths('merged'); });
 window.addEventListener('resize', () => { applyDeliveryColumnWidths('grouped'); applyDeliveryColumnWidths('merged'); });
@@ -7882,7 +7972,7 @@ function renderMobileRecords() {
     if (recordsDate && shipShanghaiDate(shipment.createdAt) !== recordsDate) return false;
     return shipmentMatches(shipment, query, lookup);
   });
-  renderQueryPanes(els.recordsList, els.recordsOffsetList, els.recordsOverList, renderShipmentSection(rows, recordsSearch), els.recordsReplacementList);
+  renderQueryPanes(els.recordsList, els.recordsOffsetList, els.recordsOverList, renderShipmentSection(rows, recordsSearch, recordsDate), els.recordsReplacementList);
   void renderCloudFiles();
   requestAnimationFrame(() => { applyDeliveryColumnWidths('grouped'); applyDeliveryColumnWidths('merged'); });
   els.recordsList.querySelectorAll('[data-expand]').forEach((button) => button.addEventListener('click', () => {
