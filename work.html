@@ -1293,7 +1293,9 @@ function renderPiece() {
     const WEEK = ['周日','周一','周二','周三','周四','周五','周六'];
     $('attendanceList').innerHTML = days.length ? days.map((d) => {
       const tag = ATT_STATUS[d.status] || d.status || '--';
-      const times = [d.checkInRaw || d.checkIn || '', d.checkOutRaw || d.checkOut || ''].filter(Boolean).join(' / ') || '无打卡';
+      const outRaw = d.checkOutRaw || d.checkOut || '';
+      const outText = outRaw && d.shift === 'night' ? '次日 ' + outRaw : outRaw;
+      const times = [d.checkInRaw || d.checkIn || '', outText].filter(Boolean).join(' / ') || '无打卡';
       const extra = n(d.overtimeMinutes) > 0 ? ` · 加班 ${Math.round(n(d.overtimeMinutes) / 60 * 10) / 10}h` : '';
       const wk = WEEK[new Date(d.workDate + 'T00:00:00').getDay()] || '';
       const cls = (d.status === 'absent' || d.status === 'missing_overdue') ? 'bad'
@@ -1334,7 +1336,7 @@ function renderPiece() {
       <div class="att-hero-times">
         <div><span>签到</span><strong>${esc(day.checkInRaw || day.checkIn || '--:--')}</strong></div>
         <div class="arrow">→</div>
-        <div><span>签退</span><strong>${esc(day.checkOutRaw || day.checkOut || '--:--')}</strong></div>
+        <div><span>签退</span><strong>${esc((day.shift === 'night' && (day.checkOutRaw || day.checkOut) ? '次日 ' : '') + (day.checkOutRaw || day.checkOut || '--:--'))}</strong></div>
       </div>
       <div class="att-hero-foot">${esc(foot)}</div>`;
   }

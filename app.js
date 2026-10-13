@@ -4663,6 +4663,63 @@ function clearDesktopWorkDetail() {
   if (empty) empty.hidden = false;
   document.querySelectorAll('#desktopWorkLiveBody tr[data-work-live-row]').forEach((tr) => tr.classList.remove('is-selected'));
 }
+function workTimelinePieceDetailRows(data) {
+  const rows = [];
+  const seen = new Set();
+  const push = (row) => {
+    if (!row) return;
+    const id = row.id ? String(row.id) : [row.material || '', row.process || '', row.quantity || '', row.createdAt || row.submittedAt || ''].join('|');
+    if (seen.has(id)) return;
+    seen.add(id);
+    rows.push(row);
+  };
+  (Array.isArray(data.pieceRows) ? data.pieceRows : []).forEach(push);
+  (data.periods || []).forEach((period) => (period.entries || []).forEach(push));
+  (data.unassignedEntries || []).forEach(push);
+  return rows.sort((a, b) => String(a.createdAt || a.submittedAt || '').localeCompare(String(b.createdAt || b.submittedAt || '')));
+}
+function workTimelineHistoryBlocks(data) {
+  const entries = data.history && Array.isArray(data.history.entries) ? data.history.entries : [];
+  const matMap = new Map();
+  entries.forEach((entry) => {
+    const material = entry.material || '（无料号）';
+    const process = entry.process || '';
+    const groupKey = material + '|' + process;
+    const item = matMap.get(groupKey) || { material, process, quantity:0, amount:0, count:0, days:{}, dayQty:{} };
+    item.quantity += Number(entry.quantity || 0);
+    item.amount += Number(entry.amount || 0);
+    item.count += 1;
+    item.days[entry.workDate] = (item.days[entry.workDate] || 0) + Number(entry.quantity || 0);
+    const dupKey = entry.workDate + '|' + Number(entry.quantity || 0);
+    item.dayQty[dupKey] = (item.dayQty[dupKey] || 0) + 1;
+    matMap.set(groupKey, item);
+  });
+  const matRows = [...matMap.values()].map((item) => {
+    const dayValues = Object.values(item.days).map(Number);
+    const avg = dayValues.length ? dayValues.reduce((a, b) => a + b, 0) / dayValues.length : 0;
+    const max = dayValues.length ? Math.max(...dayValues) : 0;
+    return {
+      ...item,
+      dayCount:dayValues.length,
+      dup:Object.values(item.dayQty).some((n) => Number(n) > 1),
+      high:dayValues.length >= 2 && avg > 0 && max > avg * 2,
+      detail:Object.entries(item.days).sort((a, b) => b[0].localeCompare(a[0])).map(([d, q]) => d.slice(5) + '：' + fmt(q) + ' 件').join('   '),
+    };
+  }).sort((a, b) => b.quantity - a.quantity);
+  const matItems = matRows.length ? matRows.map((item) => '<div class="tl-item"><span>' + (item.dup || item.high ? '⚠ ' : '') + escapeHtml(item.material) + ' · ' + escapeHtml(item.process) + '</span><b>合计 ' + fmt(item.quantity) + ' 件 · ' + item.dayCount + ' 天</b>' + (item.dup ? '<em class="tl-status rejected">有过重复</em>' : item.high ? '<em class="tl-status submitted">数量偏高</em>' : '') + '<em class="tl-status plain">' + escapeHtml(item.detail) + '</em></div>').join('') : '<div class="tl-empty">近 7 天没有计件</div>';
+  const dateMap = new Map();
+  entries.forEach((entry) => { if (!dateMap.has(entry.workDate)) dateMap.set(entry.workDate, []); dateMap.get(entry.workDate).push(entry); });
+  const todayStr = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+  const yesterdayStr = new Date(Date.now() + 8 * 3600 * 1000 - 86400000).toISOString().slice(0, 10);
+  const dateLabel = (d) => d === todayStr ? '今天' : d === yesterdayStr ? '昨天' : '';
+  const dateGroups = [...dateMap.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([date, list]) => {
+    const qty = list.reduce((sum, e) => sum + Number(e.quantity || 0), 0);
+    const amount = list.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    const rows = list.map((e) => '<div class="tl-item piece"><span class="tl-code">' + escapeHtml(e.material || '（无料号）') + '</span><b>' + fmt(e.quantity) + ' 件 · ' + workReviewMoney(e.amount, 2) + ' 元</b><em class="tl-status ' + escapeHtml(e.status || '') + '">' + escapeHtml(workReviewStatusText(e.status)) + '</em><span class="tl-sub">' + escapeHtml(String(e.createdAt || '').slice(5, 16).replace('T', ' ')) + ' 提交 · ' + escapeHtml(e.name || '') + ' · ' + escapeHtml(e.process || '') + (e.variantLabel ? ' · ' + escapeHtml(e.variantLabel) : '') + '</span></div>').join('');
+    return '<div class="tl-line expandable" data-tl-detail="day"><div class="tl-line-main"><span>' + escapeHtml(date) + ' ' + dateLabel(date) + '</span><strong>' + list.length + ' 笔 · ' + fmt(qty) + ' 件 · ' + workReviewMoney(amount, 2) + ' 元</strong></div><div class="tl-detail">' + rows + '</div></div>';
+  }).join('');
+  return { matItems, matCount:matRows.length, dateGroups, dayCount:dateMap.size };
+}
 function renderWorkTimeline() {
   const desktopPanel = document.getElementById('desktopWorkTimelinePanel');
   const mobilePanel = document.getElementById('mobileWorkTimelinePanel');
@@ -4686,8 +4743,24 @@ function renderWorkTimeline() {
   const html = `${anomalyHtml}<div class="work-timeline-summary"><article><span>计时工时</span><strong>${fmt(salary.timerHours)}h</strong></article><article><span>计时工资</span><strong>${workReviewMoney(salary.timerPay, 2)} 元</strong></article><article><span>计件工时</span><strong>${fmt(salary.pieceHours)}h</strong></article><article><span>当天合计</span><strong>${workReviewMoney(salary.totalPay, 2)} 元</strong></article></div><div class="work-timeline-list">${timerRows}${periodRows}${unassignedRows}${!(timerRows || periodRows || unassignedRows) ? '<div class="work-timeline-empty">当天没有计时或计件记录</div>' : ''}</div>`;
   const actions = `<button type="button" data-work-payroll="${data.monthClosed ? 'open' : 'closed'}">${data.monthClosed ? '解封本月工资' : '封账本月工资'}</button>`;
   if (desktopPanel) {
+    const pieceRows = workTimelinePieceDetailRows(data);
+    const approvedPieces = pieceRows.filter((row) => row.status === 'approved');
+    const pieceQty = pieceRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0);
+    const pieceAmount = approvedPieces.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const pieceItems = pieceRows.length ? pieceRows.map((row) => '<div class="tl-item piece"><span class="tl-code">' + escapeHtml(row.material || '（无料号）') + '</span><b>' + fmt(row.quantity) + ' 件 × ' + (row.unitPrice != null ? workReviewMoney(row.unitPrice) : '--') + ' 元 = ' + workReviewMoney(row.amount, 2) + ' 元</b><em class="tl-status ' + escapeHtml(row.status || '') + '">' + escapeHtml(workReviewStatusText(row.status)) + '</em><span class="tl-sub">' + escapeHtml(row.name || '') + ' · ' + escapeHtml(row.process || '') + (row.variantLabel ? ' · ' + escapeHtml(row.variantLabel) : '') + (row.spec ? ' · ' + escapeHtml(row.spec) : '') + ' · 申报 ' + escapeHtml(String(row.createdAt || '').slice(5, 16).replace('T', ' ')) + '</span></div>').join('') : '<div class="tl-empty">当天没有计件申报</div>';
+    const historyBlocks = workTimelineHistoryBlocks(data);
+    const desktopHtml = anomalyHtml
+      + '<div class="work-timeline-summary"><article><span>计时工时</span><strong>' + fmt(salary.timerHours) + 'h</strong></article><article><span>计时工资</span><strong>' + workReviewMoney(salary.timerPay, 2) + ' 元</strong></article><article><span>计件工时</span><strong>' + fmt(salary.pieceHours) + 'h</strong></article><article><span>当天合计</span><strong>' + workReviewMoney(salary.totalPay, 2) + ' 元</strong></article></div>'
+      + '<div class="tl-line expandable expanded" data-tl-detail="time"><div class="tl-line-main"><span>计时记录</span><strong>' + (data.timerEntries || []).length + ' 段 · ' + fmt(salary.timerHours) + ' 小时</strong></div><div class="tl-detail">' + (timerRows || '<div class="tl-empty">当天没有计时记录</div>') + '</div></div>'
+      + '<div class="tl-line expandable expanded" data-tl-detail="piece"><div class="tl-line-main"><span>计件申报</span><strong>' + pieceRows.length + ' 笔（已通过 ' + approvedPieces.length + '）· ' + fmt(pieceQty) + ' 件 · ' + workReviewMoney(pieceAmount, 2) + ' 元</strong></div><div class="tl-detail">' + pieceItems + '</div></div>'
+      + '<div class="tl-line expandable" data-tl-detail="summary"><div class="tl-line-main"><span>同料号汇总（近 7 天，查重复/多报）</span><strong>' + historyBlocks.matCount + ' 项</strong></div><div class="tl-detail">' + historyBlocks.matItems + '</div></div>'
+      + '<div class="tl-line expandable" data-tl-detail="history"><div class="tl-line-main"><span>按日期看（近 7 天）</span><strong>' + historyBlocks.dayCount + ' 天</strong></div><div class="tl-detail">' + historyBlocks.dateGroups + '</div></div>'
+      + (periodRows ? '<div class="tl-line expandable" data-tl-detail="period"><div class="tl-line-main"><span>计时时段与产量</span><strong>' + periods.length + ' 段</strong></div><div class="tl-detail work-timeline-period-list">' + periodRows + unassignedRows + '</div></div>' : '')
+      + '<div class="tl-line"><div class="tl-line-main"><span>计时工资</span><strong>' + workReviewMoney(salary.timerPay, 2) + ' 元</strong></div></div>'
+      + '<div class="tl-line"><div class="tl-line-main"><span>计件工资</span><strong>' + workReviewMoney(salary.piecePay, 2) + ' 元</strong></div></div>'
+      + '<div class="tl-line"><div class="tl-line-main"><span>工资合计</span><strong>' + workReviewMoney(salary.totalPay, 2) + ' 元</strong></div></div>';
     desktopPanel.hidden = true;
-    injectDesktopWorkDetail(String(data.employee.id), html, actions);
+    injectDesktopWorkDetail(String(data.employee.id), desktopHtml, actions);
   }
   if (mobilePanel) {
     const timerItems = (data.timerEntries || []).map((entry) => `<div class="tl-item"><span>${escapeHtml(workTimelineTime(entry.startedAt))} → ${escapeHtml(entry.endedAt ? workTimelineTime(entry.endedAt) : '进行中')}</span><b>${fmt(entry.minutes)} 分钟</b><button type="button" data-work-time-edit="${escapeHtml(entry.id)}">修改</button></div>`).join('') || '<div class="tl-empty">当天没有计时记录</div>';
@@ -5778,7 +5851,8 @@ async function loadAttendanceDetail(empNo) {
       const wk = WEEK[new Date(d.workDate + 'T00:00:00').getDay()] || '';
       const hi = Number(d.overtimeMinutes || 0) > 0 ? ` · 加班 ${attendanceHours(d.overtimeMinutes)}h` : '';
       const manual = d.manualOverride ? ' <span class="att-pill">人工</span>' : '';
-      return `<div class="att-day"><span class="dt">${escapeHtml(String(d.workDate).slice(5))}<small>${wk}</small></span><span class="tm">${escapeHtml(d.checkInRaw || d.checkIn || '--')}<em>→</em>${escapeHtml(d.checkOutRaw || d.checkOut || '--')}${escapeHtml(hi)}${manual}${d.note ? `<span class="nt">${escapeHtml(d.note)}</span>` : ''}</span><span class="att-pill ${escapeHtml(d.status)}">${escapeHtml(ATTENDANCE_STATUS_TEXT[d.status] || d.status)}</span><button type="button" class="button ghost" data-att-edit="${escapeHtml(empNo)}" data-att-date="${escapeHtml(d.workDate)}">改</button></div>`;
+      const outText = (d.shift === 'night' ? '次日 ' : '') + (d.checkOutRaw || d.checkOut || '--');
+      return `<div class="att-day"><span class="dt">${escapeHtml(String(d.workDate).slice(5))}<small>${wk}</small></span><span class="tm">${escapeHtml(d.checkInRaw || d.checkIn || '--')}<em>→</em>${escapeHtml(outText)}${escapeHtml(hi)}${manual}${d.note ? `<span class="nt">${escapeHtml(d.note)}</span>` : ''}</span><span class="att-pill ${escapeHtml(d.status)}">${escapeHtml(ATTENDANCE_STATUS_TEXT[d.status] || d.status)}</span><button type="button" class="button ghost" data-att-edit="${escapeHtml(empNo)}" data-att-date="${escapeHtml(d.workDate)}">改</button></div>`;
     }).join('');
     els.desktopAttendanceDetailBody.querySelectorAll('[data-att-edit]').forEach((b) => b.addEventListener('click', () => editAttendanceDay(b.dataset.attEdit, b.dataset.attDate)));
   }
@@ -9799,7 +9873,7 @@ document.querySelectorAll('[data-mobile-attendance-tab]').forEach((b) => b.addEv
 if (els.mobileWorkReportDate) els.mobileWorkReportDate.addEventListener('change', (event) => { workReportDate = event.target.value; loadWorkReportWorkspace(); });
 if (els.desktopWorkReportEmployee) els.desktopWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; renderWorkLiveOverview(); loadWorkReport(); });
 if (els.mobileWorkReportEmployee) els.mobileWorkReportEmployee.addEventListener('change', (event) => { workReportEmployeeId = event.target.value; renderWorkLiveOverview(); loadWorkReport(); });
-[document.getElementById('desktopWorkTimeline'), document.getElementById('desktopWorkTimelineActions'), document.getElementById('mobileWorkTimeline'), els.mobileWorkLiveList, els.desktopWorkLiveBody].forEach((panel) => {
+[document.getElementById('desktopWorkTimeline'), document.getElementById('desktopWorkTimelineActions'), document.getElementById('desktopWorkDetailPane'), document.getElementById('mobileWorkTimeline'), els.mobileWorkLiveList, els.desktopWorkLiveBody].forEach((panel) => {
   if (!panel) return;
   panel.addEventListener('change', (event) => {
     const select = event.target.closest('[data-work-timeline-entry]');

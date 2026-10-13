@@ -3590,6 +3590,10 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .work-live-split{display:grid;grid-template-columns:minmax(0,1.85fr) minmax(300px,1fr);gap:14px;align-items:start}
 @media(max-width:1180px){.work-live-split{grid-template-columns:1fr}}
 .work-detail-pane{position:sticky;top:92px;background:#fff;border:1px solid #e6efee;border-radius:14px;padding:14px 14px 10px;max-height:calc(100vh - 128px);overflow:auto}
+.work-detail-pane .tl-line.expanded[data-tl-detail="piece"] .tl-detail,
+.work-detail-pane .tl-line.expanded[data-tl-detail="period"] .tl-detail{max-height:52vh}
+.work-detail-pane .tl-detail .work-timeline-row{margin-bottom:8px}
+.work-detail-pane .tl-line .tl-line-main span{font-size:12.5px}
 .work-detail-pane .work-detail-empty{color:#8a9a9d;font-size:12.5px;font-weight:600;line-height:1.7;padding:26px 8px;text-align:center}
 #desktopWorkLiveBody tr.is-selected{background:#eef7f5}
 #desktopWorkLiveBody tr.is-selected td{border-bottom-color:#d7eae7}
