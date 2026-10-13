@@ -7,6 +7,11 @@ const API_BASE = window.SHIPMENT_API_BASE || (functionMarkerIndex >= 0
   : '');
 const apiUrl = (path) => `${API_BASE}${path}`;
 const RPC_BASE = window.SHIPMENT_RPC_BASE || '';
+// 国内中转（腾讯云函数）对上行/下行体积有限制（实测 ~128KB 就被 413 拒绝），
+// 所以照片这类大负载直接连 Supabase，小接口继续走国内中转。
+const DIRECT_RPC_BASE = String(window.SHIPMENT_DIRECT_RPC_BASE || '');
+const LARGE_RPC_LIMIT = 100 * 1024;
+const LARGE_RPC_RESPONSE_NAMES = new Set(['board_get_delivery_file']);
 const ACCESS_CODE_KEY = 'shipmentBoardAccessCode';
 const BOARD_MODE = (() => {
   const value = new URLSearchParams(location.search).get('mode');
@@ -165,10 +170,13 @@ async function callRpc(name, body, timeoutMs = 0) {
   const controller = timeoutMs > 0 ? new AbortController() : null;
   const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
   try {
-    const response = await fetch(`${RPC_BASE}/${name}`, {
+    const payloadText = JSON.stringify(body);
+    const useDirect = Boolean(DIRECT_RPC_BASE) && (payloadText.length > LARGE_RPC_LIMIT || LARGE_RPC_RESPONSE_NAMES.has(name));
+    const rpcBase = useDirect ? DIRECT_RPC_BASE : RPC_BASE;
+    const response = await fetch(`${rpcBase}/${name}`, {
       method: 'POST',
       headers: rpcHeaders(),
-      body: JSON.stringify(body),
+      body: payloadText,
       signal: controller ? controller.signal : undefined,
     });
     let data = null;

@@ -11,6 +11,7 @@
   <link rel="icon" href="data:,">
   <script>
     window.SHIPMENT_RPC_BASE = "https://fanshun-work-d1gkeq1fjef6147a1-1504638929.ap-shanghai.app.tcloudbase.com/rest/v1/rpc";
+    window.SHIPMENT_DIRECT_RPC_BASE = "https://dkbeigqtiilgxthwkixg.supabase.co/rest/v1/rpc";
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="manifest.webmanifest">
@@ -1190,7 +1191,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "d7b5b43076bc";
+      const fallbackVersion = "7fa2bf0fd9db";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
