@@ -8587,7 +8587,8 @@ function labelPayload(rows) {
 
 function finishLabelPrint(mode, sourceKeys, picked, result, manual) {
   markLabelPrinted(sourceKeys, mode);
-  bumpLabelStats(picked.map((row) => row.material), mode);
+  // 合并标签：把包含的两个料号都记上次数
+  bumpLabelStats(picked.flatMap((row) => [row.material, ...((row.mergedFrom || []).map((part) => part.material))]), mode);
   const rawWritten = mode === 'big' ? result?.bigRows : result?.smallRows;
   const written = Number.isFinite(Number(rawWritten)) ? Number(rawWritten) : sourceKeys.length;
   const errors = Array.isArray(result?.errors) && result.errors.length ? '；' + result.errors.join('；') : '';
