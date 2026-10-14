@@ -2828,7 +2828,8 @@ async function parsePdfOrder(file) {
     const vendorLine = flat.match(/(无锡市帆顺金属[^\s]*)/);
     if (vendorLine) doc.vendor = vendorLine[1];
   }
-  m = flat.match(/含税金额总和[:：]\s*([\d,]+(?:\.\d+)?)/); doc.pdfTotal = m ? pdfNum(m[1]) : null;
+  // 金额可能写成「.00」（整数位的 0 被省掉），这里要一并认出来
+  m = flat.match(/含税金额总和[:：]\s*(\d[\d,]*(?:\.\d+)?|\.\d+)/); doc.pdfTotal = m ? pdfNum(m[1]) : null;
   const isLikelyContinuation = (line) => {
     const text = tidyText(line);
     if (!text) return false;
@@ -2934,6 +2935,9 @@ function renderPdfPreview(docs) {
       problems.push('没有读到 PDF 含税金额总和，不能导入');
     } else if (Math.abs(doc.amountTotal - doc.pdfTotal) > 0.02) {
       problems.push(`总金额对不上：明细算出 ${doc.amountTotal}，PDF 合计 ${doc.pdfTotal}`);
+    }
+    if (doc.pdfTotal === 0 && !doc.items.some((x) => Number(x.grossAmount || 0) > 0)) {
+      warnings.push('这张单没有单价（PDF 合计 0），按「单价未定」导入：单价留空，之后可以再补');
     }
     const missingAmountCount = doc.items.filter((x) => x.grossAmount == null).length;
     if (missingAmountCount) problems.push(`有 ${missingAmountCount} 行没有读到含税金额，不能导入`);
@@ -3176,14 +3180,17 @@ async function confirmPdfImport() {
     // 把 PDF 里的含税单价写进云端（管理码专属），并刷新订单总额
     if (boardRole === 'admin') {
       let priced = 0;
+      let unpriced = 0;
       for (const row of pendingPdfRows) {
-        if (row.unitPrice == null) continue;
+        // 单价未定（PDF 里是 0）的行不写单价，保持空着，之后有价再写
+        if (row.unitPrice == null || !(Number(row.unitPrice) > 0)) { unpriced += 1; continue; }
         try {
           const r = await callRpc('board_set_order_price', { p_code: getAccessCode(), p_payload: { orderId: row.id, unitPrice: row.unitPrice, source: 'pdf' } });
           if (r.response.ok) priced += 1;
         } catch { }
       }
       try { await callRpc('board_refresh_order_amount', { p_code: getAccessCode() }); } catch { }
+      if (unpriced) showToast(`${unpriced} 行单价未定，已按未定价导入（单价留空）`, 6000);
       if (priced) showToast(`已写入 ${priced} 条含税单价（来源：采购订单 PDF）`);
     }
     closePdfModal();
@@ -5756,6 +5763,7 @@ async function submitWorkReview(action) {
 }
 // 考勤管理：电脑端和手机端共用
 const ATTENDANCE_STATUS_TEXT = { normal:'正常', late:'迟到', early_leave:'早退', missing_once:'漏刷1次', missing_overdue:'漏刷未补', absent:'没上班', manual:'人工判定', leave:'请假', reissued:'已补卡', working:'进行中' };
+const ATT_EDIT_STATUSES = ['normal','late','early_leave','missing_once','missing_overdue','absent','leave','reissued','manual'];
 const ATTENDANCE_TYPE_TEXT = { hourly_piece:'计时计件', daily:'固定日薪', monthly:'固定月薪', management:'管理' };
 function attendancePrevMonth() { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function attendanceCurrentMonth() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
@@ -5849,12 +5857,24 @@ async function loadAttendanceDetail(empNo) {
     const WEEK = ['周日','周一','周二','周三','周四','周五','周六'];
     els.desktopAttendanceDetailBody.innerHTML = days.map((d) => {
       const wk = WEEK[new Date(d.workDate + 'T00:00:00').getDay()] || '';
-      const hi = Number(d.overtimeMinutes || 0) > 0 ? ` · 加班 ${attendanceHours(d.overtimeMinutes)}h` : '';
-      const manual = d.manualOverride ? ' <span class="att-pill">人工</span>' : '';
       const outText = (d.shift === 'night' ? '次日 ' : '') + (d.checkOutRaw || d.checkOut || '--');
-      return `<div class="att-day"><span class="dt">${escapeHtml(String(d.workDate).slice(5))}<small>${wk}</small></span><span class="tm">${escapeHtml(d.checkInRaw || d.checkIn || '--')}<em>→</em>${escapeHtml(outText)}${escapeHtml(hi)}${manual}${d.note ? `<span class="nt">${escapeHtml(d.note)}</span>` : ''}</span><span class="att-pill ${escapeHtml(d.status)}">${escapeHtml(ATTENDANCE_STATUS_TEXT[d.status] || d.status)}</span><button type="button" class="button ghost" data-att-edit="${escapeHtml(empNo)}" data-att-date="${escapeHtml(d.workDate)}">改</button></div>`;
+      const manual = d.manualOverride ? ' <span class="att-pill">人工</span>' : '';
+      const isWang = Boolean(days[0] && days[0].employeeName === '王华涛');
+      const noteText = d.note || '';
+      const statusOpts = ATT_EDIT_STATUSES
+        .map((s) => `<option value="${s}"${s === d.status ? ' selected' : ''}>${escapeHtml(ATTENDANCE_STATUS_TEXT[s] || s)}</option>`)
+        .join('');
+      const shiftOpts = [['day','白班'],['night','夜班'],['manual','人工判定']]
+        .map(([v, t]) => `<option value="${v}"${v === d.shift ? ' selected' : ''}>${t}</option>`)
+        .join('');
+      const otMinutes = Number(d.overtimeMinutes || 0);
+      const otOpts = [[0,'不加班'],[180,'加班3h'],[60,'加班1h'],[120,'加班2h']]
+        .map(([v, t]) => `<option value="${v}"${v === otMinutes ? ' selected' : ''}>${t}</option>`)
+        .join('');
+      return `<div class="att-day" data-att-row data-att-date="${escapeHtml(d.workDate)}" data-note="${escapeHtml(d.manualOverride ? noteText : '')}"><span class="dt">${escapeHtml(String(d.workDate).slice(5))}<small>${wk}</small></span><span class="tm">${escapeHtml(d.checkInRaw || d.checkIn || '--')}<em>→</em>${escapeHtml(outText)}${manual}${noteText ? `<span class="nt">${escapeHtml(noteText)}</span>` : ''}</span><select class="att-edit att-edit-${escapeHtml(d.status)}" data-att-status aria-label="改状态">${statusOpts}</select>${isWang ? `<select class="att-edit att-edit-${escapeHtml(d.shift)}" data-att-shift aria-label="改班次">${shiftOpts}</select>` : ''}<select class="att-edit" data-att-ot aria-label="改加班">${otOpts}</select><button type="button" class="button ghost att-note-btn" data-att-notebtn>备注</button></div>`;
     }).join('');
-    els.desktopAttendanceDetailBody.querySelectorAll('[data-att-edit]').forEach((b) => b.addEventListener('click', () => editAttendanceDay(b.dataset.attEdit, b.dataset.attDate)));
+    els.desktopAttendanceDetailBody.querySelectorAll('.att-edit').forEach((s) => s.addEventListener('change', () => saveAttendanceEdit(s.closest('[data-att-row]'), empNo)));
+    els.desktopAttendanceDetailBody.querySelectorAll('[data-att-notebtn]').forEach((b) => b.addEventListener('click', () => editAttendanceNote(b.closest('[data-att-row]'), empNo)));
   }
   if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = false;
   if (els.desktopAttendanceDetailMask) els.desktopAttendanceDetailMask.hidden = false;
@@ -5962,18 +5982,38 @@ async function loadAttendanceLeaves() {
     els.mobileAttendanceLeaveList.querySelectorAll('[data-mobi-leave-reject]').forEach((b) => b.addEventListener('click', () => reviewAttendanceLeave(b.dataset.mobiLeaveReject, false)));
   }
 }
-async function editAttendanceDay(empNo, workDate) {
-  const status = prompt('改状态：normal 正常 / late 迟到 / early_leave 早退 / missing_once 漏刷1次 / missing_overdue 漏刷未补 / absent 没上班 / leave 请假 / reissued 已补卡 / manual 人工', 'normal');
-  if (status === null) return;
-  const ot = prompt('加班分钟（0 或 180）', '0');
-  if (ot === null) return;
-  const note = prompt('备注（可空）', '') || '';
+async function saveAttendanceEdit(rowEl, empNo) {
+  if (!rowEl) return;
+  const workDate = rowEl.dataset.attDate;
+  const statusSel = rowEl.querySelector('[data-att-status]');
+  const shiftSel = rowEl.querySelector('[data-att-shift]');
+  const otSel = rowEl.querySelector('[data-att-ot]');
+  const payload = {
+    p_code:getAccessCode(), p_employee_no:empNo, p_work_date:workDate,
+    p_status:(statusSel && statusSel.value) || 'normal',
+    p_overtime_minutes:Number(otSel && otSel.value) || 0,
+    p_note:rowEl.dataset.note || '',
+  };
   try {
-    await attendanceRpc('board_attendance_set_day', { p_code:getAccessCode(), p_employee_no:empNo, p_work_date:workDate, p_status:String(status).trim(), p_overtime_minutes:Number(ot) || 0, p_note:note });
-    showToast('已修改并留痕');
-    await loadAttendance();
-    await loadAttendanceDetail(empNo);
-  } catch (error) { showToast(error.message || '修改失败'); }
+    await attendanceRpc('board_attendance_set_day', shiftSel ? Object.assign({}, payload, { p_shift:shiftSel.value }) : payload);
+    showToast('已保存（会留痕，重新导入不覆盖）');
+  } catch (error) {
+    if (!shiftSel) { showToast(error.message || '保存失败'); return; }
+    try {
+      await attendanceRpc('board_attendance_set_day', payload);
+      showToast('状态已保存；改班次要先执行 cloud/attendance-v5-edit-shift.sql', 6000);
+    } catch (fallbackError) { showToast(fallbackError.message || '保存失败'); return; }
+  }
+  await loadAttendance();
+  await loadAttendanceDetail(empNo);
+}
+
+async function editAttendanceNote(rowEl, empNo) {
+  if (!rowEl) return;
+  const note = prompt('备注（可空）', rowEl.dataset.note || '');
+  if (note === null) return;
+  rowEl.dataset.note = note;
+  await saveAttendanceEdit(rowEl, empNo);
 }
 async function reviewAttendanceLeave(id, approve) {
   let note = '';

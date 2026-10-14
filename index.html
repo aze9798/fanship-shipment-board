@@ -60,6 +60,14 @@
 .att-day .nt{display:block;color:#8a6b22;font-size:11px;margin-top:3px}
 .att-day .att-pill{flex:0 0 auto}
 .att-day button{flex:0 0 auto;padding:5px 12px;min-height:34px}
+.att-day select.att-edit{flex:0 0 auto;max-width:104px;min-height:34px;padding:4px 6px;border:1px solid #dbe7e5;border-radius:9px;background:#fff;color:#15363f;font-size:12px;font-weight:700;cursor:pointer}
+.att-day select.att-edit:focus{outline:2px solid #0f766e;outline-offset:1px}
+.att-day select.att-edit-normal,.att-day select.att-edit-reissued{background:#e8f6f3;color:#0f766e;border-color:#cfe9e4}
+.att-day select.att-edit-late,.att-day select.att-edit-early_leave{background:#fff4e5;color:#b54708;border-color:#f2ddc0}
+.att-day select.att-edit-missing_once{background:#fff8e1;color:#8a6b22;border-color:#ece0b4}
+.att-day select.att-edit-missing_overdue,.att-day select.att-edit-absent{background:#fff1f0;color:#b42318;border-color:#f0d2cf}
+.att-day select.att-edit-leave{background:#e8f0ff;color:#3b5bdb;border-color:#cfdcf7}
+.att-day .att-note-btn{font-size:12px;padding:4px 10px;min-height:34px}
 .att-mask{position:fixed;inset:0;background:rgba(9,32,38,.35);z-index:65}
 @media(max-width:760px){#desktopAttendanceDetailPanel{width:100vw}}
 /* 考勤日期/月份控件统一 */
@@ -1343,7 +1351,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "f35aa6e7ffe9";
+      const fallbackVersion = "5ea45bde69f6";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
