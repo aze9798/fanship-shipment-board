@@ -8064,7 +8064,7 @@ function labelModeText(mode = labelPrintMode) {
   return mode === 'small' ? '小标签' : '大标签';
 }
 
-function labelPool() {
+function labelPool(anyMode = false) {
   const onlyPrinted = Boolean(els.labelPrintShowPrinted && els.labelPrintShowPrinted.checked);
   const mode = labelPrintMode;
   const query = labelPrintSearch.trim().toLowerCase();
@@ -8076,7 +8076,7 @@ function labelPool() {
       return { group, key, record: labelPrintedRecords[key] || null };
     })
     // 归类：每个料号只出现在它归属的那一页
-    .filter((item) => labelAssignOf(item.group.material) === mode)
+    .filter((item) => anyMode || labelAssignOf(item.group.material) === mode)
     .filter((item) => (onlyPrinted ? Boolean(item.record) : (!item.record || keepPrinted)))
     .filter((item) => !query || [item.group.material, item.group.name, (item.group.specs || []).join(' ')]
       .some((value) => String(value || '').toLowerCase().includes(query)))
@@ -8117,9 +8117,9 @@ function labelRemainingAllDates() {
   return map;
 }
 
-function buildLabelRows() {
+function buildLabelRows(allModes = false) {
   const remainingAll = labelRemainingAllDates();
-  return labelPool().map((item) => {
+  return labelPool(allModes).map((item) => {
     const material = String(item.group.material || '');
     const record = item.record;
     const habit = labelHabit(material);
@@ -8132,8 +8132,9 @@ function buildLabelRows() {
       printedDay: record ? labelShortDay(record.day) : '',
       printedMode: record ? String(record.mode || '') : '',
       printedCount: record ? Number(record.count || 1) : 0,
-      // 已打印的默认不勾（要补打自己勾上）；打印习惯是另一种标签的也不默认勾
-      selected: !record && (!habit || habit === labelPrintMode),
+      // 已打印的默认不勾（要补打自己勾上）；归到另一页的默认也不勾
+      mode: labelAssignOf(material),
+      selected: !record && labelAssignOf(material) === labelPrintMode,
       material,
       name: String(item.group.name || ''),
       spec: (item.group.specs || []).join('、'),
@@ -8158,7 +8159,9 @@ function openLabelPrintModal(mode = 'big') {
   labelPrintSearch = '';
   if (els.labelPrintSearch) els.labelPrintSearch.value = '';
   labelPrintMode = mode === 'small' ? 'small' : 'big';
-  labelRows = buildLabelRows();
+  labelMergePending = null;
+  // 一次把所有料号都建出来（两个页签共用同一份），切页签/转小标签不会丢掉合并、改数量、删除
+  labelRows = buildLabelRows(true);
   renderLabelRows();
   if (els.labelPrintError) els.labelPrintError.hidden = true;
   if (els.labelPrintModal) els.labelPrintModal.hidden = false;
@@ -8170,7 +8173,7 @@ function closeLabelPrintModal() {
 
 function switchLabelPrintMode(mode) {
   labelPrintMode = mode === 'small' ? 'small' : 'big';
-  labelRows = buildLabelRows();
+  labelMergePending = null;
   renderLabelRows();
   if (els.labelPrintError) els.labelPrintError.hidden = true;
 }
@@ -8205,8 +8208,9 @@ function labelRowHtml(row, index) {
 
 function renderLabelRows() {
   if (!els.labelPrintRows) return;
-  els.labelPrintRows.innerHTML = labelRows.length
-    ? labelRows.map((row, index) => labelRowHtml(row, index)).join('')
+  const visible = labelRows.map((row, index) => ({ row, index })).filter(({ row }) => (row.mode || 'big') === labelPrintMode);
+  els.labelPrintRows.innerHTML = visible.length
+    ? visible.map(({ row, index }) => labelRowHtml(row, index)).join('')
     : (labelPrintMode === 'small'
       ? '<div class="label-print-empty">小标签这边还没有料号。<br>在「大标签」页里，把要打小标签的那一行点「转小标签」，它就会挪到这里（会记住这个料号，下次自动归小标签）。</div>'
       : '<div class="label-print-empty">大标签这边没有待打印的产品了。<br>已经打印过的：勾上上面「已打印」，或直接搜索料号找出来补打。</div>');
@@ -8276,12 +8280,13 @@ function refreshLabelRemaining() {
 function updateLabelSummary() {
   refreshLabelRemaining();
   if (!els.labelPrintSummary) return;
-  const valid = labelRows.filter(labelRowIsValid);
+  const valid = labelRows.filter((row) => (row.mode || 'big') === labelPrintMode && labelRowIsValid(row));
   const picked = valid.filter((row) => row.selected);
   const reprinted = picked.filter((row) => row.printed).length;
   const total = picked.reduce((sum, row) => sum + labelRowQuantity(row), 0);
   const blank = picked.filter((row) => labelRowQuantity(row) === 0).length;
   const overMaterials = [...new Set(labelRows
+    .filter((row) => (row.mode || 'big') === labelPrintMode)
     .filter((row) => {
       const remaining = labelRowRemaining(row);
       if (remaining <= 0) return false;
@@ -8536,9 +8541,11 @@ function handleLabelPrintClick(event) {
     const row = labelRows[index];
     if (row) {
       const target = labelPrintMode === 'big' ? 'small' : 'big';
-      setLabelAssign(row.material, target);
+      row.mode = target;
+      // 记住这个料号（合并行则把它包含的两个料号都记住）
+      const assignKeys = [row.material, ...((row.mergedFrom || []).map((part) => part.material))];
+      for (const key of assignKeys) setLabelAssign(String(key).split('/')[0], target);
       showToast(`${row.material} 已归到${labelModeText(target)}打印`);
-      labelRows = buildLabelRows();
       renderLabelRows();
     }
     return;
@@ -8607,7 +8614,7 @@ async function closeLabelAppAfterManualPrint() {
 
 async function confirmLabelPrint() {
   const mode = labelPrintMode;
-  const valid = labelRows.filter(labelRowIsValid);
+  const valid = labelRows.filter((row) => (row.mode || 'big') === labelPrintMode && labelRowIsValid(row));
   const picked = valid.filter((row) => row.selected);
   if (!picked.length) {
     showLabelPrintError('还没有勾选要打印的行：在左边打勾后再点这个按钮（已打印的也可以勾上补打）。');
@@ -10584,7 +10591,7 @@ if (els.labelPrintRows) {
 if (els.labelPrintSelectAll) {
   els.labelPrintSelectAll.addEventListener('change', (event) => {
     const checked = Boolean(event.target.checked);
-    labelRows.forEach((row) => { row.selected = checked; });
+    labelRows.filter((row) => (row.mode || 'big') === labelPrintMode).forEach((row) => { row.selected = checked; });
     renderLabelRows();
   });
 }
