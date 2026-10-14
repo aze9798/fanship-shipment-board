@@ -1256,6 +1256,10 @@
             <option value="tooling">工装订单</option>
           </select>
         </label>
+        <label>
+          <span>含税单价（元）</span>
+          <input id="orderEditPrice" type="number" min="0" step="0.0001" inputmode="decimal" placeholder="单价未定可留空">
+        </label>
       </div>
       <div id="orderEditError" class="form-error" hidden></div>
       <div class="modal-actions">
@@ -1351,7 +1355,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "5ea45bde69f6";
+      const fallbackVersion = "47ace2cbeef6";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);

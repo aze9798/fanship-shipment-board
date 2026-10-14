@@ -2298,6 +2298,7 @@ const els = {
   orderEditQty: $('#orderEditQty'),
   orderEditShipped: $('#orderEditShipped'),
   orderEditType: $('#orderEditType'),
+  orderEditPrice: $('#orderEditPrice'),
   orderEditDue: $('#orderEditDue'),
   orderEditError: $('#orderEditError'),
   orderEditClose: $('#orderEditClose'),
@@ -2853,6 +2854,16 @@ async function parsePdfOrder(file) {
     }
     if (named) {
       row.name = tidyText(named[1]);
+      // 品名太长时 PDF 会折成两行：把续行（中文行）接回去，避免名字被截断、丢了 (ZZ)/(PT) 这类后缀
+      for (let j = namedIndex + 1; j < lines.length && j <= namedIndex + 3; j += 1) {
+        const candidate = String(lines[j] || '').trim();
+        if (!candidate || PDF_ITEM_RE.test(candidate)) break;
+        if (!/[\u4e00-\u9fa5]/.test(candidate)) break;
+        if (/^\d+\s*[.．、]/.test(candidate)) break;
+        if (/采购单号|制表日期|页次|页眉|金额总和|供应商回签|审核人|批准人|采购员/.test(candidate)) break;
+        row.name += candidate.replace(/\s+/g, '');
+      }
+      row.name = tidyText(row.name);
       row.grossAmount = pdfNum(named[3]);
       row.grossUnitPrice = pdfNum(named[2]);   // 含税单价
       row.unitPrice = row.grossUnitPrice;
@@ -2864,6 +2875,7 @@ async function parsePdfOrder(file) {
         const nextText = tidyText(candidate);
         // 只认“纯编号型”图号，避免把条款或页头当图号。
         const looksLikeSpec = nextText.length > 0 && nextText.length <= 40
+          && /\d/.test(nextText)
           && !/[\u4e00-\u9fa5：。，、；]/.test(nextText)
           && !/\d+\s*Hrs/i.test(nextText);
         if (looksLikeSpec) { next = candidate; row.spec = nextText; break; }
@@ -6473,6 +6485,11 @@ function openOrderEdit(orderId) {
     const t = String(order.orderType || '');
     els.orderEditType.value = ['trial', 'sample', 'tooling'].includes(t) ? t : 'normal';
   }
+  // 含税单价：没定价就留空
+  if (els.orderEditPrice) {
+    const amount = amountFor(order.id);
+    els.orderEditPrice.value = amount && amount.unitPrice != null && Number(amount.unitPrice) > 0 ? String(amount.unitPrice) : '';
+  }
   if (els.orderEditError) els.orderEditError.hidden = true;
   if (els.orderEditModal) els.orderEditModal.hidden = false;
   els.orderEditQty?.focus();
@@ -6495,6 +6512,9 @@ async function saveOrderEdit() {
   if (!/^\d+$/.test(rawShipped)) { fail('已交数量只能填整数'); return; }
   const shippedQty = Number(rawShipped);
   if (!Number.isSafeInteger(shippedQty) || shippedQty < 0) { fail('已交数量只能填 0 或正整数'); return; }
+  const rawPrice = String(els.orderEditPrice?.value || '').trim();
+  const priceValue = rawPrice === '' ? null : Number(rawPrice);
+  if (rawPrice !== '' && (!Number.isFinite(priceValue) || priceValue <= 0)) { fail('含税单价要大于 0；单价还没定就留空'); return; }
   const cancelling = orderQty === 0;
   if (cancelling && shippedQty > 0) {
     fail('该订单已有发货记录，需先撤回发货后再取消订单');
@@ -6526,11 +6546,19 @@ async function saveOrderEdit() {
       const typeResult = await callRpc('board_set_order_type', { p_code: getAccessCode(), p_order_id: order.id, p_order_type: nextType });
       if (!typeResult.response.ok) throw new Error(typeResult.data?.message || '订单类型保存失败');
     }
+    // 含税单价（管理员）：填了才写，留空不动已有单价
+    let priceSaved = false;
+    if (!cancelling && priceValue != null) {
+      const priceResult = await callRpc('board_set_order_price', { p_code: getAccessCode(), p_payload: { orderId: order.id, unitPrice: priceValue, source: 'manual' } });
+      if (!priceResult.response.ok) throw new Error(priceResult.data?.message || '单价保存失败');
+      try { await callRpc('board_refresh_order_amount', { p_code: getAccessCode() }); } catch { }
+      priceSaved = true;
+    }
     closeOrderEdit();
     if (cancelling) {
       showToast(`已取消 ${order.po} 项次 ${order.seq}`);
     } else {
-      showToast(`已更新 ${order.po} 项次 ${order.seq}：数量 ${fmt(orderQty)}，交期 ${dueDate}`);
+      showToast(`已更新 ${order.po} 项次 ${order.seq}：数量 ${fmt(orderQty)}，交期 ${dueDate}${priceSaved ? `，含税单价 ${fmt(priceValue)}` : ''}`);
     }
     await loadState({ quiet: true });
     renderAll();
