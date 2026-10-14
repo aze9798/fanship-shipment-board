@@ -1199,7 +1199,27 @@ function renderPiece() {
     }));
     render();
   }
-  async function login(nextCode) {
+  // 网络类失败自动重试：弱网/家里 WiFi 不稳时，工人不用手动点，等一会儿自己就进来了
+  let autoRetryTimer = null;
+  let autoRetryCount = 0;
+  function clearAutoRetry(message) {
+    if (autoRetryTimer) { clearInterval(autoRetryTimer); autoRetryTimer = null; }
+    autoRetryCount = 0;
+  }
+  function scheduleAutoRetry(value) {
+    if (autoRetryTimer) return;
+    autoRetryCount = 0;
+    autoRetryTimer = setInterval(() => {
+      autoRetryCount += 1;
+      if (autoRetryCount > 10) { clearAutoRetry(); return; }
+      if (autoRetryCount === 1) {
+        show($('loginError'), true);
+        $('loginError').textContent = '网络不太稳，正在自动重试，请稍等…（也可以点下面的按钮做网络自检）';
+      }
+      login(value, true).catch(() => {});
+    }, 12000);
+  }
+  async function login(nextCode, isRetry) {
     const value = String(nextCode || '').trim(); if (!value) return;
     try {
       await rpc('work_login', { p_code:value });
@@ -1207,11 +1227,21 @@ function renderPiece() {
       profile = await rpc('work_get_my_profile', { p_code:code }).catch(() => null);
       await loadState();
       applyProfileTabs();
+      clearAutoRetry();
+      show($('loginError'), false);
     } catch (e) {
       show($('loginError'), true);
-      $('loginError').textContent = e.message || '登录失败';
       show($('networkCheckButton'), !e.noRetry);
       if ($('networkCheckResult')) $('networkCheckResult').classList.add('hidden');
+      if (e.noRetry) {
+        // 访问码不对之类的业务错误：直接说清楚，不重试
+        clearAutoRetry();
+        $('loginError').textContent = e.message || '登录失败';
+      } else {
+        // 网络问题：换成友好提示并自动重试，不显示技术错误
+        $('loginError').textContent = '网络不太稳，正在自动重试，请稍等…（也可点下面的按钮做网络自检）';
+        scheduleAutoRetry(value);
+      }
     }
   }
   async function probeFetch(label, url, init = {}, timeoutMs = 8000) {

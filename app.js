@@ -3161,7 +3161,23 @@ async function generateAndPromptSampleApprovals(rows) {
   }
   return printSampleApprovals(rows);
 }
-async function confirmPdfImport() {
+// 导入完成后：把桌面上这些采购单 PDF 挪进「帆顺科技\采购订单」（需要打印助手在本机运行）
+async function moveDesktopOrderPdfs(names) {
+  const list = (names || []).map((value) => String(value || '').trim()).filter(Boolean);
+  if (!list.length) return null;
+  try {
+    const response = await fetch(PRINT_HELPER_BASE + '/orders/move', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ names: list }),
+    });
+    const data = await response.json().catch(() => ({}));
+    return data && data.ok ? data : null;
+  } catch { return null; }
+}
+
+async function confirmPdfImport() {
+
   if (!pendingPdfRows.length) return;
   if (boardRole !== 'admin') {
     showToast('含单价金额的信息请使用管理员模式网址导入');
@@ -3214,7 +3230,17 @@ async function confirmPdfImport() {
       if (unpriced) showToast(`${unpriced} 行单价未定，已按未定价导入（单价留空）`, 6000);
       if (priced) showToast(`已写入 ${priced} 条含税单价（来源：采购订单 PDF）`);
     }
-    closePdfModal();
+    // 桌面上导入过的采购单 PDF：导入完顺手归到「采购订单」文件夹
+    const pdfFileNames = [...new Set((pendingPdfDocs || []).map((doc) => String((doc && doc.file) || '').trim()).filter(Boolean))];
+    const movedResult = pdfFileNames.length ? await moveDesktopOrderPdfs(pdfFileNames) : null;
+    if (pdfFileNames.length && movedResult) {
+      const movedNames = Array.isArray(movedResult.moved) ? movedResult.moved : [];
+      if (movedNames.length) showToast('桌面上的 ' + movedNames.length + ' 份采购单已归到「采购订单」：' + movedNames.join('、'), 7000);
+      else showToast('这次导入的文件不在桌面（或已经归位过），没有移动任何文件', 5000);
+    } else if (pdfFileNames.length) {
+      showToast('打印助手没启动：桌面上的采购单 PDF 这次没动，之后跑一次「导入新采购订单」也能自动归位', 9000);
+    }
+    closePdfModal();
     showToast(`已导入 ${count} 行新订单（未交已更新）`);
     await loadState({ quiet: true });
     renderAll();

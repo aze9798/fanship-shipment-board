@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>帆顺报工 App 安装</title>
+<style>
+:root{--teal:#0f766e;--ink:#14343c;--muted:#5b757a;--bg:#f2f7f6}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:680px;margin:0 auto;padding:22px 18px 60px}
+h1{font-size:24px;margin:0 0 6px;color:var(--teal)}
+.sub{color:var(--muted);font-size:14px;margin:0 0 18px}
+.dl{display:block;background:var(--teal);color:#fff;text-decoration:none;text-align:center;font-size:20px;font-weight:800;padding:18px;border-radius:16px;box-shadow:0 8px 22px rgba(15,118,110,.25)}
+.dl small{display:block;font-size:12.5px;font-weight:600;opacity:.9;margin-top:4px}
+.card{background:#fff;border:1px solid #e2eeec;border-radius:16px;padding:16px 18px;margin-top:16px}
+h2{font-size:17px;margin:0 0 10px;color:var(--teal)}
+ol{margin:0;padding-left:22px}
+li{margin:9px 0}
+li b{color:var(--ink)}
+.brand{display:inline-block;padding:2px 8px;border-radius:8px;background:#eaf7f3;color:var(--teal);font-weight:800;font-size:13px}
+.warn{background:#fff8ec;border-color:#f2dcb0}
+.warn h2{color:#9a5c08}
+.tip{color:var(--muted);font-size:13.5px;margin-top:8px}
+code{background:#eef4f3;padding:1px 6px;border-radius:6px;font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>帆顺报工 App</h1>
+  <p class="sub">装一次，以后点桌面图标就能报工，不用再输访问码；每天 17:30 会提醒报当天的计件。</p>
+
+  <a class="dl" id="downloadBtn" href="https://fanshun-work-d1gkeq1fjef6147a1-1504638929.tcloudbaseapp.com/fanshun/fanshun-work.apk" download>下载安装包<small>安卓手机 · 约 100 KB · 点一下就下载</small></a>
+
+  <div class="card">
+    <h2>安装步骤</h2>
+    <ol>
+      <li>点上面的<b>下载安装包</b>。如果提示"<b>此类文件可能有害</b>"或"<b>不安全</b>"，选<b>仍然下载</b>。</li>
+      <li>下载完，在通知栏或"文件管理 → 下载"里点开它，选<b>安装</b>。</li>
+      <li>如果提示"<b>禁止安装未知应用</b>"，点提示里的<b>设置</b>，把<b>允许来自此来源的应用</b>打开，再回去安装。</li>
+      <li>装完打开 App，第一次输入<b>管理员发给你的访问码</b>（例如 <code>FS-20-XXXXX</code>），之后就不用再输了。</li>
+      <li>App 会问<b>通知权限</b>，一定选<b>允许</b>，不然 17:30 收不到提醒。</li>
+      <li>如果弹出"<b>忽略电池优化</b>"，选<b>允许</b>，否则提醒可能不弹。</li>
+    </ol>
+  </div>
+
+  <div class="card warn">
+    <h2>手机品牌专属设置（重要）</h2>
+    <p style="margin:0 0 8px"><span class="brand">小米 / 红米</span> 如果打不开安装包，先去 <b>设置 → 应用设置 → 纯净模式</b> 里关掉"纯净模式"，再装。装完建议在 <b>设置 → 应用设置 → 应用管理 → 帆顺报工 → 省电策略</b> 选"无限制"。</p>
+    <p style="margin:0 0 8px"><span class="brand">华为 / 荣耀</span> <b>设置 → 安全 → 更多安全设置 → 外部来源应用下载</b> 打开。装完在 <b>设置 → 应用启动管理</b> 里把"帆顺报工"设为<b>手动管理</b>并全部勾选。</p>
+    <p style="margin:0"><span class="brand">OPPO / 一加 / realme</span> <b>设置 → 安全 → 安装外部来源应用</b> 允许你用的浏览器安装。装完在 <b>设置 → 电池 → 应用耗电管理 → 帆顺报工</b> 选"允许后台运行"。</p>
+  </div>
+
+  <div class="card">
+    <h2>常见问题</h2>
+    <ol>
+      <li><b>打开是白屏 / 转圈</b>：先切换一下 WiFi 和流量再打开；App 会自动换线路重试。还不行就把屏幕截图发给管理员。</li>
+      <li><b>收不到 17:30 提醒</b>：检查两处——<b>通知权限</b>是否允许、<b>电池优化</b>是否已允许（按上面手机品牌的设置做一遍）。</li>
+      <li><b>换了手机或重装</b>：重新输入一次访问码即可，历史报工不会丢。</li>
+      <li><b>访问码忘了</b>：找管理员要。</li>
+    </ol>
+    <p class="tip">不想装 App 也可以用网页版报工：<a href="./work.html">点这里打开网页版</a>。</p>
+  </div>
+</div>
+<script>
+  // 显示安装包实际大小（拿不到就不显示）
+  fetch('https://fanshun-work-d1gkeq1fjef6147a1-1504638929.tcloudbaseapp.com/fanshun/fanshun-work.apk', { method: 'HEAD', cache: 'no-store' })
+    .then((r) => { const size = Number(r.headers.get('content-length') || 0); if (size > 0) { const kb = Math.round(size / 1024); const el = document.querySelector('#downloadBtn small'); if (el) el.textContent = `安卓手机 · 约 ${kb} KB · 点一下就下载`; } })
+    .catch(() => {});
+</script>
+</body>
+</html>
