@@ -266,7 +266,7 @@
     <label class="field"><span>个人访问码</span><input id="codeInput" type="password" autocomplete="current-password" placeholder="例如 FS-03-XXXXX"></label>
     <button id="loginButton" class="primary wide">进入</button>
     <div id="loginError" class="error hidden"></div>
-    <button id="networkCheckButton" class="wide hidden" type="button">登录不上，请切换至WiFi连接</button>
+    <button id="networkCheckButton" class="wide hidden" type="button">打不开？点这里做网络自检</button>
     <div id="networkCheckResult" class="request-tip hidden"></div>
   </section>
   <section id="mainView" class="hidden">
@@ -464,6 +464,7 @@
 </div>
 <div id="toast" class="toast hidden"></div><script>
 window.WORK_RPC_BASE = 'https://fanshun-work-d1gkeq1fjef6147a1-1504638929.ap-shanghai.app.tcloudbase.com/rest/v1/rpc';
+window.WORK_DIRECT_RPC_BASE = 'https://dkbeigqtiilgxthwkixg.supabase.co/rest/v1/rpc';
 window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s';
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -557,40 +558,59 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
   function newClientRef() {
     try { return crypto.randomUUID(); } catch { return `ref-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`; }
   }
+  // 两条线路：① 国内转发（默认，最稳） ② 直连备用（部分网络能通）
+  function rpcBases() {
+    const list = [];
+    if (window.WORK_RPC_BASE) list.push(window.WORK_RPC_BASE);
+    if (window.WORK_DIRECT_RPC_BASE && window.WORK_DIRECT_RPC_BASE !== window.WORK_RPC_BASE) list.push(window.WORK_DIRECT_RPC_BASE);
+    return list;
+  }
   async function rpc(name, body) {
     let payload = body;
     const idemName = IDEMPOTENT_RPCS[name];
     if (idemName) {
+      // 幂等键只生成一次：换线路重试也不会写成两条
       name = idemName;
       payload = { ...(body || {}), p_client_ref: newClientRef() };
     }
     const useJson = rpcNeedsJsonBody(payload);
-    const url = useJson
-      ? `${window.WORK_RPC_BASE}/${name}`
-      : `${window.WORK_RPC_BASE}/${name}?apikey=${encodeURIComponent(window.WORK_ANON_KEY)}`;
-    const init = useJson
-      ? { headers:{ apikey:window.WORK_ANON_KEY, Authorization:`Bearer ${window.WORK_ANON_KEY}`, 'Content-Type':'application/json' }, body:JSON.stringify(payload) }
-      : { headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:rpcFormBody(payload) };
+    const bases = rpcBases();
     let lastError = null;
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 12000);
-      try {
-        const r = await fetch(url, { method:'POST', ...init, signal:controller.signal, cache:'no-store' });
-        const data = await r.json().catch(() => null);
-        if (!r.ok) { const httpError = new Error(data?.message || '请求失败'); httpError.noRetry = true; throw httpError; }
-        return data;
-      } catch (error) {
-        if (error.noRetry) throw error;
-        lastError = error;
-        if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 700));
-      } finally {
-        clearTimeout(timer);
+    for (let b = 0; b < bases.length; b += 1) {
+      const base = bases[b];
+      const url = useJson
+        ? `${base}/${name}`
+        : `${base}/${name}?apikey=${encodeURIComponent(window.WORK_ANON_KEY)}`;
+      const init = useJson
+        ? { headers:{ apikey:window.WORK_ANON_KEY, Authorization:`Bearer ${window.WORK_ANON_KEY}`, 'Content-Type':'application/json' }, body:JSON.stringify(payload) }
+        : { headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:rpcFormBody(payload) };
+      const attempts = b === 0 ? 3 : 2;
+      for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 9000);
+        try {
+          const r = await fetch(url, { method:'POST', ...init, signal:controller.signal, cache:'no-store' });
+          const data = await r.json().catch(() => null);
+          if (!r.ok) {
+            const httpError = new Error(data?.message || '请求失败');
+            httpError.status = r.status;
+            // 4xx 是业务/权限问题，换线路也没用；5xx 值得换线路再试
+            if (r.status < 500) httpError.noRetry = true;
+            throw httpError;
+          }
+          return data;
+        } catch (error) {
+          if (error.noRetry) throw error;
+          lastError = error;
+          if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, attempt * 700));
+        } finally {
+          clearTimeout(timer);
+        }
       }
     }
     if (!navigator.onLine) throw new Error('手机当前没有网络，请检查 4G/5G 或 Wi-Fi');
     const reason = lastError?.name === 'AbortError' ? '连接超时' : (lastError?.message || '网络连接失败');
-    throw new Error(`${reason}（已自动重试 3 次，请关闭 VPN/私人中继或切换网络后重试）`);
+    throw new Error(`${reason}（两条线路都试过了：请切换 WiFi / 流量，或关闭 VPN、私人中继后重试）`);
   }
   function betaStorageKey(kind) { return `fanshipWorkBeta:${kind}:${code || 'none'}`; }
   function loadBetaSession() {
@@ -1218,12 +1238,19 @@ function renderPiece() {
     steps.push(await probeFetch('① 本页页面服务', location.href));
     steps.push(await probeFetch('② 接口域名（简单请求）', apiOrigin + '/rest/v1/?apikey=' + encodeURIComponent(window.WORK_ANON_KEY)));
     steps.push(await probeFetch('③ 登录接口（简单 POST，无预检）', `${window.WORK_RPC_BASE}/work_login?apikey=${encodeURIComponent(window.WORK_ANON_KEY)}`, { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:'p_code=' + encodeURIComponent('__network_probe__') }));
+    if (window.WORK_DIRECT_RPC_BASE && window.WORK_DIRECT_RPC_BASE !== window.WORK_RPC_BASE) {
+      steps.push(await probeFetch('④ 备用直连线路', `${window.WORK_DIRECT_RPC_BASE}/work_login?apikey=${encodeURIComponent(window.WORK_ANON_KEY)}`, { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:'p_code=' + encodeURIComponent('__network_probe__') }));
+    }
     const lines = steps.map((s) => `${s.label}：${s.ok ? '✅ 通' : '❌ 不通'}（${s.ms}ms${s.ok ? `，HTTP ${s.status}` : `，${s.error}`}）`);
+    const mainSteps = steps.filter((s) => !s.label.startsWith('④'));
+    const directStep = steps.find((s) => s.label.startsWith('④'));
     let advice;
-    if (steps.every((s) => s.ok)) advice = '三步都通：网络正常，请返回重新登录。';
-    else if (!steps[0].ok) advice = '页面服务都不通：当前网络无法访问页面服务器，请切换 WiFi 或换网络后刷新。';
+    if (steps.every((s) => s.ok)) advice = '线路都通：网络正常，请返回重新登录。';
+    else if (!steps[0].ok) advice = '页面服务都不通：当前网络访问不了页面服务器，请切换 WiFi 或换网络后刷新。';
     else if (!steps[1].ok) advice = '页面能开、接口域名连不上：运营商线路问题，请切换 WiFi 或换用其他手机卡。';
-    else advice = '接口域名能连、登录请求被挡：请把本页截图发给管理员。';
+    else if (mainSteps.every((s) => s.ok)) advice = '主线路正常，请返回重新登录。';
+    else if (directStep && directStep.ok) advice = '主线路不通、备用直连线路是通的：系统会自动走备用线路，请返回重新登录。';
+    else advice = '两条线路都不通：请把本页截图发给管理员。';
     result.innerHTML = lines.map((line) => `<div>${line}</div>`).join('') + `<div style="margin-top:6px;font-weight:800">${advice}</div>`;
     button.disabled = false;
   }

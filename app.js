@@ -7975,10 +7975,9 @@ function writeLabelAssign(assign) {
 
 // 这个料号归哪种标签打：手动转过优先 → 再按打印习惯 → 都没有的默认归大标签
 function labelAssignOf(material) {
+  // 判断标准：这个料号大标签、小标签各打过几次，哪边多就归哪边（次数只在本机记着，不显示）
   const key = String(material || '').trim();
   if (!key) return 'big';
-  const explicit = readLabelAssign()[key];
-  if (explicit === 'big' || explicit === 'small') return explicit;
   return labelHabit(key) || 'big';
 }
 
@@ -8199,7 +8198,7 @@ function labelRowHtml(row, index) {
         ? `<button type="button" class="label-row-btn" data-label-unmerge="${index}">取消合并</button>`
         : `<button type="button" class="label-row-btn${labelMergePending === index ? ' active' : ''}" data-label-merge="${index}" title="和另一项合并成一张标签（比如内外梁、导向板A/B）：先点这一行，再点另一行">${labelMergePending === index ? '合并中…' : '合并'}</button>`}      <button type="button" class="label-row-btn" data-label-copy="${index}">复制</button>
       <button type="button" class="label-row-btn danger" data-label-remove="${index}">删除</button>
-      <button type="button" class="label-row-btn move" data-label-move="${index}" title="把这一项固定到${moveText.slice(1)}打印（以后这个料号也按这个走）">${moveText}</button>
+      <button type="button" class="label-row-btn move" data-label-move="${index}" title="把这一项挪到${moveText.slice(1)}打印（只影响本次；以后按这个料号大/小标签的打印次数自动归）">${moveText}</button>
       <button type="button" class="label-row-btn done" data-label-mark="${index}" title="标记为已打印，从待打印列表里移走">已打印</button>
     </div>
     <div class="label-box-warn" data-label-box-warn="${index}" hidden></div>
@@ -8541,11 +8540,8 @@ function handleLabelPrintClick(event) {
     const row = labelRows[index];
     if (row) {
       const target = labelPrintMode === 'big' ? 'small' : 'big';
-      row.mode = target;
-      // 记住这个料号（合并行则把它包含的两个料号都记住）
-      const assignKeys = [row.material, ...((row.mergedFrom || []).map((part) => part.material))];
-      for (const key of assignKeys) setLabelAssign(String(key).split('/')[0], target);
-      showToast(`${row.material} 已归到${labelModeText(target)}打印`);
+      row.mode = target;   // 只影响本次：以后按“大/小标签各自的打印次数”自动归
+      showToast(`${row.material} 本次按${labelModeText(target)}打印（以后按打印次数自动判断）`);
       renderLabelRows();
     }
     return;
