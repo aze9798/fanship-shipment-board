@@ -2957,6 +2957,7 @@ function renderPdfPreview(docs) {
     if (!company) problems.push('认不出公司（供应厂商）');
     const duplicated = Boolean(doc.po) && existing.has(doc.po);
     const priceNotes = [];
+    const materialPriceNotes = [];
     if (!problems.length && !duplicated) {
       for (const item of doc.items) {
         const id = `${doc.po}#${String(item.seq).padStart(3, '0')}`;
@@ -2967,10 +2968,18 @@ function renderPdfPreview(docs) {
           const pct = Number(old.unitPrice) ? Math.round((diff / Number(old.unitPrice)) * 1000) / 10 : 0;
           priceNotes.push(`${item.material} 单价 ${old.unitPrice} → ${item.unitPrice}（${diff > 0 ? '+' : ''}${pct}%）`);
         }
+        // 同一个料号前后调价：和库里该料号所有历史单价比
+        if (showAmounts && item.unitPrice != null && Number(item.unitPrice) > 0) {
+          const history = materialUnitPrices(item.material, id);
+          if (history.length && !history.some((v) => Math.abs(v - Number(item.unitPrice)) < 0.0001)) {
+            materialPriceNotes.push(`${item.material} 原单价 ${history.join('、')} → 新单价 ${item.unitPrice}`);
+          }
+        }
         rows.push({ id, customer: company, po: doc.po, purchaseDate: doc.purchaseDate, seq: item.seq, material: item.material, name: item.name, spec: item.spec, orderQty: item.quantity, openingRemaining: item.quantity, dueDate: item.dueDate, unitPrice: item.unitPrice, orderType: doc.orderType, pdfDocIndex: docIndex });
       }
     }
     if (priceNotes.length) warnings.push('单价有变动：' + priceNotes.slice(0, 5).join('；') + (priceNotes.length > 5 ? ` 等 ${priceNotes.length} 处` : ''));
+    if (materialPriceNotes.length) warnings.push('同料号单价有变动：' + materialPriceNotes.slice(0, 5).join('；') + (materialPriceNotes.length > 5 ? ` 等 ${materialPriceNotes.length} 处` : ''));
     return { doc, problems, warnings, duplicated, company };
   });
   pendingPdfRows = rows;
@@ -6526,6 +6535,13 @@ async function saveOrderEdit() {
     return;
   }
   if (!cancelling && !dueDate) { fail('请选择交货日期'); return; }
+  // 同料号历史上是别的单价：提醒一下，避免填错
+  if (priceValue != null && !cancelling) {
+    const history = materialUnitPrices(order.material, order.id);
+    if (history.length && !history.some((v) => Math.abs(v - priceValue) < 0.0001)) {
+      if (!window.confirm(`这个料号 ${order.material} 库里的单价是 ${history.join('、')} 元。\n现在填 ${priceValue} 元，确认要按新单价保存吗？`)) return;
+    }
+  }
   if (!(await confirmFreshRevision(orderEditBaseRevision, '订单变更'))) return;
   orderEditBaseRevision = snapshot?.revision ?? null;
   const button = els.orderEditSave;
@@ -6984,6 +7000,21 @@ function deliveryItemMatches(line, meta, query) {
     meta.po, meta.seq, line.material, line.name, line.spec,
   ].join('|'), query);
 }
+// 同料号库里已有的含税单价（用来做「同料号单价变动」提醒）
+function materialUnitPrices(material, exceptOrderId = '') {
+  const key = String(material || '').trim();
+  if (!key) return [];
+  const prices = [];
+  for (const order of (snapshot?.orders || [])) {
+    if (String(order.material || '').trim() !== key) continue;
+    if (exceptOrderId && String(order.id) === String(exceptOrderId)) continue;
+    const amount = amountFor(order.id);
+    const price = amount && amount.unitPrice != null ? Number(amount.unitPrice) : null;
+    if (price != null && price > 0 && !prices.includes(price)) prices.push(price);
+  }
+  return prices;
+}
+
 function deliveryRemainingText(value, hasOrder) {
   if (!hasOrder) return '0';
   const number = Number(value || 0);
