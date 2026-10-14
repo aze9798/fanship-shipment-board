@@ -7909,6 +7909,7 @@ function renderMobileRemaining() {
 let labelRows = [];
 let labelRowSeq = 0;
 let labelPrintMode = 'big';           // big=大标签，small=小标签
+let labelMergePending = null;         // 正在等待合并的那一行（点两行的「合并」即可合成一张标签）
 let labelPrintSearch = '';            // 弹窗里的补打搜索词
 let labelPrintedRecords = {};         // 本机永久打印记录：key -> { at, day, mode, count }
 const LABEL_PRINTED_KEY = 'shipmentLabelPrinted';
@@ -8191,7 +8192,9 @@ function labelRowHtml(row, index) {
     <input class="label-print-input" type="date" data-label-field="date" value="${escapeHtml(row.date)}">
     <div class="label-print-row-actions">
       ${printedTag}
-      <button type="button" class="label-row-btn" data-label-copy="${index}">复制</button>
+      ${row.mergedFrom
+        ? `<button type="button" class="label-row-btn" data-label-unmerge="${index}">取消合并</button>`
+        : `<button type="button" class="label-row-btn${labelMergePending === index ? ' active' : ''}" data-label-merge="${index}" title="和另一项合并成一张标签（比如内外梁、导向板A/B）：先点这一行，再点另一行">${labelMergePending === index ? '合并中…' : '合并'}</button>`}      <button type="button" class="label-row-btn" data-label-copy="${index}">复制</button>
       <button type="button" class="label-row-btn danger" data-label-remove="${index}">删除</button>
       <button type="button" class="label-row-btn move" data-label-move="${index}" title="把这一项固定到${moveText.slice(1)}打印（以后这个料号也按这个走）">${moveText}</button>
       <button type="button" class="label-row-btn done" data-label-mark="${index}" title="标记为已打印，从待打印列表里移走">已打印</button>
@@ -8308,6 +8311,71 @@ function labelQuantityNumber(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
+// ===== 合并两张标签（内外梁、导向板 A/B 这类成对的）=====
+// 料号/图号：第一条全写 + 第二条只写不同的部分（尾巴太短时按 minTail 多带几位）
+function mergeLabelTextTail(a, b, minTail = 0) {
+  const x = String(a || '').trim();
+  const y = String(b || '').trim();
+  if (!x || !y) return x || y;
+  if (x === y) return x;
+  let shared = 0;
+  while (shared < x.length && shared < y.length && x[shared] === y[shared]) shared += 1;
+  let tail = y.slice(shared);
+  if (!tail || (minTail && tail.length < minTail)) tail = y.slice(-Math.min(Math.max(minTail, 1), y.length));
+  return x + '/' + tail;
+}
+// 品名：不同的字用 / 拼起来，前后相同的部分保留（外梁组焊件 + 内梁组焊件 -> 外/内梁组焊件）
+function mergeLabelTextMiddle(a, b) {
+  const x = String(a || '').trim();
+  const y = String(b || '').trim();
+  if (!x || !y) return x || y;
+  if (x === y) return x;
+  let shared = 0;
+  while (shared < x.length && shared < y.length && x[shared] === y[shared]) shared += 1;
+  let back = 0;
+  while (back < x.length - shared && back < y.length - shared && x[x.length - 1 - back] === y[y.length - 1 - back]) back += 1;
+  const head = x.slice(0, shared);
+  const foot = back ? x.slice(x.length - back) : '';
+  const middleA = x.slice(shared, x.length - back);
+  const middleB = y.slice(shared, y.length - back);
+  if (!middleA || !middleB) return x + '/' + y;
+  return head + middleA + '/' + middleB + foot;
+}
+function mergeLabelRowsAt(firstIndex, secondIndex) {
+  const first = labelRows[firstIndex];
+  const second = labelRows[secondIndex];
+  if (!first || !second) return;
+  const rawA = String(first.quantity == null ? '' : first.quantity).trim();
+  const rawB = String(second.quantity == null ? '' : second.quantity).trim();
+  const numberA = labelQuantityNumber(rawA);
+  const numberB = labelQuantityNumber(rawB);
+  const sameQty = numberA > 0 && numberA === numberB;
+  const merged = Object.assign({}, first, {
+    id: nextLabelRowId(),
+    material: mergeLabelTextTail(first.material, second.material, 4),
+    name: mergeLabelTextMiddle(first.name, second.name),
+    spec: mergeLabelTextTail(first.spec, second.spec, 2),
+    quantity: sameQty ? (numberA + '套') : ((rawA || 0) + '件/' + (rawB || 0) + '件'),
+    remaining: Math.max(Number(first.remaining || 0), Number(second.remaining || 0)),
+    printed: false,
+    selected: true,
+    mergedFrom: [Object.assign({}, first), Object.assign({}, second)],
+  });
+  labelRows[firstIndex] = merged;
+  labelRows.splice(secondIndex, 1);
+  labelMergePending = null;
+  renderLabelRows();
+  showToast('已合并：' + merged.material + ' · ' + merged.quantity + '（点「取消合并」可拆回）');
+}
+function unmergeLabelRow(index) {
+  const row = labelRows[index];
+  if (!row || !row.mergedFrom) return;
+  const parts = row.mergedFrom.map((part) => Object.assign({}, part, { id: nextLabelRowId() }));
+  labelRows.splice(index, 1, ...parts);
+  labelMergePending = null;
+  renderLabelRows();
+  showToast('已拆回两张标签');
+}
 function labelRowQuantity(row) {
   return labelQuantityNumber(row.quantity);
 }
@@ -8407,7 +8475,24 @@ function handleLabelPrintChange(event) {
   updateLabelSummary();
 }
 
-function handleLabelPrintClick(event) {
+function handleLabelPrintClick(event) {
+  const mergeButton = event.target.closest('[data-label-merge]');
+  if (mergeButton) {
+    const index = Number(mergeButton.dataset.labelMerge);
+    if (labelMergePending === null || labelMergePending === index) {
+      labelMergePending = labelMergePending === index ? null : index;
+      renderLabelRows();
+      if (labelMergePending !== null) showToast('已选中这一项，再点另一行的「合并」就能合成一张标签');
+      return;
+    }
+    mergeLabelRowsAt(Math.min(labelMergePending, index), Math.max(labelMergePending, index));
+    return;
+  }
+  const unmergeButton = event.target.closest('[data-label-unmerge]');
+  if (unmergeButton) {
+    unmergeLabelRow(Number(unmergeButton.dataset.labelUnmerge));
+    return;
+  }
   const copyButton = event.target.closest('[data-label-copy]');
   if (copyButton) {
     const index = Number(copyButton.dataset.labelCopy);
@@ -8530,7 +8615,7 @@ async function confirmLabelPrint() {
     return;
   }
   const payload = labelPayload(picked);
-  const sourceKeys = [...new Set(picked.map((row) => row.sourceKey).filter(Boolean))];
+  const sourceKeys = [...new Set(picked.flatMap((row) => [row.sourceKey, ...(row.mergedFrom || []).map((part) => part.sourceKey)]).filter(Boolean))];
   if (els.labelPrintError) els.labelPrintError.hidden = true;
   const confirmButton = els.labelPrintConfirm;
   const originalButtonText = confirmButton?.textContent || (mode === 'big' ? '确认并打印大标签' : '确认并打印小标签');
