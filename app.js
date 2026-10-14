@@ -8587,7 +8587,6 @@ function labelPayload(rows) {
 
 function finishLabelPrint(mode, sourceKeys, picked, result, manual) {
   markLabelPrinted(sourceKeys, mode);
-  // 合并标签：把包含的两个料号都记上次数
   // 合并标签不计次数（按用户要求：合并不算）
   bumpLabelStats(picked.filter((row) => !row.mergedFrom).map((row) => row.material), mode);
 
