@@ -350,7 +350,6 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
 }
 
 .over-row > strong { text-align: right; white-space: nowrap; }
-.over-row-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
 
 .over-row strong { color: #a1571a; }
 

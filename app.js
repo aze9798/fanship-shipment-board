@@ -4520,16 +4520,9 @@ function renderOverDeliveryList() {
           <span class="mono">${escapeHtml(row.material)}</span>
           <span>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}${row.ids.length > 1 ? `<br><em class="over-meta">合并 ${row.ids.length} 笔登记</em>` : ''}</span>
           <strong>${fmt(row.remaining)} 件</strong>
-          <span class="over-row-actions">
-            ${(() => {
-              const offsetOver = overDeliveries().find((item) => String(item.material || '').trim() === String(row.material || '').trim() && Number(item.remaining || 0) > 0);
-              const ready = offsetOver ? offsetOrdersFor(offsetOver) : [];
-              return ready.length ? `<button type="button" class="over-button" data-offset-material="${escapeHtml(row.material)}">冲抵 ${fmt(Math.min(row.remaining, ready.reduce((sum, order) => sum + Number(order.remaining || 0), 0)))} 件</button>` : '';
-            })()}
-            ${row.locked
-              ? `<span class="row-locked" title="${row.billed ? '已开送货单，等待后续同料号订单冲抵；开单后不能撤回' : '登记满 7 天后不能再撤回'}">${row.billed ? '待冲抵' : '已归档'}</span>`
-              : `<button type="button" class="row-revoke" data-revoke-over="${escapeHtml(row.ids.join(','))}">撤回</button>`}
-          </span>
+          ${row.locked
+            ? `<span class="row-locked" title="${row.billed ? '已开送货单，等待后续同料号订单冲抵；开单后不能撤回' : '登记满 7 天后不能再撤回'}">${row.billed ? '待冲抵' : '已归档'}</span>`
+            : `<button type="button" class="row-revoke" data-revoke-over="${escapeHtml(row.ids.join(','))}">撤回</button>`}
         </div>`).join('')}
       <p class="over-tip">这些货已经发出但没有对应采购单；开送货单后显示“待冲抵”，等出现同料号的新订单会自动冲抵，冲抵后进入“冲抵记录”，这里就不再显示。</p>
     </section>`;
@@ -4635,6 +4628,7 @@ function renderOffsetBox() {
 // ===== 新订单进来后：有「无订单发货」没冲抵完的料号马上提醒（有多少冲多少，不够的下次再冲）=====
 let pendingOffsetItems = [];
 let offsetReminderOpen = false;
+let offsetReminderResolve = null;
 
 // 用「刚导入的订单行」当订单侧，不依赖刷新后的清单，导入完就能马上算
 function offsetReminderItems(rows) {
@@ -4689,15 +4683,21 @@ function renderOffsetReminderList() {
 
 function openOffsetReminder(items) {
   pendingOffsetItems = (items || []).filter((item) => item && Number(item.take) > 0);
-  if (!pendingOffsetItems.length || !els.offsetReminderModal) return;
+  if (!pendingOffsetItems.length || !els.offsetReminderModal) return Promise.resolve(false);
+  if (offsetReminderResolve) { const previous = offsetReminderResolve; offsetReminderResolve = null; previous(false); }
   renderOffsetReminderList();
   offsetReminderOpen = true;
   els.offsetReminderModal.hidden = false;
+  // 返回一个 Promise：用户选完（冲抵 / 稍后再说）后 resolve，方便「生成送货单」那边接着往下走
+  return new Promise((resolve) => { offsetReminderResolve = resolve; });
 }
 
 function closeOffsetReminder() {
   offsetReminderOpen = false;
   if (els.offsetReminderModal) els.offsetReminderModal.hidden = true;
+  const resolve = offsetReminderResolve;
+  offsetReminderResolve = null;
+  if (resolve) resolve(false);
 }
 
 async function applyPendingOffsets() {
@@ -4730,9 +4730,11 @@ async function applyPendingOffsets() {
   } finally {
     if (button) { button.disabled = false; button.textContent = '全部冲抵'; }
   }
+  const finishReminder = offsetReminderResolve;
+  offsetReminderResolve = null;
   closeOffsetReminder();
   pendingOffsetItems = [];
-  if (!done.length) { showToast('这次没有冲抵（可能已经冲过了）', 6000); return; }
+  if (!done.length) { showToast('这次没有冲抵（可能已经冲过了）', 6000); if (finishReminder) finishReminder(true); return; }
   const merged = new Map();
   for (const row of done) merged.set(row.material, (merged.get(row.material) || 0) + row.quantity);
   const summary = [...merged.entries()].map(([material, quantity]) => material + ' ' + fmt(quantity) + ' 件').join('、');
@@ -4740,6 +4742,7 @@ async function applyPendingOffsets() {
   await loadState({ quiet: true });
   await markBangfanOffsetsBilled(touchedOvers);
   renderAll();
+  if (finishReminder) finishReminder(true);
 }
 
 // 冲抵记录（把前期多送的货冲抵到新订单上的流水）
@@ -5093,6 +5096,9 @@ async function loadWorkLiveOverview(employees = null) {
     await loadWorkEmployeeRates();
     const list = (employees || await loadWorkEmployees()).filter((employee) => employee.track === 'welding' || employee.track === 'back');
     const day = workReportDate || todayShanghai();
+    const liveIsToday = day === todayShanghai();
+    // 兜底：查看历史日期时，永远不要把"今天还在计时中"算进去
+    const liveRowInput = (data) => (liveIsToday ? data : { ...data, activeTimer:null });
     const previous = new Map((workLiveRows || []).map((row) => [row.id, row]));
     let rows = [];
 
@@ -5101,7 +5107,7 @@ async function loadWorkLiveOverview(employees = null) {
       if (!result.response.ok) throw new Error(result.data?.error || '实况汇总加载失败');
       const sourceRows = Array.isArray(result.data?.rows) ? result.data.rows : [];
       if (!sourceRows.length && list.length) throw new Error('实况汇总返回为空');
-      rows = sourceRows.map((row) => normalizeWorkLiveRow({ id:row.id, employeeNo:row.employeeNo, name:row.name, track:row.track }, row));
+      rows = sourceRows.map((row) => normalizeWorkLiveRow({ id:row.id, employeeNo:row.employeeNo, name:row.name, track:row.track }, liveRowInput(row)));
     } catch {
       rows = [];
     }
@@ -5111,7 +5117,7 @@ async function loadWorkLiveOverview(employees = null) {
         try {
           const result = await callRpc('work_admin_piece_timeline', { p_code:getAccessCode(), p_employee_id:employee.id, p_date:day }, 15000);
           if (!result.response.ok) throw new Error(result.data?.error || '实况加载失败');
-          rows.push(normalizeWorkLiveRow(employee, result.data || {}));
+          rows.push(normalizeWorkLiveRow(employee, liveRowInput(result.data || {})));
         } catch (error) {
           const previousRow = previous.get(employee.id);
           rows.push(previousRow
@@ -5322,6 +5328,8 @@ function renderWorkTimeline() {
     return;
   }
   const salary = data.salary || {};
+  // 看历史日期时，未结束的段不要写成"进行中"，避免误会成工人现在在计时
+  const openLabel = String(data.date || '') === todayShanghai() ? '进行中' : '未结束（该日没点结束）';
   const periods = data.periods || [];
   const unassigned = data.unassignedEntries || [];
   const anomalies = data.anomalies || [];
@@ -5330,7 +5338,7 @@ function renderWorkTimeline() {
     return `<div class="work-timeline-row"><div class="work-timeline-time">${escapeHtml(workTimelineTime(period.startedAt))} → ${escapeHtml(workTimelineTime(period.endedAt))}<small>${period.source === 'admin' ? '管理员调整' : '自动计算'} · ${fmt(period.minutes)} 分钟</small></div><div><div class="work-timeline-meta"><span>产量 <b>${fmt(period.quantity)}</b></span><span>金额 <b>${workReviewMoney(period.amount, 2)}</b></span><span>每小时 <b>${fmt(period.efficiency)}</b> 件</span></div><div class="work-timeline-entries">${entries}</div></div></div>`;
   }).join('');
   const unassignedRows = unassigned.map((entry) => `<div class="work-timeline-row"><div class="work-timeline-time">未关联时段<small>${escapeHtml(entry.status === 'approved' ? '已通过' : '待审核')}</small></div><div><div class="work-timeline-meta"><span>${escapeHtml(entry.name || '')} · ${escapeHtml(entry.process || '')} · ${fmt(entry.quantity)} 件</span></div></div><div>${workTimelineEntryOptions({ ...entry, piecePeriodId:'' }, periods)}</div></div>`).join('');
-  const timerRows = (data.timerEntries || []).map((entry) => `<div class="work-timeline-row timer"><div class="work-timeline-time">${escapeHtml(workTimelineTime(entry.startedAt))} → ${escapeHtml(entry.endedAt ? workTimelineTime(entry.endedAt) : '进行中')}<small>已计时 ${fmt(entry.minutes)} 分钟</small></div><div class="work-timeline-meta"><span>状态 <b>${entry.status === 'closed' ? '已完成' : '进行中'}</b></span>${entry.note ? `<span>${escapeHtml(entry.note)}</span>` : ''}</div><div><button type="button" class="button ghost work-time-edit-btn" data-work-time-edit="${escapeHtml(entry.id)}">修改</button></div></div>`).join('');
+  const timerRows = (data.timerEntries || []).map((entry) => `<div class="work-timeline-row timer"><div class="work-timeline-time">${escapeHtml(workTimelineTime(entry.startedAt))} → ${escapeHtml(entry.endedAt ? workTimelineTime(entry.endedAt) : openLabel)}<small>已计时 ${fmt(entry.minutes)} 分钟</small></div><div class="work-timeline-meta"><span>状态 <b>${entry.status === 'closed' ? '已完成' : openLabel}</b></span>${entry.note ? `<span>${escapeHtml(entry.note)}</span>` : ''}</div><div><button type="button" class="button ghost work-time-edit-btn" data-work-time-edit="${escapeHtml(entry.id)}">修改</button></div></div>`).join('');
   const anomalyHtml = anomalies.length ? `<div class="work-timeline-anomaly">${anomalies.map((item) => `⚠ ${escapeHtml(item)}`).join('<br>')}</div>` : '';
   const html = `${anomalyHtml}<div class="work-timeline-summary"><article><span>计时工时</span><strong>${fmt(salary.timerHours)}h</strong></article><article><span>计时工资</span><strong>${workReviewMoney(salary.timerPay, 2)} 元</strong></article><article><span>计件工时</span><strong>${fmt(salary.pieceHours)}h</strong></article><article><span>当天合计</span><strong>${workReviewMoney(salary.totalPay, 2)} 元</strong></article></div><div class="work-timeline-list">${timerRows}${periodRows}${unassignedRows}${!(timerRows || periodRows || unassignedRows) ? '<div class="work-timeline-empty">当天没有计时或计件记录</div>' : ''}</div>`;
   const actions = `<button type="button" data-work-payroll="${data.monthClosed ? 'open' : 'closed'}">${data.monthClosed ? '解封本月工资' : '封账本月工资'}</button>`;
@@ -5355,7 +5363,7 @@ function renderWorkTimeline() {
     injectDesktopWorkDetail(String(data.employee.id), desktopHtml, actions);
   }
   if (mobilePanel) {
-    const timerItems = (data.timerEntries || []).map((entry) => `<div class="tl-item"><span>${escapeHtml(workTimelineTime(entry.startedAt))} → ${escapeHtml(entry.endedAt ? workTimelineTime(entry.endedAt) : '进行中')}</span><b>${fmt(entry.minutes)} 分钟</b><button type="button" data-work-time-edit="${escapeHtml(entry.id)}">修改</button></div>`).join('') || '<div class="tl-empty">当天没有计时记录</div>';
+    const timerItems = (data.timerEntries || []).map((entry) => `<div class="tl-item"><span>${escapeHtml(workTimelineTime(entry.startedAt))} → ${escapeHtml(entry.endedAt ? workTimelineTime(entry.endedAt) : openLabel)}</span><b>${fmt(entry.minutes)} 分钟</b><button type="button" data-work-time-edit="${escapeHtml(entry.id)}">修改</button></div>`).join('') || '<div class="tl-empty">当天没有计时记录</div>';
     const pieceList = [];
     (data.periods || []).forEach((period) => (period.entries || []).forEach((entry) => pieceList.push({ ...entry, periodStart: period.startedAt })));
     (data.unassignedEntries || []).forEach((entry) => pieceList.push(entry));
@@ -9954,6 +9962,38 @@ async function refreshDeliveryPreview() {
   }
 }
 
+// 现在还有哪些「无订单发货」能冲（同料号有未交单就列出来；跨公司也允许，弹窗里会写明）
+function offsetItemsFromOrders() {
+  const rows = [];
+  for (const over of overDeliveries()) {
+    const material = String(over.material || '').trim();
+    if (!material || Number(over.remaining || 0) <= 0) continue;
+    for (const order of offsetOrdersFor(over)) {
+      rows.push({
+        id: String(order.id || '').trim(),
+        po: String(order.po || '').trim(),
+        seq: order.seq || '',
+        dueDate: String(order.dueDate || ''),
+        customer: String(order.customer || '').trim(),
+        material: String(order.material || material).trim(),
+        name: String(order.name || over.name || '').trim(),
+        spec: String(order.spec || over.spec || '').trim(),
+        orderQty: Number(order.remaining || 0),
+      });
+    }
+  }
+  return offsetReminderItems(rows);
+}
+
+// 生成送货单之前：有能冲抵的就先弹窗问一句，用户选完（冲或是不冲）再继续
+async function askOffsetsBeforeDeliveryNote() {
+  let items = [];
+  try { items = offsetItemsFromOrders(); } catch { items = []; }
+  if (!items.length) return false;
+  const applied = await openOffsetReminder(items);
+  return Boolean(applied);
+}
+
 async function openDeliveryModal() {
   const date = snapshot?.today || TODAY;
   const url = `${PRINT_HELPER_BASE}/preview?date=${encodeURIComponent(date)}`;
@@ -9965,6 +10005,8 @@ async function openDeliveryModal() {
     showToast('打印助手没在运行：请双击「发货实时看板\\printer\\启动打印助手.cmd」，保持那个窗口打开，再点生成发货单。', 'error');
     return;
   }
+  // 生成送货单之前：前面「无订单发货」的多送能冲抵的先问一下
+  await askOffsetsBeforeDeliveryNote();
   showToast('正在打开本地送货单预览...');
   window.location.href = url;
 }
