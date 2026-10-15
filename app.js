@@ -8378,9 +8378,9 @@ function groupRemainingRows(rows) {
     const name = String(order.name || '').trim();
     const spec = String(order.spec || '').trim();
     const dueDate = String(order.dueDate || '').trim();
-    // 按「物料编号 + 交期」合并：同料号同交期才合并；不同交期另起一行，
-    // 各自显示自己的未交数量，避免出现“交期写 10月10日、数量却是所有交期合计”的误解。
-    const key = `${material || `${name}\u0000${spec}`}\u0000${dueDate}`;
+    // 按「物料编号 + 规格(图号) + 交期」合并：三者都一样才合并
+    // （试制单的料件编号统一是 MISC，必须带上图号才分得开；同一料号同一图号的多张订单仍会合并成一行）
+    const key = [material, spec || name, dueDate].join('\u0000');
     let group = groups.get(key);
     if (!group) {
       group = {
