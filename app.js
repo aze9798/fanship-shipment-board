@@ -4293,9 +4293,11 @@ function priceLookupRows() {
 function priceSummaryHtml(rows) {
   const groups = new Map();
   for (const row of rows) {
-    const key = [row.material, row.spec, row.name].join('\u0000');
-    if (!groups.has(key)) groups.set(key, { material: row.material, spec: row.spec, name: row.name, prices: new Map() });
+    // 按「料件编号 + 品名」汇总历史单价（同一料号里个别单没写图号时也不会被拆成两行）
+    const key = [row.material, row.name].join('\u0000');
+    if (!groups.has(key)) groups.set(key, { material: row.material, specs: new Set(), name: row.name, prices: new Map() });
     const group = groups.get(key);
+    if (row.spec) group.specs.add(row.spec);
     const price = row.unitPrice == null ? '无单价' : String(row.unitPrice);
     group.prices.set(price, (group.prices.get(price) || 0) + 1);
   }
@@ -4305,7 +4307,8 @@ function priceSummaryHtml(rows) {
       .sort((a, b) => (Number(b[0]) || 0) - (Number(a[0]) || 0))
       .map(([price, count]) => price + (price === '无单价' ? '' : ' 元') + ' ×' + count + ' 单')
       .join('　');
-    return `<div class="price-summary-row"><span class="mono">${escapeHtml(group.material || '—')}</span><span>${escapeHtml(group.name || '')}${group.spec ? ' · ' + escapeHtml(group.spec) : ''}</span><strong>${escapeHtml(list)}</strong></div>`;
+    const specText = [...group.specs].join('、');
+    return `<div class="price-summary-row"><span class="mono">${escapeHtml(group.material || '—')}</span><span>${escapeHtml(group.name || '')}${specText ? ' · ' + escapeHtml(specText) : ''}</span><strong>${escapeHtml(list)}</strong></div>`;
   }).join('');
 }
 
