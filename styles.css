@@ -1122,6 +1122,10 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .pdf-doc.bad { border-color: #e6b8b2; background: #fdf3f2; }
 .pdf-doc-head { display: grid; gap: 3px; font-size: 12px; color: #35565e; }
 .pdf-doc-head strong { color: #17333b; font-size: 13px; }
+.pdf-doc-items { margin-top: 7px; padding-top: 6px; border-top: 1px dashed #e3eaeb; display: grid; gap: 4px; }
+.pdf-doc-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; align-items: center; font-size: 12px; color: #4a6167; }
+.pdf-doc-item strong { color: var(--primary); white-space: nowrap; }
+.pdf-doc-item .mono { color: #74898e; white-space: nowrap; }
 .pdf-note { margin-top: 4px; font-size: 11px; color: #7c8f95; }
 .pdf-note.bad { color: #a0443d; font-weight: 700; }
 .submit-summary-row strong.bad { color: #a0443d; }

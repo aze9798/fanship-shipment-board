@@ -3190,6 +3190,13 @@ function renderPdfPreview(docs) {
           <option value="tooling"${b.doc.orderType === 'tooling' ? ' selected' : ''}>工装订单</option>
         </select>
       </label>
+      ${b.doc.items.length ? `<div class="pdf-doc-items">${b.doc.items.slice(0, 12).map((item) => `
+        <div class="pdf-doc-item">
+          <span class="mono">项次 ${escapeHtml(String(item.seq))}</span>
+          <span>${escapeHtml(item.material || '')} · ${escapeHtml(item.name || '')}</span>
+          <strong>${fmt(item.quantity)} 件</strong>
+          <span>${escapeHtml(item.dueDate ? formatDate(item.dueDate) : '无交期')}</span>
+        </div>`).join('')}${b.doc.items.length > 12 ? `<div class="pdf-doc-item"><span>…还有 ${b.doc.items.length - 12} 行</span></div>` : ''}</div>` : ''}
       ${b.duplicated ? '<div class="pdf-note">系统里已有这个采购单号，将跳过</div>' : ''}
       ${(b.warnings || []).map((w) => `<div class="pdf-note">${escapeHtml(w)}</div>`).join('')}
       ${b.problems.map((p) => `<div class="pdf-note bad">${escapeHtml(p)}</div>`).join('')}
