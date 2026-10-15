@@ -2829,6 +2829,16 @@ function detectPdfOrderType(lines, fileName) {
 
 // 试制订单是 Excel（PQ06-…）：「料件编号」常常是 MISC，真正的身份是「品名 + 图号」，
 // 所以这里用图号当料件编号，图纸也按图号去附。
+// 采购单号里的段位就是订单类别：01 普通、06 试制、09 承样
+// （字母会变，例如试制是 PQ06、承样是 PN09；工装没有固定段位，靠手动或表头关键词）
+const ORDER_TYPE_BY_SEGMENT = { '01': 'normal', '06': 'trial', '09': 'sample' };
+
+function orderTypeFromPo(po) {
+  const matched = String(po || '').trim().toUpperCase().match(/^[A-Z]{1,2}(\d{2})-/);
+  if (!matched) return '';
+  return ORDER_TYPE_BY_SEGMENT[matched[1]] || '';
+}
+
 function trialDrawingNumber(text) {
   const parts = String(text || '').split(/[\s,，、；;|]+/).filter(Boolean);
   for (const part of parts) {
@@ -2837,6 +2847,12 @@ function trialDrawingNumber(text) {
     if (!/\d/.test(token) || !/-/.test(token)) continue;
     if (/^\d+$/.test(token)) continue;
     return token;
+  }
+  // 有的表格把品名和图号连在一起写（如「滑块支架组件HDM3-A3-B1-C9」），取结尾那段纯英文数字+连字符的当图号
+  const glued = String(text || '').trim().match(/([0-9A-Za-z][0-9A-Za-z._\/-]*-[0-9A-Za-z._\/-]+)$/);
+  if (glued) {
+    const token = glued[1];
+    if (/\d/.test(token) && !/^\d+$/.test(token)) return token;
   }
   return '';
 }
@@ -2862,7 +2878,11 @@ function trialExcelDate(XLSX, value) {
       if (parsed) return parsed.y + '-' + String(parsed.m).padStart(2, '0') + '-' + String(parsed.d).padStart(2, '0');
     } catch { }
   }
-  return pdfIso(String(value).trim());
+  const raw = String(value).trim();
+  // 有的表格把交期写成 26/10/23（两位年）
+  const shortDate = raw.match(/^(\d{2})[\/\-.]\s*(\d{1,2})[\/\-.]\s*(\d{1,2})$/);
+  if (shortDate) return '20' + shortDate[1] + '-' + String(shortDate[2]).padStart(2, '0') + '-' + String(shortDate[3]).padStart(2, '0');
+  return pdfIso(raw);
 }
 
 async function parseTrialOrderXlsx(file) {
@@ -2879,18 +2899,22 @@ async function parseTrialOrderXlsx(file) {
     let header = [];
     for (let i = 0; i < grid.length; i += 1) {
       const cells = (grid[i] || []).map((value) => String(value == null ? '' : value).trim());
-      if (cells.some((cell) => /来源单号/.test(cell)) && cells.some((cell) => /需求数量|^数量$/.test(cell))) { headerIndex = i; header = cells; break; }
+      // 各家的表头写法不一样：单号 / 来源单号 / 采购单号；数量 / 需求数量 —— 只要这两类都在，就当表头行
+      if (cells.some((cell) => /单号/.test(cell)) && cells.some((cell) => /数量/.test(cell))) { headerIndex = i; header = cells; break; }
     }
     if (headerIndex < 0) continue;
     const colOf = (patterns) => header.findIndex((cell) => patterns.some((pattern) => pattern.test(cell)));
-    const colPo = colOf([/来源单号/]);
-    const colSeq = colOf([/^来源项次$/, /^项次$/]);
-    const colMaterial = colOf([/料件编号/, /料号/, /物料编号/]);
-    const colName = colOf([/品名/, /名称/]);
+    const colPo = colOf([/来源单号/, /采购单号/, /^单号$/]);
+    // 有的表格「项次」会写两列：前面是行号、单号后面那列才是供应商的项次
+    const seqColumns = header.map((cell, index) => ({ cell, index })).filter((item) => /来源项次|^项次$|^序号$/.test(item.cell));
+    const seqPick = seqColumns.find((item) => item.index > colPo) || seqColumns[0] || { index: -1 };
+    const colSeq = seqPick.index;
+    const colMaterial = colOf([/料件编号/, /料号/, /物料编号/, /物料编码/]);
+    const colName = colOf([/品名/, /物料名称/, /名称/]);
     const colSpec = colOf([/规格/, /图号/]);
-    const colQty = colOf([/需求数量/, /^数量$/]);
-    const colPrice = colOf([/含税单价/, /^单价$/]);
-    const colDue = colOf([/交货日期/, /交期/]);
+    const colQty = colOf([/需求数量/, /数量/]);
+    const colPrice = colOf([/含税单价/, /单价/]);
+    const colDue = colOf([/交货日期/, /交期/, /需求日期/, /到货日期/]);
     if (colPo < 0 || colQty < 0) continue;
     for (let i = headerIndex + 1; i < grid.length; i += 1) {
       const line = grid[i] || [];
@@ -2912,8 +2936,8 @@ async function parseTrialOrderXlsx(file) {
       if (!docs.has(po)) {
         docs.set(po, {
           file: file.name, po, purchaseDate: null, vendor: '无锡市帆顺金属科技有限公司',
-          pdfTotal: null, items: [], error: '', poFromFile: false, orderType: 'trial', fromXlsx: true,
-          warnings: ['试制订单（Excel）：没有 PDF 合计可核对，金额按明细自动合计；供应厂商按新公司 4137 带出，不对可以在下面改'],
+          pdfTotal: null, items: [], error: '', poFromFile: false, orderType: orderTypeFromPo(po) || 'trial', fromXlsx: true,
+          warnings: ['Excel 订单：没有 PDF 合计可核对，金额按明细自动合计；类别按单号段位判断（01 普通 / 06 试制 / 09 承样），不对可以在下面改'],
         });
       }
       const doc = docs.get(po);
@@ -2935,7 +2959,12 @@ async function parsePdfOrder(file) {
   // pdf.js 常把“采购单号 : PN01-…”抽成冒号前带空格，先统一成紧贴冒号再识别
   const flat = text.replace(/[ \t]*([:：])[ \t]*/g, '$1').replace(/[ \t]+/g, ' ');
   const doc = { file: file.name, po: null, purchaseDate: null, vendor: null, pdfTotal: null, items: [], error: '', warnings: [], poFromFile: false, orderType: 'normal' };
-  doc.orderType = detectPdfOrderType(lines, file.name);
+  const byPo = orderTypeFromPo(doc.po);
+  const byKeyword = detectPdfOrderType(lines, file.name);
+  doc.orderType = byPo || byKeyword;
+  if (byPo && byKeyword !== 'normal' && byPo !== byKeyword) {
+    doc.warnings.push('单号段位判为' + ({ trial: '试制', sample: '承样', tooling: '工装', normal: '普通' }[byPo] || byPo) + '，表头关键词判为' + ({ trial: '试制', sample: '承样', tooling: '工装', normal: '普通' }[byKeyword] || byKeyword) + ' —— 已按单号段位，可在下面改');
+  }
   let m = flat.match(/采购单号[:：]\s*(\S+)/); doc.po = m ? m[1].trim() : null;
   if (!doc.po) {
     // 读不到表头单号时，用文件名兜底（采购订单 PDF 的文件名就是单号）
@@ -3049,18 +3078,18 @@ async function handlePdfFiles(fileList) {
     const drawings = [];
     for (const file of files) {
       const name = String(file.name || '');
-      if (/.(xlsx|xls)$/i.test(name)) {
+      if (/\.(xlsx|xls)$/i.test(name)) {
         try {
           const parsed = await parseTrialOrderXlsx(file);
-          if (parsed.length) docs.push(...parsed);
-          else drawings.push({ file, name });
+          if (parsed.length) { docs.push(...parsed); continue; }
+          docs.push({ file: name, po: null, purchaseDate: null, vendor: null, pdfTotal: null, items: [], error: '试制订单 Excel 没识别到明细行：请确认表头有「单号（或来源单号）」和「数量（或需求数量）」两列，且数量列填了数字', warnings: [], poFromFile: false, orderType: 'trial', fromXlsx: true });
         } catch (error) {
           docs.push({ file: name, po: null, purchaseDate: null, vendor: null, pdfTotal: null, items: [], error: '试制订单 Excel 读取失败：' + String(error.message || error).slice(0, 80), warnings: [], poFromFile: false, orderType: 'trial', fromXlsx: true });
         }
         continue;
       }
       const doc = await parsePdfOrder(file);
-      const looksLikeOrder = Boolean(doc.po || doc.items.length) || /(PN|PQ|PZ|PO)d{2}-?d{5,}/i.test(name);
+      const looksLikeOrder = Boolean(doc.po || doc.items.length) || /(PN|PQ|PZ|PO)\d{2}-?\d{5,}/i.test(name);
       if (!looksLikeOrder) { drawings.push({ file, name }); continue; }
       docs.push(doc);
     }
