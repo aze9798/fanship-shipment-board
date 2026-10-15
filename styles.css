@@ -1122,10 +1122,24 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .pdf-doc.bad { border-color: #e6b8b2; background: #fdf3f2; }
 .pdf-doc-head { display: grid; gap: 3px; font-size: 12px; color: #35565e; }
 .pdf-doc-head strong { color: #17333b; font-size: 13px; }
-.price-summary { display: grid; gap: 6px; margin: 0 0 12px; padding: 10px 12px; border: 1px solid #d8e6e4; border-radius: 12px; background: #f5faf9; }
-.price-summary-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; font-size: 12px; color: #35565e; }
-.price-summary-row strong { color: var(--primary); }
-.price-summary-row .mono { color: #4c6a70; font-weight: 700; }
+.price-hint { display: grid; gap: 6px; margin: 4px 0 14px; padding: 16px 18px; border: 1px dashed #cfe0dd; border-radius: 14px; background: #f8fbfb; color: #4c6a70; font-size: 13px; }
+.price-hint strong { color: #244a51; font-size: 15px; }
+.price-cards { display: grid; gap: 12px; }
+.price-card { padding: 14px 16px; border: 1px solid #e0e9ea; border-radius: 14px; background: #fff; }
+.price-card-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.price-card-head strong { color: #17333b; font-size: 16px; }
+.price-card-head em { margin-left: auto; font-style: normal; font-weight: 800; font-size: 18px; color: var(--primary); }
+.price-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 6px; font-size: 12px; color: #6f8088; }
+.price-card-meta .mono { color: #35565e; font-weight: 700; }
+.price-card-open { color: #a1571a; font-weight: 700; }
+.price-card-done { color: #8b9a9d; }
+.price-change { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #e6eef0; display: grid; gap: 5px; }
+.price-change-title { font-size: 12px; font-weight: 700; color: #a1571a; }
+.price-change-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; font-size: 13px; color: #4a6167; }
+.price-change-row strong { color: #17333b; }
+.price-change-row.current strong { color: var(--primary); }
+.price-change-note { color: #93a3a6; font-size: 12px; }
+.price-card-foot { margin-top: 8px; color: #93a3a6; font-size: 12px; }
 .price-done { color: #86979b; }
 .pdf-doc-items { margin-top: 7px; padding-top: 6px; border-top: 1px dashed #e3eaeb; display: grid; gap: 4px; }
 .pdf-doc-item { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 2px 0; font-size: 12px; color: #4a6167; }

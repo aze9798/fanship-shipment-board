@@ -448,30 +448,18 @@
             <span class="tool-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.3"></circle><path d="m15.6 15.6 3.9 3.9"></path></svg>
             </span>
-            <input id="priceSearch" type="search" placeholder="搜索料号 / 图号 / 品名 / 采购单号 / 项次" autocomplete="off">
+            <input id="priceSearch" type="search" placeholder="输入料件编号 / 品名 / 图号查单价" autocomplete="off">
           </label>
           <div class="drawing-toolbar-right">
-            <span id="priceCount" class="drawing-count">0 条记录</span>
-            <div class="file-format-tabs drawing-tabs">
-              <button class="chip active" data-price-scope="all" type="button">全部（含已发完）</button>
-              <button class="chip" data-price-scope="remaining" type="button">只看未交</button>
-            </div>
+            <span id="priceCount" class="drawing-count"></span>
           </div>
         </div>
-        <div id="priceSummary" class="price-summary" hidden></div>
-        <div class="table-wrap">
-          <table class="orders-table">
-            <thead>
-              <tr>
-                <th>采购单号</th><th class="number">项次</th><th>料件编号</th><th>品名</th><th>图号</th>
-                <th class="number">数量</th><th class="number">未交</th><th class="number">含税单价</th><th class="number">金额</th>
-                <th>交期</th><th>客户</th><th>类别</th>
-              </tr>
-            </thead>
-            <tbody id="priceTableBody"></tbody>
-          </table>
+        <div id="priceHint" class="price-hint">
+          <strong>输入料件编号、品名或图号，查这个产品的单价</strong>
+          <span>例如：614004012B、包装架组焊件、6603B-A30 —— 已经发完货的产品也能查到；有单价变动的会列出"从几号开始变成多少"。</span>
         </div>
-        <div id="priceEmpty" class="empty-state" hidden><strong>没有匹配的记录</strong><span>换个料号 / 图号 / 采购单号再试，或者点「全部（含已发完）」。</span></div>
+        <div id="priceSummary" class="price-cards"></div>
+        <div id="priceEmpty" class="empty-state" hidden><strong>没有匹配的产品</strong><span>换个料件编号 / 品名 / 图号再试。</span></div>
       </section>
     </section>
 
@@ -1412,7 +1400,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "4b5879eabab5";
+      const fallbackVersion = "2369898c99df";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);

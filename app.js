@@ -2337,8 +2337,8 @@ const els = {
   priceSearch: $('#priceSearch'),
   priceCount: $('#priceCount'),
   priceSummary: $('#priceSummary'),
-  priceTableBody: $('#priceTableBody'),
   priceEmpty: $('#priceEmpty'),
+  priceHint: $('#priceHint'),
   drawingCategoryTabs: $('#drawingCategoryTabs'),
   drawingList: $('#drawingList'),
   drawingCount: $('#drawingCount'),
@@ -4258,98 +4258,106 @@ function drawingCategoryIcon(category) {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`;
 }
 
-// ===== 单价查询（只电脑管理端）：料号/图号/采购单号都能查，已发完的单也在 =====
+// ===== 单价查询（只电脑管理端）：搜编号/品名/图号 -> 产品基本信息 + 当前单价 + 单价变动 =====
 let priceQuery = '';
-let priceScope = 'all';
 
-function priceLookupRows() {
+// 把所有报过价的订单按「料件编号 + 品名」归成一个产品，单条记录算一次报价
+function priceProductGroups() {
   const amounts = Array.isArray(snapshot && snapshot.amounts) ? snapshot.amounts : [];
   const orderById = new Map(((snapshot && snapshot.orders) || []).map((row) => [String(row.id || ''), row]));
-  const rows = [];
+  const groups = new Map();
   for (const row of amounts) {
-    const orderId = String(row.orderId || '').trim();
-    const order = orderById.get(orderId) || null;
-    rows.push({
-      orderId,
+    const order = orderById.get(String(row.orderId || '').trim()) || null;
+    const material = String(row.material || (order && order.material) || '').trim();
+    const name = String(row.name || (order && order.name) || '').trim();
+    if (!material && !name) continue;
+    const key = [material, name].join('\u0000');
+    if (!groups.has(key)) {
+      groups.set(key, { key, material, name, specs: new Set(), remaining: 0, orderType: 'normal', quotes: [] });
+    }
+    const group = groups.get(key);
+    if (order) {
+      if (order.spec) group.specs.add(String(order.spec).trim());
+      group.remaining += Number(order.remaining || 0);
+      if (order.orderType && order.orderType !== 'normal') group.orderType = String(order.orderType);
+    }
+    group.quotes.push({
       po: String(row.po || (order && order.po) || '').trim(),
       seq: row.seq != null ? row.seq : (order ? order.seq : ''),
-      material: String(row.material || (order && order.material) || '').trim(),
-      name: String(row.name || (order && order.name) || '').trim(),
-      spec: String((order && order.spec) || '').trim(),
-      customer: String((order && order.customer) || '').trim(),
-      orderType: String((order && order.orderType) || 'normal'),
-      orderQty: Number(row.orderQty != null ? row.orderQty : (order ? order.orderQty : 0)),
-      remaining: order ? Number(order.remaining || 0) : 0,
       unitPrice: row.unitPrice == null ? null : Number(row.unitPrice),
-      amount: Number(row.amount || 0),
-      dueDate: String((order && order.dueDate) || ''),
-      priceSource: String(row.priceSource || ''),
-      priceUpdatedAt: String(row.priceUpdatedAt || ''),
+      date: String((order && order.purchaseDate) || '').slice(0, 10) || String(row.priceUpdatedAt || '').slice(0, 10),
+      updatedAt: String(row.priceUpdatedAt || ''),
     });
   }
-  return rows;
+  return [...groups.values()];
 }
 
-function priceSummaryHtml(rows) {
-  const groups = new Map();
-  for (const row of rows) {
-    // 按「料件编号 + 品名」汇总历史单价（同一料号里个别单没写图号时也不会被拆成两行）
-    const key = [row.material, row.name].join('\u0000');
-    if (!groups.has(key)) groups.set(key, { material: row.material, specs: new Set(), name: row.name, prices: new Map() });
-    const group = groups.get(key);
-    if (row.spec) group.specs.add(row.spec);
-    const price = row.unitPrice == null ? '无单价' : String(row.unitPrice);
-    group.prices.set(price, (group.prices.get(price) || 0) + 1);
+// 报价按日期排好，只留"价格发生变化"的那几次，就是单价变动史
+function priceChangeTimeline(group) {
+  const quotes = group.quotes.slice().sort((left, right) =>
+    String(left.date || '9999-12-31').localeCompare(String(right.date || '9999-12-31'))
+    || String(left.updatedAt).localeCompare(String(right.updatedAt)));
+  const changes = [];
+  for (const quote of quotes) {
+    const last = changes.length ? changes[changes.length - 1] : null;
+    if (!last || last.unitPrice !== quote.unitPrice) {
+      changes.push({ unitPrice: quote.unitPrice, date: quote.date, po: quote.po, seq: quote.seq });
+    } else if (!last.po) {
+      last.po = quote.po;
+      last.seq = quote.seq;
+    }
   }
-  if (!groups.size || groups.size > 40) return '';
-  return [...groups.values()].map((group) => {
-    const list = [...group.prices.entries()]
-      .sort((a, b) => (Number(b[0]) || 0) - (Number(a[0]) || 0))
-      .map(([price, count]) => price + (price === '无单价' ? '' : ' 元') + ' ×' + count + ' 单')
-      .join('　');
-    const specText = [...group.specs].join('、');
-    return `<div class="price-summary-row"><span class="mono">${escapeHtml(group.material || '—')}</span><span>${escapeHtml(group.name || '')}${specText ? ' · ' + escapeHtml(specText) : ''}</span><strong>${escapeHtml(list)}</strong></div>`;
-  }).join('');
+  return { changes, latest: quotes.length ? quotes[quotes.length - 1] : null, count: quotes.length };
+}
+
+function priceCardHtml(group) {
+  const { changes, latest, count } = priceChangeTimeline(group);
+  const specs = [...group.specs].join('、');
+  const currentPrice = latest && latest.unitPrice != null ? latest.unitPrice : null;
+  const priceText = currentPrice == null ? '单价未定' : fmt(currentPrice) + ' 元';
+  const showChanges = changes.length > 1;
+  return `<article class="price-card">
+    <div class="price-card-head">
+      <strong>${escapeHtml(group.name || group.material || '—')}</strong>
+      ${['trial', 'sample', 'tooling'].includes(group.orderType) ? orderTypeTagHtml(group.orderType) : ''}
+      <em>${escapeHtml(priceText)}</em>
+    </div>
+    <div class="price-card-meta">
+      <span class="mono">${escapeHtml(group.material || '—')}</span>
+      ${specs ? `<span class="mono">${escapeHtml(specs)}</span>` : ''}
+      ${group.remaining > 0 ? `<span class="price-card-open">未交 ${fmt(group.remaining)} 件</span>` : '<span class="price-card-done">已发完</span>'}
+    </div>
+    ${showChanges ? `<div class="price-change">
+      <span class="price-change-title">单价变动 ${changes.length} 次</span>
+      ${changes.map((item, index) => `<div class="price-change-row${index === changes.length - 1 ? ' current' : ''}">
+        <span class="mono">${escapeHtml(item.date || '—')} 起</span>
+        <strong>${item.unitPrice == null ? '单价未定' : fmt(item.unitPrice) + ' 元'}</strong>
+        <span class="price-change-note">${item.po ? escapeHtml(item.po + ' · 项次 ' + (item.seq == null ? '' : item.seq)) : ''}</span>
+      </div>`).join('')}
+    </div>` : `<div class="price-card-foot">共 ${fmt(count)} 次下单记录，单价一直没变</div>`}
+  </article>`;
 }
 
 function renderDesktopPrices() {
-  const body = els.priceTableBody;
-  if (!body) return;
+  const box = els.priceSummary;
+  if (!box) return;
   const query = priceQuery.trim().toLowerCase();
-  const all = priceLookupRows();
-  const filtered = all.filter((row) => {
-    if (priceScope === 'remaining' && !(row.remaining > 0)) return false;
-    if (!query) return true;
-    return [row.po, row.seq, row.material, row.spec, row.name, row.orderId, row.unitPrice == null ? '' : String(row.unitPrice)]
-      .join(' ').toLowerCase().includes(query);
-  }).sort((left, right) => String(right.priceUpdatedAt || '').localeCompare(String(left.priceUpdatedAt || ''))
-    || String(right.dueDate || '').localeCompare(String(left.dueDate || ''))
-    || String(left.material || '').localeCompare(String(right.material || ''), 'zh-CN'));
-
-  const limit = 300;
-  const visible = filtered.slice(0, limit);
-  body.innerHTML = visible.map((row) => `
-    <tr>
-      <td><span class="order-id">${escapeHtml(row.po || row.orderId || '—')}</span></td>
-      <td class="number">${escapeHtml(String(row.seq == null ? '' : row.seq))}</td>
-      <td><span class="material-code mono">${escapeHtml(row.material || '—')}</span></td>
-      <td><span class="item-name">${escapeHtml(row.name || '—')}</span></td>
-      <td><span class="spec-code mono">${escapeHtml(row.spec || '—')}</span></td>
-      <td class="number">${fmt(row.orderQty)}</td>
-      <td class="number">${row.remaining > 0 ? fmt(row.remaining) : '<span class="price-done">已发完</span>'}</td>
-      <td class="number"><strong>${row.unitPrice == null ? '—' : fmt(row.unitPrice)}</strong></td>
-      <td class="number">${fmt(row.amount)}</td>
-      <td>${escapeHtml(row.dueDate ? formatDate(row.dueDate) : '—')}</td>
-      <td><span class="company-tag" title="${escapeHtml(companyName(row.customer))}">${escapeHtml(row.customer || '—')}</span></td>
-      <td>${orderTypeTagHtml(row.orderType)}</td>
-    </tr>`).join('');
-  if (els.priceCount) els.priceCount.textContent = `${fmt(filtered.length)} 条记录${filtered.length > limit ? `（只显示前 ${limit} 条，输入料号缩小范围）` : ''}`;
-  if (els.priceEmpty) els.priceEmpty.hidden = filtered.length > 0;
-  if (els.priceSummary) {
-    const html = priceSummaryHtml(filtered);
-    els.priceSummary.innerHTML = html;
-    els.priceSummary.hidden = !html;
+  if (query.length < 2) {
+    box.innerHTML = '';
+    if (els.priceHint) els.priceHint.hidden = false;
+    if (els.priceEmpty) els.priceEmpty.hidden = true;
+    if (els.priceCount) els.priceCount.textContent = '';
+    return;
   }
+  if (els.priceHint) els.priceHint.hidden = true;
+  const groups = priceProductGroups()
+    .filter((group) => [group.material, group.name, [...group.specs].join(' ')].join(' ').toLowerCase().includes(query))
+    .sort((left, right) => (right.remaining > 0 ? 1 : 0) - (left.remaining > 0 ? 1 : 0)
+      || String(left.name || '').localeCompare(String(right.name || ''), 'zh-CN')
+      || String(left.material || '').localeCompare(String(right.material || '')));
+  box.innerHTML = groups.slice(0, 30).map(priceCardHtml).join('');
+  if (els.priceCount) els.priceCount.textContent = groups.length ? `${fmt(groups.length)} 个产品${groups.length > 30 ? '（只显示前 30 个）' : ''}` : '';
+  if (els.priceEmpty) els.priceEmpty.hidden = groups.length > 0;
 }
 
 function renderDesktopDrawings() {
@@ -11548,15 +11556,6 @@ document.querySelectorAll('[data-desktop-view]').forEach((link) => {
 if (els.filesSearch) els.filesSearch.addEventListener('input', (event) => { filesQuery = event.target.value; renderCloudFiles(); });
   if (els.drawingSearch) els.drawingSearch.addEventListener('input', (event) => { drawingQuery = event.target.value; renderDesktopDrawings(); });
 if (els.priceSearch) els.priceSearch.addEventListener('input', (event) => { priceQuery = event.target.value; renderDesktopPrices(); });
-if (els.desktopPricesView) {
-  els.desktopPricesView.addEventListener('click', (event) => {
-    const tab = event.target.closest('[data-price-scope]');
-    if (!tab) return;
-    priceScope = tab.dataset.priceScope === 'remaining' ? 'remaining' : 'all';
-    els.desktopPricesView.querySelectorAll('[data-price-scope]').forEach((node) => node.classList.toggle('active', node === tab));
-    renderDesktopPrices();
-  });
-}
 if (els.drawingCategoryTabs) els.drawingCategoryTabs.addEventListener('click', (event) => {
   const button = event.target.closest('[data-drawing-category]');
   if (!button) return;
