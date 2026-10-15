@@ -1947,6 +1947,11 @@ const els = {
   pdfImportButton: $('#pdfImportButton'),
   pdfFileInput: $('#pdfFileInput'),
   pdfModal: $('#pdfModal'),
+  offsetReminderModal: $('#offsetReminderModal'),
+  offsetReminderList: $('#offsetReminderList'),
+  offsetReminderApply: $('#offsetReminderApply'),
+  offsetReminderLater: $('#offsetReminderLater'),
+  offsetReminderClose: $('#offsetReminderClose'),
   pdfPreview: $('#pdfPreview'),
   confirmPdf: $('#confirmPdf'),
   cancelPdf: $('#cancelPdf'),
@@ -3561,6 +3566,7 @@ async function confirmPdfImport() {
     }
 
     // 关弹窗会清空待导入行，所以这里先把后面要用的数据取出来
+    const importedRows = pendingPdfRows.map((row) => Object.assign({}, row));
     const drawingUploads = [];
     for (const item of pendingDrawingFiles) {
       const targets = drawingTargetsFor(item.name);
@@ -3635,6 +3641,10 @@ async function confirmPdfImport() {
         else if (missing.length) showToast(`本机没找到图纸的料号 ${missing.length} 个：` + missing.slice(0, 8).map((item) => item.material).join('、') + (missing.length > 8 ? '…' : ''), 11000);
       }
     }
+
+    // 新订单进来后：有「无订单发货」待冲抵的料号马上提醒（点「稍后再说」才会走自动冲抵）
+    const offsetItems = offsetReminderItems(importedRows);
+    if (offsetItems.length) openOffsetReminder(offsetItems);
 
     showToast(`已导入 ${count} 行新订单（未交已更新）`);
     await loadState({ quiet: true });
@@ -4538,6 +4548,8 @@ function offsetCandidates() {
 // 护栏/护脚栏类：不用手工点，自动冲抵，并把结果告诉用户（不影响送货单）
 async function autoOffsetReadyDeliveries() {
   if (autoOffsetRunning || !snapshot) return;
+  // 提醒窗口还开着时先不自动冲抵，等用户点「全部冲抵」或「稍后再说」
+  if (offsetReminderOpen) return;
   // 本次装车还有未提交的勾选时先不自动冲抵，避免和正在装的货冲突
   if (selected.size > 0) return;
   const list = offsetCandidates().filter((item) => !offsetSkipped(item.over));
@@ -4598,6 +4610,112 @@ function renderOffsetBox() {
     box.hidden = !html;
     box.innerHTML = html;
   }
+}
+
+// ===== 新订单进来后：有「无订单发货」没冲抵完的料号马上提醒（有多少冲多少，不够的下次再冲）=====
+let pendingOffsetItems = [];
+let offsetReminderOpen = false;
+
+// 用「刚导入的订单行」当订单侧，不依赖刷新后的清单，导入完就能马上算
+function offsetReminderItems(rows) {
+  const byMaterial = new Map();
+  for (const row of rows || []) {
+    const material = String(row.material || '').trim();
+    if (!material) continue;
+    if (!byMaterial.has(material)) {
+      byMaterial.set(material, { material, name: String(row.name || '').trim(), spec: String(row.spec || '').trim(), customer: String(row.customer || '').trim(), orders: [] });
+    }
+    const item = byMaterial.get(material);
+    item.orders.push({
+      id: String(row.id || '').trim(),
+      po: String(row.po || '').trim(),
+      seq: row.seq || '',
+      dueDate: String(row.dueDate || ''),
+      quantity: Number(row.orderQty != null ? row.orderQty : (row.openingRemaining || 0)),
+    });
+  }
+  const out = [];
+  for (const item of byMaterial.values()) {
+    const orders = item.orders.filter((order) => order.id && order.quantity > 0)
+      .sort((left, right) => String(left.dueDate || '9999-12-31').localeCompare(String(right.dueDate || '9999-12-31')) || Number(left.seq || 0) - Number(right.seq || 0));
+    if (!orders.length) continue;
+    const orderTotal = orders.reduce((sum, order) => sum + order.quantity, 0);
+    const overs = overDeliveries().filter((over) => String(over.material || '').trim() === item.material
+      && Number(over.remaining || 0) > 0
+      && (!over.customer || !item.customer || String(over.customer || '') === item.customer));
+    const overTotal = overs.reduce((sum, over) => sum + Number(over.remaining || 0), 0);
+    const take = Math.min(overTotal, orderTotal);
+    if (take <= 0) continue;
+    out.push({ material: item.material, name: item.name, spec: item.spec, orders, orderTotal, overs, overTotal, take });
+  }
+  return out;
+}
+
+function renderOffsetReminderList() {
+  if (!els.offsetReminderList) return;
+  els.offsetReminderList.innerHTML = pendingOffsetItems.map((item) => `
+    <div class="offset-row">
+      <div class="offset-text">
+        <strong>${escapeHtml(item.material)} ${escapeHtml(item.name || '')}${item.spec ? ' · ' + escapeHtml(item.spec) : ''}</strong>
+        <span>前期无订单发货还有 <b>${fmt(item.overTotal)}</b> 件没冲抵；本次新单未交 <b>${fmt(item.orderTotal)}</b> 件</span>
+        <span>本次冲抵 <b>${fmt(item.take)}</b> 件${item.overTotal > item.take ? `（剩下 ${fmt(item.overTotal - item.take)} 件，等下次有新订单再冲）` : ''}</span>
+      </div>
+    </div>`).join('');
+}
+
+function openOffsetReminder(items) {
+  pendingOffsetItems = (items || []).filter((item) => item && Number(item.take) > 0);
+  if (!pendingOffsetItems.length || !els.offsetReminderModal) return;
+  renderOffsetReminderList();
+  offsetReminderOpen = true;
+  els.offsetReminderModal.hidden = false;
+}
+
+function closeOffsetReminder() {
+  offsetReminderOpen = false;
+  if (els.offsetReminderModal) els.offsetReminderModal.hidden = true;
+}
+
+async function applyPendingOffsets() {
+  const list = pendingOffsetItems;
+  if (!list.length) { closeOffsetReminder(); return; }
+  const button = els.offsetReminderApply;
+  if (button) { button.disabled = true; button.textContent = '正在冲抵...'; }
+  const done = [];
+  const touchedOvers = [];
+  try {
+    for (const item of list) {
+      let budget = Number(item.take || 0);
+      for (const over of item.overs) {
+        if (budget <= 0) break;
+        for (const order of item.orders) {
+          if (budget <= 0) break;
+          let result = null;
+          try {
+            result = await callRpc('board_apply_offset', { p_code: getAccessCode(), p_over_id: over.id, p_order_id: order.id });
+          } catch { break; }
+          if (!result || !result.response.ok) break;
+          const applied = Number(result.data?.applied || 0);
+          if (applied <= 0) continue;
+          done.push({ material: item.material, quantity: applied });
+          touchedOvers.push(String(over.id || ''));
+          budget -= applied;
+        }
+      }
+    }
+  } finally {
+    if (button) { button.disabled = false; button.textContent = '全部冲抵'; }
+  }
+  closeOffsetReminder();
+  pendingOffsetItems = [];
+  if (!done.length) { showToast('这次没有冲抵（可能已经冲过了）', 6000); return; }
+  const merged = new Map();
+  for (const row of done) merged.set(row.material, (merged.get(row.material) || 0) + row.quantity);
+  const summary = [...merged.entries()].map(([material, quantity]) => material + ' ' + fmt(quantity) + ' 件').join('、');
+  showToast('已冲抵：' + summary, 9000);
+  await loadState({ quiet: true });
+  await markBangfanOffsetsBilled(touchedOvers);
+  renderAll();
 }
 
 // 冲抵记录（把前期多送的货冲抵到新订单上的流水）
@@ -11019,6 +11137,9 @@ if (els.sampleApprovalSelectConfirm) els.sampleApprovalSelectConfirm.addEventLis
 if (els.sampleApprovalPreviewClose) els.sampleApprovalPreviewClose.addEventListener('click', closeSampleApprovalPreview);
 if (els.sampleApprovalPreviewCancel) els.sampleApprovalPreviewCancel.addEventListener('click', closeSampleApprovalPreview);
 if (els.sampleApprovalPreviewPrint) els.sampleApprovalPreviewPrint.addEventListener('click', () => { void printSampleApprovalPreview(); });
+if (els.offsetReminderClose) els.offsetReminderClose.addEventListener('click', closeOffsetReminder);
+if (els.offsetReminderLater) els.offsetReminderLater.addEventListener('click', closeOffsetReminder);
+if (els.offsetReminderApply) els.offsetReminderApply.addEventListener('click', () => { void applyPendingOffsets(); });
 if (els.photoViewerDelete) els.photoViewerDelete.addEventListener('click', deletePhotoViewer);
 if (els.photoViewerRetake) els.photoViewerRetake.addEventListener('click', () => { if (els.photoViewerModal) els.photoViewerModal.hidden = true; if (photoViewerTarget) openPhotoCapture(photoViewerTarget, { retake: true, existingPhoto: photoViewerRow }); });
 

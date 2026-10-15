@@ -1140,6 +1140,20 @@
       </div>
     </section>
   </div>
+  <div id="offsetReminderModal" class="modal-backdrop" hidden>
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="offsetReminderTitle">
+      <div class="modal-head">
+        <div><p class="eyebrow">无订单发货</p><h2 id="offsetReminderTitle">这些料号可以冲抵了</h2></div>
+        <button id="offsetReminderClose" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <p class="import-warning">新订单来了，前期「无订单发货」的货可以按下面的数量冲抵：有多少冲多少，不够的等下次再来订单继续冲。</p>
+      <div id="offsetReminderList" class="offset-reminder-list"></div>
+      <div class="modal-actions">
+        <button id="offsetReminderLater" class="button ghost" type="button">稍后再说</button>
+        <button id="offsetReminderApply" class="button primary" type="button">全部冲抵</button>
+      </div>
+    </section>
+  </div>
   <div id="workReviewModal" class="modal-backdrop" hidden>
     <section class="modal-card work-review-modal" role="dialog" aria-modal="true" aria-labelledby="workReviewModalTitle">
       <div class="modal-head">
@@ -1355,7 +1369,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "e68edff45099";
+      const fallbackVersion = "4d3c207acff4";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
