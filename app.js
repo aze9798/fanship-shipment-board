@@ -892,7 +892,7 @@ function renderPhotoViewerCurrent() {
   const multi = total > 1;
   if (els.photoViewerCounter) {
     els.photoViewerCounter.hidden = !multi;
-    els.photoViewerCounter.textContent = multi ? `第 ${photoViewerIndex + 1} / ${total} 张` : '';
+    els.photoViewerCounter.textContent = multi ? `第 ${photoViewerIndex + 1} / ${total} 张 · 左右滑动切换` : '';
   }
   if (els.photoViewerPrev) {
     els.photoViewerPrev.hidden = !multi;
@@ -937,8 +937,9 @@ function openPhotoCaptureFromButton(button) {
   if (orderId) {
     const order = snapshot?.orders?.find((row) => String(row.id) === orderId);
     if (order) {
-      const existing = latestPhotoForTarget(order);
-      if (existing) openPhotoViewerRow(existing, order);
+      // 同一个料号可能拍过好几张（一次拍多张会各存一条），这里把全部留档照片一起打开，可以左右翻看
+      const existing = photosForTarget(order);
+      if (existing.length) openPhotoViewerList(existing, 0, order);
       else openPhotoCapture(order);
     }
     return;
@@ -946,8 +947,8 @@ function openPhotoCaptureFromButton(button) {
   if (planId) {
     const plan = replacementPlans().find((row) => String(row.id) === planId);
     if (plan) {
-      const existing = latestPhotoForTarget(plan);
-      if (existing) openPhotoViewerRow(existing, plan);
+      const existing = photosForTarget(plan);
+      if (existing.length) openPhotoViewerList(existing, 0, plan);
       else openPhotoCapture(plan);
     }
   }
@@ -1743,10 +1744,18 @@ async function updateUnitMemberQuantity(unitId, memberIndex, value) {
 function viewUnitPhoto(unitId) {
   const unit = shipmentUnits().find((row) => String(row.unitId) === String(unitId));
   if (!unit) return;
-  const names = (unit.photoFileNames || []).map((name) => String(name || '')).filter(Boolean);
-  const rows = names
-    .map((name) => photoArchiveRows().find((row) => String(row.fileName || '') === name))
-    .filter(Boolean);
+  const names = new Set((unit.photoFileNames || []).map((name) => String(name || '')).filter(Boolean));
+  const seen = new Set();
+  // 单元自己记着的照片 + 这些物料名下的其它留档照片（含后来补拍的），按时间倒序一起去重带上
+  const rows = photoArchiveRows().filter((row) => {
+    const key = photoRowKey(row);
+    if (!key || seen.has(key)) return false;
+    if (names.has(String(row.fileName || ''))) { seen.add(key); return true; }
+    const hit = (unit.members || []).some((member) => (row.materials || []).some((item) => photoTargetMatches(item, member, row)));
+    if (!hit) return false;
+    seen.add(key);
+    return true;
+  });
   if (!rows.length) { showToast('这个装车单元还没有照片'); return; }
   openPhotoViewerList(rows, 0, unit.members?.[0] || unit);
 }
@@ -10724,22 +10733,25 @@ if (els.photoArchiveList) els.photoArchiveList.addEventListener('click', (event)
   if (!button) return;
   const row = photoArchiveCache[Number(button.dataset.photoViewIndex)];
   if (!row) return;
-  if (row.dataUrl) openLocalPhoto(row);
-  else if (row.id) openCloudPhoto(row.id, row);
+  // 从档案里打开也从这一张开始，但整份清单都在，可以左右滑动看别的照片、删当前这张
+  const list = photoArchiveCache.length ? photoArchiveCache.slice() : [row];
+  openPhotoViewerList(list, Math.max(0, list.indexOf(row)), (row.materials || [])[0] || null);
 });
 if (els.photoViewerClose) els.photoViewerClose.addEventListener('click', () => { if (els.photoViewerModal) els.photoViewerModal.hidden = true; });
 if (els.photoViewerPrev) els.photoViewerPrev.addEventListener('click', () => showPhotoViewerBy(-1));
 if (els.photoViewerNext) els.photoViewerNext.addEventListener('click', () => showPhotoViewerBy(1));
 if (els.photoViewerImage) {
+  // 挂在整块照片区上（图片没铺满时也能滑）
+  const swipeArea = els.photoViewerImage.closest('.photo-viewer-stage') || els.photoViewerImage;
   let touchStartX = 0;
   let touchStartY = 0;
-  els.photoViewerImage.addEventListener('touchstart', (event) => {
+  swipeArea.addEventListener('touchstart', (event) => {
     const touch = event.changedTouches && event.changedTouches[0];
     if (!touch) return;
     touchStartX = touch.clientX;
     touchStartY = touch.clientY;
   }, { passive: true });
-  els.photoViewerImage.addEventListener('touchend', (event) => {
+  swipeArea.addEventListener('touchend', (event) => {
     const touch = event.changedTouches && event.changedTouches[0];
     if (!touch) return;
     const dx = touch.clientX - touchStartX;
