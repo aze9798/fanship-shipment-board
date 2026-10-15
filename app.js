@@ -3499,9 +3499,19 @@ async function confirmPdfImport() {
     // 所以先刷新一次状态，用「单号 + 项次 + 物料」找到真实订单 id 再设置。
     const typedRows = pendingPdfRows.filter((row) => row.orderType && row.orderType !== 'normal');
     if (typedRows.length) {
-      await loadState({ quiet: true });
+      // 订单 id 就是「采购单号#项次」，先用本地 id 直接设类别（不用等状态刷新），对不上的再刷新兜底
       let typedOk = 0;
+      const pendingTypes = [];
       for (const row of typedRows) {
+        const localId = String(row.id || '').trim();
+        if (!localId) { pendingTypes.push(row); continue; }
+        try {
+          const r = await callRpc('board_set_order_type', { p_code: getAccessCode(), p_order_id: localId, p_order_type: row.orderType });
+          if (r.response.ok) typedOk += 1; else pendingTypes.push(row);
+        } catch { pendingTypes.push(row); }
+      }
+      if (pendingTypes.length) await loadState({ quiet: true });
+      for (const row of pendingTypes) {
         const target = (snapshot?.orders || []).find((order) => String(order.po || '').trim() === String(row.po || '').trim()
           && String(order.seq || '').trim() === String(row.seq || '').trim()
           && String(order.material || '').trim() === String(row.material || '').trim());
@@ -3582,8 +3592,25 @@ async function confirmPdfImport() {
       beginTask('正在上传订单图纸...');
       const attach = await attachOrderDrawings(drawingUploads);
       if (!attach) {
-        finishTask('图纸没传上去', 'error', 6000);
-        showToast('图纸没能上传（打印助手没启动？）：开好助手后重新导一次就能补上', 9000);
+        // 打印助手调不到（浏览器不允许网页访问本机端口 / 助手没开）：直接把图纸写进云端图纸库
+        let wrote = 0;
+        const failedNames = [];
+        for (const item of drawingUploads) {
+          try {
+            const r = await callRpc('board_save_drawing', { p_code: getAccessCode(), p_payload: {
+              material: item.material,
+              name: item.name,
+              spec: item.spec,
+              category: { trial: 'trial', sample: 'sample', tooling: 'tooling' }[item.orderType] || 'formal',
+              fileName: item.fileName,
+              contentBase64: item.contentBase64,
+            } });
+            if (r.response.ok) wrote += 1; else failedNames.push(item.fileName);
+          } catch { failedNames.push(item.fileName); }
+        }
+        finishTask('图纸写入 ' + wrote + ' 张', wrote ? 'success' : 'error', 6000);
+        if (wrote) showToast('已把 ' + wrote + ' 张图纸写进系统图纸库（打印助手没启动，走的是云端直存）', 9000);
+        if (failedNames.length) showToast('有 ' + failedNames.length + ' 张图纸没写成功：' + failedNames.join('、'), 9000);
       } else {
         const attachedRows = Array.isArray(attach.attached) ? attach.attached : [];
         const failedRows = Array.isArray(attach.failed) ? attach.failed : [];
@@ -3613,7 +3640,8 @@ async function confirmPdfImport() {
     await loadState({ quiet: true });
     renderAll();
     finishTask('采购订单导入完成', 'success', 3000);
-    openSampleApprovalSelector(typedRows.filter((row) => row.orderType === 'sample'));
+    const sampleTypedRows = typedRows.filter((row) => row.orderType === 'sample');
+    if (sampleTypedRows.length) openSampleApprovalSelector(sampleTypedRows);
   } catch (error) {
     finishTask('采购订单导入失败', 'error', 5000);
     showToast(error.message || '导入失败');
