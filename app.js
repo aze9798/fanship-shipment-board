@@ -3107,9 +3107,8 @@ function renderPdfPreview(docs) {
     }
     const missingAmountCount = doc.items.filter((x) => x.grossAmount == null).length;
     if (missingAmountCount) problems.push(`有 ${missingAmountCount} 行没有读到含税金额，不能导入`);
-    // 4074（老公司）的订单已经全部送完，以后不再区分公司：新导进来的一律按新公司 4137
-    const company = '4137';
-    if (/制品厂/.test(doc.vendor || '')) warnings.push('PDF 上写的是老公司（制品厂），按新公司 4137 导入');
+    const company = /科技/.test(doc.vendor || '') ? '4137' : (/制品厂/.test(doc.vendor || '') ? '4074' : '');
+    if (!company) problems.push('认不出公司（供应厂商）');
     const duplicated = Boolean(doc.po) && existing.has(doc.po);
     const priceNotes = [];
     const materialPriceNotes = [];
