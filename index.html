@@ -208,7 +208,7 @@
             <h1>发货计划总览</h1>
           </div>
           <div class="topbar-actions">
-            <button id="pdfImportButton" class="button primary" type="button">导入采购订单 PDF</button>
+            <button id="pdfImportButton" class="button primary" type="button">导入订单 / 试制 Excel</button>
 
             <button id="resetButton" class="button ghost danger-text" type="button">清空演示记录</button>
           </div>
@@ -1125,7 +1125,7 @@
       </div>
     </section>
   </div>
-  <input id="pdfFileInput" type="file" accept="application/pdf,.pdf" multiple hidden>
+  <input id="pdfFileInput" type="file" accept="application/pdf,.pdf,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden>
   <div id="pdfModal" class="modal-backdrop" hidden>
     <section class="modal-card" role="dialog" aria-modal="true">
       <div class="modal-head">
@@ -1355,7 +1355,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "ba897267e58a";
+      const fallbackVersion = "fc2f1c55ccea";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);

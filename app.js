@@ -2822,6 +2822,108 @@ function detectPdfOrderType(lines, fileName) {
   return 'normal';
 }
 
+// 试制订单是 Excel（PQ06-…）：「料件编号」常常是 MISC，真正的身份是「品名 + 图号」，
+// 所以这里用图号当料件编号，图纸也按图号去附。
+function trialDrawingNumber(text) {
+  const parts = String(text || '').split(/[\s,，、；;|]+/).filter(Boolean);
+  for (const part of parts) {
+    const token = part.replace(/[（(].*$/, '').trim();
+    if (!/^[A-Za-z0-9][A-Za-z0-9._\/-]*$/.test(token)) continue;
+    if (!/\d/.test(token) || !/-/.test(token)) continue;
+    if (/^\d+$/.test(token)) continue;
+    return token;
+  }
+  return '';
+}
+
+function trialMaterialIdentity(rawMaterial, materialText) {
+  const raw = String(rawMaterial || '').trim();
+  const drawingNo = trialDrawingNumber(materialText);
+  const generic = !raw || !/\d/.test(raw) || /^misc/i.test(raw);
+  if (drawingNo && generic) return { material: drawingNo, spec: drawingNo };
+  if (raw) return { material: raw, spec: drawingNo };
+  return { material: drawingNo || 'MISC', spec: drawingNo };
+}
+
+function trialExcelDate(XLSX, value) {
+  if (value == null || value === '') return null;
+  if (value instanceof Date) {
+    const shifted = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
+    return shifted.toISOString().slice(0, 10);
+  }
+  if (typeof value === 'number' && value > 20000 && value < 80000) {
+    try {
+      const parsed = XLSX.SSF.parse_date_code(value);
+      if (parsed) return parsed.y + '-' + String(parsed.m).padStart(2, '0') + '-' + String(parsed.d).padStart(2, '0');
+    } catch { }
+  }
+  return pdfIso(String(value).trim());
+}
+
+async function parseTrialOrderXlsx(file) {
+  const XLSX = await loadXlsx();
+  const buffer = await file.arrayBuffer();
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const docs = new Map();
+  let fallbackSeq = 0;
+  for (const sheetName of wb.SheetNames) {
+    const sheet = wb.Sheets[sheetName];
+    if (!sheet) continue;
+    const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, raw: true, defval: null });
+    let headerIndex = -1;
+    let header = [];
+    for (let i = 0; i < grid.length; i += 1) {
+      const cells = (grid[i] || []).map((value) => String(value == null ? '' : value).trim());
+      if (cells.some((cell) => /来源单号/.test(cell)) && cells.some((cell) => /需求数量|^数量$/.test(cell))) { headerIndex = i; header = cells; break; }
+    }
+    if (headerIndex < 0) continue;
+    const colOf = (patterns) => header.findIndex((cell) => patterns.some((pattern) => pattern.test(cell)));
+    const colPo = colOf([/来源单号/]);
+    const colSeq = colOf([/^来源项次$/, /^项次$/]);
+    const colMaterial = colOf([/料件编号/, /料号/, /物料编号/]);
+    const colName = colOf([/品名/, /名称/]);
+    const colSpec = colOf([/规格/, /图号/]);
+    const colQty = colOf([/需求数量/, /^数量$/]);
+    const colPrice = colOf([/含税单价/, /^单价$/]);
+    const colDue = colOf([/交货日期/, /交期/]);
+    if (colPo < 0 || colQty < 0) continue;
+    for (let i = headerIndex + 1; i < grid.length; i += 1) {
+      const line = grid[i] || [];
+      const text = (index) => (index >= 0 && index < line.length && line[index] != null) ? String(line[index]).trim() : '';
+      const po = text(colPo).replace(/\s+/g, '');
+      if (!po) continue;
+      const quantity = pdfNum(text(colQty));
+      if (!(quantity > 0)) continue;
+      fallbackSeq += 1;
+      const nameText = text(colName) || text(colSpec);
+      const identity = trialMaterialIdentity(text(colMaterial), nameText + ' ' + text(colSpec));
+      let itemName = nameText.replace(/\s+/g, ' ').trim();
+      if (identity.spec && itemName.includes(identity.spec)) itemName = itemName.split(identity.spec).join(' ').replace(/\s+/g, ' ').trim();
+      const priceText = text(colPrice);
+      const unitPrice = priceText ? pdfNum(priceText) : null;
+      const seqText = text(colSeq);
+      const seq = /^\d+$/.test(seqText) ? Number(seqText) : fallbackSeq;
+      const grossAmount = Math.round(quantity * (unitPrice || 0) * 100) / 100;
+      if (!docs.has(po)) {
+        docs.set(po, {
+          file: file.name, po, purchaseDate: null, vendor: '无锡市帆顺金属科技有限公司',
+          pdfTotal: null, items: [], error: '', poFromFile: false, orderType: 'trial', fromXlsx: true,
+          warnings: ['试制订单（Excel）：没有 PDF 合计可核对，金额按明细自动合计；供应厂商按新公司 4137 带出，不对可以在下面改'],
+        });
+      }
+      const doc = docs.get(po);
+      doc.items.push({ seq, material: identity.material, name: itemName, spec: identity.spec, dueDate: trialExcelDate(XLSX, (colDue >= 0 && colDue < line.length) ? line[colDue] : null), quantity, netAmount: grossAmount, grossAmount, unitPrice, grossUnitPrice: unitPrice });
+    }
+  }
+  for (const doc of docs.values()) {
+    doc.qtyTotal = doc.items.reduce((sum, item) => sum + item.quantity, 0);
+    doc.amountTotal = Math.round(doc.items.reduce((sum, item) => sum + (item.grossAmount || 0), 0) * 100) / 100;
+    doc.pdfTotal = doc.amountTotal;
+    if (!doc.items.length) doc.error = '没有识别到明细行';
+  }
+  return [...docs.values()];
+}
+
 async function parsePdfOrder(file) {
   const lines = await pdfToLines(file);
   const text = lines.join('\n');
@@ -2903,6 +3005,22 @@ async function parsePdfOrder(file) {
 
 let pendingPdfRows = [];
 let pendingPdfDocs = [];
+let pendingDrawingFiles = [];
+
+// 图纸文件名里带图号或料号就能自动对到明细行
+function normCodeText(value) { return String(value || '').toLowerCase().replace(/[^0-9a-z]/g, ''); }
+
+function drawingTargetsFor(fileName) {
+  const key = normCodeText(fileName);
+  if (!key) return [];
+  return (pendingPdfRows || []).filter((row) => {
+    const spec = normCodeText(row.spec);
+    const material = normCodeText(row.material);
+    if (spec && key.includes(spec)) return true;
+    if (material && material.length >= 5 && key.includes(material)) return true;
+    return false;
+  });
+}
 
 // 选择 PDF 后：逐个识别 -> 弹出核对窗口
 async function handlePdfFiles(fileList) {
@@ -2923,7 +3041,25 @@ async function handlePdfFiles(fileList) {
   }
   try {
     const docs = [];
-    for (const file of files) docs.push(await parsePdfOrder(file));
+    const drawings = [];
+    for (const file of files) {
+      const name = String(file.name || '');
+      if (/.(xlsx|xls)$/i.test(name)) {
+        try {
+          const parsed = await parseTrialOrderXlsx(file);
+          if (parsed.length) docs.push(...parsed);
+          else drawings.push({ file, name });
+        } catch (error) {
+          docs.push({ file: name, po: null, purchaseDate: null, vendor: null, pdfTotal: null, items: [], error: '试制订单 Excel 读取失败：' + String(error.message || error).slice(0, 80), warnings: [], poFromFile: false, orderType: 'trial', fromXlsx: true });
+        }
+        continue;
+      }
+      const doc = await parsePdfOrder(file);
+      const looksLikeOrder = Boolean(doc.po || doc.items.length) || /(PN|PQ|PZ|PO)d{2}-?d{5,}/i.test(name);
+      if (!looksLikeOrder) { drawings.push({ file, name }); continue; }
+      docs.push(doc);
+    }
+    pendingDrawingFiles = drawings;
     renderPdfPreview(docs);
     const okCount = docs.filter((d) => !d.error && d.items.length).length;
     if (okCount !== docs.length) showToast(`${docs.length} 个文件里只有 ${okCount} 个识别成功，请看核对窗口里的提示`);
@@ -2942,6 +3078,7 @@ function closePdfModal() {
   if (els.pdfFileInput) els.pdfFileInput.value = '';
   pendingPdfRows = [];
   pendingPdfDocs = [];
+  pendingDrawingFiles = [];
 }
 
 function renderPdfPreview(docs) {
@@ -2997,6 +3134,13 @@ function renderPdfPreview(docs) {
   pendingPdfRows = rows;
   const totalQty = rows.reduce((sum, r) => sum + r.openingRemaining, 0);
   const bad = blocks.filter((b) => b.problems.length);
+  const drawingBlocks = pendingDrawingFiles.map((item) => {
+    const targets = drawingTargetsFor(item.name);
+    const text = targets.length
+      ? '将附到：' + targets.map((row) => row.material + (row.name ? ' ' + row.name : '')).join('、')
+      : '没有找到对应的明细行（这次不会自动附）';
+    return `<div class="pdf-doc${targets.length ? '' : ' bad'}"><div class="pdf-doc-head"><strong>图纸 ${escapeHtml(item.name)}</strong><span>${escapeHtml(text)}</span></div></div>`;
+  }).join('');
   const html = blocks.map((b, docIndex) => `
     <div class="pdf-doc${b.problems.length ? ' bad' : b.duplicated ? ' dup' : ''}">
       <div class="pdf-doc-head">
@@ -3019,8 +3163,9 @@ function renderPdfPreview(docs) {
   els.pdfPreview.innerHTML = `
     <div class="submit-summary-row"><span>识别到</span><strong>${docs.length} 个 PDF</strong></div>
     <div class="submit-summary-row"><span>本次将新增</span><strong>${new Set(rows.map((r) => r.po)).size} 张单 · ${rows.length} 行 · 数量 ${fmt(totalQty)}</strong></div>
+    ${pendingDrawingFiles.length ? `<div class="submit-summary-row"><span>一起附上的图纸</span><strong>${pendingDrawingFiles.length} 张</strong></div>` : ''}
     ${bad.length ? `<div class="submit-summary-row"><span>有问题（不会导入）</span><strong class="bad">${bad.length} 个</strong></div>` : ''}
-    ${html}`;
+    ${html}${drawingBlocks}`;
   els.confirmPdf.disabled = !rows.length || bad.length > 0;
   els.pdfModal.hidden = false;
   if (bad.length) showToast(`总金额核对未通过：${bad.length} 个 PDF 有问题，已禁止导入`, 7000);
@@ -3290,6 +3435,25 @@ async function moveDesktopOrderPdfs(names) {
 
 }
 
+// 导入时一起选进来的图纸：交给本机打印助手写盘、上传云端图纸库并登记
+async function attachOrderDrawings(drawings) {
+  const list = (drawings || []).filter((item) => item && item.fileName && item.contentBase64 && item.material);
+  if (!list.length) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 600000);
+  try {
+    const response = await fetch(PRINT_HELPER_BASE + '/drawings/attach', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ drawings: list }),
+      signal: controller.signal,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (data && data.ok === false && data.error) { showToast(String(data.error), 10000); return null; }
+    return data && data.ok ? data : null;
+  } catch { return null; } finally { clearTimeout(timer); }
+}
+
 // 导入完成后：让本机打印助手去图纸库里按料号找图纸附上（同一个料号多张图时取最新日期的）
 async function syncOrderDrawings(items) {
   const list = (items || []).filter((item) => item && item.material);
@@ -3386,9 +3550,21 @@ async function confirmPdfImport() {
 
     }
 
-    closePdfModal();
-
-    // 顺手给这次导入的料号附上本机图纸（同一个料号多张图取最新日期的）
+    // 关弹窗会清空待导入行，所以这里先把后面要用的数据取出来
+    const drawingUploads = [];
+    for (const item of pendingDrawingFiles) {
+      const targets = drawingTargetsFor(item.name);
+      if (!targets.length) continue;
+      const target = targets[0];
+      try {
+        const buffer = new Uint8Array(await item.file.arrayBuffer());
+        let binary = '';
+        for (let offset = 0; offset < buffer.length; offset += 0x8000) {
+          binary += String.fromCharCode.apply(null, buffer.subarray(offset, offset + 0x8000));
+        }
+        drawingUploads.push({ fileName: item.name, contentBase64: btoa(binary), material: target.material, spec: target.spec || '', name: target.name || '', orderType: target.orderType || 'normal' });
+      } catch { }
+    }
     const drawingItems = [...new Map(pendingPdfRows
       .filter((row) => String(row.material || '').trim())
       .map((row) => [String(row.material).trim(), {
@@ -3399,6 +3575,24 @@ async function confirmPdfImport() {
         seq: row.seq || '',
         orderType: row.orderType || 'normal',
       }])).values()];
+
+    closePdfModal();
+
+    if (drawingUploads.length) {
+      beginTask('正在上传订单图纸...');
+      const attach = await attachOrderDrawings(drawingUploads);
+      if (!attach) {
+        finishTask('图纸没传上去', 'error', 6000);
+        showToast('图纸没能上传（打印助手没启动？）：开好助手后重新导一次就能补上', 9000);
+      } else {
+        const attachedRows = Array.isArray(attach.attached) ? attach.attached : [];
+        const failedRows = Array.isArray(attach.failed) ? attach.failed : [];
+        finishTask('图纸已附上 ' + attachedRows.length + ' 张', 'success', 5000);
+        if (attachedRows.length) showToast('已附图纸：' + attachedRows.map((row) => row.material + (row.fileName ? ' ← ' + row.fileName : '')).join('、'), 9000);
+        if (failedRows.length) showToast('有 ' + failedRows.length + ' 张图纸没传成功，之后重新导一次可以补', 9000);
+      }
+    }
+
     if (drawingItems.length) {
       beginTask('正在从本机图纸库找图纸...');
       const drawingResult = await syncOrderDrawings(drawingItems);
