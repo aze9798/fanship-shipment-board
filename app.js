@@ -3107,8 +3107,9 @@ function renderPdfPreview(docs) {
     }
     const missingAmountCount = doc.items.filter((x) => x.grossAmount == null).length;
     if (missingAmountCount) problems.push(`有 ${missingAmountCount} 行没有读到含税金额，不能导入`);
-    const company = /科技/.test(doc.vendor || '') ? '4137' : (/制品厂/.test(doc.vendor || '') ? '4074' : '');
-    if (!company) problems.push('认不出公司（供应厂商）');
+    // 4074（老公司）的订单已经全部送完，以后不再区分公司：新导进来的一律按新公司 4137
+    const company = '4137';
+    if (/制品厂/.test(doc.vendor || '')) warnings.push('PDF 上写的是老公司（制品厂），按新公司 4137 导入');
     const duplicated = Boolean(doc.po) && existing.has(doc.po);
     const priceNotes = [];
     const materialPriceNotes = [];
@@ -3566,7 +3567,6 @@ async function confirmPdfImport() {
     }
 
     // 关弹窗会清空待导入行，所以这里先把后面要用的数据取出来
-    const importedRows = pendingPdfRows.map((row) => Object.assign({}, row));
     const drawingUploads = [];
     for (const item of pendingDrawingFiles) {
       const targets = drawingTargetsFor(item.name);
@@ -3641,10 +3641,6 @@ async function confirmPdfImport() {
         else if (missing.length) showToast(`本机没找到图纸的料号 ${missing.length} 个：` + missing.slice(0, 8).map((item) => item.material).join('、') + (missing.length > 8 ? '…' : ''), 11000);
       }
     }
-
-    // 新订单进来后：有「无订单发货」待冲抵的料号马上提醒（点「稍后再说」才会走自动冲抵）
-    const offsetItems = offsetReminderItems(importedRows);
-    if (offsetItems.length) openOffsetReminder(offsetItems);
 
     showToast(`已导入 ${count} 行新订单（未交已更新）`);
     await loadState({ quiet: true });
