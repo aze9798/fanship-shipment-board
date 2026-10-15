@@ -2860,9 +2860,8 @@ function trialDrawingNumber(text) {
 function trialMaterialIdentity(rawMaterial, materialText) {
   const raw = String(rawMaterial || '').trim();
   const drawingNo = trialDrawingNumber(materialText);
-  const generic = !raw || !/\d/.test(raw) || /^misc/i.test(raw);
-  if (drawingNo && generic) return { material: drawingNo, spec: drawingNo };
-  if (raw) return { material: raw, spec: drawingNo };
+  // 料件编号照原单写（试制单里通常就是 MISC），图号放进规格 —— 图纸/标签按「料件编号 + 规格(图号)」一起认
+  if (raw) return { material: raw, spec: drawingNo || String(materialText || '').trim() };
   return { material: drawingNo || 'MISC', spec: drawingNo };
 }
 
@@ -2905,10 +2904,8 @@ async function parseTrialOrderXlsx(file) {
     if (headerIndex < 0) continue;
     const colOf = (patterns) => header.findIndex((cell) => patterns.some((pattern) => pattern.test(cell)));
     const colPo = colOf([/来源单号/, /采购单号/, /^单号$/]);
-    // 有的表格「项次」会写两列：前面是行号、单号后面那列才是供应商的项次
-    const seqColumns = header.map((cell, index) => ({ cell, index })).filter((item) => /来源项次|^项次$|^序号$/.test(item.cell));
-    const seqPick = seqColumns.find((item) => item.index > colPo) || seqColumns[0] || { index: -1 };
-    const colSeq = seqPick.index;
+    // 项次取第一列就好（有的表格后面还藏着第二列「项次」，那是导出时的隐藏列，不用）
+    const colSeq = colOf([/^项次$/, /来源项次/, /^序号$/]);
     const colMaterial = colOf([/料件编号/, /料号/, /物料编号/, /物料编码/]);
     const colName = colOf([/品名/, /物料名称/, /名称/]);
     const colSpec = colOf([/规格/, /图号/]);
@@ -3152,7 +3149,7 @@ function renderPdfPreview(docs) {
           priceNotes.push(`${item.material} 单价 ${old.unitPrice} → ${item.unitPrice}（${diff > 0 ? '+' : ''}${pct}%）`);
         }
         // 同一个料号前后调价：和库里该料号所有历史单价比
-        if (showAmounts && item.unitPrice != null && Number(item.unitPrice) > 0) {
+        if (showAmounts && item.unitPrice != null && Number(item.unitPrice) > 0 && !/^misc$/i.test(String(item.material || '').trim())) {
           const history = materialUnitPrices(item.material, id);
           if (history.length && !history.some((v) => Math.abs(v - Number(item.unitPrice)) < 0.0001)) {
             materialPriceNotes.push(`${item.material} 原单价 ${history.join('、')} → 新单价 ${item.unitPrice}`);
