@@ -1129,10 +1129,10 @@
   <div id="pdfModal" class="modal-backdrop" hidden>
     <section class="modal-card" role="dialog" aria-modal="true">
       <div class="modal-head">
-        <div><p class="eyebrow">采购订单 PDF</p><h2>识别结果核对</h2></div>
+        <div><p class="eyebrow">采购订单 PDF / 试制 Excel</p><h2>识别结果核对</h2></div>
         <button id="closePdfModal" class="icon-button" type="button" aria-label="关闭">×</button>
       </div>
-      <p class="import-warning">核对无误后再点“确认导入”。只追加新单，已存在的采购单号会自动跳过，已有未交和发货流水不会变动。</p>
+      <p class="import-warning">可以一次把采购订单 PDF、试制订单 Excel 和它们的图纸一起选进来：图纸会按文件名里的料号/图号自动附到对应明细行。核对无误后再点“确认导入”，只追加新单，已存在的采购单号会自动跳过。</p>
       <div id="pdfPreview" class="submit-summary"></div>
       <div class="modal-actions">
         <button id="cancelPdf" class="button ghost" type="button">取消</button>
@@ -1355,7 +1355,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "fc2f1c55ccea";
+      const fallbackVersion = "ee8694652910";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);

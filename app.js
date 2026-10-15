@@ -3033,8 +3033,8 @@ async function handlePdfFiles(fileList) {
     if (els.pdfFileInput) els.pdfFileInput.value = '';
     return;
   }
-  showToast(`正在识别 ${files.length} 个采购订单 PDF...`);
-  beginTask('正在识别采购订单 PDF...');
+  showToast(`正在识别 ${files.length} 个文件（采购订单 PDF / 试制 Excel）...`);
+  beginTask('正在识别订单文件...');
   if (els.pdfPreview) {
     els.pdfPreview.innerHTML = '<div class="submit-summary-row"><span>正在识别</span><strong>请稍等…</strong></div>';
     els.pdfModal.hidden = false;
@@ -3063,10 +3063,10 @@ async function handlePdfFiles(fileList) {
     renderPdfPreview(docs);
     const okCount = docs.filter((d) => !d.error && d.items.length).length;
     if (okCount !== docs.length) showToast(`${docs.length} 个文件里只有 ${okCount} 个识别成功，请看核对窗口里的提示`);
-    finishTask(okCount === docs.length ? 'PDF 识别完成' : 'PDF 已识别，但有文件需要检查', okCount === docs.length ? 'success' : 'error', 4500);
+    finishTask(okCount === docs.length ? '订单识别完成' : '订单已识别，但有文件需要检查', okCount === docs.length ? 'success' : 'error', 4500);
   } catch (error) {
     if (els.pdfModal) els.pdfModal.hidden = true;
-    finishTask('PDF 识别失败', 'error', 5000);
+    finishTask('订单识别失败', 'error', 5000);
     showToast(error.message || 'PDF 识别失败');
   } finally {
     if (els.pdfFileInput) els.pdfFileInput.value = '';
@@ -3161,7 +3161,7 @@ function renderPdfPreview(docs) {
       ${b.problems.map((p) => `<div class="pdf-note bad">${escapeHtml(p)}</div>`).join('')}
     </div>`).join('');
   els.pdfPreview.innerHTML = `
-    <div class="submit-summary-row"><span>识别到</span><strong>${docs.length} 个 PDF</strong></div>
+    <div class="submit-summary-row"><span>识别到</span><strong>${docs.length} 个订单文件</strong></div>
     <div class="submit-summary-row"><span>本次将新增</span><strong>${new Set(rows.map((r) => r.po)).size} 张单 · ${rows.length} 行 · 数量 ${fmt(totalQty)}</strong></div>
     ${pendingDrawingFiles.length ? `<div class="submit-summary-row"><span>一起附上的图纸</span><strong>${pendingDrawingFiles.length} 张</strong></div>` : ''}
     ${bad.length ? `<div class="submit-summary-row"><span>有问题（不会导入）</span><strong class="bad">${bad.length} 个</strong></div>` : ''}
