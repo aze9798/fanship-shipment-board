@@ -3629,7 +3629,11 @@ async function confirmPdfImport() {
         // 打印助手调不到（浏览器不允许网页访问本机端口 / 助手没开）：直接把图纸写进云端图纸库
         let wrote = 0;
         const failedNames = [];
+        const tooBig = [];
         for (const item of drawingUploads) {
+          // 网页直存是把 PDF 塞进数据库，超过 1.5MB 云端会超时掐断（实测 2.4MB 就报 statement timeout），
+          // 大图只能等本机打印助手在线上传
+          if (String(item.contentBase64 || '').length * 0.75 > 1.5 * 1024 * 1024) { tooBig.push(item.fileName); continue; }
           try {
             const r = await callRpc('board_save_drawing', { p_code: getAccessCode(), p_payload: {
               material: item.material,
@@ -3645,6 +3649,7 @@ async function confirmPdfImport() {
         finishTask('图纸写入 ' + wrote + ' 张', wrote ? 'success' : 'error', 6000);
         if (wrote) showToast('已把 ' + wrote + ' 张图纸写进系统图纸库（打印助手没启动，走的是云端直存）', 9000);
         if (failedNames.length) showToast('有 ' + failedNames.length + ' 张图纸没写成功：' + failedNames.join('、'), 9000);
+        if (tooBig.length) showToast('有 ' + tooBig.length + ' 张图纸比较大（' + tooBig.join('、') + '），必须本机打印助手在线才能附上：确认助手在运行、网页提示"访问本机网络"时点允许，然后重新导一次', 12000);
       } else {
         const attachedRows = Array.isArray(attach.attached) ? attach.attached : [];
         const failedRows = Array.isArray(attach.failed) ? attach.failed : [];
