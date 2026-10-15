@@ -4327,6 +4327,7 @@ function priceCardHtml(group) {
       ${specs ? `<span class="mono">${escapeHtml(specs)}</span>` : ''}
       ${group.remaining > 0 ? `<span class="price-card-open">未交 ${fmt(group.remaining)} 件</span>` : '<span class="price-card-done">已发完</span>'}
     </div>
+    <div class="price-card-foot">共 ${fmt(count)} 次下单记录${latest && latest.po ? ` · 最近 ${escapeHtml(latest.po)} 项次 ${escapeHtml(String(latest.seq == null ? '' : latest.seq))}` : ''}${latest && latest.date ? `（${escapeHtml(latest.date)}）` : ''}${showChanges ? '' : ' · 单价一直没变'}</div>
     ${showChanges ? `<div class="price-change">
       <span class="price-change-title">单价变动 ${changes.length} 次</span>
       ${changes.map((item, index) => `<div class="price-change-row${index === changes.length - 1 ? ' current' : ''}">
@@ -4334,7 +4335,7 @@ function priceCardHtml(group) {
         <strong>${item.unitPrice == null ? '单价未定' : fmt(item.unitPrice) + ' 元'}</strong>
         <span class="price-change-note">${item.po ? escapeHtml(item.po + ' · 项次 ' + (item.seq == null ? '' : item.seq)) : ''}</span>
       </div>`).join('')}
-    </div>` : `<div class="price-card-foot">共 ${fmt(count)} 次下单记录，单价一直没变</div>`}
+    </div>` : ''}
   </article>`;
 }
 
