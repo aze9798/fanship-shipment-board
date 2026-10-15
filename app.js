@@ -9636,18 +9636,25 @@ function renderCart() {
 
 // 同一物料编号在多个采购单上都还有未交时的汇总（物料编号 -> 总未交/单数）
 function materialSummary(order) {
-  const key = String(order.material || '').trim();
+  // 普通订单按「料件编号」合并（同一料号的多张未交单要合计）；
+  // 但试制 / 承样 / 工装的料件编号统一是 MISC，按料号合并会把不同产品算成一单，
+  // 所以这三类改用「料件编号 + 图号 + 品名」当合并口径
+  const special = Boolean(order && order.orderType && order.orderType !== 'normal');
+  const groupKeyOf = (item) => (special
+    ? [String(item.material || '').trim(), String(item.spec || '').trim(), String(item.name || '').trim()].join('\u0000')
+    : String(item.material || '').trim());
+  const target = groupKeyOf(order);
   const map = new Map();
   for (const item of snapshot.orders) {
     if (!(item.remaining > 0)) continue;
-    const itemKey = String(item.material || '').trim();
+    const itemKey = groupKeyOf(item);
     if (!itemKey) continue;
     const row = map.get(itemKey) || { total: 0, count: 0 };
     row.total += Number(item.remaining || 0);
     row.count += 1;
     map.set(itemKey, row);
   }
-  return map.get(key) || { total: Number(order.remaining || 0), count: 1 };
+  return map.get(target) || { total: Number(order.remaining || 0), count: 1 };
 }
 
 // 同一物料的所有未交行，按交期从早到晚（同交期按项次）
