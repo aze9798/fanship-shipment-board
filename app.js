@@ -4520,15 +4520,35 @@ function renderOverDeliveryList() {
           <span class="mono">${escapeHtml(row.material)}</span>
           <span>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}${row.ids.length > 1 ? `<br><em class="over-meta">合并 ${row.ids.length} 笔登记</em>` : ''}</span>
           <strong>${fmt(row.remaining)} 件</strong>
-          ${row.locked
-            ? `<span class="row-locked" title="${row.billed ? '已开送货单，等待后续同料号订单冲抵；开单后不能撤回' : '登记满 7 天后不能再撤回'}">${row.billed ? '待冲抵' : '已归档'}</span>`
-            : `<button type="button" class="row-revoke" data-revoke-over="${escapeHtml(row.ids.join(','))}">撤回</button>`}
+          <span class="over-row-actions">
+            ${(() => {
+              const offsetOver = overDeliveries().find((item) => String(item.material || '').trim() === String(row.material || '').trim() && Number(item.remaining || 0) > 0);
+              const ready = offsetOver ? offsetOrdersFor(offsetOver) : [];
+              return ready.length ? `<button type="button" class="over-button" data-offset-material="${escapeHtml(row.material)}">冲抵 ${fmt(Math.min(row.remaining, ready.reduce((sum, order) => sum + Number(order.remaining || 0), 0)))} 件</button>` : '';
+            })()}
+            ${row.locked
+              ? `<span class="row-locked" title="${row.billed ? '已开送货单，等待后续同料号订单冲抵；开单后不能撤回' : '登记满 7 天后不能再撤回'}">${row.billed ? '待冲抵' : '已归档'}</span>`
+              : `<button type="button" class="row-revoke" data-revoke-over="${escapeHtml(row.ids.join(','))}">撤回</button>`}
+          </span>
         </div>`).join('')}
       <p class="over-tip">这些货已经发出但没有对应采购单；开送货单后显示“待冲抵”，等出现同料号的新订单会自动冲抵，冲抵后进入“冲抵记录”，这里就不再显示。</p>
     </section>`;
 }
 
-// 之前多送、现在有订单可以冲抵的候选
+// 多条无订单发货指向同一料号时，可以冲抵的订单：同客户的排前面，其次按交期；没有同客户时也允许跨公司冲
+function offsetOrdersFor(over) {
+  const material = String(over && over.material || '').trim();
+  if (!material) return [];
+  const orders = materialOrders(material);
+  if (!orders.length) return [];
+  const customer = String(over.customer || '').trim();
+  if (!customer) return orders;
+  const same = orders.filter((order) => String(order.customer || '').trim() === customer);
+  const rest = orders.filter((order) => String(order.customer || '').trim() !== customer);
+  return same.concat(rest);
+}
+
+// 之前多送、现在有订单可以冲抵的候选（自动冲抵与装车登记里的提示沿用「同客户」口径）
 function offsetCandidates() {
   const rows = overDeliveries();
   if (!rows.length) return [];
@@ -4631,6 +4651,7 @@ function offsetReminderItems(rows) {
       po: String(row.po || '').trim(),
       seq: row.seq || '',
       dueDate: String(row.dueDate || ''),
+      customer: String(row.customer || '').trim(),
       quantity: Number(row.orderQty != null ? row.orderQty : (row.openingRemaining || 0)),
     });
   }
@@ -4640,13 +4661,15 @@ function offsetReminderItems(rows) {
       .sort((left, right) => String(left.dueDate || '9999-12-31').localeCompare(String(right.dueDate || '9999-12-31')) || Number(left.seq || 0) - Number(right.seq || 0));
     if (!orders.length) continue;
     const orderTotal = orders.reduce((sum, order) => sum + order.quantity, 0);
-    const overs = overDeliveries().filter((over) => String(over.material || '').trim() === item.material
-      && Number(over.remaining || 0) > 0
-      && (!over.customer || !item.customer || String(over.customer || '') === item.customer));
+    const overs = overDeliveries().filter((over) => String(over.material || '').trim() === item.material && Number(over.remaining || 0) > 0);
+    if (!overs.length) continue;
     const overTotal = overs.reduce((sum, over) => sum + Number(over.remaining || 0), 0);
     const take = Math.min(overTotal, orderTotal);
     if (take <= 0) continue;
-    out.push({ material: item.material, name: item.name, spec: item.spec, orders, orderTotal, overs, overTotal, take });
+    const overCompanies = [...new Set(overs.map((over) => String(over.customer || '').trim()).filter(Boolean))];
+    const orderCompanies = [...new Set(orders.map((order) => String(order.customer || '').trim()).filter(Boolean))];
+    const crossCustomer = overCompanies.length > 0 && orderCompanies.length > 0 && !overCompanies.some((code) => orderCompanies.includes(code));
+    out.push({ material: item.material, name: item.name, spec: item.spec, orders, orderTotal, overs, overTotal, take, overCompanies, orderCompanies, crossCustomer });
   }
   return out;
 }
@@ -4659,6 +4682,7 @@ function renderOffsetReminderList() {
         <strong>${escapeHtml(item.material)} ${escapeHtml(item.name || '')}${item.spec ? ' · ' + escapeHtml(item.spec) : ''}</strong>
         <span>前期无订单发货还有 <b>${fmt(item.overTotal)}</b> 件没冲抵；本次新单未交 <b>${fmt(item.orderTotal)}</b> 件</span>
         <span>本次冲抵 <b>${fmt(item.take)}</b> 件${item.overTotal > item.take ? `（剩下 ${fmt(item.overTotal - item.take)} 件，等下次有新订单再冲）` : ''}</span>
+        ${item.crossCustomer ? `<span>注意：多送记的是公司 ${escapeHtml(item.overCompanies.join('、'))}，这批订单是公司 ${escapeHtml(item.orderCompanies.join('、'))}（跨公司冲抵）</span>` : ''}
       </div>
     </div>`).join('');
 }
@@ -10972,6 +10996,42 @@ if (els.mobileRecordsPanel) els.mobileRecordsPanel.addEventListener('click', (ev
   if (button) revokeOffset(button.dataset.revokeOffset);
 });
 
+// 一个料号把能冲的都冲掉：多条无订单发货 × 多张未交订单，能冲多少冲多少，不够的下次再来订单继续冲
+async function applyOffsetsForMaterial(material, button) {
+  const key = String(material || '').trim();
+  if (!key) return;
+  const overs = overDeliveries().filter((row) => String(row.material || '').trim() === key && Number(row.remaining || 0) > 0);
+  if (!overs.length) { showToast('这个料号没有待冲抵的无订单发货'); return; }
+  const orders = offsetOrdersFor(overs[0]);
+  if (!orders.length) { showToast('暂时没有可以冲抵的未交订单'); return; }
+  if (button) { button.disabled = true; button.textContent = '冲抵中...'; }
+  const appliedList = [];
+  const touched = [];
+  try {
+    for (const over of overs) {
+      for (const order of orders) {
+        let result = null;
+        try {
+          result = await callRpc('board_apply_offset', { p_code: getAccessCode(), p_over_id: over.id, p_order_id: order.id });
+        } catch { break; }
+        if (!result || !result.response.ok) break;
+        const applied = Number(result.data?.applied || 0);
+        if (applied <= 0) continue;
+        appliedList.push(applied);
+        touched.push(String(over.id || ''));
+      }
+    }
+  } finally {
+    if (button) { button.disabled = false; button.textContent = '冲抵'; }
+  }
+  const total = appliedList.reduce((sum, value) => sum + value, 0);
+  if (!total) { showToast('这次没有可以冲抵的数量（可能已经冲过了）', 7000); return; }
+  showToast('已冲抵 ' + key + ' ' + fmt(total) + ' 件', 8000);
+  await loadState({ quiet: true });
+  await markBangfanOffsetsBilled(touched);
+  renderAll();
+}
+
 async function handleOffsetOverClick(event) {
   const button = event.target.closest('[data-offset-over]');
   if (!button) return;
@@ -11413,6 +11473,8 @@ function handleHistoryClick(event) {
 if (els.shipmentHistory) els.shipmentHistory.addEventListener('click', handleHistoryClick);
 // 电脑端「冲抵记录 / 无订单发货记录」两个子项的撤回按钮
 function handleQueryActionClick(event) {
+  const offsetMaterial = event.target.closest('[data-offset-material]');
+  if (offsetMaterial) { void applyOffsetsForMaterial(offsetMaterial.dataset.offsetMaterial, offsetMaterial); return; }
   const overButton = event.target.closest('[data-revoke-over]');
   if (overButton) { revokeOverDelivery(overButton.dataset.revokeOver); return; }
   const offsetButton = event.target.closest('[data-revoke-offset]');
