@@ -337,6 +337,9 @@ let photoUnitQuantities = new Map();
 let sampleApprovalAllCandidates = [];
 let sampleApprovalCandidates = [];
 let sampleApprovalSelectedIndex = -1;
+let sampleApprovalPickedKeys = new Set();   // 多选：勾中的承样订单
+let sampleApprovalShowPrinted = false;        // 是否显示已打印过的
+let sampleApprovalPrintedRecords = {};        // 本机已打印记录：orderId -> { at, day, count }
 let sampleApprovalPreviewRows = [];
 let sampleApprovalPreviewObjectUrl = '';
 let sampleApprovalPreviewToken = '';
@@ -3025,30 +3028,110 @@ function sampleApprovalCandidateList(rows) {
   return [...map.values()].sort((left, right) => String(right.dueDate || '').localeCompare(String(left.dueDate || '')) || String(left.material || '').localeCompare(String(right.material || ''), 'zh-CN'));
 }
 
+function sampleApprovalKey(row) {
+  return [row.po, row.seq, row.material, row.spec].map((value) => String(value || '').trim()).join('|');
+}
+
+function sampleApprovalIsPrinted(row) {
+  const id = String(row?.id || sampleApprovalKey(row) || '').trim();
+  return Boolean(id && sampleApprovalPrintedRecords[id]);
+}
+
 function renderSampleApprovalSelectList() {
   if (!els.sampleApprovalSelectList) return;
   const query = String(els.sampleApprovalSelectSearch?.value || '').trim().toLowerCase();
-  sampleApprovalCandidates = sampleApprovalAllCandidates.filter((row) => !query
+  const all = sampleApprovalAllCandidates.filter((row) => !query
     || [row.po, row.seq, row.material, row.name, row.spec].join(' ').toLowerCase().includes(query));
-  if (sampleApprovalSelectedIndex >= sampleApprovalCandidates.length) sampleApprovalSelectedIndex = 0;
+  const printedCount = all.filter(sampleApprovalIsPrinted).length;
+  sampleApprovalCandidates = sampleApprovalShowPrinted ? all : all.filter((row) => !sampleApprovalIsPrinted(row));
+  const picked = sampleApprovalCandidates.filter((row) => sampleApprovalPickedKeys.has(sampleApprovalKey(row)));
+  if (els.sampleApprovalSelectConfirm) els.sampleApprovalSelectConfirm.textContent = picked.length > 1 ? ('预览并打印 ' + picked.length + ' 份') : '预览承样书';
+  const head = `<div class="sample-approval-head">
+      <button type="button" class="sample-approval-mini" data-sample-pick-all="1">全选</button>
+      <button type="button" class="sample-approval-mini" data-sample-pick-none="1">清空</button>
+      <span class="sample-approval-mini-note">已选 ${picked.length} 份${printedCount ? ` · 已打印 ${printedCount} 份` : ''}</span>
+      ${printedCount ? `<button type="button" class="sample-approval-mini${sampleApprovalShowPrinted ? ' active' : ''}" data-sample-show-printed="1">${sampleApprovalShowPrinted ? '隐藏已打印' : '显示已打印'}</button>` : ''}
+    </div>`;
   if (!sampleApprovalCandidates.length) {
-    els.sampleApprovalSelectList.innerHTML = '<div class="empty-state"><strong>没有可选承样订单</strong><span>当前范围里没有承样订单。</span></div>';
+    els.sampleApprovalSelectList.innerHTML = head + `<div class="empty-state"><strong>没有可选承样订单</strong><span>${printedCount ? '这些承样书都打印过了，可以点上面「显示已打印」找出来补打，或换个搜索词。' : '当前范围里没有承样订单。'}</span></div>`;
     return;
   }
-  els.sampleApprovalSelectList.innerHTML = sampleApprovalCandidates.map((row, index) => {
+  els.sampleApprovalSelectList.innerHTML = head + sampleApprovalCandidates.map((row, index) => {
     const quantity = Number(row.quantity ?? row.orderQty ?? row.openingRemaining ?? row.remaining ?? 0);
-    return `<label class="sample-approval-choice${index === sampleApprovalSelectedIndex ? ' selected' : ''}">
-      <input type="radio" name="sampleApprovalChoice" value="${index}"${index === sampleApprovalSelectedIndex ? ' checked' : ''}>
-      <span><strong>${escapeHtml(row.material || '')} · ${escapeHtml(row.name || '')}</strong><small>${escapeHtml(row.spec || '')} · 采购单 ${escapeHtml(row.po || '')} · 项次 ${escapeHtml(row.seq || '')} · 交期 ${escapeHtml(formatDate(row.dueDate))}</small></span>
+    const key = sampleApprovalKey(row);
+    const isPicked = sampleApprovalPickedKeys.has(key);
+    const printed = sampleApprovalIsPrinted(row);
+    const record = sampleApprovalPrintedRecords[String(row?.id || key) || ''] || null;
+    return `<label class="sample-approval-choice${isPicked ? ' selected' : ''}${printed ? ' printed' : ''}">
+      <input type="checkbox" data-sample-pick="${escapeHtml(key)}"${isPicked ? ' checked' : ''}>
+      <span><strong>${escapeHtml(row.material || '')} · ${escapeHtml(row.name || '')}</strong><small>${escapeHtml(row.spec || '')} · 采购单 ${escapeHtml(row.po || '')} · 项次 ${escapeHtml(row.seq || '')} · 交期 ${escapeHtml(formatDate(row.dueDate))}${printed && record ? ` · 已打印 ${escapeHtml(String(record.day || '').slice(5))} ×${Number(record.count || 1)}` : ''}</small></span>
       <em>${escapeHtml(fmt(quantity))} 件</em>
     </label>`;
   }).join('');
 }
 
+const SAMPLE_APPROVAL_PRINTED_KEY = 'shipmentSampleApprovalPrinted';
+
+function readSampleApprovalPrintedRecords() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SAMPLE_APPROVAL_PRINTED_KEY) || '{}');
+    if (saved && saved.records && typeof saved.records === 'object') return saved.records;
+    if (saved && typeof saved === 'object') return saved;
+  } catch { }
+  return {};
+}
+
+function writeSampleApprovalPrintedRecords() {
+  try { localStorage.setItem(SAMPLE_APPROVAL_PRINTED_KEY, JSON.stringify({ records: sampleApprovalPrintedRecords })); } catch { }
+}
+
+// 打印成功的承样书按订单归档在本机：默认从列表里隐藏，补打时点「显示已打印」再找出来。
+// 记录里带上整行数据，这样订单发完货从清单里消失后，仍然能补打承样书。
+function markSampleApprovalsPrinted(rows) {
+  const at = labelNowStamp();
+  let changed = false;
+  for (const row of rows || []) {
+    const id = String(row && row.id || sampleApprovalKey(row) || '').trim();
+    if (!id) continue;
+    const previous = sampleApprovalPrintedRecords[id] || {};
+    sampleApprovalPrintedRecords[id] = {
+      at,
+      day: at.slice(0, 10),
+      count: Number(previous.count || 0) + 1,
+      row: {
+        id: String(row.id || ''),
+        po: String(row.po || ''),
+        seq: row.seq || '',
+        material: String(row.material || ''),
+        name: String(row.name || ''),
+        spec: String(row.spec || ''),
+        quantity: Number(row.quantity != null ? row.quantity : (row.orderQty != null ? row.orderQty : (row.openingRemaining || 0))),
+        dueDate: String(row.dueDate || ''),
+        customer: String(row.customer || ''),
+      },
+    };
+    changed = true;
+  }
+  if (changed) writeSampleApprovalPrintedRecords();
+}
+
 function openSampleApprovalSelector(rows) {
-  sampleApprovalAllCandidates = sampleApprovalCandidateList(rows);
+  sampleApprovalPrintedRecords = readSampleApprovalPrintedRecords();
+  const candidates = sampleApprovalCandidateList(rows);
+  // 已打印归档里那些已经不在清单里的承样订单也列出来，方便随时补打
+  const known = new Set(candidates.map((row) => String(row.id || sampleApprovalKey(row))));
+  for (const entry of Object.entries(sampleApprovalPrintedRecords)) {
+    const id = entry[0];
+    const record = entry[1];
+    const archived = record && record.row;
+    if (!archived || !archived.material) continue;
+    if (known.has(String(archived.id || id))) continue;
+    candidates.push(Object.assign({}, archived, { id: String(archived.id || id) }));
+  }
+  sampleApprovalAllCandidates = candidates;
   if (!sampleApprovalAllCandidates.length) { showToast('没有可打印的承样订单'); return; }
   sampleApprovalSelectedIndex = 0;
+  sampleApprovalPickedKeys = new Set();
   if (els.sampleApprovalSelectSearch) els.sampleApprovalSelectSearch.value = '';
   renderSampleApprovalSelectList();
   if (els.sampleApprovalSelectModal) els.sampleApprovalSelectModal.hidden = false;
@@ -3062,7 +3145,10 @@ function closeSampleApprovalPreview() {
   if (sampleApprovalPreviewObjectUrl) { URL.revokeObjectURL(sampleApprovalPreviewObjectUrl); sampleApprovalPreviewObjectUrl = ''; }
 }
 
-async function openSampleApprovalPreview(row) {
+async function openSampleApprovalPreview(rows) {
+  const list = Array.isArray(rows) ? rows.filter(Boolean) : [rows].filter(Boolean);
+  const row = list[0];
+  if (!row) return;
   const result = await printSampleApprovals([row], { previewOnly: true });
   const item = result?.results?.[0];
   if (!item?.previewPdfBase64) { showToast('承认书预览生成失败'); return; }
@@ -3071,21 +3157,21 @@ async function openSampleApprovalPreview(row) {
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
   if (sampleApprovalPreviewObjectUrl) URL.revokeObjectURL(sampleApprovalPreviewObjectUrl);
   sampleApprovalPreviewObjectUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-  sampleApprovalPreviewRows = [row];
+  sampleApprovalPreviewRows = list;
   sampleApprovalPreviewToken = String(item.previewToken || '');
   if (els.sampleApprovalPreviewFrame) els.sampleApprovalPreviewFrame.src = sampleApprovalPreviewObjectUrl;
   if (els.sampleApprovalPreviewMeta) {
     const quantity = Number(row.quantity ?? row.orderQty ?? row.openingRemaining ?? row.remaining ?? 0);
-    els.sampleApprovalPreviewMeta.textContent = `${row.material || ''} · ${row.name || ''} · ${row.spec || ''} · ${fmt(quantity)} 件 · 交期 ${escapeHtml(formatDate(row.dueDate || snapshot?.today || TODAY))}`;
+    els.sampleApprovalPreviewMeta.textContent = `${row.material || ''} · ${row.name || ''} · ${row.spec || ''} · ${fmt(quantity)} 件 · 交期 ${escapeHtml(formatDate(row.dueDate || snapshot?.today || TODAY))}` + (list.length > 1 ? `（共 ${list.length} 份，先预览第 1 份；点「确认打印」会一次全部打出来）` : '');
   }
   if (els.sampleApprovalPreviewModal) els.sampleApprovalPreviewModal.hidden = false;
 }
 
 function confirmSampleApprovalSelection() {
-  const row = sampleApprovalCandidates[sampleApprovalSelectedIndex];
-  if (!row) { showToast('请先选择一个承样订单'); return; }
+  const picked = sampleApprovalCandidates.filter((row) => sampleApprovalPickedKeys.has(sampleApprovalKey(row)));
+  if (!picked.length) { showToast('请先勾选承样订单（可勾多个一起打）'); return; }
   closeSampleApprovalSelector();
-  void openSampleApprovalPreview(row);
+  void openSampleApprovalPreview(picked);
 }
 
 async function printSampleApprovalPreview() {
@@ -3094,14 +3180,15 @@ async function printSampleApprovalPreview() {
   const originalText = button?.textContent || '确认打印';
   if (button) { button.disabled = true; button.textContent = '正在打印...'; }
   try {
-    const result = await printSampleApprovals(sampleApprovalPreviewRows, { previewToken: sampleApprovalPreviewToken });
+    const result = await printSampleApprovals(sampleApprovalPreviewRows, sampleApprovalPreviewRows.length === 1 ? { previewToken: sampleApprovalPreviewToken } : {});
     if (result) closeSampleApprovalPreview();
   } finally {
     if (button) { button.disabled = false; button.textContent = originalText; }
   }
 }
 async function printSampleApprovals(rows, options = {}) {
-  const orders = (rows || []).map((row) => ({
+  const sourceRows = (rows || []).filter((row) => row && row.material);
+  const orders = sourceRows.map((row) => ({
     po: row.po || '',
     seq: row.seq || '',
     material: row.material || '',
@@ -3111,7 +3198,7 @@ async function printSampleApprovals(rows, options = {}) {
     customer: row.customer || '',
     orderType: 'sample',
     date: row.dueDate || snapshot?.today || TODAY,
-  })).filter((row) => row.material);
+  }));
   if (!orders.length) return null;
   const generateOnly = Boolean(options.generateOnly);
   const previewOnly = Boolean(options.previewOnly);
@@ -3135,9 +3222,14 @@ async function printSampleApprovals(rows, options = {}) {
       showToast(`已生成 ${generated} 份样品承认书`, 5000);
       return result;
     }
-    const printed = (result.results || []).filter((item) => item.approvalPrinted).length;
-    const drawings = (result.results || []).filter((item) => item.drawingPrinted).length;
-    showToast(`样品承认书已发送打印 ${printed} 份，图纸 ${drawings} 份`, 7000);
+    // 打印助手返回的顺序和请求的 orders 一一对应，按序号把「已打印」写进本机归档
+    const results = result.results || [];
+    const printedRows = [];
+    results.forEach((item, index) => {
+      if (item && item.approvalPrinted && sourceRows[index]) printedRows.push(sourceRows[index]);
+    });
+    markSampleApprovalsPrinted(printedRows);
+    showToast(`样品承认书已打印 ${printedRows.length} 份，已归档（要补打点「显示已打印」；承认书不再附带图纸）`, 8000);
     return result;
   } catch (error) {
     showToast((generateOnly ? '样品承认书生成失败：' : '样品承认书打印失败：') + (error.message || '请检查打印助手'), 9000);
@@ -3161,22 +3253,57 @@ async function generateAndPromptSampleApprovals(rows) {
   }
   return printSampleApprovals(rows);
 }
-// 导入完成后：把桌面上这些采购单 PDF 挪进「帆顺科技\采购订单」（需要打印助手在本机运行）
-async function moveDesktopOrderPdfs(names) {
-  const list = (names || []).map((value) => String(value || '').trim()).filter(Boolean);
-  if (!list.length) return null;
-  try {
-    const response = await fetch(PRINT_HELPER_BASE + '/orders/move', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ names: list }),
-    });
-    const data = await response.json().catch(() => ({}));
-    return data && data.ok ? data : null;
-  } catch { return null; }
-}
-
-async function confirmPdfImport() {
+// 导入完成后：把桌面上这些采购单 PDF 挪进「帆顺科技\采购订单」（需要打印助手在本机运行）
+
+async function moveDesktopOrderPdfs(names) {
+
+  const list = (names || []).map((value) => String(value || '').trim()).filter(Boolean);
+
+  if (!list.length) return null;
+
+  try {
+
+    const response = await fetch(PRINT_HELPER_BASE + '/orders/move', {
+
+      method: 'POST',
+
+      headers: { 'Content-Type': 'application/json' },
+
+      body: JSON.stringify({ names: list }),
+
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    return data && data.ok ? data : null;
+
+  } catch { return null; }
+
+}
+
+// 导入完成后：让本机打印助手去图纸库里按料号找图纸附上（同一个料号多张图时取最新日期的）
+async function syncOrderDrawings(items) {
+  const list = (items || []).filter((item) => item && item.material);
+  if (!list.length) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 300000);
+  try {
+    const response = await fetch(PRINT_HELPER_BASE + '/drawings/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: list }),
+      signal: controller.signal,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (data && data.ok === false && data.error) { showToast(String(data.error), 10000); return null; }
+    return data && data.ok ? data : null;
+  } catch { return null; } finally { clearTimeout(timer); }
+}
+
+
+
+async function confirmPdfImport() {
+
 
   if (!pendingPdfRows.length) return;
   if (boardRole !== 'admin') {
@@ -3230,17 +3357,55 @@ async function confirmPdfImport() {
       if (unpriced) showToast(`${unpriced} 行单价未定，已按未定价导入（单价留空）`, 6000);
       if (priced) showToast(`已写入 ${priced} 条含税单价（来源：采购订单 PDF）`);
     }
-    // 桌面上导入过的采购单 PDF：导入完顺手归到「采购订单」文件夹
-    const pdfFileNames = [...new Set((pendingPdfDocs || []).map((doc) => String((doc && doc.file) || '').trim()).filter(Boolean))];
-    const movedResult = pdfFileNames.length ? await moveDesktopOrderPdfs(pdfFileNames) : null;
-    if (pdfFileNames.length && movedResult) {
-      const movedNames = Array.isArray(movedResult.moved) ? movedResult.moved : [];
-      if (movedNames.length) showToast('桌面上的 ' + movedNames.length + ' 份采购单已归到「采购订单」：' + movedNames.join('、'), 7000);
-      else showToast('这次导入的文件不在桌面（或已经归位过），没有移动任何文件', 5000);
-    } else if (pdfFileNames.length) {
-      showToast('打印助手没启动：桌面上的采购单 PDF 这次没动，之后跑一次「导入新采购订单」也能自动归位', 9000);
-    }
-    closePdfModal();
+    // 桌面上导入过的采购单 PDF：导入完顺手归到「采购订单」文件夹
+
+    const pdfFileNames = [...new Set((pendingPdfDocs || []).map((doc) => String((doc && doc.file) || '').trim()).filter(Boolean))];
+
+    const movedResult = pdfFileNames.length ? await moveDesktopOrderPdfs(pdfFileNames) : null;
+
+    if (pdfFileNames.length && movedResult) {
+
+      const movedNames = Array.isArray(movedResult.moved) ? movedResult.moved : [];
+
+      if (movedNames.length) showToast('桌面上的 ' + movedNames.length + ' 份采购单已归到「采购订单」：' + movedNames.join('、'), 7000);
+
+      else showToast('这次导入的文件不在桌面（或已经归位过），没有移动任何文件', 5000);
+
+    } else if (pdfFileNames.length) {
+
+      showToast('打印助手没启动：桌面上的采购单 PDF 这次没动，之后跑一次「导入新采购订单」也能自动归位', 9000);
+
+    }
+
+    closePdfModal();
+
+    // 顺手给这次导入的料号附上本机图纸（同一个料号多张图取最新日期的）
+    const drawingItems = [...new Map(pendingPdfRows
+      .filter((row) => String(row.material || '').trim())
+      .map((row) => [String(row.material).trim(), {
+        material: String(row.material).trim(),
+        spec: String(row.spec || '').trim(),
+        name: String(row.name || '').trim(),
+        po: String(row.po || '').trim(),
+        seq: row.seq || '',
+        orderType: row.orderType || 'normal',
+      }])).values()];
+    if (drawingItems.length) {
+      beginTask('正在从本机图纸库找图纸...');
+      const drawingResult = await syncOrderDrawings(drawingItems);
+      if (!drawingResult) {
+        finishTask('这次没有自动附图纸', 'error', 6000);
+        showToast('打印助手没启动（或图纸同步失败）：这次的图纸没有附上，之后开着助手再导一次、或单独同步一次都能补', 9000);
+      } else {
+        const attached = Array.isArray(drawingResult.attached) ? drawingResult.attached : [];
+        const missing = Array.isArray(drawingResult.missing) ? drawingResult.missing : [];
+        const fresh = attached.filter((item) => !item.already).map((item) => item.fileName || item.material);
+        finishTask(`图纸：已附上 ${attached.length} 个料号`, 'success', 5000);
+        if (fresh.length) showToast('新附图纸：' + fresh.join('、') + (missing.length ? `；另有 ${missing.length} 个料号本机没找到图纸` : ''), 9000);
+        else if (missing.length) showToast(`本机没找到图纸的料号 ${missing.length} 个：` + missing.slice(0, 8).map((item) => item.material).join('、') + (missing.length > 8 ? '…' : ''), 11000);
+      }
+    }
+
     showToast(`已导入 ${count} 行新订单（未交已更新）`);
     await loadState({ quiet: true });
     renderAll();
@@ -8220,8 +8385,10 @@ function labelRowHtml(row, index) {
     <input class="label-print-input" type="date" data-label-field="date" value="${escapeHtml(row.date)}">
     <div class="label-print-row-actions">
       ${printedTag}
-      ${row.mergedFrom
-        ? `<button type="button" class="label-row-btn" data-label-unmerge="${index}">取消合并</button>`
+      ${row.mergedFrom
+
+        ? `<button type="button" class="label-row-btn" data-label-unmerge="${index}">取消合并</button>`
+
         : `<button type="button" class="label-row-btn${labelMergePending === index ? ' active' : ''}" data-label-merge="${index}" title="和另一项合并成一张标签（比如内外梁、导向板A/B）：先点这一行，再点另一行">${labelMergePending === index ? '合并中…' : '合并'}</button>`}      <button type="button" class="label-row-btn" data-label-copy="${index}">复制</button>
       <button type="button" class="label-row-btn danger" data-label-remove="${index}">删除</button>
       <button type="button" class="label-row-btn move" data-label-move="${index}" title="把这一项挪到${moveText.slice(1)}打印（只影响本次；以后按这个料号大/小标签的打印次数自动归）">${moveText}</button>
@@ -8341,71 +8508,136 @@ function labelQuantityNumber(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
-// ===== 合并两张标签（内外梁、导向板 A/B 这类成对的）=====
-// 料号/图号：第一条全写 + 第二条只写不同的部分（尾巴太短时按 minTail 多带几位）
-function mergeLabelTextTail(a, b, minTail = 0) {
-  const x = String(a || '').trim();
-  const y = String(b || '').trim();
-  if (!x || !y) return x || y;
-  if (x === y) return x;
-  let shared = 0;
-  while (shared < x.length && shared < y.length && x[shared] === y[shared]) shared += 1;
-  let tail = y.slice(shared);
-  if (!tail || (minTail && tail.length < minTail)) tail = y.slice(-Math.min(Math.max(minTail, 1), y.length));
-  return x + '/' + tail;
-}
-// 品名：不同的字用 / 拼起来，前后相同的部分保留（外梁组焊件 + 内梁组焊件 -> 外/内梁组焊件）
-function mergeLabelTextMiddle(a, b) {
-  const x = String(a || '').trim();
-  const y = String(b || '').trim();
-  if (!x || !y) return x || y;
-  if (x === y) return x;
-  let shared = 0;
-  while (shared < x.length && shared < y.length && x[shared] === y[shared]) shared += 1;
-  let back = 0;
-  while (back < x.length - shared && back < y.length - shared && x[x.length - 1 - back] === y[y.length - 1 - back]) back += 1;
-  const head = x.slice(0, shared);
-  const foot = back ? x.slice(x.length - back) : '';
-  const middleA = x.slice(shared, x.length - back);
-  const middleB = y.slice(shared, y.length - back);
-  if (!middleA || !middleB) return x + '/' + y;
-  return head + middleA + '/' + middleB + foot;
-}
-function mergeLabelRowsAt(firstIndex, secondIndex) {
-  const first = labelRows[firstIndex];
-  const second = labelRows[secondIndex];
-  if (!first || !second) return;
-  const rawA = String(first.quantity == null ? '' : first.quantity).trim();
-  const rawB = String(second.quantity == null ? '' : second.quantity).trim();
-  const numberA = labelQuantityNumber(rawA);
-  const numberB = labelQuantityNumber(rawB);
-  const sameQty = numberA > 0 && numberA === numberB;
-  const merged = Object.assign({}, first, {
-    id: nextLabelRowId(),
-    material: mergeLabelTextTail(first.material, second.material, 4),
-    name: mergeLabelTextMiddle(first.name, second.name),
-    spec: mergeLabelTextTail(first.spec, second.spec, 2),
-    quantity: sameQty ? (numberA + '套') : ((rawA || 0) + '件/' + (rawB || 0) + '件'),
-    remaining: Math.max(Number(first.remaining || 0), Number(second.remaining || 0)),
-    printed: false,
-    selected: true,
-    mergedFrom: [Object.assign({}, first), Object.assign({}, second)],
-  });
-  labelRows[firstIndex] = merged;
-  labelRows.splice(secondIndex, 1);
-  labelMergePending = null;
-  renderLabelRows();
-  showToast('已合并：' + merged.material + ' · ' + merged.quantity + '（点「取消合并」可拆回）');
-}
-function unmergeLabelRow(index) {
-  const row = labelRows[index];
-  if (!row || !row.mergedFrom) return;
-  const parts = row.mergedFrom.map((part) => Object.assign({}, part, { id: nextLabelRowId() }));
-  labelRows.splice(index, 1, ...parts);
-  labelMergePending = null;
-  renderLabelRows();
-  showToast('已拆回两张标签');
-}
+// ===== 合并两张标签（内外梁、导向板 A/B 这类成对的）=====
+
+// 料号/图号：第一条全写 + 第二条只写不同的部分（尾巴太短时按 minTail 多带几位）
+
+function mergeLabelTextTail(a, b, minTail = 0) {
+
+  const x = String(a || '').trim();
+
+  const y = String(b || '').trim();
+
+  if (!x || !y) return x || y;
+
+  if (x === y) return x;
+
+  let shared = 0;
+
+  while (shared < x.length && shared < y.length && x[shared] === y[shared]) shared += 1;
+
+  let tail = y.slice(shared);
+
+  if (!tail || (minTail && tail.length < minTail)) tail = y.slice(-Math.min(Math.max(minTail, 1), y.length));
+
+  return x + '/' + tail;
+
+}
+
+// 品名：不同的字用 / 拼起来，前后相同的部分保留（外梁组焊件 + 内梁组焊件 -> 外/内梁组焊件）
+
+function mergeLabelTextMiddle(a, b) {
+
+  const x = String(a || '').trim();
+
+  const y = String(b || '').trim();
+
+  if (!x || !y) return x || y;
+
+  if (x === y) return x;
+
+  let shared = 0;
+
+  while (shared < x.length && shared < y.length && x[shared] === y[shared]) shared += 1;
+
+  let back = 0;
+
+  while (back < x.length - shared && back < y.length - shared && x[x.length - 1 - back] === y[y.length - 1 - back]) back += 1;
+
+  const head = x.slice(0, shared);
+
+  const foot = back ? x.slice(x.length - back) : '';
+
+  const middleA = x.slice(shared, x.length - back);
+
+  const middleB = y.slice(shared, y.length - back);
+
+  if (!middleA || !middleB) return x + '/' + y;
+
+  return head + middleA + '/' + middleB + foot;
+
+}
+
+function mergeLabelRowsAt(firstIndex, secondIndex) {
+
+  const first = labelRows[firstIndex];
+
+  const second = labelRows[secondIndex];
+
+  if (!first || !second) return;
+
+  const rawA = String(first.quantity == null ? '' : first.quantity).trim();
+
+  const rawB = String(second.quantity == null ? '' : second.quantity).trim();
+
+  const numberA = labelQuantityNumber(rawA);
+
+  const numberB = labelQuantityNumber(rawB);
+
+  const sameQty = numberA > 0 && numberA === numberB;
+
+  const merged = Object.assign({}, first, {
+
+    id: nextLabelRowId(),
+
+    material: mergeLabelTextTail(first.material, second.material, 4),
+
+    name: mergeLabelTextMiddle(first.name, second.name),
+
+    spec: mergeLabelTextTail(first.spec, second.spec, 2),
+
+    quantity: sameQty ? (numberA + '套') : ((rawA || 0) + '件/' + (rawB || 0) + '件'),
+
+    remaining: Math.max(Number(first.remaining || 0), Number(second.remaining || 0)),
+
+    printed: false,
+
+    selected: true,
+
+    mergedFrom: [Object.assign({}, first), Object.assign({}, second)],
+
+  });
+
+  labelRows[firstIndex] = merged;
+
+  labelRows.splice(secondIndex, 1);
+
+  labelMergePending = null;
+
+  renderLabelRows();
+
+  showToast('已合并：' + merged.material + ' · ' + merged.quantity + '（点「取消合并」可拆回）');
+
+}
+
+function unmergeLabelRow(index) {
+
+  const row = labelRows[index];
+
+  if (!row || !row.mergedFrom) return;
+
+  const parts = row.mergedFrom.map((part) => Object.assign({}, part, { id: nextLabelRowId() }));
+
+  labelRows.splice(index, 1, ...parts);
+
+  labelMergePending = null;
+
+  renderLabelRows();
+
+  showToast('已拆回两张标签');
+
+}
+
 function labelRowQuantity(row) {
   return labelQuantityNumber(row.quantity);
 }
@@ -8505,24 +8737,42 @@ function handleLabelPrintChange(event) {
   updateLabelSummary();
 }
 
-function handleLabelPrintClick(event) {
-  const mergeButton = event.target.closest('[data-label-merge]');
-  if (mergeButton) {
-    const index = Number(mergeButton.dataset.labelMerge);
-    if (labelMergePending === null || labelMergePending === index) {
-      labelMergePending = labelMergePending === index ? null : index;
-      renderLabelRows();
-      if (labelMergePending !== null) showToast('已选中这一项，再点另一行的「合并」就能合成一张标签');
-      return;
-    }
-    mergeLabelRowsAt(Math.min(labelMergePending, index), Math.max(labelMergePending, index));
-    return;
-  }
-  const unmergeButton = event.target.closest('[data-label-unmerge]');
-  if (unmergeButton) {
-    unmergeLabelRow(Number(unmergeButton.dataset.labelUnmerge));
-    return;
-  }
+function handleLabelPrintClick(event) {
+
+  const mergeButton = event.target.closest('[data-label-merge]');
+
+  if (mergeButton) {
+
+    const index = Number(mergeButton.dataset.labelMerge);
+
+    if (labelMergePending === null || labelMergePending === index) {
+
+      labelMergePending = labelMergePending === index ? null : index;
+
+      renderLabelRows();
+
+      if (labelMergePending !== null) showToast('已选中这一项，再点另一行的「合并」就能合成一张标签');
+
+      return;
+
+    }
+
+    mergeLabelRowsAt(Math.min(labelMergePending, index), Math.max(labelMergePending, index));
+
+    return;
+
+  }
+
+  const unmergeButton = event.target.closest('[data-label-unmerge]');
+
+  if (unmergeButton) {
+
+    unmergeLabelRow(Number(unmergeButton.dataset.labelUnmerge));
+
+    return;
+
+  }
+
   const copyButton = event.target.closest('[data-label-copy]');
   if (copyButton) {
     const index = Number(copyButton.dataset.labelCopy);
@@ -10506,12 +10756,31 @@ document.addEventListener('keydown', (event) => {
 if (els.sampleApprovalSelectClose) els.sampleApprovalSelectClose.addEventListener('click', closeSampleApprovalSelector);
 if (els.sampleApprovalSelectCancel) els.sampleApprovalSelectCancel.addEventListener('click', closeSampleApprovalSelector);
 if (els.sampleApprovalSelectSearch) els.sampleApprovalSelectSearch.addEventListener('input', renderSampleApprovalSelectList);
-if (els.sampleApprovalSelectList) els.sampleApprovalSelectList.addEventListener('change', (event) => {
-  const input = event.target.closest('input[name="sampleApprovalChoice"]');
-  if (!input) return;
-  sampleApprovalSelectedIndex = Number(input.value);
-  renderSampleApprovalSelectList();
-});
+if (els.sampleApprovalSelectList) {
+  els.sampleApprovalSelectList.addEventListener('change', (event) => {
+    const input = event.target.closest('input[data-sample-pick]');
+    if (!input) return;
+    const key = String(input.dataset.samplePick || '');
+    if (input.checked) sampleApprovalPickedKeys.add(key); else sampleApprovalPickedKeys.delete(key);
+    renderSampleApprovalSelectList();
+  });
+  els.sampleApprovalSelectList.addEventListener('click', (event) => {
+    if (event.target.closest('[data-sample-pick-all]')) {
+      sampleApprovalCandidates.forEach((row) => sampleApprovalPickedKeys.add(sampleApprovalKey(row)));
+      renderSampleApprovalSelectList();
+      return;
+    }
+    if (event.target.closest('[data-sample-pick-none]')) {
+      sampleApprovalPickedKeys = new Set();
+      renderSampleApprovalSelectList();
+      return;
+    }
+    if (event.target.closest('[data-sample-show-printed]')) {
+      sampleApprovalShowPrinted = !sampleApprovalShowPrinted;
+      renderSampleApprovalSelectList();
+    }
+  });
+}
 if (els.sampleApprovalSelectConfirm) els.sampleApprovalSelectConfirm.addEventListener('click', confirmSampleApprovalSelection);
 if (els.sampleApprovalPreviewClose) els.sampleApprovalPreviewClose.addEventListener('click', closeSampleApprovalPreview);
 if (els.sampleApprovalPreviewCancel) els.sampleApprovalPreviewCancel.addEventListener('click', closeSampleApprovalPreview);

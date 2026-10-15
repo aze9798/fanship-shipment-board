@@ -3283,6 +3283,12 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .sample-approval-choice strong { font-size: 13px; color: #244a51; }
 .sample-approval-choice small { color: #74898e; font-size: 11px; }
 .sample-approval-choice em { color: var(--primary); font-size: 14px; font-style: normal; font-weight: 800; white-space: nowrap; }
+.sample-approval-choice.printed { border-style: dashed; background: #f7f9f9; }
+.sample-approval-choice.printed strong { color: #6c8388; }
+.sample-approval-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sample-approval-mini { min-height: 30px; padding: 0 10px; border: 1px solid #d9e5e4; border-radius: 8px; background: #fff; color: #3f6167; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.sample-approval-mini.active { border-color: #79bfb6; background: #effaf8; color: #0f766e; }
+.sample-approval-mini-note { color: #74898e; font-size: 12px; }
 .sample-approval-preview-card { width: min(100%, 900px); height: min(92dvh, 980px); display: flex; flex-direction: column; }
 .sample-approval-preview-meta { margin: 10px 0; padding: 9px 11px; border-radius: 10px; background: #f4f9f8; color: #49676c; font-size: 12px; }
 .sample-approval-preview-frame { flex: 1 1 auto; width: 100%; min-height: 420px; border: 1px solid #dce7e6; border-radius: 12px; background: #eef2f3; }
