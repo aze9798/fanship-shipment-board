@@ -2331,7 +2331,14 @@ const els = {
   mobileBrandTitle: $('#mobileBrandTitle'),
   switchCodeButton: $('#switchCodeButton'),
   mobileSwitchCode: $('#mobileSwitchCode'),
-  drawingSearch: $('#drawingSearch'),
+  desktopDrawingsView: $('#desktopDrawingsView'),
+  desktopPricesView: $('#desktopPricesView'),
+  desktopPricesLink: $('#desktopPricesLink'),
+  priceSearch: $('#priceSearch'),
+  priceCount: $('#priceCount'),
+  priceSummary: $('#priceSummary'),
+  priceTableBody: $('#priceTableBody'),
+  priceEmpty: $('#priceEmpty'),
   drawingCategoryTabs: $('#drawingCategoryTabs'),
   drawingList: $('#drawingList'),
   drawingCount: $('#drawingCount'),
@@ -3745,6 +3752,7 @@ function applyRoleUI() {
   document.title = '帆顺科技' + suffix;
   const badge = document.getElementById('modeBadge');
   if (badge) badge.textContent = isAdmin ? '管理员模式' : '普通模式';
+  if (els.desktopPricesLink) els.desktopPricesLink.hidden = !isAdmin;
 }
 
 function rebuildAmountMap() {
@@ -4248,6 +4256,97 @@ function drawingCategoryIcon(category) {
     formal: '<path d="M7 3h6l4 4v14H7z"></path><path d="M13 3v5h5"></path><path d="m9.5 15 1.6 1.6 3.4-3.6"></path>',
   })[category] || '<path d="M7 3h6l4 4v14H7z"></path><path d="M13 3v5h5"></path>';
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`;
+}
+
+// ===== 单价查询（只电脑管理端）：料号/图号/采购单号都能查，已发完的单也在 =====
+let priceQuery = '';
+let priceScope = 'all';
+
+function priceLookupRows() {
+  const amounts = Array.isArray(snapshot && snapshot.amounts) ? snapshot.amounts : [];
+  const orderById = new Map(((snapshot && snapshot.orders) || []).map((row) => [String(row.id || ''), row]));
+  const rows = [];
+  for (const row of amounts) {
+    const orderId = String(row.orderId || '').trim();
+    const order = orderById.get(orderId) || null;
+    rows.push({
+      orderId,
+      po: String(row.po || (order && order.po) || '').trim(),
+      seq: row.seq != null ? row.seq : (order ? order.seq : ''),
+      material: String(row.material || (order && order.material) || '').trim(),
+      name: String(row.name || (order && order.name) || '').trim(),
+      spec: String((order && order.spec) || '').trim(),
+      customer: String((order && order.customer) || '').trim(),
+      orderType: String((order && order.orderType) || 'normal'),
+      orderQty: Number(row.orderQty != null ? row.orderQty : (order ? order.orderQty : 0)),
+      remaining: order ? Number(order.remaining || 0) : 0,
+      unitPrice: row.unitPrice == null ? null : Number(row.unitPrice),
+      amount: Number(row.amount || 0),
+      dueDate: String((order && order.dueDate) || ''),
+      priceSource: String(row.priceSource || ''),
+      priceUpdatedAt: String(row.priceUpdatedAt || ''),
+    });
+  }
+  return rows;
+}
+
+function priceSummaryHtml(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const key = [row.material, row.spec, row.name].join('\u0000');
+    if (!groups.has(key)) groups.set(key, { material: row.material, spec: row.spec, name: row.name, prices: new Map() });
+    const group = groups.get(key);
+    const price = row.unitPrice == null ? '无单价' : String(row.unitPrice);
+    group.prices.set(price, (group.prices.get(price) || 0) + 1);
+  }
+  if (!groups.size || groups.size > 40) return '';
+  return [...groups.values()].map((group) => {
+    const list = [...group.prices.entries()]
+      .sort((a, b) => (Number(b[0]) || 0) - (Number(a[0]) || 0))
+      .map(([price, count]) => price + (price === '无单价' ? '' : ' 元') + ' ×' + count + ' 单')
+      .join('　');
+    return `<div class="price-summary-row"><span class="mono">${escapeHtml(group.material || '—')}</span><span>${escapeHtml(group.name || '')}${group.spec ? ' · ' + escapeHtml(group.spec) : ''}</span><strong>${escapeHtml(list)}</strong></div>`;
+  }).join('');
+}
+
+function renderDesktopPrices() {
+  const body = els.priceTableBody;
+  if (!body) return;
+  const query = priceQuery.trim().toLowerCase();
+  const all = priceLookupRows();
+  const filtered = all.filter((row) => {
+    if (priceScope === 'remaining' && !(row.remaining > 0)) return false;
+    if (!query) return true;
+    return [row.po, row.seq, row.material, row.spec, row.name, row.orderId, row.unitPrice == null ? '' : String(row.unitPrice)]
+      .join(' ').toLowerCase().includes(query);
+  }).sort((left, right) => String(right.priceUpdatedAt || '').localeCompare(String(left.priceUpdatedAt || ''))
+    || String(right.dueDate || '').localeCompare(String(left.dueDate || ''))
+    || String(left.material || '').localeCompare(String(right.material || ''), 'zh-CN'));
+
+  const limit = 300;
+  const visible = filtered.slice(0, limit);
+  body.innerHTML = visible.map((row) => `
+    <tr>
+      <td><span class="order-id">${escapeHtml(row.po || row.orderId || '—')}</span></td>
+      <td class="number">${escapeHtml(String(row.seq == null ? '' : row.seq))}</td>
+      <td><span class="material-code mono">${escapeHtml(row.material || '—')}</span></td>
+      <td><span class="item-name">${escapeHtml(row.name || '—')}</span></td>
+      <td><span class="spec-code mono">${escapeHtml(row.spec || '—')}</span></td>
+      <td class="number">${fmt(row.orderQty)}</td>
+      <td class="number">${row.remaining > 0 ? fmt(row.remaining) : '<span class="price-done">已发完</span>'}</td>
+      <td class="number"><strong>${row.unitPrice == null ? '—' : fmt(row.unitPrice)}</strong></td>
+      <td class="number">${fmt(row.amount)}</td>
+      <td>${escapeHtml(row.dueDate ? formatDate(row.dueDate) : '—')}</td>
+      <td><span class="company-tag" title="${escapeHtml(companyName(row.customer))}">${escapeHtml(row.customer || '—')}</span></td>
+      <td>${orderTypeTagHtml(row.orderType)}</td>
+    </tr>`).join('');
+  if (els.priceCount) els.priceCount.textContent = `${fmt(filtered.length)} 条记录${filtered.length > limit ? `（只显示前 ${limit} 条，输入料号缩小范围）` : ''}`;
+  if (els.priceEmpty) els.priceEmpty.hidden = filtered.length > 0;
+  if (els.priceSummary) {
+    const html = priceSummaryHtml(filtered);
+    els.priceSummary.innerHTML = html;
+    els.priceSummary.hidden = !html;
+  }
 }
 
 function renderDesktopDrawings() {
@@ -6721,7 +6820,7 @@ function switchMobileModule(module) {
 }
 // 电脑端两个页面：实时总览 / 发货记录
 function showDesktopView(name) {
-  if ((name === 'workReview' || name === 'workEdit' || name === 'attendance') && boardRole !== 'admin') {
+  if ((name === 'workReview' || name === 'workEdit' || name === 'attendance' || name === 'prices') && boardRole !== 'admin') {
     showToast('只对管理员开放');
     name = 'overview';
   }
@@ -6731,6 +6830,7 @@ function showDesktopView(name) {
     shipments: document.getElementById('desktopShipmentsView'),
     files: document.getElementById('desktopFilesView'),
     drawings: document.getElementById('desktopDrawingsView'),
+    prices: document.getElementById('desktopPricesView'),
     loading: document.getElementById('desktopLoadingView'),
     workReport: document.getElementById('desktopWorkReportView'),
     workReview: document.getElementById('desktopWorkReviewView'),
@@ -6750,6 +6850,7 @@ function showDesktopView(name) {
   if (target === 'shipments') renderDesktopHistory();
   if (target === 'files') renderCloudFiles();
   if (target === 'drawings') renderDesktopDrawings();
+    if (target === 'prices') renderDesktopPrices();
   if (target === 'loading') renderDesktopLoading();
   if (target === 'workReport') loadWorkReportWorkspace().catch(() => {});
   if (target === 'workReview') loadWorkReviews().catch(() => {});
@@ -6772,6 +6873,7 @@ function renderAll() {
   renderMobileRecords();
   renderCloudFiles();
   renderDesktopDrawings();
+  renderDesktopPrices();
   renderCart();
   renderPhotoArchive();
   syncMobileStickyOffsets();
@@ -11441,7 +11543,17 @@ document.querySelectorAll('[data-desktop-view]').forEach((link) => {
 });
 
 if (els.filesSearch) els.filesSearch.addEventListener('input', (event) => { filesQuery = event.target.value; renderCloudFiles(); });
-if (els.drawingSearch) els.drawingSearch.addEventListener('input', (event) => { drawingQuery = event.target.value; renderDesktopDrawings(); });
+  if (els.drawingSearch) els.drawingSearch.addEventListener('input', (event) => { drawingQuery = event.target.value; renderDesktopDrawings(); });
+if (els.priceSearch) els.priceSearch.addEventListener('input', (event) => { priceQuery = event.target.value; renderDesktopPrices(); });
+if (els.desktopPricesView) {
+  els.desktopPricesView.addEventListener('click', (event) => {
+    const tab = event.target.closest('[data-price-scope]');
+    if (!tab) return;
+    priceScope = tab.dataset.priceScope === 'remaining' ? 'remaining' : 'all';
+    els.desktopPricesView.querySelectorAll('[data-price-scope]').forEach((node) => node.classList.toggle('active', node === tab));
+    renderDesktopPrices();
+  });
+}
 if (els.drawingCategoryTabs) els.drawingCategoryTabs.addEventListener('click', (event) => {
   const button = event.target.closest('[data-drawing-category]');
   if (!button) return;

@@ -160,6 +160,10 @@
           <span class="nav-dot"></span>
           图纸库
         </a>
+        <a id="desktopPricesLink" class="side-link" href="#prices" data-desktop-view="prices" data-module="shipment" hidden>
+          <span class="nav-dot"></span>
+          单价查询
+        </a>
         <a class="side-link" href="#delivery-files" data-desktop-view="files" data-module="shipment">
           <span class="nav-dot"></span>
           云端送货单
@@ -432,7 +436,46 @@
         </section>
       </section>
 
-      <section id="desktopFilesView" class="desktop-view desktop-only" hidden>
+      <section id="desktopPricesView" class="desktop-view desktop-only" hidden>
+      <header class="topbar drawings-topbar">
+        <div>
+          <h1>单价查询</h1>
+        </div>
+      </header>
+      <section class="panel drawings-panel">
+        <div class="drawing-toolbar">
+          <label class="search-box drawing-search">
+            <span class="tool-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.3"></circle><path d="m15.6 15.6 3.9 3.9"></path></svg>
+            </span>
+            <input id="priceSearch" type="search" placeholder="搜索料号 / 图号 / 品名 / 采购单号 / 项次" autocomplete="off">
+          </label>
+          <div class="drawing-toolbar-right">
+            <span id="priceCount" class="drawing-count">0 条记录</span>
+            <div class="file-format-tabs drawing-tabs">
+              <button class="chip active" data-price-scope="all" type="button">全部（含已发完）</button>
+              <button class="chip" data-price-scope="remaining" type="button">只看未交</button>
+            </div>
+          </div>
+        </div>
+        <div id="priceSummary" class="price-summary" hidden></div>
+        <div class="table-wrap">
+          <table class="orders-table">
+            <thead>
+              <tr>
+                <th>采购单号</th><th class="number">项次</th><th>料件编号</th><th>品名</th><th>图号</th>
+                <th class="number">数量</th><th class="number">未交</th><th class="number">含税单价</th><th class="number">金额</th>
+                <th>交期</th><th>客户</th><th>类别</th>
+              </tr>
+            </thead>
+            <tbody id="priceTableBody"></tbody>
+          </table>
+        </div>
+        <div id="priceEmpty" class="empty-state" hidden><strong>没有匹配的记录</strong><span>换个料号 / 图号 / 采购单号再试，或者点「全部（含已发完）」。</span></div>
+      </section>
+    </section>
+
+    <section id="desktopFilesView" class="desktop-view desktop-only" hidden>
         <header class="topbar files-topbar">
           <div>
             <h1>云端送货单</h1>
@@ -1369,7 +1412,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "469c476140fb";
+      const fallbackVersion = "35e84220959d";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
