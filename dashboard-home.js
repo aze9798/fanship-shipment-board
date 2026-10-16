@@ -72,6 +72,18 @@
       return r.ok ? await r.json() : null;
     } catch { return null; }
   }
+  /* 读 app.js 写在本地的数据缓存（{code, savedAt, snapshot}）——
+     有它就能毫秒级先把面板画出来，不用干等 385KB 的接口回来。 */
+  function readStateCache() {
+    try {
+      const mode = new URLSearchParams(location.search).get('mode');
+      const suffix = (mode === 'admin' || mode === 'user') ? ':' + mode : '';
+      const c = JSON.parse(localStorage.getItem('shipmentBoardStateCache' + suffix) || 'null');
+      if (!c || !c.snapshot || !Array.isArray(c.snapshot.orders)) return null;
+      if (!c.code || c.code !== readCode()) return null;
+      return { snapshot: c.snapshot, savedAt: Number(c.savedAt || 0) };
+    } catch { return null; }
+  }
   function monthBounds(day) {
     const [y, m] = String(day).split('-').map(Number);
     const last = new Date(y, m, 0).getDate();
@@ -686,7 +698,13 @@
     if (!force && Date.now() - lastFetch < 5000) return;
     inflight = true; lastFetch = Date.now();
     try {
-      /* 第 1 段：发货主数据 */
+      /* 第 1 段：发货主数据
+         ① 先用 app.js 写在本地的缓存**立刻**画一版（毫秒级，不占网络）
+         ② 缓存超过 20 秒就走接口拿最新的，回来再覆盖一次 */
+      if (!state) {
+        const cached = readStateCache();
+        if (cached) { state = cached.snapshot; stateAt = cached.savedAt; render(); }
+      }
       if (!state || Date.now() - stateAt > 20000) {
         const s = await fetchState();
         if (s) { state = s; stateAt = Date.now(); }
