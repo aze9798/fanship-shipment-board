@@ -8586,6 +8586,35 @@ function remainingDateText(dates) {
 
 // 打印清单 / 打印标签用：同一个料号（同图号）的多个交期合成一行，数量相加，日期列列出全部交期
 // （屏幕上仍按交期分行，方便看每期欠多少；打印给车间/贴标签时合并更好用）
+function uniqueList(values) {
+  return [...new Set((values || []).filter((value) => value !== undefined && value !== null && String(value) !== ''))];
+}
+
+// 料号排序：数字段按数值比大小、字母段按字母比，所以 611901781 会紧挨着 611901782
+function compareMaterialOrder(left, right) {
+  const chunks = (value) => String(value || '').match(/\d+|\D+/g) || [];
+  const listA = chunks(left);
+  const listB = chunks(right);
+  const length = Math.max(listA.length, listB.length);
+  for (let index = 0; index < length; index += 1) {
+    const a = listA[index];
+    const b = listB[index];
+    if (a === undefined) return -1;
+    if (b === undefined) return 1;
+    const aNumber = /^\d+$/.test(a);
+    const bNumber = /^\d+$/.test(b);
+    if (aNumber && bNumber) {
+      const diff = Number(a) - Number(b);
+      if (diff) return diff;
+      continue;
+    }
+    if (aNumber !== bNumber) return aNumber ? -1 : 1;
+    const diff = a.localeCompare(b, 'zh-CN');
+    if (diff) return diff;
+  }
+  return 0;
+}
+
 function mergeRemainingGroupsForPrint(groups) {
   const merged = new Map();
   for (const group of groups || []) {
@@ -8594,30 +8623,33 @@ function mergeRemainingGroupsForPrint(groups) {
     if (!current) {
       merged.set(key, {
         ...group,
-        names: new Set(group.names || []),
-        specs: new Set(group.specs || []),
-        dates: new Set(group.dates || []),
-        companies: new Set(group.companies || []),
-        types: new Set(group.types || []),
+        names: uniqueList(group.names),
+        specs: uniqueList(group.specs),
+        dates: uniqueList(group.dates).sort(),
+        companies: uniqueList(group.companies),
+        types: uniqueList(group.types),
         total: Number(group.total) || 0,
         detailCount: Number(group.detailCount) || 0,
         replacementTotal: Number(group.replacementTotal) || 0,
       });
       continue;
     }
+    current.names = uniqueList([...current.names, ...(group.names || [])]);
+    current.specs = uniqueList([...current.specs, ...(group.specs || [])]);
+    current.dates = uniqueList([...current.dates, ...(group.dates || [])]).sort();
+    current.companies = uniqueList([...current.companies, ...(group.companies || [])]);
+    current.types = uniqueList([...current.types, ...(group.types || [])]);
     current.total += Number(group.total) || 0;
     current.detailCount += Number(group.detailCount) || 0;
     current.replacementTotal += Number(group.replacementTotal) || 0;
-    for (const value of group.names || []) current.names.add(value);
-    for (const value of group.specs || []) current.specs.add(value);
-    for (const value of group.dates || []) current.dates.add(value);
-    for (const value of group.companies || []) current.companies.add(value);
-    for (const value of group.types || []) current.types.add(value);
     current.hasReplacement = Boolean(current.hasReplacement || group.hasReplacement);
     current.mark = Boolean(current.mark || group.mark);
     current.typeRank = Math.min(Number(current.typeRank || 9), Number(group.typeRank || 9));
   }
-  return [...merged.values()];
+  // 打印顺序：按料号自然顺序排（相近料号上下相邻）
+  return [...merged.values()].sort((left, right) =>
+    compareMaterialOrder(left.material, right.material)
+    || String((left.specs || []).join('、')).localeCompare(String((right.specs || []).join('、')), 'zh-CN'));
 }
 
 function remainingDatesPrintText(dates) {
@@ -8862,8 +8894,10 @@ function labelPool(anyMode = false) {
     .filter((item) => !query || [item.group.material, item.group.name, (item.group.specs || []).join(' ')]
       .some((value) => String(value || '').toLowerCase().includes(query)))
     // 打印习惯记忆：经常用这种标签的排前面
-    .sort((a, b) => labelMaterialCount(b.group.material, mode) - labelMaterialCount(a.group.material, mode)
-      || String(a.group.material || '').localeCompare(String(b.group.material || '')));
+    // 打印顺序：先按料号自然顺序（1781、1782 挨着），其次按打印习惯（常打的排前）
+    .sort((a, b) => compareMaterialOrder(a.group.material, b.group.material)
+      || (labelMaterialCount(b.group.material, mode) - labelMaterialCount(a.group.material, mode))
+      || String(a.group.name || '').localeCompare(String(b.group.name || ''), 'zh-CN'));
 }
 
 function remainingMaterialKey(material, name = '') {
