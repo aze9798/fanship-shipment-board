@@ -245,24 +245,68 @@
     el._t = setTimeout(() => { el.style.opacity = '0'; }, 2200);
   }
 
-  /* ---------- 主页：清单（默认） / 面板 ---------- */
+  /* ---------- 主页：管理码默认「面板」（大局观），普通码默认「清单」 ----------
+     2026-10-17 阿泽拍板：一进主页就该是大局观，不是 240 行的表格。
+       · URL 参数 ?home=panel / ?home=list 最优先（手机上看电脑端面板靠它）
+       · 阿泽手动切过 → 听他的（localStorage）
+       · 没切过 → 管理码给「面板」，普通码给「清单」（普通码主要是查未交、装车） */
   let home = 'list';
-  // 2026-10-17：加 URL 参数 ?home=panel / ?home=list，方便手机或别的电脑直接打开某一视图
-  //（手机宽度下侧栏是隐藏的，点不到那个开关；参数只影响本次打开，不写进 localStorage）
   let homeFromUrl = '';
+  let homeByDefault = false;   // 这次用的是「按角色给的默认值」，不是用户自己选的
   function readHomeFromUrl() {
     try {
       const v = String(new URLSearchParams(location.search).get('home') || '').toLowerCase();
       homeFromUrl = (v === 'panel' || v === 'list') ? v : '';
     } catch { homeFromUrl = ''; }
   }
+  /* 同步读当前角色：app.js 会把「角色|访问码」缓存在 localStorage，对得上就直接用。
+     （app.js 写 body.dataset.boardRole 要等云端校验完，那时候我们早就跑完了） */
+  function roleFromCache() {
+    try {
+      const mode = new URLSearchParams(location.search).get('mode');
+      const suffix = (mode === 'admin' || mode === 'user') ? ':' + mode : '';
+      const parts = String(localStorage.getItem('shipmentBoardRole' + suffix) || '').split('|');
+      const role = String(parts[0] || '').toLowerCase();
+      const cachedCode = parts.slice(1).join('|');
+      const nowCode = String(localStorage.getItem('shipmentBoardAccessCode' + suffix) || '');
+      if ((role === 'admin' || role === 'user') && cachedCode && cachedCode === nowCode) return role;
+    } catch { }
+    return '';
+  }
   function loadHome() {
     readHomeFromUrl();
+    homeByDefault = false;
     if (homeFromUrl) { home = homeFromUrl; return; }
-    try { home = String(localStorage.getItem(LS_HOME) || '') === 'panel' ? 'panel' : 'list'; }
-    catch { home = 'list'; }
+    let saved = '';
+    try { saved = String(localStorage.getItem(LS_HOME) || ''); } catch { saved = ''; }
+    if (saved === 'panel' || saved === 'list') { home = saved; return; }
+    homeByDefault = true;
+    home = roleFromCache() === 'admin' ? 'panel' : 'list';
   }
   function saveHome() { if (homeFromUrl) return; try { localStorage.setItem(LS_HOME, home); } catch { } }
+  /* 第一次访问（本地还没缓过角色）时，等 app.js 把角色定下来，再按角色定默认视图 */
+  function watchRoleForDefault() {
+    if (!homeByDefault || homeFromUrl) return;
+    let done = false;
+    const decide = (role) => {
+      if (done || (role !== 'admin' && role !== 'user')) return;
+      done = true;
+      const want = role === 'admin' ? 'panel' : 'list';
+      if (want === home) return;
+      home = want;
+      saveHome();
+      applyHome();
+    };
+    decide(String(document.body.dataset.boardRole || ''));
+    if (done) return;
+    let tries = 0;
+    const t = setInterval(() => {
+      tries += 1;
+      const role = String(document.body.dataset.boardRole || '');
+      if (role) { clearInterval(t); decide(role); }
+      else if (tries > 30) clearInterval(t);   // 15 秒还没定就不管了
+    }, 500);
+  }
   function applyHome() {
     if (home === 'panel') document.body.dataset.home = 'panel';
     else delete document.body.dataset.home;
@@ -566,6 +610,7 @@
     applyDensity();
     applyTheme();
     applyHome();
+    watchRoleForDefault();
     polishDates();
     buildDrawer();
     installRowClicks();

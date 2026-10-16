@@ -124,6 +124,13 @@
     if (savedFold === '0' || savedFold === '1') folded = savedFold !== '0';
     else folded = document.body.dataset.home === 'panel';
     applyFold(!folded);
+    // 主页视图可能是后来才定下来的（第一次访问要等角色校验），跟着重算折叠；用户手动点过就不动
+    window.addEventListener('tk-home-change', () => {
+      let s = null;
+      try { s = localStorage.getItem('tkMergeFolded'); } catch { }
+      if (s === '0' || s === '1') return;
+      applyFold(document.body.dataset.home !== 'panel');
+    });
     if (fold) fold.addEventListener('click', (e) => {
       e.stopPropagation();
       const open = merge.classList.contains('tk-collapsed');
