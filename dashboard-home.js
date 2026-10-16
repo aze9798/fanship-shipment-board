@@ -19,7 +19,7 @@
   let state = null, work = null, att = null, os = null, inv = null, pur = null, ql = null;
   let osList = [], puList = [], qlList = [];   // 三个模块的完整列表（板块的页签要用）
   let workErr = false, attErr = false, osErr = false;
-  let lastFetch = 0, timer = 0, inflight = false;
+  let lastFetch = 0, timer = 0, inflight = false, stateAt = 0, modulesTried = false;
   let duePick = '';   // 未交明细小板块的交期筛选（空 = 全部）
 
   const $ = (s) => document.querySelector(s);
@@ -296,6 +296,10 @@
   }
   const pane = (html) => '<div class="tk-md-list">' + html + '</div>';
   const paneH = (h, html) => mdHead(h[0], h[1], h[2], h[3]) + pane(html);
+  /* 模块数据还没到时的占位块（避免这一行先空出来、一会儿又冒出来，布局跳一下） */
+  const pendingBlock = (title) =>
+    '<div class="tk-dash-sec"><div class="tk-block-head"><div class="tk-block-h1"><b>' + esc(title) +
+    '</b><span class="tk-dash-sub">读取中…</span></div></div><div class="tk-empty">正在读取…</div></div>';
   const plainRow = (a, b, c, d, o) => {
     o = o || {};
     return '<div class="tk-md-row tk-plain">' +
@@ -309,7 +313,7 @@
   const Q_RESP = { self: '本厂', outsource: '外协厂', supplier: '供应商', unknown: '待定' };
 
   function buildOs() {
-    if (!os) return '';
+    if (!os) return (isAdmin() && !modulesTried) ? pendingBlock('外协') : '';
     const list = Array.isArray(osList) ? osList : [];
     const open = list.filter((r) => r.status === 'issued' || r.status === 'partial');
     const lateN = open.filter((r) => Number(r.overdueDays) > 0).length;
@@ -358,7 +362,7 @@
   }
 
   function buildPu() {
-    if (!pur) return '';
+    if (!pur) return (isAdmin() && !modulesTried) ? pendingBlock('采购 / 来料') : '';
     const list = Array.isArray(puList) ? puList : [];
     const open = list.filter((r) => r.status === 'ordered' || r.status === 'partial');
     const lateN = open.filter((r) => Number(r.overdueDays) > 0).length;
@@ -407,7 +411,7 @@
   }
 
   function buildQl() {
-    if (!ql) return '';
+    if (!ql) return (isAdmin() && !modulesTried) ? pendingBlock('质量 / 不良') : '';
     const list = Array.isArray(qlList) ? qlList : [];
     const openRows = list.filter((r) => r.status === 'open');
 
@@ -670,15 +674,36 @@
     else view.appendChild(wrap);
     wrap.addEventListener('click', onClick);
   }
+  /* 首屏速度优化（2026-10-17）：
+     以前是「主数据 → 7 个模块接口 → 3 个报工考勤接口」一路 await 到底，首屏要 4 秒多才出内容。
+     现在分三段，每段一到位就先画一次：
+       第 1 段 发货主数据（20 秒内拿过的不重复拿，省掉一次 385KB 的 board_get_state）
+       第 2 段 四个模块的汇总+列表（管理端才取）
+       第 3 段 报工 / 考勤（管理端才取）
+     普通端（非管理码）只保留以前的功能：新模块整块不参与，接口也不去调。 */
   async function refresh(force) {
     if (!isPanel() || inflight) return;
     if (!force && Date.now() - lastFetch < 5000) return;
     inflight = true; lastFetch = Date.now();
     try {
-      const s = await fetchState();
-      if (s) state = s;
+      /* 第 1 段：发货主数据 */
+      if (!state || Date.now() - stateAt > 20000) {
+        const s = await fetchState();
+        if (s) { state = s; stateAt = Date.now(); }
+      }
 
-      // 外协：普通模式也拿（阿泽自己用，接口本身校验访问码）
+      if (!isAdmin()) {
+        os = null; pur = null; ql = null; inv = null;
+        osList = []; puList = []; qlList = [];
+        work = null; att = null; workErr = false; attErr = false;
+        modulesTried = true;
+        render();
+        return;
+      }
+
+      render();   // 先把主体画出来（三个模块块这时显示「读取中」）
+
+      /* 第 2 段：四个模块的汇总 + 列表 */
       const [osRes, invRes, purRes, qlRes, osL, puL, qlL] = await Promise.all([
         rpc('board_outsource_overview', {}),
         rpc('board_inventory_overview', {}),
@@ -696,9 +721,11 @@
       inv = (invRes && invRes.ok) ? invRes.data : null;
       os = (osRes && osRes.ok) ? osRes.data : null;
       osErr = !os;
+      modulesTried = true;
+      render();
 
-      // 报工 / 考勤：只有管理员有权限
-      if (isAdmin() && state) {
+      /* 第 3 段：报工 / 考勤（只有管理员有权限） */
+      if (state) {
         const today = String(state.today || '').slice(0, 10);
         const { from, to } = monthBounds(today);
         const [rep, live, attRes] = await Promise.all([
@@ -713,10 +740,8 @@
         att = (attRes && attRes.ok) ? attRes.data : null;
         workErr = !(hasRep && hasLive);
         attErr = !att;
-      } else {
-        work = null; att = null; workErr = true; attErr = true;
+        render();
       }
-      render();
     } finally { inflight = false; }
   }
   function applyVisibility() {

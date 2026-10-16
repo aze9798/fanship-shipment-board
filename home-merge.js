@@ -23,10 +23,10 @@
   ];
   const NAV_MORE = [
     { view: 'loading',    label: '装车登记（电脑端备用）' },
-    { view: 'outsource',  label: '外协管理' },
-    { view: 'inventory',  label: '库存' },
-    { view: 'purchase',   label: '采购 / 来料' },
-    { view: 'quality',    label: '质量 / 不良' },
+    { view: 'outsource',  label: '外协管理', admin: true },
+    { view: 'inventory',  label: '库存', admin: true },
+    { view: 'purchase',   label: '采购 / 来料', admin: true },
+    { view: 'quality',    label: '质量 / 不良', admin: true },
     { view: 'prices',     label: '单价查询', admin: true },
     { view: 'workReport', label: '报工情况', admin: true },
     { view: 'workReview', label: '报工审核', admin: true },
@@ -216,9 +216,16 @@
   // 普通模式：管理员专属项隐藏
   function applyRoleVisibility() {
     const nav = document.getElementById('tkNav');
-    if (!nav) return;
     const admin = isAdmin();
-    nav.querySelectorAll('a[data-admin="1"]').forEach((a) => a.classList.toggle('tk-off', !admin));
+    if (nav) nav.querySelectorAll('a[data-admin="1"]').forEach((a) => a.classList.toggle('tk-off', !admin));
+    // 普通端只保留以前的功能：新模块的页面 + 它们自己建的侧栏链接都藏起来（双保险）
+    if (admin) return;
+    Object.values(MODULE_PAGE_IDS).forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.hidden = true;
+    });
+    document.querySelectorAll('.side-link[data-desktop-view="outsource"], .side-link[data-desktop-view="inventory"], .side-link[data-desktop-view="purchase"], .side-link[data-desktop-view="quality"]')
+      .forEach((a) => { a.hidden = true; });
   }
 
   /* 四个模块页（外协 / 库存 / 采购 / 质量）是各自 js 建出来的 section。
@@ -240,9 +247,41 @@
   function hideBasePages() {
     BASE_PAGE_IDS.forEach((id) => { const el = document.getElementById(id); if (el) el.hidden = true; });
   }
+  /* 这四个模块的 css/js 不在 index.html 里了，打开对应页面时才加载（首屏少 8 个请求） */
+  const MODULE_ASSETS = {
+    outsource: ['outsource.css', 'outsource.js'], inventory: ['inventory.css', 'inventory.js'],
+    purchase: ['purchase.css', 'purchase.js'],   quality: ['quality.css', 'quality.js']
+  };
+  const moduleLoaded = {};
+  function assetVersionQuery() {
+    try {
+      const l = document.querySelector('link[href*="dashboard-home.css"], link[href*="design-tokens.css"]');
+      if (l) return new URL(l.href, location.href).search || '';
+    } catch { }
+    return '';
+  }
+  function loadModuleAssets(view) {
+    const list = MODULE_ASSETS[view];
+    if (!list || moduleLoaded[view]) return;
+    moduleLoaded[view] = true;
+    const v = assetVersionQuery();
+    list.forEach((f) => {
+      if (f.endsWith('.css')) {
+        const l = document.createElement('link');
+        l.rel = 'stylesheet'; l.href = f + v;
+        document.head.appendChild(l);
+      } else {
+        const s = document.createElement('script');
+        s.src = f + v; s.defer = true;
+        document.head.appendChild(s);
+      }
+    });
+  }
   function goModule(view) {
     const id = MODULE_PAGE_IDS[view];
     if (!id) return false;
+    if (!isAdmin()) return false;      // 普通端只保留以前的功能：这四个模块不给进
+    loadModuleAssets(view);
     const open = () => {
       const sec = document.getElementById(id);
       if (!sec) return false;
@@ -258,7 +297,7 @@
     const t = setInterval(() => {
       tries += 1;
       const ok = open();
-      if (ok || tries > 20) {
+      if (ok || tries > 40) {
         clearInterval(t);
         if (ok) window.scrollTo({ top: 0, behavior: 'smooth' });
       }
