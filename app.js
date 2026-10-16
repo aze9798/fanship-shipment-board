@@ -8584,6 +8584,51 @@ function remainingDateText(dates) {
   return formatDate([...dates].sort()[0]);
 }
 
+// 打印清单 / 打印标签用：同一个料号（同图号）的多个交期合成一行，数量相加，日期列列出全部交期
+// （屏幕上仍按交期分行，方便看每期欠多少；打印给车间/贴标签时合并更好用）
+function mergeRemainingGroupsForPrint(groups) {
+  const merged = new Map();
+  for (const group of groups || []) {
+    const key = [String(group.material || '').trim(), (group.specs || []).join('、')].join('\u0000');
+    const current = merged.get(key);
+    if (!current) {
+      merged.set(key, {
+        ...group,
+        names: new Set(group.names || []),
+        specs: new Set(group.specs || []),
+        dates: new Set(group.dates || []),
+        companies: new Set(group.companies || []),
+        types: new Set(group.types || []),
+        total: Number(group.total) || 0,
+        detailCount: Number(group.detailCount) || 0,
+        replacementTotal: Number(group.replacementTotal) || 0,
+      });
+      continue;
+    }
+    current.total += Number(group.total) || 0;
+    current.detailCount += Number(group.detailCount) || 0;
+    current.replacementTotal += Number(group.replacementTotal) || 0;
+    for (const value of group.names || []) current.names.add(value);
+    for (const value of group.specs || []) current.specs.add(value);
+    for (const value of group.dates || []) current.dates.add(value);
+    for (const value of group.companies || []) current.companies.add(value);
+    for (const value of group.types || []) current.types.add(value);
+    current.hasReplacement = Boolean(current.hasReplacement || group.hasReplacement);
+    current.mark = Boolean(current.mark || group.mark);
+    current.typeRank = Math.min(Number(current.typeRank || 9), Number(group.typeRank || 9));
+  }
+  return [...merged.values()];
+}
+
+function remainingDatesPrintText(dates) {
+  const list = [...(dates || [])].sort();
+  if (!list.length) return '未填';
+  return list.map((dueDate) => {
+    const match = String(dueDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return match ? `${match[1].slice(2)}/${match[2]}/${match[3]}` : String(dueDate || '');
+  }).join('、');
+}
+
 function remainingDatePrintText(dates) {
   if (!dates.length) return '未填';
   const dueDate = [...dates].sort()[0];
@@ -8805,7 +8850,8 @@ function labelPool(anyMode = false) {
   const query = labelPrintSearch.trim().toLowerCase();
   // 只要在搜索，就把已打印的一起带出来，方便找出来补打
   const keepPrinted = Boolean(query) || Boolean(String(desktopRemainingSearch || '').trim());
-  return remainingGroups(desktopRemainingSearch)
+  // 同一个料号（同图号）的多个交期合并成一个标签，数量相加
+  return mergeRemainingGroupsForPrint(remainingGroups(desktopRemainingSearch))
     .map((group) => {
       const key = labelSourceKey(group);
       return { group, key, record: labelPrintedRecords[key] || null };
@@ -8883,7 +8929,7 @@ function buildLabelRows(allModes = false) {
       habit,
       bigCount: labelMaterialCount(material, 'big'),
       smallCount: labelMaterialCount(material, 'small'),
-      date: (item.group.dates || [])[0] || String((snapshot && snapshot.today) || '').slice(0, 10),
+      date: [...(item.group.dates || [])].sort()[0] || String((snapshot && snapshot.today) || '').slice(0, 10),
     };
   });
 }
@@ -9502,12 +9548,14 @@ function printRemainingList(groups = remainingGroups()) {
     showToast('没有可打印的未交数据');
     return;
   }
+  // 同一个料号（同图号）的多个交期合并成一行，数量相加
+  groups = mergeRemainingGroupsForPrint(groups);
   const rows = groups.map((group) => `
     <tr>
       <td>${escapeHtml(group.material)}</td>
       <td>${escapeHtml(group.name)}${remainingTypeTagsHtml(group.types, group.hasReplacement)}</td>
       <td>${escapeHtml(qtyText(group.total))}</td>
-      <td>${escapeHtml(remainingDatePrintText(group.dates))}</td>
+      <td>${escapeHtml(remainingDatesPrintText(group.dates))}</td>
       <td>${group.mark ? '✅' : ''}</td>
     </tr>`).join('');
   const printWindow = window.open('', '_blank');
