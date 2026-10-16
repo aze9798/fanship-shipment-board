@@ -1,0 +1,5 @@
+/* 采购页面补充样式（其余复用 outsource.css 的 os-* 类） */
+.iv-kind, .pu-tag { display: inline-flex; align-items: center; height: 19px; padding: 0 8px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 500; border: 1px solid var(--line); background: var(--surface-soft); color: var(--muted); }
+.pu-tag.sup { border-color: #8a8fa0; color: #5b6175; }
+.os-table td .unit { font-size: 11px; color: var(--muted); margin-left: 3px; }

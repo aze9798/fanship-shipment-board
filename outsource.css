@@ -1,0 +1,141 @@
+/* ============================================================
+   外协（委外加工）页面
+   文件：public/outsource.css        建立日期：2026-10-16
+   依赖：cloud/outsource-schema.sql 里的 RPC（表没建之前页面会提示）
+   回滚：删掉 index.html 里这一行 <link>
+   ============================================================ */
+
+.os-panel { padding: 0 0 14px; }
+
+/* ---- 顶部 KPI ---- */
+.os-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px 18px;
+}
+@media (max-width: 1100px) { .os-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.os-kpi {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 10px 12px 11px;
+}
+.os-kpi span { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 3px; }
+.os-kpi b {
+  display: block; font-size: 25px; line-height: 1.15; font-weight: 600;
+  letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: var(--ink);
+}
+.os-kpi i { display: block; font-style: normal; font-size: 11px; color: var(--muted); margin-top: 3px; }
+.os-kpi.hot b { color: var(--accent); }
+
+/* ---- 页签 ---- */
+.os-tabs {
+  display: flex; gap: 6px; padding: 0 18px 12px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+}
+.os-tabs button {
+  height: 30px; padding: 0 13px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface); color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
+  white-space: nowrap;
+}
+.os-tabs button.on { background: var(--ink); border-color: var(--ink); color: var(--surface); font-weight: 600; }
+.os-tabs .cnt { margin-left: 5px; opacity: .75; font-variant-numeric: tabular-nums; }
+
+/* ---- 提示条 ---- */
+.os-banner {
+  margin: 12px 18px 0; padding: 11px 13px; border-radius: var(--radius-sm);
+  border: 1px solid var(--line); background: var(--surface-soft);
+  font-size: 12.5px; line-height: 1.7; color: var(--ink);
+}
+.os-banner.warn { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.os-banner code { font-family: Consolas, monospace; font-size: 12px; background: #fff; padding: 1px 5px; border-radius: 4px; }
+
+/* ---- 表格 ---- */
+.os-tablewrap { overflow-x: auto; margin-top: 12px; }
+.os-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1080px; }
+.os-table th {
+  position: sticky; top: 0; z-index: 2; text-align: left; white-space: nowrap;
+  font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .04em;
+  padding: 9px 10px; border-bottom: 1px solid var(--line); background: var(--surface);
+}
+.os-table td {
+  padding: 10px; border-bottom: 1px solid var(--line2, var(--line));
+  font-size: 12.5px; white-space: nowrap; vertical-align: middle;
+}
+.os-table tbody tr:hover { background: var(--surface-soft); }
+.os-table td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.os-table td.wide { white-space: normal; min-width: 190px; }
+.os-table .mono { font-family: Consolas, monospace; font-size: 12px; }
+.os-table .sub { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; font-weight: 400; }
+.os-table .acts { display: flex; gap: 6px; }
+.os-table .ops {
+  height: 26px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface); color: var(--ink); font: inherit; font-size: 11.5px; cursor: pointer; white-space: nowrap;
+}
+.os-table .ops:hover { border-color: var(--ink); }
+.os-table .ops.pri { background: var(--ink); border-color: var(--ink); color: var(--surface); font-weight: 600; }
+.os-table .ops.ng { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.os-table .ops:disabled { opacity: .4; cursor: not-allowed; }
+
+.os-pill {
+  display: inline-flex; align-items: center; height: 19px; padding: 0 8px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 500; border: 1px solid var(--line); background: var(--surface-soft); color: var(--muted);
+  white-space: nowrap;
+}
+.os-pill.late { border-color: var(--accent); color: var(--accent); background: transparent; }
+.os-pill.today { background: var(--ink); border-color: var(--ink); color: var(--surface); font-weight: 600; }
+.os-pill.part { border-color: var(--line); color: var(--ink); }
+.os-pill.done { background: var(--surface-soft); color: var(--muted); }
+.os-pill.wait { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.os-pill.ng { border-color: var(--accent); color: var(--accent); }
+
+/* ---- 空 / 载入 ---- */
+.os-empty { padding: 40px 18px; text-align: center; color: var(--muted); font-size: 13px; }
+.os-empty b { display: block; font-size: 15px; color: var(--ink); margin-bottom: 5px; }
+
+/* ---- 弹窗（沿用系统 .modal 结构，这里只补细节） ---- */
+.os-modal .modal-card { width: min(100%, 620px); }
+.os-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 4px; }
+.os-form .full { grid-column: 1 / -1; }
+.os-form label { display: block; }
+.os-form label > span { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 5px; }
+.os-form input, .os-form select, .os-form textarea {
+  width: 100%; height: 36px; padding: 0 11px; border: 1px solid var(--line);
+  border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font: inherit; font-size: 13px;
+}
+.os-form textarea { height: auto; min-height: 64px; padding: 9px 11px; resize: vertical; }
+.os-form input:focus, .os-form select:focus, .os-form textarea:focus {
+  outline: none; border-color: var(--ink); box-shadow: 0 0 0 1px var(--line);
+}
+.os-form .hint2 { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.6; }
+.os-err { margin-top: 10px; padding: 9px 11px; border-radius: var(--radius-sm);
+  border: 1px solid var(--accent); color: var(--accent); font-size: 12.5px; background: color-mix(in srgb, var(--accent) 7%, transparent); }
+
+/* 到货记录小表（放在抽屉式的展开区里） */
+.os-receipts { margin: 8px 0 4px; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.os-receipts table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.os-receipts th, .os-receipts td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--line); }
+.os-receipts th { background: var(--surface-soft); color: var(--muted); font-weight: 600; font-size: 11px; }
+.os-receipts tr:last-child td { border-bottom: 0; }
+
+/* ---- 自带弹窗（不复用系统 modal，避免耦合） ---- */
+.os-mask { position: fixed; inset: 0; z-index: 9200; background: rgba(9,40,47,.34); }
+.os-modal { position: fixed; inset: 0; z-index: 9201; display: grid; place-items: center; padding: 20px; }
+.os-modal[hidden], .os-mask[hidden] { display: none; }
+.os-card {
+  width: min(100%, 620px); max-height: 90vh; overflow: auto; background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px 18px;
+  box-shadow: 0 24px 60px rgba(9,40,47,.24);
+}
+.os-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.os-card .os-sub { font-size: 12px; color: var(--muted); margin-bottom: 14px; line-height: 1.7; }
+.os-card .os-foot { display: flex; gap: 9px; justify-content: flex-end; margin-top: 16px; }
+.os-card .os-foot button {
+  height: 34px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface); color: var(--ink); font: inherit; font-size: 12.5px; cursor: pointer;
+}
+.os-card .os-foot button.pri { background: var(--ink); border-color: var(--ink); color: var(--surface); font-weight: 600; }
+.os-card .os-foot button:disabled { opacity: .45; cursor: not-allowed; }
+.os-kv { display: grid; grid-template-columns: 88px minmax(0,1fr); gap: 6px 12px; font-size: 12.5px; margin-bottom: 12px; }
+.os-kv i { font-style: normal; color: var(--muted); }

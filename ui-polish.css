@@ -1,0 +1,282 @@
+/* ============================================================
+   帆顺看板 · 新增界面组件样式
+   文件：public/ui-polish.css      建立日期：2026-10-16
+   内容：① 行距列距设置面板  ② 日期快捷按钮  ③ 行详情抽屉
+   回滚：删掉 index.html 里那一行 <link ... ui-polish.css> 即可
+   ============================================================ */
+
+/* ---------- 通用：新组件一律用 token 里的值 ---------- */
+.tk-host, .tk-host * { box-sizing: border-box; }
+.tk-host {
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "Segoe UI", sans-serif;
+  color: var(--tk-ink);
+}
+
+/* ============================================================
+   ① 「行距 / 列距」设置面板（挂在侧栏底部）
+   ============================================================ */
+.tk-display-btn {
+  width: 100%;
+  height: 30px;
+  margin-bottom: 6px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .06);
+  color: #d6e3e5;
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.tk-display-btn:hover { background: rgba(255, 255, 255, .14); color: #fff; }
+.tk-display-btn[aria-expanded="true"] { background: rgba(109, 224, 206, .22); color: #fff; }
+
+.tk-pop {
+  position: fixed;
+  z-index: var(--tk-z-overlay);
+  width: 268px;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid var(--tk-line);
+  border-radius: var(--tk-r-lg);
+  box-shadow: 0 18px 46px rgba(11, 45, 50, .18);
+}
+.tk-pop[hidden] { display: none; }
+.tk-pop h4 {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.tk-pop h4 span { font-weight: 400; font-size: 11px; color: var(--tk-muted); }
+.tk-pop .tk-seg {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--tk-surface-2);
+  border: 1px solid var(--tk-line);
+  border-radius: var(--tk-r-md);
+  margin-bottom: 12px;
+}
+.tk-pop .tk-seg button {
+  flex: 1;
+  height: 27px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #42585f;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.tk-pop .tk-seg button.on { background: var(--tk-primary); color: #fff; font-weight: 700; }
+
+.tk-row { margin-bottom: 11px; }
+.tk-row .lb {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: #42585f;
+  margin-bottom: 5px;
+}
+.tk-row .lb b { font-variant-numeric: tabular-nums; color: var(--tk-primary); font-weight: 700; }
+.tk-row input[type="range"] { width: 100%; height: 18px; accent-color: var(--tk-primary); margin: 0; }
+
+.tk-preview {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  margin: 2px 0 11px;
+  background: var(--tk-surface-2);
+  border: 1px solid var(--tk-line);
+  border-radius: var(--tk-r-md);
+  font-size: 11px;
+  color: var(--tk-muted);
+}
+.tk-preview b { color: var(--tk-primary); font-variant-numeric: tabular-nums; }
+
+.tk-actions { display: flex; gap: 7px; border-top: 1px solid var(--tk-hair); padding-top: 11px; }
+.tk-actions button {
+  flex: 1;
+  height: 30px;
+  border: 1px solid var(--tk-line);
+  border-radius: var(--tk-r-sm);
+  background: #fff;
+  color: #2f4a50;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.tk-actions button:hover { border-color: #b8ddd8; color: var(--tk-primary); }
+.tk-actions button.primary { background: var(--tk-primary); border-color: var(--tk-primary); color: #fff; font-weight: 700; }
+.tk-actions button.primary:hover { background: var(--tk-primary-deep); color: #fff; }
+
+/* ============================================================
+   ② 日期快捷按钮（date 输入框旁边的小圆点）
+   ============================================================ */
+body[data-density] .tk-date-quick {
+  height: var(--tk-h-md);
+  padding: 0 9px;
+  margin-left: 6px;
+  border: 1px solid var(--tk-line);
+  border-radius: var(--tk-r-sm);
+  background: var(--tk-surface-2);
+  color: #42585f;
+  font: inherit;
+  font-size: 11.5px;
+  white-space: nowrap;
+  cursor: pointer;
+  flex: 0 0 auto;
+  align-self: center;
+}
+body[data-density] .tk-date-quick:hover {
+  border-color: var(--tk-primary);
+  color: var(--tk-primary);
+  background: var(--tk-primary-soft);
+}
+
+/* ============================================================
+   ③ 行详情抽屉
+   ============================================================ */
+/* 可点击的行：光标 + 悬停时左缘一道主色细条（提示"这行能点开"）
+   「加载更多」那一行用 :has() 排除掉 */
+body[data-density] #desktopView .orders-table tbody tr,
+body[data-density] #desktopView .grouped-remaining-table tbody tr { cursor: pointer; }
+body[data-density] #desktopView .orders-table tbody tr:has([colspan]),
+body[data-density] #desktopView .grouped-remaining-table tbody tr:has([colspan]) { cursor: default; }
+body[data-density] #desktopView .orders-table tbody tr > td:first-child,
+body[data-density] #desktopView .grouped-remaining-table tbody tr > td:first-child { position: relative; }
+body[data-density] #desktopView .orders-table tbody tr > td:first-child::before,
+body[data-density] #desktopView .grouped-remaining-table tbody tr > td:first-child::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--tk-primary);
+  opacity: 0;
+  transition: opacity var(--tk-dur-fast) var(--tk-ease-inout);
+}
+body[data-density] #desktopView .orders-table tbody tr:not(:has([colspan])):hover > td:first-child::before,
+body[data-density] #desktopView .grouped-remaining-table tbody tr:not(:has([colspan])):hover > td:first-child::before { opacity: 1; }
+body[data-density] #desktopView .orders-table tbody tr:not(:has([colspan])):hover,
+body[data-density] #desktopView .grouped-remaining-table tbody tr:not(:has([colspan])):hover { background: var(--tk-primary-soft) !important; }
+
+.tk-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--tk-z-drawer);
+  background: rgba(9, 40, 47, .28);
+  opacity: 0;
+  transition: opacity var(--tk-dur-base) var(--tk-ease-inout);
+}
+.tk-backdrop.on { opacity: 1; }
+.tk-backdrop[hidden] { display: none; }
+
+.tk-drawer {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  z-index: calc(var(--tk-z-drawer) + 1);
+  width: min(420px, 92vw);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-left: 1px solid var(--tk-line);
+  box-shadow: -18px 0 48px rgba(11, 45, 50, .16);
+  transform: translateX(100%);
+  transition: transform var(--tk-dur-base) var(--tk-ease-out);
+}
+.tk-drawer.on { transform: translateX(0); }
+.tk-drawer[hidden] { display: none; }
+
+.tk-drawer > header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--tk-hair);
+}
+.tk-drawer > header .ttl { flex: 1; min-width: 0; }
+.tk-drawer > header b { display: block; font-size: 15px; font-weight: 700; line-height: 1.35; }
+.tk-drawer > header small { display: block; margin-top: 3px; font-size: 12px; color: var(--tk-muted); }
+.tk-drawer > header button.tk-x {
+  flex: 0 0 auto;
+  width: 28px; height: 28px;
+  border: 1px solid var(--tk-line);
+  border-radius: var(--tk-r-sm);
+  background: #fff;
+  color: #526b71;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tk-drawer > header button.tk-x:hover { border-color: var(--tk-primary); color: var(--tk-primary); }
+
+.tk-drawer .tk-body { flex: 1; overflow: auto; padding: 14px 16px 18px; }
+.tk-drawer .tk-sec { margin-bottom: 16px; }
+.tk-drawer .tk-sec > b {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: var(--tk-muted);
+}
+.tk-drawer dl { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 7px 12px; margin: 0; }
+.tk-drawer dt { font-size: 12px; color: var(--tk-muted); }
+.tk-drawer dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-all;
+  font-variant-numeric: tabular-nums;
+}
+.tk-drawer dd.hi { color: var(--tk-primary); font-weight: 700; font-size: 15px; }
+.tk-drawer dd.warn { color: var(--tk-warn); font-weight: 700; }
+.tk-drawer dd .copy {
+  margin-left: 6px;
+  border: 0;
+  background: transparent;
+  color: #9ab0b4;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.tk-drawer dd .copy:hover { color: var(--tk-primary); }
+
+.tk-drawer > footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--tk-hair);
+  background: var(--tk-surface-2);
+}
+.tk-drawer > footer button {
+  flex: 1 1 auto;
+  min-width: 108px;
+  height: var(--tk-h-lg);
+  border: 1px solid var(--tk-line);
+  border-radius: var(--tk-r-md);
+  background: #fff;
+  color: #2f4a50;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.tk-drawer > footer button:hover { border-color: var(--tk-primary); color: var(--tk-primary); }
+.tk-drawer > footer button.primary { background: var(--tk-primary); border-color: var(--tk-primary); color: #fff; font-weight: 700; }
+.tk-drawer > footer button.primary:hover { background: var(--tk-primary-deep); color: #fff; }
+.tk-drawer > footer button:disabled { opacity: .45; cursor: not-allowed; }
+
+/* 手机端不显示这些桌面专用控件 */
+body[data-view="mobile"] .tk-display-btn,
+body[data-view="mobile"] .tk-pop { display: none !important; }
+
+

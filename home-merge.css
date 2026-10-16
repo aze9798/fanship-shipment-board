@@ -1,0 +1,61 @@
+/* ============================================================
+   实时总览整合 + 侧栏精简
+   文件：public/home-merge.css        建立日期：2026-10-16
+   配套：home-merge.js（搬 DOM + 自建侧栏，不动 app.js）
+   回滚：删掉 index.html 里这一行 <link>
+   ============================================================ */
+
+/* ---------- 1) 原侧栏隐藏，用自建的 ---------- */
+.side-nav.tk-nav-off { display: none !important; }
+
+/* 「功能」切换球：整合后报工/考勤都从侧栏进，这个球没用了（只隐藏桌面端） */
+body[data-view="desktop"] #moduleSwitchButton { display: none !important; }
+
+/* ---------- 2) 自建侧栏 ---------- */
+.tk-nav { display: grid; gap: 3px; align-content: start; }
+.tk-nav a {
+  display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 0 10px;
+  border-radius: 8px; color: #525252; font-size: 13px; text-decoration: none; cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.tk-nav a:hover { background: #f0f0f0; color: var(--ink); }
+.tk-nav a.on { background: #ececec; color: var(--ink); font-weight: 600; }
+.tk-nav .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .45; flex: 0 0 5px; }
+.tk-nav a.on .dot { opacity: 1; }
+
+.tk-nav .tk-more-btn {
+  display: flex; align-items: center; gap: 9px; width: 100%; min-height: 34px; padding: 0 10px;
+  border: 0; background: transparent; border-radius: 8px; color: #525252;
+  font: inherit; font-size: 13px; cursor: pointer; text-align: left;
+}
+.tk-nav .tk-more-btn:hover { background: #f0f0f0; color: var(--ink); }
+.tk-nav .tk-more-btn .caret { margin-left: auto; font-size: 9px; opacity: .6; transition: transform .15s ease; }
+.tk-nav .tk-more-btn[aria-expanded="true"] .caret { transform: rotate(180deg); }
+.tk-nav .tk-more-group { display: grid; gap: 2px; padding-left: 12px; }
+.tk-nav .tk-more-group[hidden] { display: none; }
+.tk-nav .sep { height: 1px; background: var(--line); margin: 7px 2px; }
+/* 普通模式：管理员专属项隐藏 */
+.tk-nav a[data-admin="1"].tk-off { display: none; }
+
+/* ---------- 3) 合并进来的「未交明细」 ---------- */
+.tk-merge { margin-top: 16px; }
+#desktopView .tk-merge { min-width: 1180px; }   /* 窄屏时内部横滚，和原来一致 */
+
+.tk-merge-h { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.tk-merge-h > b { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.tk-merge-h .sub { font-size: 11.5px; color: var(--muted); }
+.tk-merge-tabs {
+  margin-left: auto; display: flex; gap: 4px; padding: 3px;
+  background: var(--surface-soft); border: 1px solid var(--line); border-radius: 999px;
+}
+.tk-merge-tabs button {
+  height: 28px; padding: 0 15px; border: 0; border-radius: 999px; background: transparent;
+  color: var(--muted); font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap;
+}
+.tk-merge-tabs button:hover { color: var(--ink); }
+.tk-merge-tabs button.on { background: var(--ink); color: var(--surface); font-weight: 600; }
+
+.tk-merge-view[hidden] { display: none; }
+.tk-merge-view > .panel { margin: 0; }
+/* 搬过来的两个面板，原来靠父容器给外边距，这里补回来 */
+.tk-merge-view > .dashboard-grid > .panel { margin: 0; }

@@ -1,0 +1,37 @@
+/* ============================================================
+   全局搜索（侧栏一个框，搜料号一网打尽）
+   ============================================================ */
+.tk-gs { position: relative; margin-bottom: 10px; }
+.tk-gs input {
+  width: 100%; height: 32px; padding: 0 11px; border: 1px solid rgba(255,255,255,.16);
+  border-radius: 9px; background: rgba(255,255,255,.06); color: #e8f1f2;
+  font: inherit; font-size: 12.5px;
+}
+.tk-gs input::placeholder { color: #8ba3a8; }
+.tk-gs input:focus { outline: none; background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.3); }
+
+.tk-gs-panel {
+  position: fixed; z-index: 9300; width: 480px; max-height: 62vh; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 22px 60px rgba(9,40,47,.26); padding: 8px;
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+}
+.tk-gs-panel[hidden] { display: none; }
+.tk-gs-hint { padding: 10px 12px; font-size: 12px; color: var(--muted); }
+.tk-gs-grp { margin-bottom: 6px; }
+.tk-gs-grp > b {
+  display: block; padding: 7px 10px 5px; font-size: 11px; font-weight: 700;
+  color: var(--muted); letter-spacing: .05em;
+}
+.tk-gs-item {
+  display: grid; grid-template-columns: 92px minmax(0,1fr) auto; gap: 10px; align-items: baseline;
+  width: 100%; padding: 7px 10px; border: 0; background: transparent; border-radius: 8px;
+  font: inherit; text-align: left; cursor: pointer;
+}
+.tk-gs-item:hover, .tk-gs-item.on { background: var(--surface-soft); }
+.tk-gs-item em { font-style: normal; font-size: 11.5px; color: var(--muted); font-family: Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-gs-item span { font-size: 12.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-gs-item span small { display: block; font-size: 11px; color: var(--muted); }
+.tk-gs-item > b { font-size: 12.5px; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tk-gs-item > b.hot { color: var(--accent); }
+.tk-gs-more { padding: 5px 10px 9px; font-size: 11.5px; color: var(--muted); }

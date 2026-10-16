@@ -1,0 +1,403 @@
+/* ============================================================
+   主题：Ui（shadcn/ui）—— "clinical blueprint on frosted paper"
+   文件：public/theme-ui.css        建立日期：2026-10-16
+   依据：D:\Download\DESIGN.md（= 项目里 docs\界面设计参考\Ui-shadcn-DESIGN.md）
+   生效条件：<body data-theme="ui">，由「行距 / 列距」面板里的主题开关切换。
+   回滚：删掉 index.html 里那一行 <link ... theme-ui.css> 即可。
+
+   ⚠ 三处故意偏离原规范，都在下面标了「偏离」，原因写在注释里。
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   1. 先换掉 app 自己的 CSS 变量（照着规范的 token 映射）
+   ------------------------------------------------------------ */
+body[data-theme="ui"] {
+  --bg:            #f5f5f5;   /* Canvas */
+  --surface:       #ffffff;   /* Paper */
+  --surface-soft:  #fafafa;   /* Surface Alt */
+  --ink:           #0a0a0a;   /* Ink */
+  --muted:         #737373;   /* Mid Gray */
+  --line:          #e5e5e5;   /* Hairline */
+  --primary:       #171717;   /* 填充动作色 = 近黑 */
+  --primary-strong:#0a0a0a;
+  --primary-soft:  #f5f5f5;
+  --nav:           #fafafa;   /* 侧栏改成浅色 */
+  --nav-soft:      #f5f5f5;
+  --accent:        #e7000b;   /* Ember —— 全站唯一的有彩色 */
+  --accent-soft:   #fef2f2;
+  --danger:        #e7000b;
+  --danger-soft:   #fef2f2;
+  --success:       #171717;
+  --success-soft:  #f5f5f5;
+  --shadow:        0 1px 3px rgba(0, 0, 0, .10), 0 0 0 1px rgba(23, 23, 23, .05);
+  --shadow-soft:   0 1px 3px rgba(0, 0, 0, .10), 0 0 0 1px rgba(23, 23, 23, .05);
+  --radius:        24px;      /* 卡片 */
+  --radius-sm:     12px;
+}
+
+/* ------------------------------------------------------------
+   2. 侧栏：从深墨绿改成 #fafafa（规范里"比画布亮一档、不加分隔线"）
+   ------------------------------------------------------------ */
+body[data-theme="ui"] .sidebar {
+  background: #fafafa;
+  border-right: 1px solid var(--line);
+  color: var(--ink);
+}
+body[data-theme="ui"] .brand strong,
+body[data-theme="ui"] .mobile-brand strong { color: var(--ink); font-weight: 600; }
+body[data-theme="ui"] .brand span,
+body[data-theme="ui"] .mobile-brand span { color: var(--muted); }
+body[data-theme="ui"] .brand-mark {
+  background: var(--ink);
+  border-radius: 12px;
+  box-shadow: none;
+  font-weight: 600;
+}
+body[data-theme="ui"] .side-link { color: #525252; border-radius: 18px; }
+body[data-theme="ui"] .side-link:hover { color: var(--ink); background: #f0f0f0; }
+body[data-theme="ui"] .side-link.active {
+  color: var(--ink);
+  background: #ececec;
+  box-shadow: none;
+  font-weight: 600;
+}
+body[data-theme="ui"] .nav-dot { background: #c4c4c4; }
+body[data-theme="ui"] .side-link.active .nav-dot { background: var(--ink); box-shadow: none; }
+body[data-theme="ui"] .live-card {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+}
+body[data-theme="ui"] .live-row { color: var(--ink); }
+body[data-theme="ui"] .live-card p { color: var(--muted); }
+body[data-theme="ui"] .sidebar-foot,
+body[data-theme="ui"] .sidebar-foot strong { color: var(--muted); }
+body[data-theme="ui"] .sidebar-switch,
+body[data-theme="ui"] .print-helper-status,
+body[data-theme="ui"] .tk-display-btn {
+  border-color: var(--line);
+  background: #fff;
+  color: #404040;
+  border-radius: 18px;
+}
+body[data-theme="ui"] .sidebar-switch:hover,
+body[data-theme="ui"] .print-helper-status:hover,
+body[data-theme="ui"] .tk-display-btn:hover,
+body[data-theme="ui"] .tk-display-btn[aria-expanded="true"] {
+  background: #f0f0f0;
+  color: var(--ink);
+}
+body[data-theme="ui"] .mode-badge { color: var(--muted); }
+
+/* ------------------------------------------------------------
+   3. 标题与文字
+   ------------------------------------------------------------ */
+/* 偏离①：规范要求标题 -0.05em 字距（48px）。中文套 -0.05em 会挤，
+   所以只对拉丁/数字用紧字距，中文最多 -0.02em。 */
+body[data-theme="ui"] h1 {
+  font-size: clamp(24px, 2vw, 30px);
+  font-weight: 600;
+  letter-spacing: -.02em;
+  color: var(--ink);
+}
+body[data-theme="ui"] .eyebrow {
+  color: var(--muted);
+  font-weight: 500;
+  letter-spacing: .05em;
+}
+/* 数字与料号/图号：这才用得上规范的紧字距 */
+body[data-theme="ui"] .mono,
+body[data-theme="ui"] .material-code,
+body[data-theme="ui"] .spec-code,
+body[data-theme="ui"] .order-id,
+body[data-theme="ui"] .number {
+  letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------
+   4. 卡片 / 面板
+   ------------------------------------------------------------ */
+body[data-theme="ui"] .panel,
+body[data-theme="ui"] .metric-card,
+body[data-theme="ui"] .stat-card,
+body[data-theme="ui"] .price-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .10), 0 0 0 1px rgba(23, 23, 23, .05);
+}
+body[data-theme="ui"] .panel-head p { color: var(--muted); }
+body[data-theme="ui"] .status-pill {
+  color: var(--ink);
+  background: #f5f5f5;
+  font-weight: 500;
+}
+
+/* ------------------------------------------------------------
+   5. 按钮：圆形胶囊（规范：所有交互元素 18px 圆角）
+   ------------------------------------------------------------ */
+body[data-theme="ui"] .button,
+body[data-theme="ui"] .btn,
+body[data-theme="ui"] .load-more-button {
+  border-radius: 18px;
+  font-weight: 500;
+  box-shadow: none;
+}
+body[data-theme="ui"] .button.primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fafafa;
+  box-shadow: none;
+  font-weight: 500;
+}
+body[data-theme="ui"] .button.primary:hover { background: #000; }
+body[data-theme="ui"] .button:not(.primary) {
+  background: #f5f5f5;
+  border-color: transparent;
+  color: var(--ink);
+}
+body[data-theme="ui"] .button:not(.primary):hover {
+  background: #ececec;
+  border-color: transparent;
+  color: var(--ink);
+}
+body[data-theme="ui"] .button:hover { transform: none; }
+
+/* ------------------------------------------------------------
+   6. 输入框 / 下拉 / 日期
+   偏离②：规范要求输入框也用 18px 胶囊。但你们工具条一排 4 个筛选框，
+   胶囊会在中文两边留出很虚的空隙、也吃掉横向空间，所以降到 12px。
+   ------------------------------------------------------------ */
+body[data-theme="ui"] .search-box input,
+body[data-theme="ui"] .select-box select,
+body[data-theme="ui"] .select-box input,
+body[data-theme="ui"] input[type="search"]:not(.tk-date),
+body[data-theme="ui"] input[type="text"],
+body[data-theme="ui"] select {
+  background: #f5f5f5;
+  border-color: transparent;
+  border-radius: 12px;
+  color: var(--ink);
+}
+body[data-theme="ui"] .search-box input::placeholder,
+body[data-theme="ui"] input::placeholder { color: var(--muted); }
+body[data-theme="ui"] .search-box input:hover,
+body[data-theme="ui"] .select-box select:hover,
+body[data-theme="ui"] input[type="search"]:hover { background: #ececec; border-color: transparent; }
+body[data-theme="ui"] .search-box input:focus,
+body[data-theme="ui"] .select-box select:focus,
+body[data-theme="ui"] input:focus {
+  background: #fff;
+  border-color: var(--line);
+  box-shadow: 0 0 0 1px var(--line);
+  outline: none;
+}
+body[data-theme="ui"] input[type="date"].tk-date {
+  background: #f5f5f5 !important;
+  border-color: transparent !important;
+  border-radius: 12px !important;
+}
+body[data-theme="ui"] input[type="date"].tk-date:focus {
+  background: #fff !important;
+  border-color: var(--line) !important;
+  box-shadow: 0 0 0 1px var(--line) !important;
+}
+body[data-theme="ui"] .select-box span,
+body[data-theme="ui"] .search-box span { color: var(--muted); }
+
+/* ------------------------------------------------------------
+   7. 表格：无彩色（规范的核心）
+   —— 层次不再靠颜色和加粗，改靠"字号 + 灰度 + 数字右对齐"
+   ------------------------------------------------------------ */
+body[data-theme="ui"] #desktopView .orders-table th,
+body[data-theme="ui"] #desktopView .grouped-remaining-table th {
+  color: var(--muted);
+  background: #fff;
+  font-weight: 500;
+  letter-spacing: .04em;
+  border-bottom: 1px solid var(--line);
+}
+body[data-theme="ui"] #desktopView .orders-table td,
+body[data-theme="ui"] #desktopView .grouped-remaining-table td {
+  color: var(--ink);
+  border-top: 1px solid #f0f0f0;
+  font-weight: 400;
+}
+/* 去掉斑马纹（规范里没有条纹，靠发丝线分隔） */
+body[data-theme="ui"] #desktopView .orders-table tbody tr:nth-child(even) { background: transparent; }
+body[data-theme="ui"] #desktopView .orders-table tbody tr:hover,
+body[data-theme="ui"] #desktopView .grouped-remaining-table tbody tr:hover { background: #fafafa !important; }
+/* 数字：用字重表达重点，不用颜色 */
+body[data-theme="ui"] #desktopView .remaining-number,
+body[data-theme="ui"] #desktopView .grouped-remaining-table .qty {
+  color: var(--ink);
+  font-weight: 600;
+}
+body[data-theme="ui"] #desktopView .shipped-number { color: var(--muted); font-weight: 400; }
+body[data-theme="ui"] #desktopView .item-name { font-weight: 500; }
+body[data-theme="ui"] #desktopView .grouped-remaining-table .mark { color: var(--ink); }
+
+/* ------------------------------------------------------------
+   8. 业务徽章与标签：只保留一个警示色
+   —— 逾期用 Ember 红（规范里唯一的彩色，且只用于"出错/要处理"）
+   —— 今天到期用实心近黑胶囊（高对比、但不上色）
+   —— 试制/承样/工装 改成描边胶囊，靠文字区分
+   偏离③：这一步会丢掉"靠颜色一眼区分"的便利，是这套规范的代价。
+          不喜欢的话告诉我，我把三色标签加回来。
+   ------------------------------------------------------------ */
+body[data-theme="ui"] .due-badge {
+  border-radius: 18px;
+  background: #f5f5f5;
+  color: var(--muted);
+  font-weight: 500;
+}
+body[data-theme="ui"] .due-badge.overdue {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+body[data-theme="ui"] .due-badge.today {
+  background: var(--ink);
+  color: #fafafa;
+  font-weight: 600;
+}
+body[data-theme="ui"] .due-badge.done { background: #f5f5f5; color: var(--muted); }
+body[data-theme="ui"] .due-date { color: var(--ink); font-weight: 500; }
+
+body[data-theme="ui"] .order-type-tag,
+body[data-theme="ui"] .order-type-tag.order-type-sample,
+body[data-theme="ui"] .order-type-tag.order-type-trial,
+body[data-theme="ui"] .order-type-tag.order-type-tooling {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  color: var(--ink);
+  font-weight: 500;
+}
+body[data-theme="ui"] .company-tag,
+body[data-theme="ui"] .material-total-tag {
+  background: #f5f5f5;
+  border-color: transparent;
+  border-radius: 18px;
+  color: #525252;
+  font-weight: 500;
+}
+body[data-theme="ui"] .drawing-link {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  color: var(--ink);
+  font-weight: 500;
+}
+body[data-theme="ui"] .drawing-link:hover { background: #f5f5f5; }
+
+/* 其它零散彩色收口 */
+body[data-theme="ui"] .chip,
+body[data-theme="ui"] .remaining-date-chip {
+  border-radius: 18px;
+  background: #f5f5f5;
+  border-color: transparent;
+  color: #525252;
+  font-weight: 500;
+}
+body[data-theme="ui"] .chip.active,
+body[data-theme="ui"] .remaining-date-chip.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fafafa;
+  font-weight: 500;
+}
+body[data-theme="ui"] .row-locked { opacity: .5; }
+
+/* ============================================================
+   9. 补漏（实测发现有三处没盖住）
+   ============================================================ */
+
+/* 9.1 画布底色
+   styles.css 第 2081-2089 行把底色写死在 html 和 body 上，body 还带两层径向渐变。
+   Ui 规范原文："Do not apply gradients, colored shadows, or accent fills —
+   every surface is a solid tone." 所以这里必须整块换掉。
+   （html 是 body 的父节点，只能靠 :has() 选到它） */
+html:has(body[data-theme="ui"]) { background: #f5f5f5; }
+body[data-theme="ui"] { background: #f5f5f5 !important; }
+body[data-theme="ui"] ::selection { color: #fafafa; background: #171717; }
+body[data-theme="ui"] ::-webkit-scrollbar-track { background: #f0f0f0; }
+body[data-theme="ui"] ::-webkit-scrollbar-thumb,
+body[data-theme="ui"] ::-webkit-scrollbar-thumb:hover { background: #c4c4c4; background-clip: content-box; }
+
+/* 9.2 输入框
+   styles.css 第 1399 行那条 `#desktopView .toolbar .select-box select` 带 !important
+   （1 个 id + 2 个类），普通选择器压不过。这里用 `#app` 双 id 前缀 + :is() 列表，
+   既赢得下优先级，又把范围圈死在真正的输入控件上
+   （不碰复选框、单选框、文件框、数量步进器）。 */
+body[data-theme="ui"] #app :is(
+  .search-box input, .select-box select, .select-box input,
+  .toolbar input, .toolbar select,
+  .history-tools input, .history-tools select,
+  .remaining-tools input, .desktop-remaining-tools input, .desktop-remaining-tools select,
+  .loading-control input, .report-search-field input,
+  input[type="search"], input[type="date"].tk-date, input[type="month"]
+) {
+  background: #f5f5f5 !important;
+  border: 1px solid transparent !important;
+  border-radius: 18px !important;
+  color: var(--ink) !important;
+  box-shadow: none !important;
+}
+body[data-theme="ui"] #app :is(
+  .search-box input, .select-box select, .select-box input,
+  .toolbar input, .toolbar select, .history-tools input, .history-tools select,
+  .remaining-tools input, .desktop-remaining-tools input, .desktop-remaining-tools select,
+  .loading-control input, .report-search-field input,
+  input[type="search"], input[type="date"].tk-date, input[type="month"]
+):hover { background: #ececec !important; }
+body[data-theme="ui"] #app :is(
+  .search-box input, .select-box select, .select-box input,
+  .toolbar input, .toolbar select, .history-tools input, .history-tools select,
+  .remaining-tools input, .desktop-remaining-tools input, .desktop-remaining-tools select,
+  .loading-control input, .report-search-field input,
+  input[type="search"], input[type="date"].tk-date, input[type="month"]
+):focus {
+  background: #ffffff !important;
+  border-color: var(--line) !important;
+  box-shadow: 0 0 0 1px var(--line) !important;
+}
+body[data-theme="ui"] #app input::placeholder { color: var(--muted) !important; }
+/* 9.3 表头灰度
+   design-tokens.css 里那条 AA 修正多带了一个 thead，这里补上以对齐优先级，
+   再靠"theme-ui.css 在 design-tokens.css 之后加载"取胜。
+   用规范里的 Mid Gray #737373 —— 它对白底是 4.74:1，本身通过 AA。 */
+body[data-theme="ui"] #desktopView .orders-table thead th,
+body[data-theme="ui"] #desktopView .grouped-remaining-table thead th {
+  color: #737373;
+  background: #ffffff;
+}
+
+/* ------------------------------------------------------------
+   10. 最后几处彩色收口
+   ------------------------------------------------------------ */
+/* 设置面板自己的强调色也跟着主题走（否则 Ui 主题下还是墨绿） */
+body[data-theme="ui"] .tk-seg button.on { background: var(--ink); color: #fafafa; }
+body[data-theme="ui"] .tk-actions button.primary {
+  background: var(--ink); border-color: var(--ink); color: #fafafa;
+}
+body[data-theme="ui"] .tk-actions button.primary:hover { background: #000; }
+body[data-theme="ui"] .tk-row .lb b,
+body[data-theme="ui"] .tk-preview b { color: var(--ink); }
+body[data-theme="ui"] .tk-pop h4 { color: var(--ink); }
+body[data-theme="ui"] .tk-date-quick { background: #f5f5f5; border-color: transparent; border-radius: 18px; }
+body[data-theme="ui"] .tk-date-quick:hover { background: #ececec; border-color: transparent; color: var(--ink); }
+body[data-theme="ui"] .tk-drawer > footer button { border-radius: 18px; }
+body[data-theme="ui"] .tk-drawer > footer button.primary { background: var(--ink); border-color: var(--ink); }
+body[data-theme="ui"] .tk-drawer dd.hi { color: var(--ink); font-weight: 600; }
+body[data-theme="ui"] .tk-drawer dd.warn { color: var(--accent); }
+
+/* 侧栏「实时同步中」的状态点：在无彩色主题里，绿点改成黑点，异常才上红 */
+body[data-theme="ui"] .live-dot { background: #a3a3a3; box-shadow: none; }
+body[data-theme="ui"] .live-dot.online { background: var(--ink); box-shadow: none; }
+body[data-theme="ui"] .live-dot.offline { background: var(--accent); box-shadow: none; }
+
+/* 侧栏当前项右侧那道指示条（styles.css 里是墨绿） */
+body[data-theme="ui"] .side-link.active::after,
+body[data-theme="ui"] .side-link.active .nav-indicator { background: var(--ink); }

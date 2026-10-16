@@ -1,0 +1,35 @@
+/* ============================================================
+   库存页面（补充样式）
+   文件：public/inventory.css       建立日期：2026-10-16
+   说明：列表/页签/KPI/弹窗这些共用样式复用 outsource.css 里的 os-* 类，
+         这里只补库存特有的东西（类型徽章、数量颜色）。
+   回滚：删掉 index.html 里这一行 <link>
+   ============================================================ */
+
+.iv-kind {
+  display: inline-flex; align-items: center; height: 19px; padding: 0 8px;
+  border-radius: 999px; font-size: 10.5px; font-weight: 500;
+  border: 1px solid var(--line); background: var(--surface-soft); color: var(--muted);
+  white-space: nowrap;
+}
+.iv-kind.finished  { border-color: #7f9c74; color: #4b6b40; }
+.iv-kind.outsource { border-color: var(--accent); color: var(--accent); }
+.iv-kind.raw       { border-color: #8a8fa0; color: #5b6175; }
+.iv-kind.wip       { border-color: #b08a5a; color: #7a5a2e; }
+
+.iv-qty { font-variant-numeric: tabular-nums; font-weight: 600; }
+.iv-qty.neg { color: var(--accent); }
+.iv-qty.zero { color: var(--muted); font-weight: 400; }
+
+.iv-search {
+  margin: 0 18px 12px; display: flex; gap: 8px; align-items: center;
+}
+.iv-search input {
+  flex: 1; height: 36px; padding: 0 12px; border: 1px solid var(--line);
+  border-radius: var(--radius-sm); background: var(--surface); color: var(--ink);
+  font: inherit; font-size: 13px;
+}
+.iv-search input:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+
+.iv-move-in  { color: #4b6b40; font-variant-numeric: tabular-nums; font-weight: 600; }
+.iv-move-out { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 600; }

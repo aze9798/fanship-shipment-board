@@ -1,0 +1,341 @@
+/* ============================================================
+   主页「面板」视图 —— 真正的格局变动
+   文件：public/dashboard-home.css     建立日期：2026-10-16
+   作用：在现有「未交明细表」上面加一整层功能块（今天待办 / 未交总览 /
+         交期分布 / 今天装车 / 未交最多 / 快捷动作）。
+   不删任何东西：现有表格原样保留在下面，所有筛选、打印、拖动列宽、
+         点行出详情都不受影响。
+   开关：设置面板里的「主页：清单 / 面板」。默认「清单」＝和现在完全一样。
+   回滚：删掉 index.html 里这一行 <link> 与底部 dashboard-home.js。
+   说明：颜色全部走 token 变量，所以墨绿主题和 Ui 主题下都自动适配。
+   ============================================================ */
+
+.tk-dash {
+  display: grid;
+  gap: 14px;
+  padding: 0 0 4px;
+  margin-bottom: 16px;
+}
+.tk-dash[hidden] { display: none; }
+
+/* ---- 区块 ---- */
+.tk-dash-sec {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px 15px;
+  box-shadow: var(--shadow-soft);
+  min-width: 0;
+}
+.tk-dash-h {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.tk-dash-h > b { font-size: 13.5px; font-weight: 700; letter-spacing: -.01em; }
+.tk-dash-h .tk-dash-sub { font-size: 11.5px; color: var(--muted); }
+.tk-dash-h .tk-dash-sub.hot { color: var(--accent); font-weight: 700; }
+
+/* ---- 两列布局 ---- */
+.tk-dash-2col { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+@media (max-width: 1080px) { .tk-dash-2col { grid-template-columns: minmax(0, 1fr); } }
+/* 这一行只有一个板块时（比如普通模式没报工/考勤），让它占满整行，别留半张空的 */
+.tk-dash-2col.is-single { grid-template-columns: minmax(0, 1fr); }
+
+/* ---- 数字块（点得动） ---- */
+.tk-stats { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
+.tk-stat {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.tk-stat:hover { background: var(--surface-soft); border-color: var(--primary); }
+.tk-stat > span { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 3px; }
+.tk-stat > b {
+  display: block;
+  font-size: 27px;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.tk-stat > i { display: block; font-style: normal; font-size: 11px; color: var(--muted); margin-top: 3px; }
+.tk-stat.hot > b { color: var(--accent); }
+.tk-stat.quiet > b { color: var(--ink); font-weight: 500; }
+.tk-stat.is-static { cursor: default; }
+.tk-stat.is-static:hover { background: var(--surface); border-color: var(--line); }
+
+/* ---- 交期分布条 ---- */
+.tk-bars { display: grid; gap: 9px; }
+.tk-bar { display: grid; grid-template-columns: 74px minmax(0, 1fr) 96px; gap: 10px; align-items: center; font-size: 12px; }
+.tk-bar > span { color: var(--muted); white-space: nowrap; }
+.tk-bar > i { display: block; height: 9px; border-radius: 999px; background: var(--surface-soft); overflow: hidden; }
+.tk-bar > i > b { display: block; height: 100%; border-radius: 999px; background: var(--primary); min-width: 2px; }
+.tk-bar > em { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.tk-bar > em small { color: var(--muted); font-size: 11px; margin-left: 5px; }
+.tk-bar.hot > i > b { background: var(--accent); }
+.tk-bar.hot > em { color: var(--accent); font-weight: 700; }
+
+/* ---- 列表（发货单 / Top 料号） ---- */
+.tk-list { display: grid; gap: 2px; }
+.tk-li {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+.tk-li:hover { background: var(--surface-soft); }
+.tk-li.is-static { cursor: default; }
+.tk-li.is-static:hover { background: transparent; }
+.tk-li > em { font-style: normal; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tk-li > span { font-size: 13px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk-li > span small { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.tk-li > b { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tk-li > b.hot { color: var(--accent); }
+.tk-empty { font-size: 12.5px; color: var(--muted); padding: 10px 4px; }
+
+/* ---- 快捷动作 ---- */
+.tk-acts { display: grid; gap: 9px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.tk-act {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--tk-h-xl, 44px);
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: background .15s ease, border-color .15s ease;
+}
+.tk-act:hover { background: var(--surface-soft); border-color: var(--primary); }
+.tk-act i { font-style: normal; font-size: 15px; opacity: .75; }
+.tk-act.primary { background: var(--primary); border-color: var(--primary); color: var(--surface); font-weight: 700; }
+.tk-act.primary:hover { background: var(--primary-strong, var(--primary)); }
+.tk-act.primary i { opacity: .9; }
+
+/* ---- 载入骨架 ---- */
+.tk-dash.loading .tk-stat > b,
+.tk-dash.loading .tk-bar > em,
+.tk-dash.loading .tk-li > b { color: transparent; }
+.tk-dash.loading .tk-stat > b::after,
+.tk-dash.loading .tk-li > b::after {
+  content: "···";
+  color: var(--muted);
+}
+
+/* ============================================================
+   第 2 版补充：明确的「查看 →」 + 四列数字块
+   原因：阿泽反馈"数字块能不能点，别人根本不知道"。
+   改法：数字块全部改成静态，每个区块右上角给一个看得见的「查看 →」。
+   ============================================================ */
+
+/* 区块右上角的「查看 →」——做成明确的文字按钮，带底色 */
+.tk-more {
+  margin-left: auto;
+  flex: 0 0 auto;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s ease, border-color .15s ease;
+}
+.tk-more:hover { background: var(--primary); border-color: var(--primary); color: var(--surface); }
+
+.tk-more-hint { margin-top: 8px; font-size: 11.5px; color: var(--muted); }
+
+/* 四列数字块（比 auto-fit 更整齐，一眼四个） */
+.tk-stats.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1180px) { .tk-stats.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* 数字块已经不可点了，去掉误导性的手型和悬停 */
+.tk-stat.is-static { cursor: default; }
+.tk-stat.is-static:hover { background: var(--surface); border-color: var(--line); }
+
+/* 报工明细里的小字金额 */
+.tk-li > b small { font-variant-numeric: tabular-nums; }
+
+/* 区块标题里的「今天 xxx」状态提示 */
+.tk-dash-h .tk-dash-sub:empty { display: none; }
+
+/* ============================================================
+   第 3 版：顶部「未交明细」小板块 + 试制/承样
+   目的：未交明细数据量大，不能占整页；只列关键字段（编号/品名/未交/交期），
+         板块内上下滚动；上面加交期快捷筛选（最重要的筛选项）。
+   ============================================================ */
+.tk-top .tk-md-list { max-height: 286px; }
+
+/* 交期快捷筛选（横向可滚） */
+.tk-due-bar {
+  display: flex; gap: 6px; overflow-x: auto; padding-bottom: 9px; margin-bottom: 9px;
+  border-bottom: 1px solid var(--line2, var(--line)); scrollbar-width: thin;
+}
+.tk-due-chip {
+  flex: 0 0 auto; height: 26px; padding: 0 11px; border: 1px solid var(--line);
+  border-radius: 999px; background: var(--surface); color: var(--muted);
+  font: inherit; font-size: 11.5px; cursor: pointer; white-space: nowrap;
+}
+.tk-due-chip em { font-style: normal; opacity: .65; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.tk-due-chip:hover { border-color: var(--ink); color: var(--ink); }
+.tk-due-chip.on { background: var(--ink); border-color: var(--ink); color: var(--surface); font-weight: 600; }
+.tk-due-chip.on em { opacity: .85; }
+.tk-due-chip.late:not(.on) { border-color: var(--accent); color: var(--accent); }
+.tk-due-chip.today:not(.on) { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+
+/* 紧凑明细列表（板块内上下滚动） */
+.tk-md-list { max-height: 268px; overflow-y: auto; scrollbar-width: thin; }
+.tk-md-list::-webkit-scrollbar { width: 9px; }
+.tk-md-list::-webkit-scrollbar-thumb { background: #c9d3d5; border: 3px solid transparent; background-clip: content-box; border-radius: 99px; }
+
+.tk-md-row {
+  display: grid; grid-template-columns: 92px minmax(0, 1fr) 64px 92px;
+  gap: 10px; align-items: center; width: 100%; padding: 6px 8px;
+  border: 0; background: transparent; border-radius: 6px; font: inherit; text-align: left; cursor: pointer;
+}
+.tk-md-row + .tk-md-row { border-top: 1px solid var(--line2, var(--line)); }
+.tk-md-row:hover { background: var(--surface-soft); }
+.tk-md-row em {
+  font-style: normal; font-size: 11.5px; color: var(--muted); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.tk-md-row em.mk { font-family: Consolas, monospace; }
+.tk-md-row em.kind { font-family: inherit; font-weight: 600; }
+.tk-md-row em.k-trial   { color: #1d4ed8; }
+.tk-md-row em.k-sample  { color: #a33b1e; }
+.tk-md-row em.k-tooling { color: #067647; }
+.tk-md-row > span {
+  font-size: 12.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.tk-md-row > span small { display: block; font-size: 10.5px; color: var(--muted); }
+.tk-md-row b.qty {
+  text-align: right; font-size: 13px; font-weight: 600; color: var(--ink);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.tk-md-row b.qty.late { color: var(--accent); }
+.tk-md-row i.due {
+  font-style: normal; text-align: right; font-size: 11.5px; color: var(--muted);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.tk-md-row i.due.late { color: var(--accent); font-weight: 600; }
+
+/* 「完整清单」折叠区 */
+.tk-merge.tk-collapsed .tk-merge-view { display: none; }
+.tk-merge-h .tk-fold {
+  margin-left: auto; height: 26px; padding: 0 12px; border: 1px solid var(--line);
+  border-radius: 999px; background: var(--surface-soft); color: var(--ink);
+  font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.tk-merge-h .tk-fold:hover { border-color: var(--ink); }
+.tk-merge-h .tk-fold .caret { font-size: 9px; opacity: .6; margin-left: 4px; display: inline-block; transition: transform .15s ease; }
+.tk-merge-h .tk-fold[aria-expanded="true"] .caret { transform: rotate(180deg); }
+
+/* ============================================================
+   功能板块的页签（外协 / 采购 / 质量）
+   ============================================================ */
+.tk-block-tabs {
+  display: flex; gap: 3px; margin-left: auto; padding: 3px;
+  background: var(--surface-soft); border: 1px solid var(--line); border-radius: 999px;
+}
+.tk-block-tabs button {
+  height: 24px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent;
+  color: var(--muted); font: inherit; font-size: 11.5px; cursor: pointer; white-space: nowrap;
+}
+.tk-block-tabs button:hover { color: var(--ink); }
+.tk-block-tabs button.on { background: var(--ink); color: var(--surface); font-weight: 600; }
+/* 有页签时，「查看 →」贴着页签排，不再抢着往右推 */
+.tk-dash-h:has(.tk-block-tabs) .tk-more { margin-left: 8px; }
+.tk-block-pane[hidden] { display: none; }
+
+/* 板块里的只读行（不可点） */
+.tk-md-row.tk-plain { cursor: default; }
+.tk-md-row.tk-plain:hover { background: transparent; }
+.tk-md-row em small.late { display: block; color: var(--accent); font-weight: 600; }
+.tk-md-row em.mk { white-space: nowrap; }
+
+/* ============================================================
+   第 4 版（阿泽 2026-10-16 三条反馈）
+     ① 小板块缺列标题 → 补「编号 / 名称 / 未交 / 交期」表头
+     ② 三个功能板块的页签「长长的一条」→ 板块头拆两行（标题一行、页签一行），
+        页签做成等宽分段控件；外协 / 采购 / 质量三个板块并排一行
+     ③ 只动样式，不动数据、不动打印
+   ============================================================ */
+
+/* ① 列标题：跟 .tk-md-row 共用一套网格，所以列一定对得齐 */
+.tk-md-head {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) 64px 92px;
+  gap: 10px;
+  align-items: center;
+  padding: 0 8px 6px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: .02em;
+}
+.tk-md-head > em,
+.tk-md-head > b,
+.tk-md-head > i { font-style: normal; font-weight: 500; }
+.tk-md-head > em { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-md-head > b { text-align: right; }
+.tk-md-head > i { text-align: right; }
+
+/* ② 三个功能板块并排一行 */
+.tk-dash-3col {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 1700px) { .tk-dash-3col { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1080px) { .tk-dash-3col { grid-template-columns: minmax(0, 1fr); } }
+
+/* 板块头两行：第一行 标题 + 副标题，第二行 页签 + 「查看 →」 */
+.tk-block-head { display: grid; gap: 8px; margin-bottom: 11px; }
+.tk-block-h1 { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.tk-block-h1 > b { flex: 0 0 auto; font-size: 13.5px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
+.tk-block-h1 .tk-dash-sub {
+  min-width: 0; font-size: 11.5px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tk-block-h1 .tk-dash-sub.hot { color: var(--accent); font-weight: 700; }
+.tk-block-h2 { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+/* 页签：等宽分段控件，占满一行，不再是一条细长药丸 */
+.tk-block-h2 .tk-block-tabs { flex: 1 1 auto; min-width: 0; max-width: 420px; margin-left: 0; gap: 2px; padding: 3px; }
+.tk-block-h2 .tk-block-tabs button { flex: 1 1 0; height: 26px; padding: 0 6px; font-size: 12px; text-align: center; }
+.tk-block-h2 .tk-more { margin-left: auto; flex: 0 0 auto; }
+
+/* 1/3 宽的板块里行网格收窄一点，别把名称挤没了 */
+.tk-dash-3col .tk-md-row,
+.tk-dash-3col .tk-md-head { grid-template-columns: 74px minmax(0, 1fr) 58px 74px; gap: 8px; }
+.tk-dash-3col .tk-md-list { max-height: 306px; }
+.tk-dash-3col .tk-dash-sec { padding: 13px 14px 14px; }

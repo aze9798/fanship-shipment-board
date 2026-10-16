@@ -1,0 +1,236 @@
+/* ============================================================
+   帆顺看板 · 设计 token 层
+   文件：public/design-tokens.css     建立日期：2026-10-16
+   ------------------------------------------------------------
+   怎么用：这个文件在 styles.css 之后加载。它做两件事：
+     1) 定义一套 token（颜色/圆角/高度/间距/字号/密度/焦点环）
+     2) 把已经确认好的几处收口掉（表格密度、日期框、焦点环、页面宽度）
+   怎么回滚：删掉 index.html 里那一行 <link ... design-tokens.css> 即可，
+             文件留着不影响任何东西。想试新风格只改本文件，不碰 styles.css。
+   为什么分成独立文件：styles.css 有 3691 行、176 处 !important、489 个色值，
+             直接改它风险大。新东西一律写在这里，改一个模块就顺手删掉
+             styles.css 里对应的老覆盖块 —— 这叫"边改边还债"。
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   一、token 定义
+   ------------------------------------------------------------ */
+:root {
+  /* 1) 颜色：白 + 三档灰 + 一个主色 + 一个警示橙（其它状态靠灰度表达） */
+  --tk-bg:            #edf2f1;
+  --tk-surface:       #ffffff;
+  --tk-surface-2:     #f5f9f8;
+  --tk-ink:           #112a30;   /* 主文字 */
+  --tk-muted:         #6d8085;   /* 次要文字 */
+  --tk-line:          #d8e3e1;   /* 边框 */
+  --tk-hair:          #e9eeef;   /* 发丝分隔线 */
+  --tk-primary:       #0d7168;
+  --tk-primary-deep:  #075f58;
+  --tk-primary-soft:  #e7f4f1;
+  --tk-warn:          #c87524;   /* 只给"今天到期 / 逾期"这类要人管的事 */
+  --tk-warn-soft:     #fff1e2;
+  --tk-danger:        #c44942;
+  --tk-nav:           #09282f;
+
+  /* 2) 圆角：只留 3 档（原来有 9 档） */
+  --tk-r-sm: 6px;    /* 徽章、小标签 */
+  --tk-r-md: 10px;   /* 控件、按钮、日期框 */
+  --tk-r-lg: 14px;   /* 卡片、面板 */
+
+  /* 3) 控件高度：只留 4 档，且全落在 4px 栅格上（原来一屏出现 8 种） */
+  --tk-h-sm: 28px;   /* 图标按钮、行内小控件 */
+  --tk-h-md: 32px;   /* chip、次要按钮 */
+  --tk-h-lg: 36px;   /* 输入框 / 下拉 / 常规按钮 */
+  --tk-h-xl: 44px;   /* 主要动作、触屏 */
+
+  /* 4) 间距：只用 8 的倍数 */
+  --tk-sp-1: 8px;
+  --tk-sp-2: 16px;
+  --tk-sp-3: 24px;
+
+  /* 5) 字号：收敛成 6 档 */
+  --tk-t-xs:  12px;   /* 次要说明、徽章 */
+  --tk-t-sm:  13px;   /* 表格正文 */
+  --tk-t-md:  14px;   /* 表单正文 */
+  --tk-t-lg:  16px;   /* 强调数字 */
+  --tk-t-xl:  20px;   /* 卡片主数字 */
+  --tk-t-2xl: 28px;   /* 页面标题 */
+
+  /* 6) 字重：中文只用两档。
+        注意：微软雅黑只有 Regular(400) / Bold(700) 两档，
+        写 500/600/800 浏览器会自己凑，反而糊。要分层就靠字号 + 颜色。 */
+  --tk-w-normal: 400;
+  --tk-w-strong: 700;
+
+  /* 7) 焦点环（键盘 Tab 能看到自己在哪） */
+  --tk-focus: 0 0 0 2px #fff, 0 0 0 4px var(--tk-primary);
+
+  /* 8) 密度：默认值 =「标准」档，真正的值由 body[data-density] 或
+        ui-polish.js 写在 body 行内样式上覆盖 */
+  --tk-row-y: 10px;   /* 行 · 上下内边距 */
+  --tk-row-x: 8px;    /* 列 · 左右内边距 */
+  --tk-cell-fs: 13px; /* 表体字号 */
+  --tk-cell-lh: 1.4;  /* 行高倍数 */
+}
+
+/* 密度三档预设（ui-polish.js 也可写成行内变量做"自定义"） */
+body[data-density="compact"] { --tk-row-y: 6px;  --tk-row-x: 6px;  --tk-cell-fs: 12.5px; --tk-cell-lh: 1.3; }
+body[data-density="normal"]  { --tk-row-y: 10px; --tk-row-x: 8px;  --tk-cell-fs: 13px;   --tk-cell-lh: 1.4; }
+body[data-density="roomy"]   { --tk-row-y: 14px; --tk-row-x: 12px; --tk-cell-fs: 13.5px; --tk-cell-lh: 1.5; }
+
+
+/* ------------------------------------------------------------
+   二、已确认的收口（改一处、验一处）
+
+   下面每条都用 body[data-density] 开头 —— 这既是"启用了 token 层"的开关，
+   也保证样式优先级高过 styles.css 里的 #desktopView ... 老规则。
+   ------------------------------------------------------------ */
+
+/* 2.1 表格密度：行距 / 列距 / 字号 / 行高 全部由 token 驱动
+       覆盖 styles.css 里这几处反复调过的值：
+       181/182 行 (12px 12px / 14px 12px) → 843 (12px 上下) →
+       859 (8px 左右) → 879 (6px 左右) → 2041 (#desktopView 8px 左右) */
+body[data-density] #desktopView .orders-table th,
+body[data-density] #desktopView .orders-table td,
+body[data-density] #desktopView .grouped-remaining-table th,
+body[data-density] #desktopView .grouped-remaining-table td {
+  padding: var(--tk-row-y) var(--tk-row-x);
+  font-size: var(--tk-cell-fs);
+  line-height: var(--tk-cell-lh);
+}
+
+/* 2.2 表头吸顶（166 行往下滚时表头常驻） */
+body[data-density] #desktopView .grouped-remaining-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+/* 2.3 统一日期框：全站一个规格
+       （原来样式分 30px / 34px / 38px 三种、圆角 8px / 10px 两种、11 处规则各写各的） */
+/* 为什么这里的几行用了 !important：
+   styles.css 里日期框有 11 处规则，其中
+   `#desktopView .toolbar .select-box .due-date-row input[type="date"]`
+   带着 1 个 id + 4 个类，优先级比任何"干净"的选择器都高。
+   这是"收口层"特有的妥协 —— 只在这一个文件、这一个组件上用，
+   删掉本文件的 <link> 就同时失效，不会污染 styles.css。 */
+body[data-density] input[type="date"].tk-date {
+  height: var(--tk-h-lg) !important;
+  min-height: var(--tk-h-lg) !important;
+  padding: 0 10px !important;
+  margin: 0 !important;
+  border: 1px solid var(--tk-line) !important;
+  border-radius: var(--tk-r-md) !important;
+  background: var(--tk-surface) !important;
+  color: var(--tk-ink) !important;
+  font-size: var(--tk-t-sm) !important;
+  line-height: normal !important;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+body[data-density] input[type="date"].tk-date:hover { border-color: #b8ddd8; }
+body[data-density] input[type="date"].tk-date:focus {
+  outline: none;
+  border-color: var(--tk-primary);
+  box-shadow: 0 0 0 3px rgba(13, 113, 104, .14);
+}
+
+/* 2.4 焦点环：原来全局 outline:none，键盘用户看不到焦点 */
+body[data-density] :focus-visible {
+  outline: var(--tk-focus) !important;
+  outline-offset: 1px;
+}
+
+/* 2.5 页面宽度：原来是写死的 width:1870px（styles.css 2548-2553 行）
+       —— 在 1920 及以下的显示器上必然横向溢出，
+          "公司"筛选框会掉在屏幕外。改成随窗口自适应，窄了才内部横滚。 */
+#desktopView .dashboard-grid {
+  width: auto;
+  min-width: 1180px;
+  max-width: none;
+}
+
+/* 2.6 滚动条：统一一点，鼠标移上去变粗好抓（保留原效果，只是收口） */
+body[data-density] .table-wrap::-webkit-scrollbar { height: 12px; }
+body[data-density] .table-wrap::-webkit-scrollbar-thumb {
+  background: #c8d6d5;
+  border: 3px solid #fff;
+  border-radius: 999px;
+}
+body[data-density] .table-wrap::-webkit-scrollbar-thumb:hover { background: #a9bdbb; }
+
+
+
+/* ============================================================
+   三、按「设计系统检查清单」补齐的部分
+   （来源：designsystemchecklist.com 的 Foundations 26 项
+     https://www.designsystemchecklist.com/category/foundations）
+
+   核对下来缺 5 项，都在这一节里补齐。
+   ============================================================ */
+
+:root {
+  /* 3.1 对比度修正
+     清单原文："ensure that your background and text colors have at least an AA standard contrast ratio"
+     实测（WCAG 2.x 公式，非估计）：
+       主文字 --ink  #112a30 / #fff = 15.02:1  ✅
+       次要文字      #6d8085 / #fff =  4.14:1  ❌ 小字要 ≥4.5:1
+       订单表表头    #657b80 / #f7faf9 = 4.26:1 ❌ 表头是 10.5px，属于小字
+     修正后：
+       次要文字 #66797e = 4.56:1 ✅
+       表头    #5b6f75 = 5.03:1 ✅（两张表统一成同一个值）*/
+  --tk-muted-aa: #66797e;
+  --tk-th-ink:   #5b6f75;
+
+  /* 3.2 z-index 层级
+     清单原文："Define a system of z-index values to control which elements have priority"
+     实测：styles.css 里 29 处 z-index 用了 18 个不同值，没有体系。*/
+  --tk-z-sticky:   2;     /* 表头吸顶 */
+  --tk-z-dropdown: 30;    /* 下拉、日期弹层 */
+  --tk-z-nav:      50;    /* 顶栏 */
+  --tk-z-overlay:  9000;  /* 浮层遮罩 */
+  --tk-z-drawer:   9100;  /* 抽屉、模态 */
+  --tk-z-toast:    9500;  /* 提示 */
+
+  /* 3.3 动效：时长与缓动
+     清单原文："Define multiple values for your animation duration"
+     实测：原来 6 种时长（.15/.16/.18/.35/.42/.48s）各写各的。*/
+  --tk-dur-fast: .15s;
+  --tk-dur-base: .22s;
+  --tk-dur-slow: .42s;
+  --tk-ease-out:   cubic-bezier(.32, .72, 0, 1);
+  --tk-ease-inout: cubic-bezier(.4, 0, .2, 1);
+
+  /* 3.4 阴影：2 档就够
+     清单原文："Most of the time, you will need 3 to 4 elevation levels"
+     原来只有一种很大的投影（0 10px 30px），静态容器也在用。*/
+  --tk-shadow-1: 0 1px 2px rgba(16, 40, 45, .05), 0 0 0 1px rgba(16, 40, 45, .04);
+  --tk-shadow-2: 0 8px 24px rgba(16, 40, 45, .08);
+
+  /* 3.5 断点：把现有的记下来，以后不许再随手加
+     清单原文："Predefine the screen sizes and orientations your grid will adapt to"
+     实测：styles.css 里 45 个 @media，断点用到了 900/1050/1180/1200/1250 五种。*/
+  --tk-bp-md: 1180px;
+  --tk-bp-sm: 900px;
+}
+
+/* 3.1 应用：表头对比度（两张表统一到同一个值，顺手解决"同类型不一致"） */
+body[data-density] #desktopView .orders-table thead th,
+body[data-density] #desktopView .grouped-remaining-table thead th {
+  color: var(--tk-th-ink);
+}
+
+/* 3.1 应用：次要文字（只影响用 var(--muted) 的地方 —— 全站只有 3 处，
+   其余是硬编码灰，属于"待归并"的 489 个色值） */
+body[data-density] { --muted: var(--tk-muted-aa); }
+
+/* 3.3 应用：尊重系统的"减少动态效果"设置 */
+@media (prefers-reduced-motion: reduce) {
+  body[data-density] *,
+  body[data-density] *::before,
+  body[data-density] *::after {
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

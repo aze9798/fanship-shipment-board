@@ -1,0 +1,23 @@
+/* 质量页面补充样式（其余复用 outsource.css 的 os-* 类） */
+.ql-disp { display: inline-flex; align-items: center; height: 19px; padding: 0 8px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 500; border: 1px solid var(--line); background: var(--surface-soft); color: var(--muted); white-space: nowrap; }
+.ql-disp.rework { border-color: #b08a5a; color: #7a5a2e; }
+.ql-disp.scrap  { border-color: var(--accent); color: var(--accent); }
+.ql-disp.concession { border-color: #8a8fa0; color: #5b6175; }
+.ql-disp.return_supplier, .ql-disp.return_outsource { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.ql-disp.pending { border-color: var(--line); color: var(--muted); }
+
+.ql-resp { font-size: 11.5px; color: var(--muted); }
+.ql-resp.self { color: var(--ink); }
+
+/* 统计区：两列小条形 */
+.ql-stats { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; padding: 0 18px 14px; }
+@media (max-width: 1100px) { .ql-stats { grid-template-columns: minmax(0,1fr); } }
+.ql-statbox { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); padding: 12px 14px 13px; }
+.ql-statbox > b { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 9px; }
+.ql-bar { display: grid; grid-template-columns: 88px minmax(0,1fr) 92px; gap: 10px; align-items: center; font-size: 12px; margin-bottom: 7px; }
+.ql-bar > span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ql-bar > i { display: block; height: 8px; border-radius: 999px; background: var(--surface-soft); overflow: hidden; border: 1px solid var(--line); }
+.ql-bar > i > b { display: block; height: 100%; border-radius: 999px; background: var(--accent); min-width: 2px; }
+.ql-bar > em { font-style: normal; text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ql-bar > em small { color: var(--muted); margin-left: 4px; font-size: 11px; }
