@@ -247,11 +247,22 @@
 
   /* ---------- 主页：清单（默认） / 面板 ---------- */
   let home = 'list';
+  // 2026-10-17：加 URL 参数 ?home=panel / ?home=list，方便手机或别的电脑直接打开某一视图
+  //（手机宽度下侧栏是隐藏的，点不到那个开关；参数只影响本次打开，不写进 localStorage）
+  let homeFromUrl = '';
+  function readHomeFromUrl() {
+    try {
+      const v = String(new URLSearchParams(location.search).get('home') || '').toLowerCase();
+      homeFromUrl = (v === 'panel' || v === 'list') ? v : '';
+    } catch { homeFromUrl = ''; }
+  }
   function loadHome() {
+    readHomeFromUrl();
+    if (homeFromUrl) { home = homeFromUrl; return; }
     try { home = String(localStorage.getItem(LS_HOME) || '') === 'panel' ? 'panel' : 'list'; }
     catch { home = 'list'; }
   }
-  function saveHome() { try { localStorage.setItem(LS_HOME, home); } catch { } }
+  function saveHome() { if (homeFromUrl) return; try { localStorage.setItem(LS_HOME, home); } catch { } }
   function applyHome() {
     if (home === 'panel') document.body.dataset.home = 'panel';
     else delete document.body.dataset.home;
