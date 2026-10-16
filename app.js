@@ -3362,7 +3362,14 @@ async function openSampleApprovalPreview(rows) {
   if (els.sampleApprovalPreviewFrame) els.sampleApprovalPreviewFrame.src = sampleApprovalPreviewObjectUrl;
   if (els.sampleApprovalPreviewMeta) {
     const quantity = Number(row.quantity ?? row.orderQty ?? row.openingRemaining ?? row.remaining ?? 0);
-    els.sampleApprovalPreviewMeta.textContent = `${row.material || ''} · ${row.name || ''} · ${row.spec || ''} · ${fmt(quantity)} 件 · 交期 ${escapeHtml(formatDate(row.dueDate || snapshot?.today || TODAY))}` + (list.length > 1 ? `（共 ${list.length} 份，先预览第 1 份；点「确认打印」会一次全部打出来）` : '');
+    const drawingPages = Number(item.drawingPages || 0);
+    const pageText = drawingPages > 0
+      ? ` · 本次将打印：承认书 1 页 + 图纸 ${fmt(drawingPages)} 页`
+      : ' · ⚠️ 没找到这个料号的图纸，这次只打承认书 1 页';
+    els.sampleApprovalPreviewMeta.textContent = `${row.material || ''} · ${row.name || ''} · ${row.spec || ''} · ${fmt(quantity)} 件 · 交期 ${escapeHtml(formatDate(row.dueDate || snapshot?.today || TODAY))}` + pageText + (list.length > 1 ? `（共 ${list.length} 份，先预览第 1 份；点「确认打印」会一次全部打出来）` : '');
+  }
+  if (item.drawingFound === false) {
+    showToast('这个料号在图纸库里没找到图纸：这次只打承认书。要一起打的话先把图纸补进图纸库，再点一次打印承认书。', 12000);
   }
   if (els.sampleApprovalPreviewModal) els.sampleApprovalPreviewModal.hidden = false;
 }
@@ -3429,7 +3436,16 @@ async function printSampleApprovals(rows, options = {}) {
       if (item && item.approvalPrinted && sourceRows[index]) printedRows.push(sourceRows[index]);
     });
     markSampleApprovalsPrinted(printedRows);
-    showToast(`样品承认书已打印 ${printedRows.length} 份，已归档（要补打点「显示已打印」；承认书不再附带图纸）`, 8000);
+    const noDrawingRows = [];
+    results.forEach((item, index) => {
+      if (item && item.approvalPrinted && item.drawingFound === false && sourceRows[index]) noDrawingRows.push(sourceRows[index]);
+    });
+    const drawingCount = results.filter((item) => item && item.approvalPrinted && item.drawingFound).length;
+    showToast(`样品承认书已打印 ${printedRows.length} 份` + (drawingCount ? `（其中 ${drawingCount} 份连图纸一起打了）` : '') + '，已归档（要补打点「显示已打印」）', 9000);
+    if (noDrawingRows.length) {
+      const names = noDrawingRows.slice(0, 6).map((row) => `${row.material || ''} ${row.name || ''}`.trim()).join('、');
+      showToast(`⚠️ 有 ${noDrawingRows.length} 个料号没找到图纸，只有承认书：${names}${noDrawingRows.length > 6 ? ' 等' : ''}`, 15000);
+    }
     return result;
   } catch (error) {
     showToast((generateOnly ? '样品承认书生成失败：' : '样品承认书打印失败：') + (error.message || '请检查打印助手'), 9000);
