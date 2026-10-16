@@ -108,14 +108,21 @@
     });
     setMergeView(mergeView, true);
 
-    // 默认折叠：完整清单数据量大，不占页面；要看时点「展开」或从面板进来
+    /* 折叠默认值怎么定（2026-10-17 修白屏）：
+       · 阿泽手动点过「展开/收起」 → 听他的（记在 localStorage）
+       · 没点过 且 主页=面板 → 默认折叠（面板已经把关键信息摆出来了，整张清单太长）
+       · 没点过 且 主页=清单 → 必须默认展开！否则页面只剩一个标题条、下面全白
+         （上线当天就是这么白屏的：清单视图 + 默认折叠，两个默认值撞一起了） */
     const fold = merge.querySelector('#tkMergeFold');
     const applyFold = (open) => {
       merge.classList.toggle('tk-collapsed', !open);
       if (fold) { fold.setAttribute('aria-expanded', String(open)); fold.firstChild.textContent = open ? '收起' : '展开'; }
     };
     let folded = true;
-    try { folded = localStorage.getItem('tkMergeFolded') !== '0'; } catch { }
+    let savedFold = null;
+    try { savedFold = localStorage.getItem('tkMergeFolded'); } catch { }
+    if (savedFold === '0' || savedFold === '1') folded = savedFold !== '0';
+    else folded = document.body.dataset.home === 'panel';
     applyFold(!folded);
     if (fold) fold.addEventListener('click', (e) => {
       e.stopPropagation();
