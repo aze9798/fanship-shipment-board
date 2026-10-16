@@ -603,6 +603,9 @@
 
   /* ---------------- 交互（只保留「查看 →」跳转） ---------------- */
   function goView(name) {
+    // 外协 / 库存 / 采购 / 质量：走 home-merge 的模块专用跳转
+    //（那边会把「实时总览」藏掉并加护栏，否则模块页会和总览叠在一起，看着像没跳过去）
+    if (window.tkGoModule && window.tkGoModule(name)) return;
     const link = document.querySelector(`.side-link[data-desktop-view="${name}"]`);
     if (link) { link.click(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     if (name === 'outsource' || name === 'inventory' || name === 'purchase' || name === 'quality') {

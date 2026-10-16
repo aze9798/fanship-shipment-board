@@ -221,9 +221,75 @@
     nav.querySelectorAll('a[data-admin="1"]').forEach((a) => a.classList.toggle('tk-off', !admin));
   }
 
+  /* 四个模块页（外协 / 库存 / 采购 / 质量）是各自 js 建出来的 section。
+     两个坑：
+       ① app.js 的 showDesktopView 只认它自己那 11 个页面，不认这四个；
+       ② app.js 给侧栏项绑点击是它自己加载时一次性做的，而模块的侧栏链接是模块 js 后来才建的 —— 没绑上。
+     后果：点「查看 →」过去以后，app.js 一刷新（比如角色识别完 applyRoleUI）又把「实时总览」显回来，
+     两个页面叠在一起，用户看着就像"没跳过去"。
+     所以这四个模块单独走一条路：先让模块自己的逻辑跑一遍，再把常规页全部藏掉，并加一道护栏。 */
+  const MODULE_PAGE_IDS = {
+    outsource: 'desktopOutsourceView', inventory: 'desktopInventoryView',
+    purchase: 'desktopPurchaseView',   quality: 'desktopQualityView'
+  };
+  const BASE_PAGE_IDS = [
+    'desktopView', 'desktopRemainingView', 'desktopShipmentsView', 'desktopFilesView',
+    'desktopDrawingsView', 'desktopPricesView', 'desktopLoadingView',
+    'desktopWorkReportView', 'desktopWorkReviewView', 'desktopWorkEditView', 'desktopAttendanceView'
+  ];
+  function hideBasePages() {
+    BASE_PAGE_IDS.forEach((id) => { const el = document.getElementById(id); if (el) el.hidden = true; });
+  }
+  function goModule(view) {
+    const id = MODULE_PAGE_IDS[view];
+    if (!id) return false;
+    const open = () => {
+      const sec = document.getElementById(id);
+      if (!sec) return false;
+      const link = document.querySelector('.side-link[data-desktop-view="' + view + '"]');
+      if (link) link.click();     // 让模块自己的逻辑跑（showMine + 拉数据）
+      sec.hidden = false;
+      hideBasePages();
+      return true;
+    };
+    if (open()) { window.scrollTo({ top: 0, behavior: 'smooth' }); return true; }
+    // 模块页还没建好（第一次进来它要加载数据）→ 等一下再开
+    let tries = 0;
+    const t = setInterval(() => {
+      tries += 1;
+      const ok = open();
+      if (ok || tries > 20) {
+        clearInterval(t);
+        if (ok) window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }, 300);
+    return true;
+  }
+  window.tkGoModule = goModule;
+  // 护栏：模块页开着的时候，别让 app.js 把「实时总览」之类的常规页显回来
+  function guardModulePages() {
+    const fix = () => {
+      const active = Object.values(MODULE_PAGE_IDS).some((id) => {
+        const el = document.getElementById(id);
+        return el && !el.hidden;
+      });
+      if (!active) return;
+      BASE_PAGE_IDS.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el && !el.hidden) el.hidden = true;
+      });
+    };
+    fix();
+    try {
+      const main = document.querySelector('main.main-area');
+      if (main) new MutationObserver(fix).observe(main, { attributes: true, attributeFilter: ['hidden'], subtree: true });
+    } catch { }
+  }
+
   // 跳转：优先点原始链接（让 app.js 自己的逻辑跑一遍）
   function goView(view) {
     if (view === 'remaining') { openOverviewMaterial(); return; }
+    if (goModule(view)) return;          // 外协/库存/采购/质量：走上面的专用跳转
     const link = document.querySelector('.side-link[data-desktop-view="' + view + '"]');
     if (link) { link.click(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     // 兜底：直接切 section
@@ -268,6 +334,7 @@
     mergeEverything();
     buildNav();
     watchActive();
+    guardModulePages();
 
     // 老链接兜底：#remaining 或 #overview 直接进实时总览
     const hash = (location.hash || '').replace('#', '');
