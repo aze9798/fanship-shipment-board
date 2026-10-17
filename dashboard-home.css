@@ -339,3 +339,23 @@
 .tk-dash-3col .tk-md-head { grid-template-columns: 74px minmax(0, 1fr) 58px 74px; gap: 8px; }
 .tk-dash-3col .tk-md-list { max-height: 306px; }
 .tk-dash-3col .tk-dash-sec { padding: 13px 14px 14px; }
+/* ============================================================
+   第 12 版（2026-10-17 阿泽）：顶部两块补列
+   左：采购单号 / 编号 / 名称 / 图号 / 未交 / 交期
+   右：类型 / 编号 / 名称 / 未交 / 交期
+   ============================================================ */
+.tk-sec-due .tk-md-row,
+.tk-head-due { grid-template-columns: 104px 92px minmax(0, 1fr) 104px 60px 92px; gap: 10px; }
+.tk-md-row em.spec { font-family: Consolas, monospace; }
+.tk-md-row em.po { font-variant-numeric: tabular-nums; }
+
+.tk-sec-special .tk-md-row,
+.tk-head-special { grid-template-columns: 52px 72px minmax(0, 1fr) 60px 92px; gap: 10px; }
+
+/* 屏幕不够宽时先把「图号」收起来，别把名称挤没 */
+@media (max-width: 1780px) {
+  .tk-sec-due .tk-md-row,
+  .tk-head-due { grid-template-columns: 100px 86px minmax(0, 1fr) 58px 88px; }
+  .tk-sec-due .tk-md-row > em.spec,
+  .tk-head-due > em.spec { display: none; }
+}

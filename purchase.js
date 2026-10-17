@@ -137,7 +137,7 @@
     renderBanner('');
     const rows = filtered();
     $('#puEmpty').hidden = rows.length > 0;
-    $('#puEmpty').innerHTML = '<b>这个筛选下没有采购单</b>点右上角「新建采购单」开始。';
+    $('#puEmpty').innerHTML = '<b>这个筛选下没有采购单</b>';
     $('#puBody').innerHTML = rows.map(row).join('');
   }
 

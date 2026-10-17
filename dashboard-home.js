@@ -233,8 +233,10 @@
       const diff = dayDiff(d, c.today);
       const late = diff < 0;
       return `<button type="button" class="tk-md-row" data-act="mk" data-q="${esc(o.material)}">
+          <em class="po">${esc(o.po || '—')}</em>
           <em class="mk">${esc(o.material)}</em>
           <span>${esc(o.name || '')}</span>
+          <em class="spec">${esc(o.spec || '—')}</em>
           <b class="qty${late ? ' late' : ''}">${num(o.remaining)}</b>
           <i class="due${late ? ' late' : ''}">${md(d)}${late ? ' 逾期' + (-diff) + '天' : (diff === 0 ? ' 今天' : '')}</i>
         </button>`;
@@ -246,9 +248,10 @@
     const spHtml = special.length ? special.slice(0, 200).map((o) => {
       const d = String(o.dueDate || '').slice(0, 10);
       const diff = dayDiff(d, c.today);
-      return `<button type="button" class="tk-md-row" data-act="mk" data-q="${esc(o.material)}">
+      return `<button type="button" class="tk-md-row" data-act="mk" data-q="${esc(o.material || 'MISC')}">
           <em class="kind k-${esc(String(o.orderType || ''))}">${TYPE[o.orderType]}</em>
-          <span>${esc(o.name || '')}<small>${esc(o.material)}</small></span>
+          <em class="mk">${esc(o.material || 'MISC')}</em>
+          <span>${esc(o.name || '')}</span>
           <b class="qty">${num(o.remaining)}</b>
           <i class="due${diff < 0 ? ' late' : ''}">${md(d)}${diff < 0 ? ' 逾期' : ''}</i>
         </button>`;
@@ -262,7 +265,7 @@
     ].join(' · ');
 
     return `<div class="tk-dash-2col tk-top">
-      <div class="tk-dash-sec">
+      <div class="tk-dash-sec tk-sec-due">
         <div class="tk-dash-h">
           <b>未交明细</b>
           <span class="tk-dash-sub${lateN ? ' hot' : ''}">${esc(sub)}</span>
@@ -270,13 +273,13 @@
           <button type="button" class="tk-more" data-act="openfull">完整清单 →</button>
         </div>
         <div class="tk-due-bar">${chips}</div>
-        ${mdHead('编号', '名称', '未交', '交期')}
+        <div class="tk-md-head tk-head-due"><em>采购单号</em><em>编号</em><span>名称</span><em class="spec">图号</em><b>未交</b><i>交期</i></div>
         <div class="tk-md-list">${listHtml}</div>
-        <div class="tk-more-hint">共 ${c.open.length} 行未交 · 只列关键字段，点一行去完整清单看全部</div>
+        <div class="tk-more-hint">共 ${c.open.length} 行未交</div>
       </div>
-      <div class="tk-dash-sec">
+      <div class="tk-dash-sec tk-sec-special">
         ${secHead('试制 / 承样', special.length ? (special.length + ' 行') : '没有', 'remaining')}
-        ${mdHead('类型', '名称', '未交', '交期')}
+        <div class="tk-md-head tk-head-special"><em>类型</em><em>编号</em><span>名称</span><b>未交</b><i>交期</i></div>
         <div class="tk-md-list">${spHtml}</div>
       </div>
     </div>`;
@@ -547,14 +550,6 @@
         </div>`).join('')
       : '<div class="tk-empty">还没有发货记录</div>';
 
-    /* 未交最多 */
-    const topRows = c.top.length
-      ? c.top.map((g) => `<div class="tk-li is-static">
-          <em>${esc(g.orders)} 单</em>
-          <span>${esc(g.name || g.material)}<small>${esc(g.material)} · 最早 ${esc(md(g.earliest))}</small></span>
-          <b class="hot">${num(g.qty)} 件</b>
-        </div>`).join('')
-      : '<div class="tk-empty">没有未交料号</div>';
 
     /* 库存概览（数据来自 board_inventory_overview） */
     let invBlock = '';
@@ -602,14 +597,10 @@
         ${attBlock}
       </div>
 
-      <div class="tk-dash-2col">
+      <div class="tk-dash-2col is-single">
         <div class="tk-dash-sec">
           ${secHead('今天装车', c.todayShipCount ? `今日 ${c.todayShipCount} 车 · ${num(c.todayShipQty)} 件` : '今天还没装车，下面是最近 6 次', 'shipments')}
           <div class="tk-list">${shipRows}</div>
-        </div>
-        <div class="tk-dash-sec">
-          ${secHead('未交最多', '前 6 个料号', 'remaining')}
-          <div class="tk-list">${topRows}</div>
         </div>
       </div>
 

@@ -145,7 +145,7 @@
     renderBanner('');
     const rows = filtered();
     $('#qlEmpty').hidden = rows.length > 0;
-    $('#qlEmpty').innerHTML = '<b>这个筛选下没有不良记录</b>外协 / 采购页「标不良」会自动进来；生产中发现的可点右上角手工记一条。';
+    $('#qlEmpty').innerHTML = '<b>这个筛选下没有不良记录</b>';
     $('#qlBody').innerHTML = rows.map(row).join('');
   }
 

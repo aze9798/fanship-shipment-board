@@ -57,8 +57,7 @@
     if (!panel) return;
     if (q.length < 2) {
       panel.hidden = false;
-      panel.innerHTML = '<div class="tk-gs-hint">输入 <b>料号 / 采购单号 / 品名 / 图号</b>，至少 2 个字符。<br>' +
-        (S.extra ? '' : '（图纸和单价会在你输入时自动加载）') + '</div>';
+      panel.innerHTML = '<div class="tk-gs-hint">至少 2 个字符</div>';
       return;
     }
     const d = window.__tkData || {};

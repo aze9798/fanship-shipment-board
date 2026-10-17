@@ -280,3 +280,28 @@ body[data-view="mobile"] .tk-display-btn,
 body[data-view="mobile"] .tk-pop { display: none !important; }
 
 
+
+/* ============================================================
+   公司标识（2026-10-17 阿泽：侧栏那块空着很奇怪）
+   ============================================================ */
+.brand-lockup { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-logo {
+  width: 34px; height: 34px; flex: 0 0 auto;
+  color: var(--ink, #16262b);
+  border-radius: 11px;
+  filter: drop-shadow(0 2px 5px rgba(12, 40, 46, .18));
+}
+.brand-lockup > strong { font-size: 15px; letter-spacing: .01em; white-space: nowrap; }
+.brand-lockup > strong small { display: block; font-size: 10.5px; font-weight: 400; color: var(--muted); margin-top: 1px; }
+/* 报工页签（报工情况 / 待审核 / 报工修改） */
+.tk-work-tabs {
+  display: flex; gap: 3px; padding: 4px; margin: 0 0 14px;
+  background: var(--surface-soft); border: 1px solid var(--line); border-radius: 999px;
+  width: fit-content; max-width: 100%;
+}
+.tk-work-tabs button {
+  height: 30px; padding: 0 18px; border: 0; border-radius: 999px; background: transparent;
+  color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap;
+}
+.tk-work-tabs button:hover { color: var(--ink); }
+.tk-work-tabs button.on { background: var(--ink); color: var(--surface); font-weight: 600; }

@@ -17,13 +17,16 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
   <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
-  <link rel="stylesheet" href="design-tokens.css?v=e78d1e96359b">
-  <link rel="stylesheet" href="ui-polish.css?v=e78d1e96359b">
-  <link rel="stylesheet" href="theme-ui.css?v=e78d1e96359b">
-  <link rel="stylesheet" href="dashboard-home.css?v=e78d1e96359b">
+  <link rel="stylesheet" href="design-tokens.css?v=e79920a56708">
+  <link rel="stylesheet" href="ui-polish.css?v=e79920a56708">
+  <link rel="stylesheet" href="theme-ui.css?v=e79920a56708">
+  <link rel="stylesheet" href="dashboard-home.css?v=e79920a56708">
   <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
-  <link rel="stylesheet" href="home-merge.css?v=e78d1e96359b">
-  <link rel="stylesheet" href="global-search.css?v=e78d1e96359b">
+  <link rel="stylesheet" href="home-merge.css?v=e79920a56708">
+  <link rel="stylesheet" href="global-search.css?v=e79920a56708">
+  <!-- 图纸预览用的 PDF 引擎：首屏空闲时后台预取，别等点开图纸才开始下（2026-10-17） -->
+  <link rel="prefetch" href="vendor/pdf.min.mjs">
+  <link rel="prefetch" href="vendor/pdf.worker.min.mjs">
 <style>
 /* ===== 考勤管理 视觉 ===== */
 .att-tabs{display:flex;gap:6px;padding:5px;background:#e3eeec;border-radius:14px;margin-bottom:12px;overflow-x:auto}
@@ -142,9 +145,15 @@
           </div>
         </div>
         </div>
-        <div>
+        <div class="brand-lockup">
+          <svg class="brand-logo" viewBox="0 0 40 40" role="img" aria-label="帆顺科技">
+            <rect x="1" y="1" width="38" height="38" rx="11" fill="currentColor"/>
+            <path d="M21 8.4v17.4" stroke="#fff" stroke-width="2.1" stroke-linecap="round"/>
+            <path d="M22.9 9.6c4.1 2.3 6.8 5.9 8 10.7h-8z" fill="#fff" opacity=".93"/>
+            <path d="M18.9 12.7c-2.3 1.9-3.8 4.6-4.4 7.6h4.4z" fill="#fff" opacity=".6"/>
+            <path d="M9.6 30.2c2.6 0 2.6 1.8 5.2 1.8s2.6-1.8 5.2-1.8 2.6 1.8 5.2 1.8 2.6-1.8 5.2-1.8" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" opacity=".85"/>
+          </svg>
           <strong id="brandTitle">帆顺科技</strong>
-
         </div>
       </div>
       <nav class="side-nav" aria-label="主导航">
@@ -220,7 +229,7 @@
             <h1>发货计划总览</h1>
           </div>
           <div class="topbar-actions">
-            <button id="pdfImportButton" class="button primary" type="button">导入订单 / 试制 Excel</button>
+            <button id="pdfImportButton" class="button primary" type="button">订单导入</button>
 
             <button id="resetButton" class="button ghost danger-text" type="button">清空演示记录</button>
           </div>
@@ -314,9 +323,8 @@
           <div class="topbar-actions">
             <button id="desktopRemainingPrint" class="button primary" type="button">打印清单</button>
             <button id="desktopLabelPrint" class="button primary label-print-button" type="button">打印标签</button>
-            <button id="desktopRemainingSampleApproval" class="button primary label-print-button" type="button">打印承认书</button>
-            <button id="desktopRemainingExport" class="button ghost" type="button">导出 Excel</button>
-          </div>
+            <button id="desktopRemainingSampleApproval" class="button primary label-print-button" type="button">承样书</button>
+            </div>
         </header>
         <section class="panel desktop-remaining-panel">
           <div class="desktop-remaining-tools">
@@ -1408,7 +1416,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "e78d1e96359b";
+      const fallbackVersion = "e79920a56708";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
@@ -1424,11 +1432,11 @@
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=e78d1e96359b" defer></script>
-  <script src="dashboard-home.js?v=e78d1e96359b" defer></script>
+  <script src="ui-polish.js?v=e79920a56708" defer></script>
+  <script src="dashboard-home.js?v=e79920a56708" defer></script>
 
-  <script src="home-merge.js?v=e78d1e96359b" defer></script>
-  <script src="global-search.js?v=e78d1e96359b" defer></script>
+  <script src="home-merge.js?v=e79920a56708" defer></script>
+  <script src="global-search.js?v=e79920a56708" defer></script>
 </body>
 </html>
 

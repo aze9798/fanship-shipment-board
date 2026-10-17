@@ -184,7 +184,7 @@
     }
     renderBanner('');
     $('#osEmpty').hidden = S.list.length > 0;
-    $('#osEmpty').innerHTML = '<b>这个筛选下没有外协单</b>点右上角「新建外协单」开始。';
+    $('#osEmpty').innerHTML = '<b>这个筛选下没有外协单</b>';
     $('#osBody').innerHTML = S.list.map(row).join('');
   }
 

@@ -17,6 +17,7 @@
 
   const NAV_MAIN = [
     { view: 'overview',  label: '实时总览' },
+    { view: 'remaining', label: '未交清单' },
     { view: 'shipments', label: '查询' },
     { view: 'drawings',  label: '图纸库' },
     { view: 'files',     label: '云端送货单' }
@@ -28,9 +29,7 @@
     { view: 'purchase',   label: '采购 / 来料', admin: true },
     { view: 'quality',    label: '质量 / 不良', admin: true },
     { view: 'prices',     label: '单价查询', admin: true },
-    { view: 'workReport', label: '报工情况', admin: true },
-    { view: 'workReview', label: '报工审核', admin: true },
-    { view: 'workEdit',   label: '报工修改', admin: true },
+    { view: 'work',       label: '报工', admin: true },
     { view: 'attendance', label: '考勤管理', admin: true }
   ];
   const SECTION_TO_VIEW = {
@@ -61,13 +60,14 @@
     const view = document.getElementById('desktopView');
     if (!view || document.getElementById('tkMerge')) return;
 
-    // ① 4 个打印按钮搬到实时总览页头（保持「打印清单/标签/承认书/导出」的原顺序）
+    // ① 页头按钮：订单导入 / 承样书 / 打印清单 / 打印标签
+    //   （2026-10-17 阿泽定顺序，导出 Excel 直接删掉）
     const topActions = view.querySelector(':scope > .topbar .topbar-actions');
-    const pdfBtn = document.getElementById('pdfImportButton');
-    const ids = ['desktopRemainingPrint', 'desktopLabelPrint', 'desktopRemainingSampleApproval', 'desktopRemainingExport'];
-    const btns = ids.map((id) => document.getElementById(id)).filter(Boolean);
-    if (topActions && pdfBtn) {
-      btns.slice().reverse().forEach((b) => topActions.insertBefore(b, pdfBtn));
+    if (topActions) {
+      ['pdfImportButton', 'desktopRemainingSampleApproval', 'desktopRemainingPrint', 'desktopLabelPrint']
+        .forEach((id) => { const el = document.getElementById(id); if (el) topActions.appendChild(el); });
+      const gone = document.getElementById('desktopRemainingExport');
+      if (gone) gone.remove();
     }
 
     // ② 建「未交明细」容器
@@ -86,7 +86,9 @@
       '</div>' +
       '<div class="tk-merge-view" data-mv="orders"></div>' +
       '<div class="tk-merge-view" data-mv="material"></div>';
-    view.appendChild(merge);
+    // 2026-10-17：完整清单不再挂在主页最底部，改成侧栏「未交清单」独立页
+    const remainSection = document.getElementById('desktopRemainingView');
+    if (remainSection) remainSection.appendChild(merge); else view.appendChild(merge);
 
     // 搬「按采购单」表格（原实时总览的 .orders-panel）
     const ordersPanel = view.querySelector('.dashboard-grid .orders-panel') || view.querySelector('.orders-panel');
@@ -118,19 +120,10 @@
       merge.classList.toggle('tk-collapsed', !open);
       if (fold) { fold.setAttribute('aria-expanded', String(open)); fold.firstChild.textContent = open ? '收起' : '展开'; }
     };
-    let folded = true;
-    let savedFold = null;
-    try { savedFold = localStorage.getItem('tkMergeFolded'); } catch { }
-    if (savedFold === '0' || savedFold === '1') folded = savedFold !== '0';
-    else folded = document.body.dataset.home === 'panel';
+    let folded = false;      // 独立成页了，默认展开
+    try { if (localStorage.getItem('tkMergeFolded') === '1') folded = true; } catch { }
     applyFold(!folded);
-    // 主页视图可能是后来才定下来的（第一次访问要等角色校验），跟着重算折叠；用户手动点过就不动
-    window.addEventListener('tk-home-change', () => {
-      let s = null;
-      try { s = localStorage.getItem('tkMergeFolded'); } catch { }
-      if (s === '0' || s === '1') return;
-      applyFold(document.body.dataset.home !== 'panel');
-    });
+
     if (fold) fold.addEventListener('click', (e) => {
       e.stopPropagation();
       const open = merge.classList.contains('tk-collapsed');
@@ -142,7 +135,7 @@
     window.tkOpenMerge = () => {
       applyFold(true);
       try { localStorage.setItem('tkMergeFolded', '0'); } catch { }
-      setTimeout(() => merge.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+      openRemainingPage();
     };
   }
 
@@ -156,10 +149,41 @@
       else el.classList.toggle('on', el.dataset.mv === mergeView);
     });
     const sub = document.getElementById('tkMergeSub');
-    if (sub) sub.textContent = mergeView === 'orders'
-      ? '一行 = 一个采购单项次（跟单、看金额用这个）'
-      : '一行 = 一个料号（同料号的多张单合并，排产、打标签用这个）';
+    if (sub) sub.textContent = '';   // 阿泽说不要引导词
     if (!silent) { /* 切换后让 app.js 重画一次，保证数据最新 */ }
+  }
+
+  /* 报工：原来是三个独立页面（报工情况/报工审核/报工修改），现在合成一个「报工」，
+     三个视图顶部各插一条页签，点页签就是在三个视图之间切（2026-10-17 阿泽要求）。 */
+  const WORK_VIEWS = [
+    { view: 'workReport', label: '报工情况', id: 'desktopWorkReportView' },
+    { view: 'workReview', label: '待审核',   id: 'desktopWorkReviewView' },
+    { view: 'workEdit',   label: '报工修改', id: 'desktopWorkEditView' }
+  ];
+  function buildWorkTabs() {
+    WORK_VIEWS.forEach((w) => {
+      const sec = document.getElementById(w.id);
+      if (!sec || sec.querySelector('.tk-work-tabs')) return;
+      const bar = document.createElement('div');
+      bar.className = 'tk-work-tabs';
+      bar.innerHTML = WORK_VIEWS.map((x) =>
+        '<button type="button" data-work-view="' + x.view + '">' + x.label + '</button>').join('');
+      const header = sec.querySelector(':scope > .topbar');
+      if (header) header.insertAdjacentElement('afterend', bar);
+      else if (sec.firstElementChild) sec.insertBefore(bar, sec.firstElementChild);
+      else sec.appendChild(bar);
+      bar.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-work-view]');
+        if (!b) return;
+        const link = document.querySelector('.side-link[data-desktop-view="' + b.dataset.workView + '"]');
+        if (link) link.click();
+      });
+    });
+  }
+  function paintWorkTabs(activeView) {
+    document.querySelectorAll('.tk-work-tabs button').forEach((b) => {
+      b.classList.toggle('on', b.dataset.workView === activeView);
+    });
   }
 
   /* ---------------- ③ 侧栏 ---------------- */
@@ -326,8 +350,19 @@
   }
 
   // 跳转：优先点原始链接（让 app.js 自己的逻辑跑一遍）
+  function openRemainingPage() {
+    const link = document.querySelector('.side-link[data-desktop-view="remaining"]');
+    if (link) link.click();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
   function goView(view) {
-    if (view === 'remaining') { openOverviewMaterial(); return; }
+    if (view === 'remaining') { openRemainingPage(); return; }
+    if (view === 'work') {
+      const l = document.querySelector('.side-link[data-desktop-view="workReport"]');
+      if (l) l.click();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
     if (goModule(view)) return;          // 外协/库存/采购/质量：走上面的专用跳转
     const link = document.querySelector('.side-link[data-desktop-view="' + view + '"]');
     if (link) { link.click(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
@@ -336,10 +371,8 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   function openOverviewMaterial() {
-    const link = document.querySelector('.side-link[data-desktop-view="overview"]');
-    if (link) link.click();
+    openRemainingPage();
     setMergeView('material');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   // 高亮跟随实际显示的页面（app.js 切页时不会通知我们，用轻量轮询）
@@ -349,6 +382,7 @@
       const view = shown ? (SECTION_TO_VIEW[shown.id] || '') : '';
       if (view === lastActive) return;
       lastActive = view;
+      paintWorkTabs(view);
       const nav = document.getElementById('tkNav');
       if (!nav) return;
       nav.querySelectorAll('a[data-tk-view]').forEach((a) =>
@@ -372,6 +406,7 @@
 
     mergeEverything();
     buildNav();
+    buildWorkTabs();
     watchActive();
     guardModulePages();
 
