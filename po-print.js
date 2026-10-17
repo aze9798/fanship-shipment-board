@@ -23,7 +23,7 @@
   const qty = (n) => Number(n || 0).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
   const day = (v) => String(v || '').slice(0, 10) || '—';
 
-  function buildHtml(kind, rows, poNo) {
+  function buildHtml(kind, rows, poNo, drawMap) {
     const isOs = kind === '02';
     const r0 = rows[0] || {};
     const vendor = isOs ? r0.vendor : r0.supplier;
@@ -73,10 +73,40 @@
       '<div class="sign"><div><div class="line"></div>供方（盖章）：' + esc(vendor || '') + '</div>' +
       '<div><div class="line"></div>需方（盖章）：无锡市帆顺金属科技有限公司</div></div>' +
       '<div class="tips">说明：请按各项次交期送货；数量、单价如有异议请在 1 个工作日内回复。</div>' +
+      (function () {
+        if (!drawMap || !drawMap.size) return '';
+        const lines = rows.map((r, i) => {
+          const d = drawMap.get(String(r.material || '').trim());
+          if (!d) return '';
+          return '<tr><td class="c">' + (i + 1) + '</td><td>' + esc(r.material) + '</td><td>' +
+            esc(r.spec || '—') + '</td><td><a href="' + esc(d.url) + '">' + esc(d.name || '打开图纸') + '</a></td></tr>';
+        }).filter(Boolean).join('');
+        if (!lines) return '';
+        return '<h2 style="font-size:13px;margin:18px 0 6px">图纸附件</h2>' +
+          '<table><thead><tr><th style="width:38px">项次</th><th style="width:120px">料号</th>' +
+          '<th style="width:140px">图号</th><th>图纸文件</th></tr></thead><tbody>' + lines + '</tbody></table>';
+      })() +
       '</body></html>';
   }
 
-  window.tkPrintPo = async function (kind, input, poNoIn) {
+  /* 取图纸：料号 → 图纸公开地址（给采购单附图纸清单用） */
+  let drawMap = null;
+  async function loadDrawings() {
+    if (drawMap) return drawMap;
+    drawMap = new Map();
+    const res = await rpc('board_get_drawings', {});
+    const arr = (res && res.ok && Array.isArray(res.data)) ? res.data : [];
+    const origin = String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
+    arr.forEach((d) => {
+      const key = String(d.material || '').trim();
+      if (key && !drawMap.has(key)) {
+        drawMap.set(key, { url: origin + '/storage/v1/object/public/product-drawings/' + String(d.storagePath || '').split('/').map(encodeURIComponent).join('/'), name: d.fileName || '' });
+      }
+    });
+    return drawMap;
+  }
+
+  window.tkPrintPo = async function (kind, input, poNoIn, opts) {
     const rows = Array.isArray(input) ? input.filter(Boolean) : (input ? [input] : []);
     if (!rows.length) return;
     const k = kind === '01' ? '01' : '02';
@@ -86,11 +116,22 @@
       poNo = (res && res.ok && typeof res.data === 'string') ? res.data : '';
     }
     if (!poNo) { alert('取单号失败：请先在 Supabase 执行 po-number-schema.sql'); return; }
+    const dm = await loadDrawings();
+    const html = buildHtml(k, rows, poNo, dm);
+    if (opts && opts.download) {
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = (poNo || '采购单') + '.html';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      return;
+    }
     const w = window.open('', '_blank');
     if (!w) { alert('浏览器拦了弹窗，请允许本页弹出窗口'); return; }
     try {
-      w.document.open(); w.document.write(buildHtml(k, rows, poNo)); w.document.close(); w.focus();
+      w.document.open(); w.document.write(html); w.document.close(); w.focus();
       setTimeout(() => { try { w.print(); } catch { } }, 400);
-    } catch (e) { alert('打印窗口打开失败：' + e.message); }
+    } catch (e) { alert('打开失败：' + e.message); }
   };
 })();
