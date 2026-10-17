@@ -1,18 +1,25 @@
 /* ============================================================
-   图纸：点「查看图纸」直接在**新窗口**打开 PDF（浏览器自带阅读器）
-   文件：public/drawing-open.js        建立日期：2026-10-17
-   为什么这么做：内嵌预览是图片，宽图要左右拖，阿泽说不好用；
-   浏览器自带的 PDF 阅读器清晰、能缩放、能旋转。
-   做法：提前把「图纸 id → storagePath」拉下来存内存；点的时候同步
-   拼出 public URL 并 window.open（必须同步，否则会被浏览器当弹窗拦掉）。
-   兜底：映射还没准备好，就不拦，交回 app.js 原来的内嵌预览。
-   回滚：删掉 index.html 里这一行 <script> 即可。
+   图纸打开方式（2026-10-17 阿泽定稿）
+   - 电脑端：点“查看图纸 / 图纸”直接新窗口显示图纸预览，不再是内嵌小窗口
+   - 手机端：交给 app.js 的快速预览，不在这里抢事件；手机端也不加载旋转
+   - 新窗口优先显示 JPG 预览图，第 1 页先出，其余页懒加载；
+     预览图不可用时才退回 PDF。
    ============================================================ */
 (() => {
   'use strict';
 
+  const isMobileBoard = new URLSearchParams(location.search).get('view') === 'mobile'
+    || /\/mobile\/?$/.test(location.pathname)
+    || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  if (isMobileBoard) return;
+
   let map = null;
   let loading = null;
+  let manifest = null;
+  let manifestLoading = null;
+
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   function readCode() {
     const mode = new URLSearchParams(location.search).get('mode');
@@ -20,12 +27,19 @@
     try { return localStorage.getItem('shipmentBoardAccessCode' + suffix) || ''; } catch { return ''; }
   }
 
+  function origin() {
+    return String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
+  }
+
   function loadMap() {
     if (map || loading) return loading || Promise.resolve(map);
     const base = window.SHIPMENT_RPC_BASE || '';
     if (!base) { map = new Map(); return Promise.resolve(map); }
     const h = { 'Content-Type': 'application/json' };
-    if (window.SHIPMENT_ANON_KEY) { h.apikey = window.SHIPMENT_ANON_KEY; h.Authorization = 'Bearer ' + window.SHIPMENT_ANON_KEY; }
+    if (window.SHIPMENT_ANON_KEY) {
+      h.apikey = window.SHIPMENT_ANON_KEY;
+      h.Authorization = 'Bearer ' + window.SHIPMENT_ANON_KEY;
+    }
     loading = fetch(base + '/board_get_drawings', {
       method: 'POST', headers: h, body: JSON.stringify({ p_code: readCode() })
     })
@@ -38,58 +52,124 @@
     return loading;
   }
 
-  function pdfUrl(id) {
-    const p = map && map.get(String(id));
-    if (!p) return '';
-    const origin = String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
-    if (!origin) return '';
-    return origin + '/storage/v1/object/public/product-drawings/' +
-      p.split('/').map(encodeURIComponent).join('/');
+  function loadManifest() {
+    if (manifest || manifestLoading) return manifestLoading || Promise.resolve(manifest || {});
+    const base = origin();
+    if (!base) { manifest = {}; return Promise.resolve(manifest); }
+    manifestLoading = fetch(base + '/storage/v1/object/public/product-drawings/_previews.json', { cache: 'force-cache' })
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((data) => { manifest = data && typeof data === 'object' ? data : {}; return manifest; })
+      .catch(() => { manifest = {}; return manifest; });
+    return manifestLoading;
   }
 
-  // 进图纸库就先备好映射（列表 72KB，一次就够）
+  function previewUrl(storagePath, page) {
+    const base = origin();
+    if (!base || !storagePath) return '';
+    const path = String(storagePath).replace(/\.pdf$/i, '') + `-p${page}.jpg`;
+    return base + '/storage/v1/object/public/product-drawings/' + path.split('/').map(encodeURIComponent).join('/');
+  }
+
+  function pdfUrl(storagePath) {
+    const base = origin();
+    if (!base || !storagePath) return '';
+    return base + '/storage/v1/object/public/product-drawings/' + String(storagePath).split('/').map(encodeURIComponent).join('/');
+  }
+
+  function titleOf(btn) {
+    const tr = btn.closest('tr');
+    if (tr) {
+      const cells = [...tr.cells].map((td) => td.textContent.replace(/\s+/g, ' ').trim());
+      const material = String(cells[1] || '').replace(/共.*$/, '').trim();
+      const label = [material, cells[2], cells[3]].filter(Boolean).join(' · ');
+      if (label) return label.slice(0, 100);
+    }
+    const row = btn.closest('.drawing-row, .order-card, .remaining-card, article');
+    const node = row && row.querySelector('.drawing-name, .order-name, .remaining-name, strong');
+    return String((node && node.textContent) || btn.textContent || '图纸').replace(/\s+/g, ' ').trim() || '图纸';
+  }
+
+  function loadingWindow(title) {
+    const win = window.open('', '_blank');
+    if (!win) return null;
+    try {
+      win.document.open();
+      win.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>
+        <style>html,body{margin:0;height:100%;background:#182326;color:#eaf4f2;font:14px "Microsoft YaHei","微软雅黑",sans-serif}body{display:grid;place-items:center}.box{text-align:center;opacity:.9}i{display:block;width:28px;height:28px;margin:0 auto 12px;border:3px solid #3fd0c9;border-right-color:transparent;border-radius:50%;animation:s .8s linear infinite}@keyframes s{to{transform:rotate(360deg)}}</style></head><body><div class="box"><i></i><div>正在加载图纸...</div></div></body></html>`);
+      win.document.close();
+    } catch { }
+    return win;
+  }
+
+  function renderWindow(win, btn, storagePath, data) {
+    if (!win || win.closed) return;
+    const pages = Math.max(1, Math.min(200, Number(data && data[storagePath] || 1)));
+    const first = previewUrl(storagePath, 1);
+    const pdf = pdfUrl(storagePath);
+    const title = titleOf(btn);
+    const images = [];
+    if (first) {
+      images.push(`<img class="drawing-page first" src="${esc(first)}" alt="${esc(title)} 第 1 页">`);
+      for (let page = 2; page <= pages; page += 1) {
+        images.push(`<img class="drawing-page" loading="lazy" src="${esc(previewUrl(storagePath, page))}" alt="${esc(title)} 第 ${page} 页">`);
+      }
+    }
+    const body = images.length
+      ? `<div class="pages">${images.join('')}</div>`
+      : `<div class="error">没有找到可显示的图纸预览</div>`;
+    const fallback = JSON.stringify(pdf);
+    try {
+      win.document.open();
+      win.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>
+        <style>
+          html,body{margin:0;background:#162124;color:#eaf4f2;font:14px "Microsoft YaHei","微软雅黑",sans-serif}
+          header{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:12px;padding:10px 14px;background:rgba(16,30,33,.94);border-bottom:1px solid #2c4347;backdrop-filter:blur(8px)}
+          header b{font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          header span{margin-left:auto;color:#9fb9b8;font-size:12px;white-space:nowrap}
+          .pages{padding:14px;display:flex;flex-direction:column;align-items:center;gap:14px}
+          .drawing-page{display:block;max-width:100%;height:auto;background:#fff;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+          .error{padding:40px;text-align:center;color:#ffb3a7}
+          @media(max-width:640px){header span{display:none}.pages{padding:8px;gap:8px}}
+        </style></head><body><header><b>${esc(title)}</b><span>共 ${pages} 页 · 可用浏览器缩放查看</span></header>${body}
+        <script>(function(){var first=document.querySelector('.drawing-page.first');if(!first)return;first.addEventListener('error',function(){var pdf=${fallback};if(pdf){location.replace(pdf);}else{document.body.innerHTML='<div class="error">预览图加载失败</div>';}},{once:true});})();<\/script>
+        </body></html>`);
+      win.document.close();
+      try { win.focus(); } catch { }
+    } catch { }
+  }
+
+  // 点击任意图纸按钮：先同步开新窗口，避免被弹窗拦截；再异步补内容
+  document.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-drawing-id]');
+    if (!btn) return;
+    const win = loadingWindow(titleOf(btn));
+    if (!win) return; // 被拦截就交给 app.js 原来的内嵌预览兜底
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    Promise.all([loadMap(), loadManifest()]).then(([paths, data]) => {
+      const id = String(btn.dataset.drawingId || '');
+      const storagePath = paths && paths.get(id);
+      if (!storagePath) {
+        try {
+          win.document.body.innerHTML = '<div class="error" style="padding:40px;text-align:center;color:#ffb3a7">图纸地址未找到，请刷新页面后重试</div>';
+        } catch { }
+        return;
+      }
+      renderWindow(win, btn, storagePath, data);
+    }).catch(() => {
+      try { win.document.body.innerHTML = '<div class="error" style="padding:40px;text-align:center;color:#ffb3a7">图纸加载失败，请刷新页面后重试</div>'; } catch { }
+    });
+  }, true);
+
+  // 进图纸库 / 鼠标移到图纸行就先备好地址，点的时候直接出图
   document.addEventListener('click', (e) => {
     if (e.target.closest('[data-tk-view="drawings"], .side-link[data-desktop-view="drawings"]')) loadMap();
   }, true);
   document.addEventListener('mouseover', (e) => {
-    if (e.target.closest('#desktopDrawingsView .drawing-row')) loadMap();
+    if (e.target.closest('#desktopDrawingsView .drawing-row, [data-drawing-id]')) loadMap();
   }, true);
 
-  /* 接管「查看图纸」：直接新窗口开 PDF。
-     app.js 的点击监听比我们早注册，光靠 stopPropagation 拦不住（实测内嵌预览还是会弹），
-     所以映射准备好以后，把这些按钮换成副本——副本不带 app.js 的监听，
-     只走我们自己的新窗口逻辑。列表重绘时会自动再接管一次。 */
-  function armButtons() {
-    if (!map) return;
-    // 整页扫（不只看图纸库）：未交明细点行出来的详情抽屉里也有「图纸」按钮
-    document.querySelectorAll('.drawing-open[data-drawing-id]').forEach((btn) => {
-      if (btn.dataset.tkOpen === '1') return;
-      const clone = btn.cloneNode(true);
-      clone.dataset.tkOpen = '1';
-      btn.parentNode.replaceChild(clone, btn);
-    });
-  }
-  let watching = false;
-  function watchList() {
-    if (watching || !document.body) return;
-    watching = true;
-    try { new MutationObserver(() => armButtons()).observe(document.body, { childList: true, subtree: true }); } catch { }
-  }
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.drawing-open[data-tk-open="1"]');
-    if (!btn) return;
-    const url = pdfUrl(btn.dataset.drawingId);
-    e.preventDefault();
-    e.stopPropagation();
-    if (url) window.open(url, '_blank', 'noopener');
-    else loadMap();
-  }, true);
-  const armTimer = setInterval(() => {
-    watchList();
-    if (map) armButtons();
-  }, 800);
-  setTimeout(() => clearInterval(armTimer), 300000);
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(loadMap, 0));
-  else setTimeout(loadMap, 0);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(() => { void loadMap(); void loadManifest(); }, 0));
+  else setTimeout(() => { void loadMap(); void loadManifest(); }, 0);
 })();

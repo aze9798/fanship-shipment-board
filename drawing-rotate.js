@@ -9,6 +9,12 @@
 (() => {
   'use strict';
 
+  const isMobileBoard = new URLSearchParams(location.search).get('view') === 'mobile'
+    || /\/mobile\/?$/.test(location.pathname)
+    || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  // 手机端不加载旋转功能：不包 wrapper、不挂监听、不创建按钮，减少打开图纸的负担。
+  if (isMobileBoard) return;
+
   const LS = 'tkDrawingRotate';
   let rot = 0;
   try { rot = ((Number(localStorage.getItem(LS) || 0) % 360) + 360) % 360; } catch { rot = 0; }

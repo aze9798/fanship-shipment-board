@@ -3820,6 +3820,11 @@ const DRAWING_CHUNK_BYTES = 1.5 * 1024 * 1024;
 const drawingBlobCache = new Map();
 
 // 图纸走的是国内中转域名吗？（中转域名会把二进制当附件下载、且一次取大文件会超限）
+function isMobileBoardView() {
+  const view = new URLSearchParams(location.search).get('view');
+  return view === 'mobile' || /\/mobile\/?$/.test(location.pathname) || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
+
 function drawingIsRelayed(url) {
   const origin = String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
   if (!origin || !String(url).startsWith(origin)) return false;
@@ -3986,17 +3991,38 @@ async function renderDrawingImagePreview(drawing) {
   const pageCount = Math.max(1, Math.min(200, Number(manifest?.[storagePath] || 1)));
   const firstUrl = drawingPreviewPageUrl(drawing, 1);
   if (!firstUrl) return false;
-  const images = document.createDocumentFragment();
-  for (let page = 1; page <= pageCount; page += 1) {
+  const label = [drawing?.material, drawing?.name, drawing?.spec].filter(Boolean).join(' · ') || '图纸';
+  const makeImage = (page, eager) => {
     const image = new Image();
-    image.alt = `${[drawing?.material, drawing?.name, drawing?.spec].filter(Boolean).join(' · ') || '图纸'} 第 ${page} 页`;
+    image.alt = `${label} 第 ${page} 页`;
     image.decoding = 'async';
-    image.loading = page === 1 ? 'eager' : 'lazy';
-    image.src = drawingPreviewPageUrl(drawing, page);
-    images.appendChild(image);
-  }
-  pages.replaceChildren(images);
+    image.loading = eager ? 'eager' : 'lazy';
+    return image;
+  };
+  pages.replaceChildren();
   status.hidden = false;
+  status.textContent = '正在加载图纸预览...';
+  // 手机端先只取第 1 页，首屏出来后再放其余页；
+  // 这样不会为了 8 页图纸同时抢带宽，打开速度会明显快很多。
+  const first = makeImage(1, true);
+  const firstLoaded = new Promise((resolve) => {
+    let done = false;
+    const finish = (ok) => { if (done) return; done = true; clearTimeout(timer); resolve(ok); };
+    const timer = setTimeout(() => finish(false), 6500);
+    first.onload = () => finish(true);
+    first.onerror = () => finish(false);
+  });
+  first.src = firstUrl;
+  pages.appendChild(first);
+  if (!(await firstLoaded)) {
+    pages.replaceChildren();
+    return false;
+  }
+  for (let page = 2; page <= pageCount; page += 1) {
+    const image = makeImage(page, false);
+    image.src = drawingPreviewPageUrl(drawing, page);
+    pages.appendChild(image);
+  }
   status.textContent = `图纸预览 · 共 ${pageCount} 页`;
   return true;
 }
@@ -4016,7 +4042,13 @@ async function openDrawingViewer(drawing, url, options = {}) {
   modal.hidden = false;
   document.body.style.overflow = 'hidden';
   try {
-    if (await renderDrawingImagePreview(drawing)) return;
+    if (await renderDrawingImagePreview(drawing)) return true;
+    if (options.previewOnly) {
+      if (pages) pages.replaceChildren();
+      if (modal) modal.hidden = true;
+      document.body.style.overflow = '';
+      return false;
+    }
     if (status) {
       status.hidden = false;
       status.textContent = '正在加载 PDF 图纸...';
@@ -4029,11 +4061,13 @@ async function openDrawingViewer(drawing, url, options = {}) {
       drawingViewerTotalPages = Number(pdf.numPages || 0);
       if (!modal.hidden) await renderDrawingPdf(pdf);
     }
+    return true;
   } catch (error) {
     if (status) {
       status.hidden = false;
       status.textContent = `图纸加载失败：${error?.message || '请点击“新窗口打开”'}`;
     }
+    return false;
   }
 }
 
@@ -4041,6 +4075,12 @@ async function openDrawing(id) {
   const cached = (snapshot?.drawings || []).find((row) => String(row.id) === String(id));
   const directUrl = drawingPublicUrl(cached);
   if (directUrl) {
+    // 手机端先走预览图，不要一开始就分块下载整份 PDF。
+    // 之前 8 页图纸要先下 3 段 PDF 才弹预览，手机上要等十几秒。
+    if (isMobileBoardView() && drawingIsRelayed(directUrl)) {
+      const previewShown = await openDrawingViewer(cached, directUrl, { previewOnly: true });
+      if (previewShown) return;
+    }
     if (drawingIsRelayed(directUrl)) {
       try {
         const blobUrl = await fetchDrawingBlobUrl(directUrl, cached?.byteSize);
@@ -12362,6 +12402,11 @@ roleReady.then(() => {
   // 角色确定后再后台补金额（含被网关缓存下来的旧数据），以及图纸清单
   window.setTimeout(() => { void refreshSlowAux(); }, 6000);
 });
+if (isMobileBoardView()) {
+  const warmDrawingPreview = () => { loadDrawingPreviewManifest().catch(() => {}); };
+  if ('requestIdleCallback' in window) requestIdleCallback(warmDrawingPreview, { timeout: 2500 });
+  else setTimeout(warmDrawingPreview, 1200);
+}
 connectEvents();
 startVersionWatch();
 warmOptionalLibraries();
