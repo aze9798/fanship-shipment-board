@@ -78,6 +78,11 @@
           mirror.dataset.mirrorFor = id;
           mirror.addEventListener('click', (event) => {
             event.preventDefault();
+            const overview = document.getElementById('desktopView');
+            if (id === 'desktopRemainingPrint' && overview && !overview.hidden && typeof window.tkPrintDashboardDue === 'function') {
+              window.tkPrintDashboardDue();
+              return;
+            }
             const target = document.getElementById(id);
             if (target) target.click();
           });

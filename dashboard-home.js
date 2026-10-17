@@ -20,7 +20,7 @@
   let osList = [], puList = [], qlList = [];   // 三个模块的完整列表（板块的页签要用）
   let workErr = false, attErr = false, osErr = false;
   let lastFetch = 0, timer = 0, inflight = false, stateAt = 0, modulesTried = false;
-  let duePick = '';   // 未交明细小板块的交期筛选（空 = 全部）
+  let duePicks = new Set();   // 未交明细小板块的交期多选（空 = 全部）
 
   const $ = (s) => document.querySelector(s);
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) =>
@@ -216,16 +216,16 @@
       if (d) byDate.set(d, (byDate.get(d) || 0) + 1);
     }
     const dates = [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-    const chips = `<button type="button" class="tk-due-chip${duePick ? '' : ' on'}" data-act="due-pick" data-d="">全部<em>${c.open.length}</em></button>`
+    const chips = `<button type="button" class="tk-due-chip${duePicks.size ? '' : ' on'}" data-act="due-pick" data-d="">全部<em>${c.open.length}</em></button>`
       + dates.map(([d, n]) => {
         const diff = dayDiff(d, c.today);
-        const cls = 'tk-due-chip' + (duePick === d ? ' on' : '') + (diff < 0 ? ' late' : (diff === 0 ? ' today' : ''));
+        const cls = 'tk-due-chip' + (duePicks.has(d) ? ' on' : '') + (diff < 0 ? ' late' : (diff === 0 ? ' today' : ''));
         const label = md(d) + (diff < 0 ? '·逾期' : (diff === 0 ? '·今天' : ''));
-        return `<button type="button" class="${cls}" data-act="due-pick" data-d="${d}">${label}<em>${n}</em></button>`;
+        return `<button type="button" class="${cls}" data-act="due-pick" data-d="${d}" title="可多选日期">${label}<em>${n}</em></button>`;
       }).join('');
 
     const rows = c.open
-      .filter((o) => !duePick || String(o.dueDate).slice(0, 10) === duePick)
+      .filter((o) => duePicks.size === 0 || duePicks.has(String(o.dueDate || '').slice(0, 10)))
       .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)) || (Number(b.remaining) - Number(a.remaining)))
       .slice(0, 300);
     const listHtml = rows.length ? rows.map((o) => {
@@ -270,12 +270,13 @@
           <b>未交明细</b>
           <span class="tk-dash-sub${lateN ? ' hot' : ''}">${esc(sub)}</span>
           ${qlOpen ? `<span class="tk-dash-sub hot">质量未结案 ${qlOpen} 条</span>` : ''}
+          <button type="button" class="tk-more tk-due-print" data-act="print-due">打印清单</button>
           <button type="button" class="tk-more" data-act="openfull">完整清单 →</button>
         </div>
         <div class="tk-due-bar">${chips}</div>
         <div class="tk-md-head tk-head-due"><em>采购单号</em><em>编号</em><span>名称</span><em class="spec">图号</em><b>未交</b><i>交期</i></div>
         <div class="tk-md-list">${listHtml}</div>
-        <div class="tk-more-hint">共 ${c.open.length} 行未交</div>
+        <div class="tk-more-hint">当前显示 ${rows.length} 行${duePicks.size ? (' · 已选 ' + duePicks.size + ' 个交期') : ' · 全部交期'}；选好后点“打印清单”</div>
       </div>
       <div class="tk-dash-sec tk-sec-special">
         ${secHead('试制 / 承样', special.length ? (special.length + ' 行') : '没有', 'remaining')}
@@ -640,6 +641,16 @@
     }, 60);
   }
 
+  function printDueDates() {
+    const dates = [...duePicks].sort();
+    if (typeof window.tkPrintRemainingListByDates === 'function') {
+      window.tkPrintRemainingListByDates(dates);
+      return;
+    }
+    window.alert('打印组件还在加载，请稍后再点一次');
+  }
+  window.tkPrintDashboardDue = printDueDates;
+
   function onClick(e) {
     // 板块页签（没有 data-act，所以要单独认）
     const tabBtn = e.target.closest('.tk-block-tabs button[data-blk]');
@@ -658,7 +669,14 @@
     if (!el) return;
     const act = el.dataset.act;
     if (act === 'go') goView(el.dataset.view);
-    else if (act === 'due-pick') { duePick = el.dataset.d || ''; render(); }
+    else if (act === 'due-pick') {
+      const d = String(el.dataset.d || '').trim();
+      if (!d) duePicks.clear();
+      else if (duePicks.has(d)) duePicks.delete(d);
+      else duePicks.add(d);
+      render();
+    }
+    else if (act === 'print-due') { printDueDates(); }
     else if (act === 'mk') { openInFullList(el.dataset.q || ''); }
     else if (act === 'openfull') { if (window.tkOpenMerge) window.tkOpenMerge(); }
   }

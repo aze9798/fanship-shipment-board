@@ -9621,6 +9621,19 @@ function printRemainingList(groups = remainingGroups()) {
   setTimeout(() => printWindow.print(), 300);
 }
 
+// 首页“未交明细”多选几个交期后，直接打印这几个交期。
+// 不走完整清单页，避免为了打印再切页面；合并规则仍沿用打印清单原有逻辑。
+function printRemainingListForDates(dates = [], queryText = '') {
+  if (!snapshot) return;
+  const selected = new Set((Array.isArray(dates) ? dates : []).map((date) => String(date || '').trim()).filter(Boolean));
+  let rows = remainingBaseRows();
+  const query = String(queryText || '').trim().toLowerCase();
+  if (query) rows = rows.filter((order) => searchable(order).includes(query));
+  if (selected.size) rows = rows.filter((order) => selected.has(String(order.dueDate || '').trim()));
+  printRemainingList(groupRemainingRows(rows));
+}
+window.tkPrintRemainingListByDates = printRemainingListForDates;
+
 async function loadXlsx() {
   if (window.XLSX) return Promise.resolve(window.XLSX);
   if (!xlsxPromise) {
