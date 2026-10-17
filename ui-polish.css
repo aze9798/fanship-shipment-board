@@ -284,12 +284,20 @@ body[data-view="mobile"] .tk-pop { display: none !important; }
 /* ============================================================
    公司标识（2026-10-17 阿泽：侧栏那块空着很奇怪）
    ============================================================ */
-.brand-lockup { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.brand-logo {
+/* 标识 + 名称：整组在侧栏里水平居中 */
+.brand { justify-content: center; }
+.brand-lockup { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-width: 0; }
+/* 「功能」切换球已经隐藏，它的占位槽别再占 64px，否则整组会偏右 */
+.brand .module-fab-slot { display: none; }
+.brand-mark-fs {
   width: 34px; height: 34px; flex: 0 0 auto;
-  color: var(--ink, #16262b);
+  display: grid; place-items: center;
   border-radius: 11px;
-  filter: drop-shadow(0 2px 5px rgba(12, 40, 46, .18));
+  background: #123c42;
+  color: #fff;
+  font-size: 13px; font-weight: 800; letter-spacing: .05em;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 4px 12px rgba(10, 38, 44, .22), inset 0 1px 0 rgba(255, 255, 255, .16);
 }
 .brand-lockup > strong { font-size: 15px; letter-spacing: .01em; white-space: nowrap; }
 .brand-lockup > strong small { display: block; font-size: 10.5px; font-weight: 400; color: var(--muted); margin-top: 1px; }
