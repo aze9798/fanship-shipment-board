@@ -28,6 +28,19 @@
 
   let density = { mode: 'normal', ...PRESETS.normal };
 
+  /* ---------- 字号档：小 / 中 / 大 / 特大 ---------- */
+  const SIZES = { s: 13, m: 14, l: 15, xl: 16 };
+  let uiSize = 'm';
+  function loadUiSize() {
+    try { const v = String(localStorage.getItem('tkUiSize') || 'm'); uiSize = SIZES[v] ? v : 'm'; } catch { uiSize = 'm'; }
+  }
+  function applyUiSize() {
+    document.body.dataset.uiSize = uiSize;
+    document.body.style.setProperty('--tk-ui-fs', SIZES[uiSize] + 'px');
+    document.querySelectorAll('[data-size-pick]').forEach((b) => b.classList.toggle('on', b.dataset.sizePick === uiSize));
+  }
+  function saveUiSize() { try { localStorage.setItem('tkUiSize', uiSize); } catch { } }
+
   function loadDensity() {
     try {
       const raw = JSON.parse(localStorage.getItem(LS_DENSITY) || 'null');
@@ -58,7 +71,6 @@
     const s = document.body.style;
     s.setProperty('--tk-row-y', density.y + 'px');
     s.setProperty('--tk-row-x', density.x + 'px');
-    s.setProperty('--tk-cell-fs', density.fs + 'px');
     s.setProperty('--tk-cell-lh', String(density.lh));
     updatePreview();
     syncPopUi();
@@ -77,7 +89,7 @@
     popBtn.className = 'tk-display-btn';
     popBtn.setAttribute('aria-expanded', 'false');
     popBtn.setAttribute('aria-haspopup', 'dialog');
-    popBtn.textContent = '行距 / 列距';
+    popBtn.textContent = '显示';
     foot.insertBefore(popBtn, foot.firstChild);
 
     pop = document.createElement('div');
@@ -97,7 +109,14 @@
         <button type="button" data-home-pick="list">清单</button>
         <button type="button" data-home-pick="panel">面板</button>
       </div>
-      <h4>行距 / 列距 <span>只影响表格</span></h4>
+      <h4>字号 <span>整页生效</span></h4>
+      <div class="tk-seg" role="group">
+        <button type="button" data-size-pick="s">小</button>
+        <button type="button" data-size-pick="m">中</button>
+        <button type="button" data-size-pick="l">大</button>
+        <button type="button" data-size-pick="xl">特大</button>
+      </div>
+      <h4>行距 <span>表格的行高</span></h4>
       <div class="tk-seg" role="group">
         <button type="button" data-preset="compact">紧凑</button>
         <button type="button" data-preset="normal">标准</button>
@@ -111,10 +130,7 @@
         <div class="lb">列 · 左右内边距 <b data-out="x"></b></div>
         <input type="range" data-in="x" min="4" max="24" step="1">
       </div>
-      <div class="tk-row">
-        <div class="lb">表体字号 <b data-out="fs"></b></div>
-        <input type="range" data-in="fs" min="12" max="15" step="0.5">
-      </div>
+
       <div class="tk-preview" data-preview></div>
       <div class="tk-actions">
         <button type="button" data-act="reset-cols">重置列宽</button>
@@ -124,6 +140,13 @@
 
     popBtn.addEventListener('click', () => togglePop());
     pop.addEventListener('click', (e) => {
+      const sizePick = e.target.closest('[data-size-pick]');
+      if (sizePick) {
+        uiSize = SIZES[sizePick.dataset.sizePick] ? sizePick.dataset.sizePick : 'm';
+        saveUiSize(); applyUiSize();
+        showTip('字号已调成「' + sizePick.textContent.trim() + '」');
+        return;
+      }
       const homePick = e.target.closest('[data-home-pick]');
       if (homePick) {
         home = homePick.dataset.homePick === 'panel' ? 'panel' : 'list';
@@ -603,11 +626,13 @@
   }
 
   function init() {
+    loadUiSize();
     loadDensity();
     loadTheme();
     loadHome();
     buildSettingsUi();
     applyDensity();
+    applyUiSize();
     applyTheme();
     applyHome();
     watchRoleForDefault();

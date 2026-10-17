@@ -61,20 +61,19 @@
      只走我们自己的新窗口逻辑。列表重绘时会自动再接管一次。 */
   function armButtons() {
     if (!map) return;
-    const v = document.getElementById('desktopDrawingsView');
-    if (!v) return;
-    v.querySelectorAll('.drawing-open[data-drawing-id]').forEach((btn) => {
+    // 整页扫（不只看图纸库）：未交明细点行出来的详情抽屉里也有「图纸」按钮
+    document.querySelectorAll('.drawing-open[data-drawing-id]').forEach((btn) => {
       if (btn.dataset.tkOpen === '1') return;
       const clone = btn.cloneNode(true);
       clone.dataset.tkOpen = '1';
       btn.parentNode.replaceChild(clone, btn);
     });
   }
+  let watching = false;
   function watchList() {
-    const v = document.getElementById('desktopDrawingsView');
-    if (!v || v.dataset.tkOpenWatched === '1') return;
-    v.dataset.tkOpenWatched = '1';
-    try { new MutationObserver(() => armButtons()).observe(v, { childList: true, subtree: true }); } catch { }
+    if (watching || !document.body) return;
+    watching = true;
+    try { new MutationObserver(() => armButtons()).observe(document.body, { childList: true, subtree: true }); } catch { }
   }
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('.drawing-open[data-tk-open="1"]');

@@ -17,13 +17,13 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
   <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
-  <link rel="stylesheet" href="design-tokens.css?v=2ede00317d15">
-  <link rel="stylesheet" href="ui-polish.css?v=2ede00317d15">
-  <link rel="stylesheet" href="theme-ui.css?v=2ede00317d15">
-  <link rel="stylesheet" href="dashboard-home.css?v=2ede00317d15">
+  <link rel="stylesheet" href="design-tokens.css?v=ecbc18653d8d">
+  <link rel="stylesheet" href="ui-polish.css?v=ecbc18653d8d">
+  <link rel="stylesheet" href="theme-ui.css?v=ecbc18653d8d">
+  <link rel="stylesheet" href="dashboard-home.css?v=ecbc18653d8d">
   <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
-  <link rel="stylesheet" href="home-merge.css?v=2ede00317d15">
-  <link rel="stylesheet" href="global-search.css?v=2ede00317d15">
+  <link rel="stylesheet" href="home-merge.css?v=ecbc18653d8d">
+  <link rel="stylesheet" href="global-search.css?v=ecbc18653d8d">
   <!-- 图纸预览用的 PDF 引擎：首屏空闲时后台预取，别等点开图纸才开始下（2026-10-17） -->
   <link rel="prefetch" href="vendor/pdf.min.mjs">
   <link rel="prefetch" href="vendor/pdf.worker.min.mjs">
@@ -1410,7 +1410,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "2ede00317d15";
+      const fallbackVersion = "ecbc18653d8d";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
@@ -1422,17 +1422,36 @@
       };
       fetch('./version.json?t=' + Date.now(), { cache: 'no-store' })
         .then((response) => response.ok ? response.json() : Promise.reject(new Error('version unavailable')))
-        .then((data) => start(data && data.version))
+        .then((data) => {
+          const remote = data && data.version;
+          // 2026-10-17：线上发了新版本、但浏览器/CDN 里这份 index.html 还是旧的壳子 →
+          // 用带参数的新地址重载一次（同一个版本只重载一次，避免死循环）
+          if (remote && remote !== fallbackVersion) {
+            let key = 'tkShell_' + remote;
+            let done = true;
+            try { done = sessionStorage.getItem(key) === '1'; } catch (e) { done = true; }
+            if (!done) {
+              try { sessionStorage.setItem(key, '1'); } catch (e) { }
+              try {
+                const u = new URL(location.href);
+                u.searchParams.set('_v', remote);
+                location.replace(u.toString());
+                return;
+              } catch (e) { }
+            }
+          }
+          start(remote);
+        })
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=2ede00317d15" defer></script>
-  <script src="dashboard-home.js?v=2ede00317d15" defer></script>
+  <script src="ui-polish.js?v=ecbc18653d8d" defer></script>
+  <script src="dashboard-home.js?v=ecbc18653d8d" defer></script>
 
-  <script src="home-merge.js?v=2ede00317d15" defer></script>
-  <script src="global-search.js?v=2ede00317d15" defer></script>
-  <script src="drawing-rotate.js?v=2ede00317d15" defer></script>
-  <script src="drawing-open.js?v=2ede00317d15" defer></script>
+  <script src="home-merge.js?v=ecbc18653d8d" defer></script>
+  <script src="global-search.js?v=ecbc18653d8d" defer></script>
+  <script src="drawing-rotate.js?v=ecbc18653d8d" defer></script>
+  <script src="drawing-open.js?v=ecbc18653d8d" defer></script>
 </body>
 </html>
 

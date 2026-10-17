@@ -93,7 +93,16 @@ body[data-density="roomy"]   { --tk-row-y: 14px; --tk-row-x: 12px; --tk-cell-fs:
 body[data-density] #desktopView .orders-table th,
 body[data-density] #desktopView .orders-table td,
 body[data-density] #desktopView .grouped-remaining-table th,
-body[data-density] #desktopView .grouped-remaining-table td {
+body[data-density] #desktopView .grouped-remaining-table td,
+/* 2026-10-17：完整未交清单搬到「未交清单」独立页后，这几个选择器也要跟上，否则行距/字号调了没反应 */
+body[data-density] #desktopRemainingView .orders-table th,
+body[data-density] #desktopRemainingView .orders-table td,
+body[data-density] #desktopRemainingView .grouped-remaining-table th,
+body[data-density] #desktopRemainingView .grouped-remaining-table td,
+body[data-density] #tkMerge .orders-table th,
+body[data-density] #tkMerge .orders-table td,
+body[data-density] #tkMerge .grouped-remaining-table th,
+body[data-density] #tkMerge .grouped-remaining-table td {
   padding: var(--tk-row-y) var(--tk-row-x);
   font-size: var(--tk-cell-fs);
   line-height: var(--tk-cell-lh);
