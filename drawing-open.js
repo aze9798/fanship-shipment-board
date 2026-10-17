@@ -22,7 +22,10 @@
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   function readCode() {
-    const mode = new URLSearchParams(location.search).get('mode');
+    const q = new URLSearchParams(location.search);
+    const fromUrl = String(q.get('code') || '').trim();
+    if (fromUrl) return fromUrl;
+    const mode = q.get('mode');
     const suffix = (mode === 'admin' || mode === 'user') ? ':' + mode : '';
     try { return localStorage.getItem('shipmentBoardAccessCode' + suffix) || ''; } catch { return ''; }
   }
@@ -32,7 +35,8 @@
   }
 
   function loadMap() {
-    if (map || loading) return loading || Promise.resolve(map);
+    if (map && map.size) return Promise.resolve(map);
+    if (loading) return loading;
     const base = window.SHIPMENT_RPC_BASE || '';
     if (!base) { map = new Map(); return Promise.resolve(map); }
     const h = { 'Content-Type': 'application/json' };
@@ -40,15 +44,25 @@
       h.apikey = window.SHIPMENT_ANON_KEY;
       h.Authorization = 'Bearer ' + window.SHIPMENT_ANON_KEY;
     }
-    loading = fetch(base + '/board_get_drawings', {
-      method: 'POST', headers: h, body: JSON.stringify({ p_code: readCode() })
-    })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((arr) => {
-        map = new Map((Array.isArray(arr) ? arr : []).map((d) => [String(d.id), String(d.storagePath || '')]));
-        return map;
-      })
-      .catch(() => { map = new Map(); return map; });
+    // 刚打开页面时访问码可能还没写进 localStorage，第一次 RPC 会 403；
+    // 这里最多重试 3 次，不能把一次 403 当成“没有图纸”。
+    loading = (async () => {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const r = await fetch(base + '/board_get_drawings', {
+            method: 'POST', headers: h, body: JSON.stringify({ p_code: readCode() })
+          });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const arr = await r.json();
+          map = new Map((Array.isArray(arr) ? arr : []).map((d) => [String(d.id), String(d.storagePath || '')]));
+          return map;
+        } catch {
+          if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 600 * (attempt + 1)));
+        }
+      }
+      map = new Map();
+      return map;
+    })().finally(() => { loading = null; });
     return loading;
   }
 
