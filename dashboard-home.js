@@ -636,7 +636,7 @@
   function openInFullList(q) {
     if (window.tkOpenMerge) window.tkOpenMerge();
     setTimeout(() => {
-      const el = document.getElementById('desktopRemainingSearch') || document.getElementById('desktopSearch');
+      const el = document.getElementById('desktopSearch');
       if (el) { el.value = q; el.dispatchEvent(new Event('input', { bubbles: true })); }
     }, 60);
   }

@@ -90,6 +90,9 @@
         });
       const gone = document.getElementById('desktopRemainingExport');
       if (gone) gone.remove();
+      // 详情页不再承担打印清单；主页的打印清单继续保留。
+      const detailPrint = document.getElementById('desktopRemainingPrint');
+      if (detailPrint) detailPrint.hidden = true;
     }
 
     // ② 建「未交明细」容器
@@ -102,15 +105,17 @@
         '<span class="sub" id="tkMergeSub"></span>' +
         '<button type="button" class="tk-fold" id="tkMergeFold" aria-expanded="false">展开<span class="caret">▾</span></button>' +
       '</div>' +
-      '<div class="tk-merge-view" data-mv="material"></div>';
+      '<div class="tk-merge-view" data-mv="orders"></div>';
     // 2026-10-17：完整清单不再挂在主页最底部，改成侧栏「未交清单」独立页
     const remainSection = document.getElementById('desktopRemainingView');
     if (remainSection) remainSection.appendChild(merge); else view.appendChild(merge);
 
-    // 详情页只保留一份按料号的完整明细；主页的未交明细已经承担按采购单查看。
-    // 搬「按料号」表格（原未交清单的 .desktop-remaining-panel，整块含工具条+表格）
+    // 详情页恢复成“详细版”：按采购单的完整表格，带订单量/已发/未交/项次/单价/金额/交期。
+    // 打印清单已经放到主页，不在详情页重复一套按料号的打印列表。
+    const ordersPanel = view.querySelector('.dashboard-grid .orders-panel') || view.querySelector('.orders-panel');
+    if (ordersPanel) merge.querySelector('.tk-merge-view[data-mv="orders"]').appendChild(ordersPanel);
     const remainPanel = document.querySelector('#desktopRemainingView .desktop-remaining-panel');
-    if (remainPanel) merge.querySelector('.tk-merge-view[data-mv="material"]').appendChild(remainPanel);
+    if (remainPanel) remainPanel.hidden = true;
 
     // 清掉搬空的 dashboard-grid（否则它的 min-width 会撑出空白）
     const grid = view.querySelector('.dashboard-grid');
@@ -148,11 +153,11 @@
   }
 
   function setMergeView(_v, _silent) {
-    mergeView = 'material';
+    mergeView = 'orders';
     const merge = document.getElementById('tkMerge');
     if (!merge) return;
     merge.querySelectorAll('.tk-merge-view').forEach((el) => {
-      el.hidden = el.dataset.mv !== 'material';
+      el.hidden = el.dataset.mv !== 'orders';
     });
     const sub = document.getElementById('tkMergeSub');
     if (sub) sub.textContent = '';
@@ -378,7 +383,7 @@
   }
   function openOverviewMaterial() {
     openRemainingPage();
-    setMergeView('material');
+    setMergeView('orders');
   }
 
   // 高亮跟随实际显示的页面（app.js 切页时不会通知我们，用轻量轮询）
