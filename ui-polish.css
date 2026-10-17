@@ -337,8 +337,5 @@ body[data-view="mobile"] .tk-pop { display: none !important; }
    一个 --tk-ui-fs 管全站：面板按比例算，表体 = 0.93 倍
    ============================================================ */
 body { --tk-ui-fs: 14px; }
-body[data-ui-size="s"]  { --tk-ui-fs: 13px; }
-body[data-ui-size="m"]  { --tk-ui-fs: 14px; }
-body[data-ui-size="l"]  { --tk-ui-fs: 15px; }
-body[data-ui-size="xl"] { --tk-ui-fs: 16px; }
+/* 字号由整站 zoom 控制（见 ui-polish.js），表体跟着面板基准走一档 */
 body[data-density] { --tk-cell-fs: calc(var(--tk-ui-fs) * 0.93); }

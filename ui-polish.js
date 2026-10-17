@@ -29,14 +29,19 @@
   let density = { mode: 'normal', ...PRESETS.normal };
 
   /* ---------- 字号档：小 / 中 / 大 / 特大 ---------- */
-  const SIZES = { s: 13, m: 14, l: 15, xl: 16 };
+  /* 整站缩放：字小不是某一页的问题，是 4K 屏 + 浏览器缩放不匹配。
+     直接对 <html> 做 zoom，等于把整个应用放大，所有页面（云端送货单/查询/图纸库/报工…）一起变大。
+     小=100%（原始） 中=108%  大=116%  特大=126% */
+  const ZOOMS = { s: 0.92, m: 1, l: 1.12, xl: 1.24 };
   let uiSize = 'm';
   function loadUiSize() {
-    try { const v = String(localStorage.getItem('tkUiSize') || 'm'); uiSize = SIZES[v] ? v : 'm'; } catch { uiSize = 'm'; }
+    try { const v = String(localStorage.getItem('tkUiSize') || 'm'); uiSize = ZOOMS[v] ? v : 'm'; } catch { uiSize = 'm'; }
   }
   function applyUiSize() {
     document.body.dataset.uiSize = uiSize;
-    document.body.style.setProperty('--tk-ui-fs', SIZES[uiSize] + 'px');
+    const z = ZOOMS[uiSize] || 1;
+    if (z === 1) document.documentElement.style.removeProperty('zoom');
+    else document.documentElement.style.zoom = String(z);
     document.querySelectorAll('[data-size-pick]').forEach((b) => b.classList.toggle('on', b.dataset.sizePick === uiSize));
   }
   function saveUiSize() { try { localStorage.setItem('tkUiSize', uiSize); } catch { } }
@@ -142,7 +147,7 @@
     pop.addEventListener('click', (e) => {
       const sizePick = e.target.closest('[data-size-pick]');
       if (sizePick) {
-        uiSize = SIZES[sizePick.dataset.sizePick] ? sizePick.dataset.sizePick : 'm';
+        uiSize = ZOOMS[sizePick.dataset.sizePick] ? sizePick.dataset.sizePick : 'm';
         saveUiSize(); applyUiSize();
         showTip('字号已调成「' + sizePick.textContent.trim() + '」');
         return;
