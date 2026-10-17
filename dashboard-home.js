@@ -271,7 +271,7 @@
           <span class="tk-dash-sub${lateN ? ' hot' : ''}">${esc(sub)}</span>
           ${qlOpen ? `<span class="tk-dash-sub hot">质量未结案 ${qlOpen} 条</span>` : ''}
           <button type="button" class="tk-more tk-due-print" data-act="print-due">打印清单</button>
-          <button type="button" class="tk-more" data-act="openfull">完整清单 →</button>
+          <button type="button" class="tk-more" data-act="openfull">未交详情 →</button>
         </div>
         <div class="tk-due-bar">${chips}</div>
         <div class="tk-md-head tk-head-due"><em>采购单号</em><em>编号</em><span>名称</span><em class="spec">图号</em><b>未交</b><i>交期</i></div>
@@ -636,7 +636,7 @@
   function openInFullList(q) {
     if (window.tkOpenMerge) window.tkOpenMerge();
     setTimeout(() => {
-      const el = document.getElementById('desktopSearch');
+      const el = document.getElementById('desktopRemainingSearch') || document.getElementById('desktopSearch');
       if (el) { el.value = q; el.dispatchEvent(new Event('input', { bubbles: true })); }
     }, 60);
   }

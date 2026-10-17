@@ -98,24 +98,16 @@
     merge.className = 'tk-merge';
     merge.innerHTML =
       '<div class="tk-merge-h">' +
-        '<b>完整未交清单</b>' +
+        '<b>未交清单详情</b>' +
         '<span class="sub" id="tkMergeSub"></span>' +
-        '<div class="tk-merge-tabs" id="tkMergeTabs">' +
-          '<button type="button" data-mv="orders">按采购单</button>' +
-          '<button type="button" data-mv="material">按料号</button>' +
-        '</div>' +
         '<button type="button" class="tk-fold" id="tkMergeFold" aria-expanded="false">展开<span class="caret">▾</span></button>' +
       '</div>' +
-      '<div class="tk-merge-view" data-mv="orders"></div>' +
       '<div class="tk-merge-view" data-mv="material"></div>';
     // 2026-10-17：完整清单不再挂在主页最底部，改成侧栏「未交清单」独立页
     const remainSection = document.getElementById('desktopRemainingView');
     if (remainSection) remainSection.appendChild(merge); else view.appendChild(merge);
 
-    // 搬「按采购单」表格（原实时总览的 .orders-panel）
-    const ordersPanel = view.querySelector('.dashboard-grid .orders-panel') || view.querySelector('.orders-panel');
-    if (ordersPanel) merge.querySelector('.tk-merge-view[data-mv="orders"]').appendChild(ordersPanel);
-
+    // 详情页只保留一份按料号的完整明细；主页的未交明细已经承担按采购单查看。
     // 搬「按料号」表格（原未交清单的 .desktop-remaining-panel，整块含工具条+表格）
     const remainPanel = document.querySelector('#desktopRemainingView .desktop-remaining-panel');
     if (remainPanel) merge.querySelector('.tk-merge-view[data-mv="material"]').appendChild(remainPanel);
@@ -124,12 +116,6 @@
     const grid = view.querySelector('.dashboard-grid');
     if (grid && !grid.children.length) grid.remove();
 
-    // 视图切换
-    merge.addEventListener('click', (e) => {
-      const b = e.target.closest('#tkMergeTabs [data-mv]');
-      if (!b) return;
-      setMergeView(b.dataset.mv);
-    });
     setMergeView(mergeView, true);
 
     /* 折叠默认值怎么定（2026-10-17 修白屏）：
@@ -161,18 +147,15 @@
     };
   }
 
-  function setMergeView(v, silent) {
-    mergeView = v === 'material' ? 'material' : 'orders';
-    try { localStorage.setItem('tkMergeView', mergeView); } catch { }
+  function setMergeView(_v, _silent) {
+    mergeView = 'material';
     const merge = document.getElementById('tkMerge');
     if (!merge) return;
-    merge.querySelectorAll('[data-mv]').forEach((el) => {
-      if (el.classList.contains('tk-merge-view')) el.hidden = el.dataset.mv !== mergeView;
-      else el.classList.toggle('on', el.dataset.mv === mergeView);
+    merge.querySelectorAll('.tk-merge-view').forEach((el) => {
+      el.hidden = el.dataset.mv !== 'material';
     });
     const sub = document.getElementById('tkMergeSub');
-    if (sub) sub.textContent = '';   // 阿泽说不要引导词
-    if (!silent) { /* 切换后让 app.js 重画一次，保证数据最新 */ }
+    if (sub) sub.textContent = '';
   }
 
   /* 报工：原来是三个独立页面（报工情况/报工审核/报工修改），现在合成一个「报工」，
@@ -424,8 +407,6 @@
   function init() {
     const isMobile = /\/mobile\/?$/.test(location.pathname) || new URLSearchParams(location.search).get('view') === 'mobile';
     if (isMobile) return;                      // 手机端不动
-
-    try { const v = localStorage.getItem('tkMergeView'); if (v) mergeView = v; } catch { }
 
     mergeEverything();
     buildNav();
