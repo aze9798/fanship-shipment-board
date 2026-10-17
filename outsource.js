@@ -449,6 +449,7 @@
           <div><div class="eyebrow">委外加工</div><h1>外协管理</h1></div>
           <div class="topbar-actions">
             <button id="osRefresh" class="button">刷新</button>
+            <button id="osMerge" class="button">合并采购单</button>
             <button id="osNew" class="button primary">新建外协单</button>
           </div>
         </header>
@@ -481,6 +482,9 @@
     document.addEventListener('click', (e) => {
       if (e.target.closest('#osRefresh')) { load(true); return; }
       if (e.target.closest('#osNew')) { dlgNew(); return; }
+      if (e.target.closest('#osMerge')) { mergePo(); return; }
+      const pickTr = e.target.closest('#osBody tr');
+      if (pickTr && !e.target.closest('[data-act]') && !e.target.closest('button')) { pickTr.classList.toggle('picked'); return; }
       const tab = e.target.closest('#osTabs [data-tab]');
       if (tab) { S.tab = tab.dataset.tab; render(); load(true); return; }
       const op = e.target.closest('#osBody [data-act]');
@@ -502,6 +506,32 @@
         }
       }
     });
+  }
+
+  /* 合并采购单：勾选几行 → 同供应商合并成一个 PO 号 → 打印一张多行采购单 */
+  async function mergePo() {
+    const picked = [...document.querySelectorAll('#osBody tr.picked')]
+      .map((tr) => S.list.find((x) => String(x.id) === tr.dataset.id)).filter(Boolean);
+    if (!picked.length) { toast('先在列表里点几行（点一下行就是选中）'); return; }
+    const groups = new Map();
+    picked.forEach((r) => {
+      const k = String(r.vendor || '未填外协厂').trim();
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(r);
+    });
+    for (const [, rows] of groups) {
+      const res = await rpc('board_po_merge', { p_ids: rows.map((r) => r.id) });
+      if (!res.ok || typeof res.data !== 'string') {
+        toast('合并失败：' + (res.error || '') + '（先在 Supabase 执行 po-merge.sql）');
+        return;
+      }
+      const poNo = res.data;
+      rows.forEach((r) => { r.poNo = poNo; });
+      if (window.tkPrintPo) window.tkPrintPo('02', rows, poNo);
+      await new Promise((r) => setTimeout(r, 600));
+    }
+    toast(groups.size > 1 ? ('已按供应商拆成 ' + groups.size + ' 张采购单') : '已合并为一张采购单');
+    load(true);
   }
 
   function init() {
