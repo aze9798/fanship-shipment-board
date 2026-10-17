@@ -9589,7 +9589,7 @@ function printRemainingList(groups = remainingGroups()) {
       <td>${escapeHtml(group.material)}</td>
       <td>${escapeHtml(group.name)}${remainingTypeTagsHtml(group.types, group.hasReplacement)}</td>
       <td>${escapeHtml(qtyText(group.total))}</td>
-      <td>${escapeHtml(remainingDatesPrintText(group.dates))}</td>
+      <td>${escapeHtml(remainingDatePrintText(group.dates))}</td>
       <td>${group.mark ? '✅' : ''}</td>
     </tr>`).join('');
   const printWindow = window.open('', '_blank');
