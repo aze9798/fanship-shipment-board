@@ -52,7 +52,7 @@
 
   const $ = (s) => document.querySelector(s);
   const isAdmin = () => document.body.dataset.boardRole === 'admin';
-  let mergeView = 'orders';      // orders 按采购单 | material 按料号
+  let mergeView = 'material';    // orders 按采购单 | material 按料号（未交清单默认按料号，日期筛打印就在这里）
   let lastActive = '';
 
   /* ---------------- ① 搬打印按钮 + ② 建未交明细 ---------------- */
@@ -62,10 +62,26 @@
 
     // ① 页头按钮：订单导入 / 承样书 / 打印清单 / 打印标签
     //   （2026-10-17 阿泽定顺序，导出 Excel 直接删掉）
+    // 注意：这里给首页复制一份快捷按钮，不要把“未交清单”页里的原按钮搬走。
+    // 原按钮一搬走，进入未交清单后就找不到“打印清单/打印标签/承样书”，
+    // 日期筛选还在、打印入口却消失了，看起来就像打印功能坏了。
     const topActions = view.querySelector(':scope > .topbar .topbar-actions');
     if (topActions) {
       ['pdfImportButton', 'desktopRemainingSampleApproval', 'desktopRemainingPrint', 'desktopLabelPrint']
-        .forEach((id) => { const el = document.getElementById(id); if (el) topActions.appendChild(el); });
+        .forEach((id) => {
+          const el = document.getElementById(id);
+          if (!el || el.closest('#desktopView')) return;
+          if (topActions.querySelector(`[data-mirror-for="${id}"]`)) return;
+          const mirror = el.cloneNode(true);
+          mirror.removeAttribute('id');
+          mirror.dataset.mirrorFor = id;
+          mirror.addEventListener('click', (event) => {
+            event.preventDefault();
+            const target = document.getElementById(id);
+            if (target) target.click();
+          });
+          topActions.appendChild(mirror);
+        });
       const gone = document.getElementById('desktopRemainingExport');
       if (gone) gone.remove();
     }
