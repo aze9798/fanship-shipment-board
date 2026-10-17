@@ -10252,15 +10252,23 @@ async function openDeliveryModal() {
   const url = `${PRINT_HELPER_BASE}/preview?date=${encodeURIComponent(date)}`;
   // 先确认打印助手在运行，否则浏览器会跳到“拒绝访问”的错误页，用户看不懂
   try {
-    const health = await fetch(`${PRINT_HELPER_BASE}/health`, { cache: 'no-store' });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const health = await fetch(`${PRINT_HELPER_BASE}/health`, { cache: 'no-store', signal: controller.signal });
+    clearTimeout(timer);
     if (!health.ok) throw new Error('打印助手没有响应');
   } catch {
-    showToast('打印助手没在运行：请双击「发货实时看板\\printer\\启动打印助手.cmd」，保持那个窗口打开，再点生成发货单。', 'error');
+    // 注意：showToast 第二个参数是"显示多少毫秒"，这里必须传数字（以前误传 'error'，提示一闪就没，看着像没反应）
+    const message = '打印助手没在运行，生成不了送货单。请双击桌面上的「启动发货单打印助手」，等它启动后再点一次「生成送货单」。';
+    showToast(message, 15000);
+    setTaskStatus(message, 'error');
     return;
   }
-  // 生成送货单之前：前面「无订单发货」的多送能冲抵的先问一下
-  await askOffsetsBeforeDeliveryNote();
-  showToast('正在打开本地送货单预览...');
+  try {
+    // 生成送货单之前：前面「无订单发货」的多送能冲抵的先问一下
+    await askOffsetsBeforeDeliveryNote();
+  } catch { }
+  showToast('正在打开本地送货单预览...', 4000);
   window.location.href = url;
 }
 function closeDeliveryModal() {
