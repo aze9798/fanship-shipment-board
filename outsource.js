@@ -495,7 +495,7 @@
         if (act === 'receipt') dlgReceipt(r);
         else if (act === 'arrived') rpc('board_outsource_note_arrived', { p_id: r.id }).then((res) => {
           if (!res.ok) { toast('标记失败：' + res.error); return; } toast('已标记「货已到，待登记」'); load(true); });
-        else if (act === 'po') window.tkPrintPo && window.tkPrintPo('02', r, '', { download: true });
+        else if (act === 'po') window.tkPrintPo && window.tkPrintPo('02', r);
         else if (act === 'history') dlgHistory(r);
         else if (act === 'edit') dlgEdit(r);
         else if (act === 'ng') dlgNg(r);
@@ -527,7 +527,7 @@
       }
       const poNo = res.data;
       rows.forEach((r) => { r.poNo = poNo; });
-      if (window.tkPrintPo) window.tkPrintPo('02', rows, poNo, { download: true });
+      if (window.tkPrintPo) window.tkPrintPo('02', rows, poNo);
       await new Promise((r) => setTimeout(r, 600));
     }
     toast(groups.size > 1 ? ('已按供应商拆成 ' + groups.size + ' 张采购单') : '已合并为一张采购单');
