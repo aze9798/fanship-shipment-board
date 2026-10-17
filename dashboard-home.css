@@ -359,3 +359,41 @@
   .tk-sec-due .tk-md-row > em.spec,
   .tk-head-due > em.spec { display: none; }
 }
+/* ============================================================
+   第 17 版（2026-10-17 阿泽）：主页字号整体放一档
+   原因：面板里大量 11.5px / 10.5px，4K 屏上看着累。
+   做法：只放大「主页面板」自己的字号，表格主体（--tk-cell-fs）不动；
+   需要更疏的行距，仍可用侧栏「行距 / 列距」。
+   ============================================================ */
+.tk-dash-h > b { font-size: 15px; }
+.tk-dash-h .tk-dash-sub { font-size: 12.5px; }
+
+.tk-stat > span { font-size: 12.5px; }
+.tk-stat > b { font-size: 29px; }
+.tk-stat > i { font-size: 12px; }
+
+.tk-bar { font-size: 13px; }
+.tk-bar > em small { font-size: 12px; }
+
+.tk-li > em { font-size: 12.5px; }
+.tk-li > span { font-size: 14px; }
+.tk-li > span small { font-size: 12px; }
+.tk-li > b { font-size: 15px; }
+.tk-empty { font-size: 13.5px; }
+.tk-more-hint { font-size: 12.5px; }
+
+/* 顶部两块的小明细表 */
+.tk-md-head { font-size: 12px; }
+.tk-md-row { padding: 7px 8px; }
+.tk-md-row em { font-size: 12.5px; }
+.tk-md-row > span { font-size: 13.5px; }
+.tk-md-row > span small { font-size: 11.5px; }
+.tk-md-row b.qty { font-size: 14px; }
+.tk-md-row i.due { font-size: 12.5px; }
+
+/* 页签 / 按钮 / 交期 chips */
+.tk-block-h2 .tk-block-tabs button { font-size: 13px; height: 28px; }
+.tk-block-h1 > b { font-size: 15px; }
+.tk-more { font-size: 13px; height: 28px; }
+.tk-due-chip { font-size: 12.5px; height: 28px; }
+.tk-merge-h .tk-fold { font-size: 12.5px; height: 28px; }
