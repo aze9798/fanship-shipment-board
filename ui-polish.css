@@ -351,3 +351,8 @@ body[data-density] { --tk-cell-fs: calc(var(--tk-ui-fs) * 0.93); }
 }
 /* 页面标题与卡片内容对齐（卡片内边距 18px） */
 .desktop-view > .topbar { padding-left: 18px; padding-right: 18px; }
+
+/* 模块页左对齐统一：标题 / KPI 文字 / 表格首列都落在面板内 18px */
+.desktop-view section.panel > div[class$='-kpis'] { padding-left: 6px !important; padding-right: 6px !important; }
+.desktop-view .panel table th:first-child,
+.desktop-view .panel table td:first-child { padding-left: 18px !important; }
