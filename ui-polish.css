@@ -339,3 +339,15 @@ body[data-view="mobile"] .tk-pop { display: none !important; }
 body { --tk-ui-fs: 14px; }
 /* 字号由整站 zoom 控制（见 ui-polish.js），表体跟着面板基准走一档 */
 body[data-density] { --tk-cell-fs: calc(var(--tk-ui-fs) * 0.93); }
+/* ============================================================
+   字号放大（html zoom）后的高度补偿
+   不补的话：侧栏 100vh 会被放大成 112vh，底部按钮要滚到页面最底才看得到
+   ============================================================ */
+.sidebar { height: calc(100vh / var(--tk-zoom, 1)); }
+.modal-backdrop,
+.drawing-viewer {
+  width: calc(100vw / var(--tk-zoom, 1));
+  height: calc(100vh / var(--tk-zoom, 1));
+}
+/* 页面标题与卡片内容对齐（卡片内边距 18px） */
+.desktop-view > .topbar { padding-left: 18px; padding-right: 18px; }

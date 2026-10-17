@@ -42,6 +42,7 @@
     const z = ZOOMS[uiSize] || 1;
     if (z === 1) document.documentElement.style.removeProperty('zoom');
     else document.documentElement.style.zoom = String(z);
+    document.documentElement.style.setProperty('--tk-zoom', String(z));
     document.querySelectorAll('[data-size-pick]').forEach((b) => b.classList.toggle('on', b.dataset.sizePick === uiSize));
   }
   function saveUiSize() { try { localStorage.setItem('tkUiSize', uiSize); } catch { } }
@@ -106,14 +107,10 @@
     pop.innerHTML = `
       <h4>主题 <span>随时可切回</span></h4>
       <div class="tk-seg" role="group">
-        <button type="button" data-theme-pick="teal">墨绿</button>
-        <button type="button" data-theme-pick="ui">Ui 试验</button>
+        <button type="button" data-theme-pick="ui">极简</button>
+        <button type="button" data-theme-pick="warm">暖白</button>
       </div>
-      <h4>主页 <span>面板＝上面加功能块</span></h4>
-      <div class="tk-seg" role="group">
-        <button type="button" data-home-pick="list">清单</button>
-        <button type="button" data-home-pick="panel">面板</button>
-      </div>
+
       <h4>字号 <span>整页生效</span></h4>
       <div class="tk-seg" role="group">
         <button type="button" data-size-pick="s">小</button>
@@ -136,7 +133,7 @@
         <input type="range" data-in="x" min="4" max="24" step="1">
       </div>
 
-      <div class="tk-preview" data-preview></div>
+
       <div class="tk-actions">
         <button type="button" data-act="reset-cols">重置列宽</button>
         <button type="button" class="primary" data-act="reset-density">恢复默认</button>
@@ -152,13 +149,7 @@
         showTip('字号已调成「' + sizePick.textContent.trim() + '」');
         return;
       }
-      const homePick = e.target.closest('[data-home-pick]');
-      if (homePick) {
-        home = homePick.dataset.homePick === 'panel' ? 'panel' : 'list';
-        saveHome(); applyHome(); syncPopUi();
-        showTip(home === 'panel' ? '主页已切换成面板视图' : '主页已回到清单视图');
-        return;
-      }
+
       const themePick = e.target.closest('[data-theme-pick]');
       if (themePick) {
         theme = themePick.dataset.themePick === 'ui' ? 'ui' : 'teal';
@@ -304,12 +295,10 @@
   function loadHome() {
     readHomeFromUrl();
     homeByDefault = false;
+    // 2026-10-17 阿泽：主页固定是面板（清单视图已独立成「未交清单」页）
+    // 只有 ?home=list 这种显式参数还能覆盖，方便临时排查
     if (homeFromUrl) { home = homeFromUrl; return; }
-    let saved = '';
-    try { saved = String(localStorage.getItem(LS_HOME) || ''); } catch { saved = ''; }
-    if (saved === 'panel' || saved === 'list') { home = saved; return; }
-    homeByDefault = true;
-    home = roleFromCache() === 'admin' ? 'panel' : 'list';
+    home = 'panel';
   }
   function saveHome() { if (homeFromUrl) return; try { localStorage.setItem(LS_HOME, home); } catch { } }
   /* 第一次访问（本地还没缓过角色）时，等 app.js 把角色定下来，再按角色定默认视图 */
@@ -341,19 +330,18 @@
     window.dispatchEvent(new CustomEvent('tk-home-change'));
   }
   /* ---------- 主题：墨绿（默认） / Ui（试验） ---------- */
-  let theme = 'ui';   // 2026-10-16 阿泽定：Ui 冷灰设为默认（点「墨绿」可切回）
+  let theme = 'ui';   // 2026-10-17：墨绿下线，只留「极简 / 暖白」两套
   function loadTheme() {
     try {
       const raw = String(localStorage.getItem(LS_THEME) || '');
-      theme = raw === 'teal' ? 'teal' : 'ui';   // 没存过就默认 ui
-    } catch { theme = 'teal'; }
+      theme = raw === 'warm' ? 'warm' : 'ui';
+    } catch { theme = 'ui'; }
   }
   function saveTheme() {
     try { localStorage.setItem(LS_THEME, theme); } catch { }
   }
   function applyTheme() {
-    if (theme === 'ui') document.body.dataset.theme = 'ui';
-    else delete document.body.dataset.theme;
+    document.body.dataset.theme = theme === 'warm' ? 'warm' : 'ui';
   }
   /* ============================================================
      ② 日期框：统一规格 + 快捷「今天」
