@@ -156,6 +156,7 @@
         <button class="ops" data-act="history">记录</button>
         <button class="ops" data-act="edit" ${canOps ? '' : 'disabled'}>改</button>
         <button class="ops ng" data-act="ng" ${Number(r.receivedQty) > 0 ? '' : 'disabled'}>标不良</button>
+        <button class="ops" data-act="po" title="按单号打印采购单">采购单</button>
         <button class="ops" data-act="close" ${canOps ? '' : 'disabled'}>结单</button>
       </div></td>
     </tr>`;
@@ -490,6 +491,7 @@
         if (act === 'receipt') dlgReceipt(r);
         else if (act === 'arrived') rpc('board_outsource_note_arrived', { p_id: r.id }).then((res) => {
           if (!res.ok) { toast('标记失败：' + res.error); return; } toast('已标记「货已到，待登记」'); load(true); });
+        else if (act === 'po') window.tkPrintPo && window.tkPrintPo('02', r);
         else if (act === 'history') dlgHistory(r);
         else if (act === 'edit') dlgEdit(r);
         else if (act === 'ng') dlgNg(r);
