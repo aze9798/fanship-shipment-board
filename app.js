@@ -293,7 +293,7 @@ let mobileSearch = '';
 let historyDate = '';
 let recordsSearch = '';
 let recordsDate = '';
-let recordsCompany = '艾沃意特';
+let recordsCompany = '';   /* 2026-10-17 默认全部公司：原来写死艾沃意特，手机查询会漏掉邦凡那部分 */
 let recordsBatch = '';
 let recordsMonth = '';
 let recordsFilterPanel = '';
@@ -7521,7 +7521,7 @@ function renderMobileRecordFilterPanel() {
   panel.hidden = false;
   if (recordsFilterPanel === 'company') {
     panel.innerHTML = `<div class="record-filter-options">
-      ${['艾沃意特', '邦凡'].map((company) => `<button type="button" class="record-filter-option ${company === recordsCompany ? 'active' : ''}" data-record-company="${escapeHtml(company)}">${escapeHtml(company)}</button>`).join('')}
+      ${[{ k: '', label: '全部' }, { k: '艾沃意特', label: '艾沃意特' }, { k: '邦凡', label: '邦凡' }].map((x) => `<button type="button" class="record-filter-option ${x.k === recordsCompany ? 'active' : ''}" data-record-company="${escapeHtml(x.k)}">${escapeHtml(x.label)}</button>`).join('')}
     </div>`;
     return;
   }
@@ -7580,7 +7580,7 @@ function handleMobileRecordFilterClick(event) {
   }
   const companyButton = event.target.closest('[data-record-company]');
   if (companyButton) {
-    recordsCompany = companyButton.dataset.recordCompany || '艾沃意特';
+    recordsCompany = companyButton.dataset.recordCompany || '';
     recordsBatch = '';
     recordsDate = '';
     recordsMonth = '';
