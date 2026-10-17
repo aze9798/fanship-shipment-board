@@ -359,6 +359,9 @@
       <h3>修改外协单</h3>
       <div class="os-sub">${esc(r.vendor)} · ${esc(r.material)} ${esc(r.name || '')}</div>
       <div class="os-form">
+        <label><span>外协厂</span><input id="osEv" value="${esc(r.vendor || '')}"></label>
+        <label><span>料号</span><input id="osEmk" value="${esc(r.material || '')}"></label>
+        <label class="full"><span>品名</span><input id="osEnm" value="${esc(r.name || '')}"></label>
         <label><span>发出数量</span><input id="osEq" type="number" step="1" min="1" value="${Number(r.qty)}"></label>
         <label><span>要求交期</span><input id="osEd" type="date" value="${esc(String(r.dueDate || '').slice(0, 10))}"></label>
         <label><span>外协单价（元）</span><input id="osEp" type="number" step="0.0001" min="0" value="${r.unitPrice == null ? '' : Number(r.unitPrice)}"></label>
@@ -382,7 +385,11 @@
       }
       b.disabled = true;
       const res = await rpc('board_outsource_update', { p_payload: {
-        id: r.id, qty: modal.querySelector('#osEq').value.trim(),
+        id: r.id,
+        vendor: modal.querySelector('#osEv').value.trim(),
+        material: modal.querySelector('#osEmk').value.trim(),
+        name: modal.querySelector('#osEnm').value.trim(),
+        qty: modal.querySelector('#osEq').value.trim(),
         dueDate: modal.querySelector('#osEd').value, unitPrice: modal.querySelector('#osEp').value.trim(),
         note: modal.querySelector('#osEn').value.trim() } });
       b.disabled = false;
