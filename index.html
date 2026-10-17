@@ -17,13 +17,14 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
   <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
-  <link rel="stylesheet" href="design-tokens.css?v=0505036212b8">
-  <link rel="stylesheet" href="ui-polish.css?v=0505036212b8">
-  <link rel="stylesheet" href="theme-ui.css?v=0505036212b8">
-  <link rel="stylesheet" href="dashboard-home.css?v=0505036212b8">
+  <link rel="stylesheet" href="design-tokens.css?v=5e1d4a02e3fe">
+  <link rel="stylesheet" href="ui-polish.css?v=5e1d4a02e3fe">
+  <link rel="stylesheet" href="theme-ui.css?v=5e1d4a02e3fe">
+  <link rel="stylesheet" href="dashboard-home.css?v=5e1d4a02e3fe">
   <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
-  <link rel="stylesheet" href="home-merge.css?v=0505036212b8">
-  <link rel="stylesheet" href="global-search.css?v=0505036212b8">
+  <link rel="stylesheet" href="home-merge.css?v=5e1d4a02e3fe">
+  <link rel="stylesheet" href="global-search.css?v=5e1d4a02e3fe">
+  <link rel="stylesheet" href="partners.css?v=5e1d4a02e3fe">
   <!-- 图纸预览用的 PDF 引擎：首屏空闲时后台预取，别等点开图纸才开始下（2026-10-17） -->
   <link rel="prefetch" href="vendor/pdf.min.mjs">
   <link rel="prefetch" href="vendor/pdf.worker.min.mjs">
@@ -1410,7 +1411,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "0505036212b8";
+      const fallbackVersion = "5e1d4a02e3fe";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
@@ -1445,13 +1446,14 @@
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=0505036212b8" defer></script>
-  <script src="dashboard-home.js?v=0505036212b8" defer></script>
+  <script src="ui-polish.js?v=5e1d4a02e3fe" defer></script>
+  <script src="dashboard-home.js?v=5e1d4a02e3fe" defer></script>
 
-  <script src="home-merge.js?v=0505036212b8" defer></script>
-  <script src="global-search.js?v=0505036212b8" defer></script>
-  <script src="drawing-rotate.js?v=0505036212b8" defer></script>
-  <script src="drawing-open.js?v=0505036212b8" defer></script>
+  <script src="home-merge.js?v=5e1d4a02e3fe" defer></script>
+  <script src="global-search.js?v=5e1d4a02e3fe" defer></script>
+  <script src="drawing-rotate.js?v=5e1d4a02e3fe" defer></script>
+  <script src="drawing-open.js?v=5e1d4a02e3fe" defer></script>
+  <script src="partners.js?v=5e1d4a02e3fe" defer></script>
 </body>
 </html>
 

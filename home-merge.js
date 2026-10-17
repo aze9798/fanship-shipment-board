@@ -24,6 +24,7 @@
   ];
   const NAV_MORE = [
     { view: 'loading',    label: '装车登记（电脑端备用）' },
+    { view: 'partners',   label: '客商信息', admin: true },
     { view: 'outsource',  label: '外协管理', admin: true },
     { view: 'inventory',  label: '库存', admin: true },
     { view: 'purchase',   label: '采购 / 来料', admin: true },
@@ -276,6 +277,7 @@
      两个页面叠在一起，用户看着就像"没跳过去"。
      所以这四个模块单独走一条路：先让模块自己的逻辑跑一遍，再把常规页全部藏掉，并加一道护栏。 */
   const MODULE_PAGE_IDS = {
+    partners: 'desktopPartnersView',
     outsource: 'desktopOutsourceView', inventory: 'desktopInventoryView',
     purchase: 'desktopPurchaseView',   quality: 'desktopQualityView'
   };
