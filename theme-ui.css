@@ -439,3 +439,51 @@ body[data-theme="warm"] .sidebar {
   border-right: 1px solid var(--line);
 }
 body[data-theme="warm"] .brand-mark-fs { background: #2f4f4f; }
+/* ------------------------------------------------------------
+   深色石墨（2026-10-18）
+   ------------------------------------------------------------ */
+body[data-theme="dark"] {
+  --bg:            #0f1113;
+  --surface:       #171a1d;
+  --surface-soft:  #1d2125;
+  --ink:           #e9edf1;
+  --muted:         #98a2ad;
+  --line:          #2a3036;
+  --line2:         #23282d;
+  --primary:       #2dd4bf;
+  --primary-strong:#14b8a6;
+  --primary-soft:  #10312e;
+  --nav:           #14171a;
+  --nav-soft:      #1b1f23;
+  --accent:        #ff7a66;
+  --accent-soft:   #3a201c;
+  --danger:        #ff7a66;
+  --danger-soft:   #3a201c;
+  --success:       #2dd4bf;
+  --success-soft:  #10312e;
+  --shadow:        0 1px 3px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .04);
+  --shadow-soft:   0 1px 3px rgba(0, 0, 0, .45), 0 0 0 1px rgba(255, 255, 255, .03);
+  --radius:        20px;
+  --radius-sm:     10px;
+}
+body[data-theme="dark"] .sidebar {
+  background: #14171a;
+  border-right: 1px solid var(--line);
+}
+body[data-theme="dark"] .brand strong,
+body[data-theme="dark"] .mobile-brand strong { color: var(--ink); }
+body[data-theme="dark"] .brand span,
+body[data-theme="dark"] .mobile-brand span { color: var(--muted); }
+body[data-theme="dark"] .brand-mark-fs { background: #2dd4bf; color: #08201d; }
+body[data-theme="dark"] .tk-nav a,
+body[data-theme="dark"] .side-link { color: var(--muted); }
+body[data-theme="dark"] .tk-nav a.on,
+body[data-theme="dark"] .side-link.active { background: #232a2f; color: var(--ink); }
+body[data-theme="dark"] input,
+body[data-theme="dark"] select,
+body[data-theme="dark"] textarea { background: #12161a; color: var(--ink); border-color: var(--line); }
+body[data-theme="dark"] .button.primary,
+body[data-theme="dark"] .tk-acts .primary { color: #06201c; }
+body[data-theme="dark"] .os-modal,
+body[data-theme="dark"] .pt-modal,
+body[data-theme="dark"] .modal-card { background: var(--surface); color: var(--ink); }

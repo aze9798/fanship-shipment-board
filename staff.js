@@ -6,7 +6,7 @@
   const state = {
     code: '', employees: [], att: new Map(), work: new Map(),
     tab: 'info', month: currentMonth(), employeeSearch: '', employeeType: '', employeeStatus: 'active',
-    payrollSearch: '', payrollType: '', editEmployee: null
+    payrollSearch: '', payrollType: '', editEmployee: null, payrollSource: 'auto', imported: []
   };
   let toastTimer = 0;
 
@@ -100,6 +100,13 @@
     state.att = new Map((attRes.summary || []).map((r) => [String(r.employeeNo), r]));
     state.work = new Map((workRes || []).map((r) => [String(r.employeeNo), r]));
     state.month = month;
+    let imported = [];
+    try {
+      const importedRes = await rpc('board_payroll_list', { p_code: state.code, p_month: from });
+      imported = Array.isArray(importedRes?.rows) ? importedRes.rows : [];
+    } catch { imported = []; }
+    state.imported = imported;
+    state.payrollSource = imported.length ? 'imported' : 'auto';
   }
   async function refreshAll() {
     try {
@@ -115,6 +122,7 @@
     renderEmployees();
     renderPayroll();
     $('#payrollMonth').value = state.month;
+    $('#payrollSource').value = state.payrollSource;
   }
 
   function filteredEmployees() {
@@ -188,7 +196,41 @@
       pieceCount: Number(work?.pieceCount || 0), pending: Number(work?.pendingCount || 0)
     };
   }
+  function importedPayrollRows() {
+    const q = state.payrollSearch.trim().toLowerCase();
+    return state.imported
+      .filter((r) => !state.payrollType || r.salaryType === state.payrollType)
+      .filter((r) => !q || [r.employeeNo, r.employeeName].some((v) => String(v || '').toLowerCase().includes(q)));
+  }
+  function renderImportedPayroll() {
+    const rows = importedPayrollRows();
+    const total = rows.reduce((s, r) => s + Number(r.totalSalary || 0), 0);
+    const dailyTotal = rows.filter((r) => r.salaryType === 'daily').reduce((s, r) => s + Number(r.totalSalary || 0), 0);
+    const monthlyTotal = rows.filter((r) => r.salaryType === 'monthly' || r.salaryType === 'management').reduce((s, r) => s + Number(r.totalSalary || 0), 0);
+    const pieceTotal = rows.filter((r) => r.salaryType === 'hourly_piece').reduce((s, r) => s + Number(r.totalSalary || 0), 0);
+    $('#payrollSummary').innerHTML =
+      `<article class="stat"><span>本月工资合计</span><strong>${money(total)}</strong><small>${esc(state.month)} · 历史导入</small></article>
+       <article class="stat"><span>固定日薪合计</span><strong>${money(dailyTotal)}</strong><small>导入快照</small></article>
+       <article class="stat"><span>固定月薪合计</span><strong>${money(monthlyTotal)}</strong><small>含管理岗</small></article>
+       <article class="stat"><span>计时计件合计</span><strong>${money(pieceTotal)}</strong><small>导入快照</small></article>`;
+    const tbody = $('#payrollRows');
+    tbody.innerHTML = rows.map((r) => `<tr>
+      <td class="mono">${esc(r.employeeNo || '—')}</td><td><strong>${esc(r.employeeName)}</strong></td>
+      <td><span class="tag ${typeClass(r.salaryType)}">${esc(typeText(r.salaryType))}</span></td>
+      <td class="num">${r.salaryType === 'hourly_piece' ? '—' : num(r.attendanceDays)}</td>
+      <td class="num">${r.salaryType === 'daily' ? money(r.dailySalary) : '—'}</td>
+      <td class="num">${r.salaryType === 'daily' ? num(r.overtimeDays) : '—'}</td>
+      <td class="num">${r.salaryType === 'daily' ? money(Number(r.overtimeDays || 0) * Number(r.overtimeRate || 0)) : '—'}</td>
+      <td class="num">${(r.salaryType === 'monthly' || r.salaryType === 'management') ? money(r.monthlySalary) : '—'}</td>
+      <td class="num">${r.salaryType === 'hourly_piece' ? money(r.pieceSalary) : '—'}</td>
+      <td class="num"><strong>${money(r.totalSalary)}</strong></td>
+      <td><button class="btn small" type="button" data-import-edit="${esc(r.id)}">编辑导入</button></td>
+    </tr>`).join('');
+    $('#payrollEmpty').hidden = rows.length > 0;
+    tbody.querySelectorAll('[data-import-edit]').forEach((b) => b.addEventListener('click', () => openImportPayrollModal(b.dataset.importEdit)));
+  }
   function renderPayroll() {
+    if (state.payrollSource === 'imported' && state.imported.length) return renderImportedPayroll();
     const rows = payrollRows();
     const total = rows.reduce((s, r) => s + Number(r.calc.total || 0), 0);
     const dailyTotal = rows.filter((r) => r.e.salaryType === 'daily').reduce((s, r) => s + Number(r.calc.total || 0), 0);
@@ -348,7 +390,49 @@
   }
   function closeDetail() { $('#detailOverlay').classList.remove('show'); }
 
+  function openImportPayrollModal(id) {
+    const r = state.imported.find((x) => String(x.id) === String(id));
+    if (!r) return;
+    $('#importPayrollTitle').textContent = '编辑导入工资 · ' + r.employeeName;
+    $('#ipName').value = r.employeeName || '';
+    $('#ipType').value = r.salaryType || 'daily';
+    $('#ipDays').value = r.attendanceDays ?? '';
+    $('#ipOvertimeDays').value = r.overtimeDays ?? '';
+    $('#ipDaily').value = r.dailySalary ?? '';
+    $('#ipOvertimeRate').value = r.overtimeRate ?? '';
+    $('#ipMonthly').value = r.monthlySalary ?? '';
+    $('#ipPiece').value = r.pieceSalary ?? '';
+    $('#ipTotal').value = r.totalSalary ?? '';
+    $('#ipNote').value = r.note || '';
+    $('#importPayrollError').style.display = 'none';
+    state.editImported = r;
+    $('#importPayrollOverlay').classList.add('show');
+  }
+  function closeImportPayroll() { $('#importPayrollOverlay').classList.remove('show'); state.editImported = null; }
+  async function saveImportPayroll() {
+    const r = state.editImported;
+    if (!r) return;
+    const payload = {
+      monthStart: state.month + '-01', employeeNo: r.employeeNo || '', employeeName: r.employeeName,
+      salaryType: $('#ipType').value,
+      attendanceDays: $('#ipDays').value || null, overtimeDays: $('#ipOvertimeDays').value || null,
+      dailySalary: $('#ipDaily').value || null, overtimeRate: $('#ipOvertimeRate').value || null,
+      monthlySalary: $('#ipMonthly').value || null, pieceSalary: $('#ipPiece').value || null,
+      totalSalary: $('#ipTotal').value || 0, note: $('#ipNote').value.trim(), source: r.source || '手工修改'
+    };
+    const btn = $('#importPayrollSave'); btn.disabled = true; btn.textContent = '保存中...';
+    try {
+      const res = await rpc('board_payroll_save', { p_code: state.code, p_payload: payload });
+      if (!res || res.ok !== true) throw new Error(res?.message || '保存失败');
+      closeImportPayroll(); toast('导入工资已修改');
+      await loadPayroll(state.month); renderAll();
+    } catch (e) {
+      const box = $('#importPayrollError'); box.textContent = e.message || '保存失败'; box.style.display = 'block';
+    } finally { btn.disabled = false; btn.textContent = '保存导入工资'; }
+  }
+
   function exportPayroll() {
+    if (state.payrollSource === 'imported' && state.imported.length) return exportImportedPayroll();
     const rows = payrollRows();
     const lines = [
       ['工号','姓名','工资类型','出勤天数','日薪','加班天数','加班费','月薪','计时工资','计件工资','应付合计'],
@@ -372,6 +456,20 @@
     document.body.appendChild(a);
     a.click();
     a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  function exportImportedPayroll() {
+    const rows = importedPayrollRows();
+    const lines = [
+      ['工号','姓名','工资类型','出勤天数','日薪','加班天数','加班费','月薪','计件工资','应付合计','备注'],
+      ...rows.map((r) => [r.employeeNo || '', r.employeeName, typeText(r.salaryType), r.attendanceDays ?? '', r.dailySalary ?? '', r.overtimeDays ?? '', Number(r.overtimeDays || 0) * Number(r.overtimeRate || 0), r.monthlySalary ?? '', r.pieceSalary ?? '', r.totalSalary ?? 0, r.note || ''])
+    ];
+    const csv = '\ufeff' + lines.map((line) => line.map((v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `工资表_${state.month}_导入.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }
 
@@ -409,10 +507,19 @@
     });
     $('#payrollSearch').addEventListener('input', (e) => { state.payrollSearch = e.target.value; renderPayroll(); });
     $('#payrollTypeFilter').addEventListener('change', (e) => { state.payrollType = e.target.value; renderPayroll(); });
+    $('#payrollSource').addEventListener('change', (e) => {
+      state.payrollSource = e.target.value === 'imported' ? 'imported' : 'auto';
+      if (state.payrollSource === 'imported' && !state.imported.length) { toast('这个月没有导入工资数据'); state.payrollSource = 'auto'; e.target.value = 'auto'; }
+      renderPayroll();
+    });
+    $('#importPayrollClose').addEventListener('click', closeImportPayroll);
+    $('#importPayrollCancel').addEventListener('click', closeImportPayroll);
+    $('#importPayrollSave').addEventListener('click', saveImportPayroll);
+    $('#importPayrollOverlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeImportPayroll(); });
     $('#payrollRefresh').addEventListener('click', () => loadPayroll(state.month).then(renderPayroll).catch((err) => toast(err.message || '工资加载失败', true)));
     $('#payrollExport').addEventListener('click', exportPayroll);
     $('#payrollPrint').addEventListener('click', () => window.print());
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeEmployeeModal(); closeDetail(); } });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeEmployeeModal(); closeDetail(); closeImportPayroll(); } });
   }
 
   async function init() {

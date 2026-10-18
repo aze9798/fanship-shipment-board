@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>员工与工资 · 帆顺科技</title>
 <link rel="stylesheet" href="design-tokens.css">
-<link rel="stylesheet" href="staff.css?v=8d749739ef69">
+<link rel="stylesheet" href="staff.css?v=4e8d43ed3215">
 <script>
   window.SHIPMENT_RPC_BASE = "https://fanshun-work-d1gkeq1fjef6147a1-1504638929.ap-shanghai.app.tcloudbase.com/rest/v1/rpc";
   window.SHIPMENT_DIRECT_RPC_BASE = "https://dkbeigqtiilgxthwkixg.supabase.co/rest/v1/rpc";
@@ -60,6 +60,7 @@
           <label class="field" style="flex:0 0 180px"><span>工资月份</span><input id="payrollMonth" type="month"></label>
           <label class="grow field"><span>搜索</span><input id="payrollSearch" type="search" placeholder="工号 / 姓名"></label>
           <label class="mini field"><span>工资类型</span><select id="payrollTypeFilter"><option value="">全部类型</option><option value="daily">固定日薪</option><option value="hourly_piece">计时计件</option><option value="monthly">固定月薪</option><option value="management">管理（免考勤）</option></select></label>
+          <label class="mini field"><span>数据来源</span><select id="payrollSource"><option value="auto">自动计算</option><option value="imported">历史导入</option></select></label>
           <button id="payrollRefresh" class="btn" type="button">重算</button>
           <button id="payrollExport" class="btn" type="button">导出 Excel</button>
           <button id="payrollPrint" class="btn" type="button">打印工资表</button>
@@ -123,7 +124,29 @@
     <div class="modal-body" id="detailBody"></div>
   </section>
 </div>
+<div id="importPayrollOverlay" class="overlay">
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="importPayrollTitle">
+    <div class="modal-head"><h3 id="importPayrollTitle">编辑导入工资</h3><button class="btn small ghost close" id="importPayrollClose" type="button">关闭</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <label class="field"><span>姓名</span><input id="ipName" type="text" readonly></label>
+        <label class="field"><span>工资类型</span><select id="ipType"><option value="daily">固定日薪</option><option value="hourly_piece">计时计件</option><option value="monthly">固定月薪</option><option value="management">管理（免考勤）</option></select></label>
+        <label class="field"><span>出勤天数</span><input id="ipDays" type="number" min="0" step="0.01"></label>
+        <label class="field"><span>加班天数</span><input id="ipOvertimeDays" type="number" min="0" step="0.01"></label>
+        <label class="field"><span>日薪</span><input id="ipDaily" type="number" min="0" step="0.01"></label>
+        <label class="field"><span>加班工资/天</span><input id="ipOvertimeRate" type="number" min="0" step="0.01"></label>
+        <label class="field"><span>月薪</span><input id="ipMonthly" type="number" min="0" step="0.01"></label>
+        <label class="field"><span>计件工资</span><input id="ipPiece" type="number" min="0" step="0.01"></label>
+        <label class="field"><span>应付合计</span><input id="ipTotal" type="number" min="0" step="0.01"></label>
+        <label class="field span3"><span>备注</span><input id="ipNote" type="text"></label>
+      </div>
+      <div id="importPayrollError" class="notice"></div>
+      <div class="form-hint">这里修改的是已导入的历史工资快照；自动计算的工资不受影响。</div>
+    </div>
+    <div class="modal-actions"><button id="importPayrollCancel" class="btn ghost" type="button">取消</button><button id="importPayrollSave" class="btn primary" type="button">保存导入工资</button></div>
+  </section>
+</div>
 <div id="toast" class="toast"></div>
-<script src="staff.js?v=8d749739ef69"></script>
+<script src="staff.js?v=4e8d43ed3215"></script>
 </body>
 </html>

@@ -109,6 +109,7 @@
       <div class="tk-seg" role="group">
         <button type="button" data-theme-pick="ui">极简</button>
         <button type="button" data-theme-pick="warm">暖白</button>
+        <button type="button" data-theme-pick="dark">深色</button>
       </div>
 
       <h4>字号 <span>整页生效</span></h4>
@@ -334,14 +335,14 @@
   function loadTheme() {
     try {
       const raw = String(localStorage.getItem(LS_THEME) || '');
-      theme = raw === 'warm' ? 'warm' : 'ui';
+      theme = (raw === 'warm' || raw === 'dark') ? raw : 'ui';
     } catch { theme = 'ui'; }
   }
   function saveTheme() {
     try { localStorage.setItem(LS_THEME, theme); } catch { }
   }
   function applyTheme() {
-    document.body.dataset.theme = theme === 'warm' ? 'warm' : 'ui';
+    document.body.dataset.theme = (theme === 'warm' || theme === 'dark') ? theme : 'ui';
   }
   /* ============================================================
      ② 日期框：统一规格 + 快捷「今天」
@@ -645,7 +646,7 @@
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-theme-pick]');
     if (!b) return;
-    const next = b.dataset.themePick === 'warm' ? 'warm' : 'ui';
+    const v = b.dataset.themePick; const next = (v === 'warm' || v === 'dark') ? v : 'ui';
     try { localStorage.setItem(LS_THEME, next); } catch { }
     document.body.dataset.theme = next;
     document.querySelectorAll('[data-theme-pick]').forEach((x) => x.classList.toggle('on', x.dataset.themePick === next));
