@@ -410,3 +410,8 @@
 
 /* 表头放进滚动区并吸顶：跟数据同宽，最后两列不再错位 */
 .tk-md-head { position: sticky; top: 0; z-index: 2; background: var(--surface); }
+
+/* 2026-10-18：小表隐藏滚动条（滚动照旧），彻底消除"表头/数据差一条滚动条宽度" */
+.tk-md-list { scrollbar-width: none; -ms-overflow-style: none; }
+.tk-md-list::-webkit-scrollbar { width: 0; height: 0; display: none; }
+.tk-md-head { width: 100%; box-sizing: border-box; }
