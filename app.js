@@ -2136,6 +2136,10 @@ const els = {
   mobileAttendanceLogsPanel: $('#mobileAttendanceLogsPanel'),
   mobileAttendanceLogsList: $('#mobileAttendanceLogsList'),
   mobileAttendanceModule: $('#mobileAttendanceModule'),
+  mobileStaffInfoModule: $('#mobileStaffInfoModule'),
+  mobileStaffInfoFrame: $('#mobileStaffInfoFrame'),
+  mobilePayrollModule: $('#mobilePayrollModule'),
+  mobilePayrollFrame: $('#mobilePayrollFrame'),
   mobileAttendanceMonth: $('#mobileAttendanceMonth'),
   mobileAttendancePrev: $('#mobileAttendancePrev'),
   mobileAttendanceNext: $('#mobileAttendanceNext'),
@@ -6842,6 +6846,9 @@ function renderMobileModule() {
   const isAdmin = boardRole === 'admin';
   const workMode = isAdmin && mobileModule === 'workReview';
   const attendanceMode = isAdmin && mobileModule === 'attendance';
+  const staffInfoMode = isAdmin && mobileModule === 'staffInfo';
+  const payrollMode = isAdmin && mobileModule === 'payroll';
+  const staffMode = staffInfoMode || payrollMode;
   if (els.mobileModuleSwitch) {
     els.mobileModuleSwitch.classList.toggle('disabled', !isAdmin);
     els.mobileModuleSwitch.setAttribute('aria-disabled', String(!isAdmin));
@@ -6849,15 +6856,23 @@ function renderMobileModule() {
   const title = document.getElementById('mobileBrandTitle');
   if (title) title.textContent = `帆顺科技${isAdmin ? '（管理员）' : ''}`;
   const moduleLabel = document.getElementById('mobileBrandModule');
-  if (moduleLabel) moduleLabel.textContent = attendanceMode ? '考勤管理' : (workMode ? '报工审核' : '装车登记');
+  if (moduleLabel) moduleLabel.textContent = attendanceMode ? '考勤管理' : staffInfoMode ? '员工信息' : payrollMode ? '工资' : (workMode ? '报工审核' : '装车登记');
   const summary = document.querySelector('.mobile-summary');
   const tabs = document.querySelector('.mobile-tabs');
-  if (summary) summary.hidden = workMode || attendanceMode;
-  if (tabs) tabs.hidden = workMode || attendanceMode;
+  if (summary) summary.hidden = workMode || attendanceMode || staffMode;
+  if (tabs) tabs.hidden = workMode || attendanceMode || staffMode;
   if (els.mobileWorkModule) els.mobileWorkModule.hidden = !workMode;
   if (els.mobileAttendanceModule) els.mobileAttendanceModule.hidden = !attendanceMode;
-  if (els.mobileCartBar) els.mobileCartBar.hidden = workMode || attendanceMode || ![...selected.values()].some((value) => Number(value) > 0);
-  if (attendanceMode) {
+  if (els.mobileStaffInfoModule) els.mobileStaffInfoModule.hidden = !staffInfoMode;
+  if (els.mobilePayrollModule) els.mobilePayrollModule.hidden = !payrollMode;
+  if (els.mobileCartBar) els.mobileCartBar.hidden = workMode || attendanceMode || staffMode || ![...selected.values()].some((value) => Number(value) > 0);
+  if (staffMode) {
+    [els.mobileEntryPanel, els.mobileRemainingPanel, els.mobileRecordsPanel, els.mobileFilesPanel].forEach((panel) => { if (panel) panel.hidden = true; });
+    if (els.mobileWorkModule) els.mobileWorkModule.hidden = true;
+    if (els.mobileAttendanceModule) els.mobileAttendanceModule.hidden = true;
+    if (staffInfoMode && els.mobileStaffInfoFrame && !els.mobileStaffInfoFrame.getAttribute('src')) els.mobileStaffInfoFrame.src = 'staff.html?embed=staffInfo';
+    if (payrollMode && els.mobilePayrollFrame && !els.mobilePayrollFrame.getAttribute('src')) els.mobilePayrollFrame.src = 'staff.html?embed=payroll';
+  } else if (attendanceMode) {
     [els.mobileEntryPanel, els.mobileRemainingPanel, els.mobileRecordsPanel, els.mobileFilesPanel].forEach((panel) => { if (panel) panel.hidden = true; });
     switchMobileAttendanceTab(mobileAttendanceTab);
     loadAttendance().catch(() => {});
@@ -6871,17 +6886,18 @@ function renderMobileModule() {
   }
 }
 function switchMobileModule(module) {
-  if ((module === 'workReview' || module === 'attendance') && boardRole !== 'admin') { showToast('只对管理员开放'); return; }
-  mobileModule = (module === 'workReview' || module === 'attendance') ? module : 'entry';
+  const adminModules = ['workReview', 'attendance', 'staffInfo', 'payroll'];
+  if (adminModules.includes(module) && boardRole !== 'admin') { showToast('只对管理员开放'); return; }
+  mobileModule = adminModules.includes(module) ? module : 'entry';
   closeMobileModuleSheet();
-  if (mobileModule === 'workReview') {
-    renderMobileModule();
-  } else if (mobileModule === 'attendance') {
+  if (mobileModule === 'workReview' || mobileModule === 'attendance' || mobileModule === 'staffInfo' || mobileModule === 'payroll') {
     renderMobileModule();
   } else {
     if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = true;
     if (els.mobileWorkEditPanel) els.mobileWorkEditPanel.hidden = true;
     if (els.mobileAttendanceModule) els.mobileAttendanceModule.hidden = true;
+    if (els.mobileStaffInfoModule) els.mobileStaffInfoModule.hidden = true;
+    if (els.mobilePayrollModule) els.mobilePayrollModule.hidden = true;
     switchMobileTab('entry');
   }
   renderMobileModule();

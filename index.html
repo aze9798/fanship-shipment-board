@@ -17,14 +17,14 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
   <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
-  <link rel="stylesheet" href="design-tokens.css?v=f7ce9d1b3afe">
-  <link rel="stylesheet" href="ui-polish.css?v=f7ce9d1b3afe">
-  <link rel="stylesheet" href="theme-ui.css?v=f7ce9d1b3afe">
-  <link rel="stylesheet" href="dashboard-home.css?v=f7ce9d1b3afe">
+  <link rel="stylesheet" href="design-tokens.css?v=db82b7271212">
+  <link rel="stylesheet" href="ui-polish.css?v=db82b7271212">
+  <link rel="stylesheet" href="theme-ui.css?v=db82b7271212">
+  <link rel="stylesheet" href="dashboard-home.css?v=db82b7271212">
   <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
-  <link rel="stylesheet" href="home-merge.css?v=f7ce9d1b3afe">
-  <link rel="stylesheet" href="global-search.css?v=f7ce9d1b3afe">
-  <link rel="stylesheet" href="partners.css?v=f7ce9d1b3afe">
+  <link rel="stylesheet" href="home-merge.css?v=db82b7271212">
+  <link rel="stylesheet" href="global-search.css?v=db82b7271212">
+  <link rel="stylesheet" href="partners.css?v=db82b7271212">
   <!-- 图纸预览用的 PDF 引擎：首屏空闲时后台预取，别等点开图纸才开始下（2026-10-17） -->
   <link rel="prefetch" href="vendor/pdf.min.mjs">
   <link rel="prefetch" href="vendor/pdf.worker.min.mjs">
@@ -819,6 +819,8 @@
               <button type="button" data-mobile-module="entry" style="--i:1"><b>发货管理</b><small>搜索物料、登记装车</small></button>
               <button type="button" data-mobile-module="workReview" style="--i:2"><b>计时计件报工</b><small>报工明细 · 审核 · 月度</small></button>
               <button type="button" data-mobile-module="attendance" style="--i:3"><b>考勤管理</b><small>考勤汇总 · 补卡审核</small></button>
+              <button type="button" data-mobile-module="staffInfo" style="--i:4"><b>员工信息</b><small>员工档案 · 工资标准</small></button>
+              <button type="button" data-mobile-module="payroll" style="--i:5"><b>工资</b><small>月度工资 · 历史导入</small></button>
             </div>
           </div>
           </div>
@@ -1079,6 +1081,8 @@
             <div id="mobileAttendanceTeamList" class="mobile-work-review-list"></div>
           </section>
         </section>
+        <section id="mobileStaffInfoModule" class="mobile-work-module" hidden><iframe id="mobileStaffInfoFrame" class="mobile-staff-frame" title="员工信息"></iframe></section>
+        <section id="mobilePayrollModule" class="mobile-work-module" hidden><iframe id="mobilePayrollFrame" class="mobile-staff-frame" title="工资"></iframe></section>
       </section>
     </main>
   </div>
@@ -1453,7 +1457,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "f7ce9d1b3afe";
+      const fallbackVersion = "db82b7271212";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
@@ -1488,16 +1492,16 @@
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=f7ce9d1b3afe" defer></script>
-  <script src="dashboard-home.js?v=f7ce9d1b3afe" defer></script>
+  <script src="ui-polish.js?v=db82b7271212" defer></script>
+  <script src="dashboard-home.js?v=db82b7271212" defer></script>
 
-  <script src="home-merge.js?v=f7ce9d1b3afe" defer></script>
-  <script src="global-search.js?v=f7ce9d1b3afe" defer></script>
-  <script src="drawing-rotate.js?v=f7ce9d1b3afe" defer></script>
-  <script src="drawing-open.js?v=f7ce9d1b3afe" defer></script>
-  <script src="partners.js?v=f7ce9d1b3afe" defer></script>
-  <script src="po-print.js?v=f7ce9d1b3afe" defer></script>
-  <script src="col-resize-fix.js?v=f7ce9d1b3afe" defer></script>
+  <script src="home-merge.js?v=db82b7271212" defer></script>
+  <script src="global-search.js?v=db82b7271212" defer></script>
+  <script src="drawing-rotate.js?v=db82b7271212" defer></script>
+  <script src="drawing-open.js?v=db82b7271212" defer></script>
+  <script src="partners.js?v=db82b7271212" defer></script>
+  <script src="po-print.js?v=db82b7271212" defer></script>
+  <script src="col-resize-fix.js?v=db82b7271212" defer></script>
 </body>
 </html>
 
