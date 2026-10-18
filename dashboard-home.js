@@ -271,14 +271,12 @@
           <button type="button" class="tk-more" data-act="openfull">未交详情 →</button>
         </div>
         <div class="tk-due-bar">${chips}</div>
-        <div class="tk-md-head tk-head-due"><em>采购单号</em><em>编号</em><span>名称</span><em class="spec">图号</em><b>未交</b><i>交期</i></div>
-        <div class="tk-md-list">${listHtml}</div>
+        <div class="tk-md-list"><div class="tk-md-head tk-head-due"><em>采购单号</em><em>编号</em><span>名称</span><em class="spec">图号</em><b>未交</b><i>交期</i></div>${listHtml}</div>
         <div class="tk-more-hint">当前显示 ${rows.length} 行${duePicks.size ? (' · 已选 ' + duePicks.size + ' 个交期') : ' · 全部交期'}；选好后点“打印清单”</div>
       </div>
       <div class="tk-dash-sec tk-sec-special">
         ${secHead('试制 / 承样', special.length ? (special.length + ' 行') : '没有', 'remaining')}
-        <div class="tk-md-head tk-head-special"><em>类型</em><em>编号</em><span>名称</span><b>未交</b><i>交期</i></div>
-        <div class="tk-md-list">${spHtml}</div>
+        <div class="tk-md-list"><div class="tk-md-head tk-head-special"><em>类型</em><em>编号</em><span>名称</span><b>未交</b><i>交期</i></div>${spHtml}</div>
       </div>
     </div>`;
   }
@@ -308,7 +306,7 @@
       '</div>' + panes + '</div>';
   }
   const pane = (html) => '<div class="tk-md-list">' + html + '</div>';
-  const paneH = (h, html) => mdHead(h[0], h[1], h[2], h[3]) + pane(html);
+  const paneH = (h, html) => pane(mdHead(h[0], h[1], h[2], h[3]) + html);
   /* 模块数据还没到时的占位块（避免这一行先空出来、一会儿又冒出来，布局跳一下） */
   const pendingBlock = (title) =>
     '<div class="tk-dash-sec"><div class="tk-block-head"><div class="tk-block-h1"><b>' + esc(title) +
