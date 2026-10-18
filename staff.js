@@ -535,6 +535,7 @@
   }
 
   async function init() {
+    if (EMBED) document.body.classList.add('embed');
     bind();
     const code = storedCode();
     if (!code) { showLogin(); return; }

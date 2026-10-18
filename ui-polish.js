@@ -646,6 +646,7 @@
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-theme-pick]');
     if (!b) return;
+    e.stopPropagation();
     const v = b.dataset.themePick; const next = (v === 'warm' || v === 'dark') ? v : 'ui';
     try { localStorage.setItem(LS_THEME, next); } catch { }
     document.body.dataset.theme = next;
