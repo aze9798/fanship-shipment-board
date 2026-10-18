@@ -640,6 +640,16 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
+
+  /* 兜底：主题按钮直接生效（面板里那段逻辑实测点不动，这里用捕获阶段再兜一层） */
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-theme-pick]');
+    if (!b) return;
+    const next = b.dataset.themePick === 'warm' ? 'warm' : 'ui';
+    try { localStorage.setItem(LS_THEME, next); } catch { }
+    document.body.dataset.theme = next;
+    document.querySelectorAll('[data-theme-pick]').forEach((x) => x.classList.toggle('on', x.dataset.themePick === next));
+  }, true);
 })();
 
 
