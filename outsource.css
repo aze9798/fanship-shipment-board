@@ -143,3 +143,7 @@
 /* 合并采购单：选中行高亮 */
 .os-table tbody tr.picked td { background: color-mix(in srgb, var(--primary) 10%, transparent); }
 .os-table tbody tr.picked td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
+
+/* 2026-10-18：外协/采购/质量/库存表：表头与数据统一居中 */
+.desktop-view .panel table th,
+.desktop-view .panel table td { text-align: center; }

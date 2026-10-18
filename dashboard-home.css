@@ -398,3 +398,8 @@
 .tk-more { font-size: calc(var(--tk-ui-fs) * 0.93); height: 28px; }
 .tk-due-chip { font-size: calc(var(--tk-ui-fs) * 0.89); height: 28px; }
 .tk-merge-h .tk-fold { font-size: calc(var(--tk-ui-fs) * 0.89); height: 28px; }
+/* 2026-10-18：表头与内容对齐；试制/承样整表居中 */
+.tk-head-due > b, .tk-sec-due .tk-md-row > b { text-align: right; }
+.tk-head-due > i, .tk-sec-due .tk-md-row > i { text-align: right; }
+.tk-head-special > *, .tk-sec-special .tk-md-row > * { text-align: center; }
+.tk-sec-special .tk-md-row > b, .tk-sec-special .tk-md-row > i { text-align: center; }

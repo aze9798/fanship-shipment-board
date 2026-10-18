@@ -238,7 +238,7 @@
           <span>${esc(o.name || '')}</span>
           <em class="spec">${esc(o.spec || '—')}</em>
           <b class="qty${late ? ' late' : ''}">${num(o.remaining)}</b>
-          <i class="due${late ? ' late' : ''}">${md(d)}${late ? ' 逾期' + (-diff) + '天' : (diff === 0 ? ' 今天' : '')}</i>
+          <i class="due${late ? ' late' : ''}" title="交期 ${esc(md(d))}">${late ? ('逾期' + (-diff) + '天') : (md(d) + (diff === 0 ? ' 今天' : ''))}</i>
         </button>`;
     }).join('') : '<div class="tk-empty">这个交期下没有未交</div>';
 
@@ -259,10 +259,7 @@
 
     const lateN = c.overdue.length;
     const qlOpen = ql ? Number(ql.openCount || 0) : 0;
-    const sub = [
-      lateN ? ('逾期 ' + lateN + ' 行') : '没有逾期',
-      '下次交期 ' + md(c.nextDate) + ' · ' + c.nextRows.length + ' 行 / ' + num(c.nextQty) + ' 件'
-    ].join(' · ');
+    const sub = lateN ? ('逾期 ' + lateN + ' 项') : '';
 
     return `<div class="tk-dash-2col tk-top">
       <div class="tk-dash-sec tk-sec-due">
