@@ -105,12 +105,7 @@
     pop.setAttribute('role', 'dialog');
     pop.setAttribute('aria-label', '行距与列距设置');
     pop.innerHTML = `
-      <h4>主题 <span>随时可切回</span></h4>
-      <div class="tk-seg" role="group">
-        <button type="button" data-theme-pick="ui">极简</button>
-        <button type="button" data-theme-pick="warm">暖白</button>
-        <button type="button" data-theme-pick="dark">深色</button>
-      </div>
+
 
       <h4>字号 <span>整页生效</span></h4>
       <div class="tk-seg" role="group">
@@ -151,7 +146,7 @@
         return;
       }
 
-      const themePick = e.target.closest('[data-theme-pick]');
+      const themePick = null;
       if (themePick) {
         theme = themePick.dataset.themePick === 'ui' ? 'ui' : 'teal';
         saveTheme(); applyTheme(); syncPopUi();
@@ -342,7 +337,7 @@
     try { localStorage.setItem(LS_THEME, theme); } catch { }
   }
   function applyTheme() {
-    document.body.dataset.theme = (theme === 'warm' || theme === 'dark') ? theme : 'ui';
+    document.body.dataset.theme = 'ui';   /* 2026-10-18 主题切换已下线，固定极简 */
   }
   /* ============================================================
      ② 日期框：统一规格 + 快捷「今天」
@@ -642,16 +637,7 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
-  /* 兜底：主题按钮直接生效（面板里那段逻辑实测点不动，这里用捕获阶段再兜一层） */
-  document.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-theme-pick]');
-    if (!b) return;
-    e.stopPropagation();
-    const v = b.dataset.themePick; const next = (v === 'warm' || v === 'dark') ? v : 'ui';
-    try { localStorage.setItem(LS_THEME, next); } catch { }
-    document.body.dataset.theme = next;
-    document.querySelectorAll('[data-theme-pick]').forEach((x) => x.classList.toggle('on', x.dataset.themePick === next));
-  }, true);
+
 })();
 
 
