@@ -24,6 +24,7 @@
   ];
   const NAV_MORE = [
     { view: 'loading',    label: '装车登记（电脑端备用）' },
+    { href: 'staff.html', label: '员工 / 工资', admin: true },
     { view: 'partners',   label: '客商信息', admin: true },
     { view: 'outsource',  label: '外协管理', admin: true },
     { view: 'inventory',  label: '库存', admin: true },
@@ -206,9 +207,11 @@
     el.className = 'tk-nav';
     el.id = 'tkNav';
     el.setAttribute('aria-label', '主导航');
-    const itemHtml = (it) =>
-      '<a href="#" data-tk-view="' + it.view + '"' + (it.admin ? ' data-admin="1"' : '') + '>' +
-      '<span class="dot"></span>' + it.label + '</a>';
+    const itemHtml = (it) => it.href
+      ? '<a href="' + it.href + '"' + (it.admin ? ' data-admin="1"' : '') + '>' +
+        '<span class="dot"></span>' + it.label + '</a>'
+      : '<a href="#" data-tk-view="' + it.view + '"' + (it.admin ? ' data-admin="1"' : '') + '>' +
+        '<span class="dot"></span>' + it.label + '</a>';
     el.innerHTML =
       NAV_MAIN.map(itemHtml).join('') +
       '<div class="sep"></div>' +

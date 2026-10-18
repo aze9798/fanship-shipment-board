@@ -2521,7 +2521,10 @@ html { scrollbar-width: auto; }
   color: #fff;
   cursor: pointer;
 }
-.mobile-fab-sheet button b { font-size: 16px; font-weight: 800; }
+.mobile-fab-sheet button, .mobile-fab-sheet a.mobile-module-link { width:100%; min-height:58px; padding:10px 14px; border:1px solid rgba(255,255,255,.22); border-radius:14px; display:grid; gap:2px; text-align:left; background:rgba(255,255,255,.12); color:#fff; cursor:pointer; text-decoration:none; }
+.mobile-fab-sheet a.mobile-module-link:active { background:rgba(255,255,255,.22); }
+.mobile-fab-sheet button b, .mobile-fab-sheet a.mobile-module-link b { font-size:16px; font-weight:800; }
+.mobile-fab-sheet button small, .mobile-fab-sheet a.mobile-module-link small { color:rgba(255,255,255,.78); font-size:11px; }
 .mobile-fab-sheet button small { color: rgba(255, 255, 255, .78); font-size: 11px; }
 .mobile-fab-sheet button:active { background: rgba(255, 255, 255, .22); }
 .mobile-fab.expanded {

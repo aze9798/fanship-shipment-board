@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>员工与工资 · 帆顺科技</title>
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="staff.css?v=6e3e4ffb3a30">
+<script>
+  window.SHIPMENT_RPC_BASE = "https://fanshun-work-d1gkeq1fjef6147a1-1504638929.ap-shanghai.app.tcloudbase.com/rest/v1/rpc";
+  window.SHIPMENT_DIRECT_RPC_BASE = "https://dkbeigqtiilgxthwkixg.supabase.co/rest/v1/rpc";
+  window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
+</script>
+</head>
+<body data-density="normal">
+<header class="topbar">
+  <div class="brand"><div class="brand-mark">FS</div><div><h1>员工与工资</h1><p>员工档案 · 工资标准 · 月度工资</p></div></div>
+  <div class="top-actions">
+    <a class="btn ghost" href="./?mode=admin">返回看板</a>
+    <button id="refreshButton" class="btn" type="button" hidden>刷新</button>
+    <button id="switchCodeButton" class="btn ghost" type="button" hidden>切换访问码</button>
+  </div>
+</header>
+<main>
+  <section id="loginGate" class="gate">
+    <h2>管理员登录</h2>
+    <p>员工档案和工资数据只对管理员开放。输入管理访问码后进入。</p>
+    <label class="field"><span>管理访问码</span><input id="accessCodeInput" type="password" autocomplete="current-password" placeholder="输入管理访问码"></label>
+    <button id="loginButton" class="btn primary" type="button">进入员工与工资</button>
+    <div id="loginError" class="notice"></div>
+  </section>
+  <div id="staffApp" hidden>
+    <div class="page-head"><div><h2>员工与工资</h2><p>管理员可以随时维护全部员工信息、工资标准；工资按考勤和报工自动汇总。</p></div></div>
+    <nav class="tabs" aria-label="员工与工资">
+      <button type="button" data-tab="info" class="on">员工信息</button>
+      <button type="button" data-tab="payroll">月度工资</button>
+    </nav>
+    <section id="infoTab">
+      <div class="summary" id="employeeSummary"></div>
+      <div class="panel">
+        <div class="toolbar">
+          <label class="grow field"><span>搜索</span><input id="employeeSearch" type="search" placeholder="工号 / 姓名 / 手机 / 部门"></label>
+          <label class="mini field"><span>工资类型</span><select id="employeeTypeFilter"><option value="">全部类型</option><option value="daily">固定日薪</option><option value="hourly_piece">计时计件</option><option value="monthly">固定月薪</option><option value="management">管理（免考勤）</option></select></label>
+          <label class="mini field"><span>状态</span><select id="employeeStatusFilter"><option value="active">在职</option><option value="all">全部</option><option value="resigned">离职</option></select></label>
+          <button id="addEmployeeButton" class="btn primary" type="button">新增员工</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>工号</th><th>姓名</th><th>工资类型</th><th class="num">日薪</th><th class="num">加班/天</th><th class="num">月薪</th><th class="num">时薪</th><th>手机</th><th>部门</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="employeeRows"></tbody>
+          </table>
+          <div id="employeeEmpty" class="empty" hidden>没有符合条件的员工</div>
+        </div>
+      </div>
+    </section>
+    <section id="payrollTab" hidden>
+      <div class="summary" id="payrollSummary"></div>
+      <div class="panel">
+        <div class="toolbar">
+          <label class="field" style="flex:0 0 180px"><span>工资月份</span><input id="payrollMonth" type="month"></label>
+          <label class="grow field"><span>搜索</span><input id="payrollSearch" type="search" placeholder="工号 / 姓名"></label>
+          <label class="mini field"><span>工资类型</span><select id="payrollTypeFilter"><option value="">全部类型</option><option value="daily">固定日薪</option><option value="hourly_piece">计时计件</option><option value="monthly">固定月薪</option><option value="management">管理（免考勤）</option></select></label>
+          <button id="payrollRefresh" class="btn" type="button">重算</button>
+          <button id="payrollExport" class="btn" type="button">导出 Excel</button>
+          <button id="payrollPrint" class="btn" type="button">打印工资表</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>工号</th><th>姓名</th><th>工资类型</th><th class="num">出勤天数</th><th class="num">日薪</th><th class="num">加班天数</th><th class="num">加班费</th><th class="num">月薪</th><th class="num">计时工资</th><th class="num">计件工资</th><th class="num">应付合计</th><th>操作</th></tr></thead>
+            <tbody id="payrollRows"></tbody>
+          </table>
+          <div id="payrollEmpty" class="empty" hidden>这个月没有可计算的工资数据</div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<div id="employeeOverlay" class="overlay">
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="employeeModalTitle">
+    <div class="modal-head"><h3 id="employeeModalTitle">员工信息</h3><button class="btn small ghost close" id="employeeClose" type="button">关闭</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <label class="field"><span>工号</span><input id="fEmployeeNo" type="text" placeholder="如 34"></label>
+        <label class="field"><span>姓名</span><input id="fName" type="text" placeholder="姓名"></label>
+        <label class="field"><span>部门</span><input id="fDepartment" type="text" placeholder="部门"></label>
+        <label class="field"><span>手机号</span><input id="fPhone" type="text" inputmode="tel"></label>
+        <label class="field"><span>身份证号</span><input id="fIdCard" type="text"></label>
+        <label class="field"><span>银行卡号</span><input id="fBankCard" type="text"></label>
+        <label class="field"><span>开户行</span><input id="fBankName" type="text"></label>
+        <label class="field"><span>得力账号</span><input id="fDeliAccount" type="text"></label>
+        <label class="field"><span>工资类型</span><select id="fSalaryType"><option value="daily">固定日薪</option><option value="hourly_piece">计时计件</option><option value="monthly">固定月薪</option><option value="management">管理（免考勤）</option></select></label>
+        <label class="field"><span>在职状态</span><select id="fEmploymentStatus"><option value="active">在职</option><option value="resigned">离职</option></select></label>
+        <label class="field"><span>上班基准</span><input id="fBaseStart" type="time"></label>
+        <label class="field"><span>入职日期</span><input id="fHireDate" type="date"></label>
+        <label class="field"><span>离职日期</span><input id="fLeaveDate" type="date"></label>
+        <label class="field"><span>报工组</span><select id="fTrack"><option value="fixed">非报工组</option><option value="welding">焊工</option><option value="back">后道</option></select></label>
+        <label class="field"><span>启用</span><select id="fActive"><option value="true">启用</option><option value="false">停用</option></select></label>
+      </div>
+      <div class="form-section">
+        <h4>工资标准</h4>
+        <div class="form-grid">
+          <label class="field" data-salary="monthly"><span>月薪（元）</span><input id="fMonthlySalary" type="number" min="0" step="0.01"></label>
+          <label class="field" data-salary="daily"><span>日薪（元/天）</span><input id="fDailySalary" type="number" min="0" step="0.01"></label>
+          <label class="field" data-salary="daily"><span>加班工资（元/加班天）</span><input id="fOvertimeRate" type="number" min="0" step="0.01"></label>
+          <label class="field" data-salary="hourly"><span>计时时薪（元/小时）</span><input id="fHourlyRate" type="number" min="0" step="0.01"></label>
+        </div>
+        <div class="form-hint">固定日薪：日薪 × 出勤天数 + 加班天数 × 加班工资。计时计件：按计时工时和已审核计件自动汇总。修改后保存即生效。</div>
+      </div>
+      <div class="form-section"><h4>备注</h4><textarea id="fNote" placeholder="选填"></textarea></div>
+      <div id="employeeFormError" class="notice"></div>
+    </div>
+    <div class="modal-actions">
+      <button id="resetCodeButton" class="btn danger" type="button" hidden>重置访问码</button>
+      <button id="employeeCancel" class="btn ghost" type="button">取消</button>
+      <button id="employeeSave" class="btn primary" type="button">保存</button>
+    </div>
+  </section>
+</div>
+<div id="detailOverlay" class="overlay">
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+    <div class="modal-head"><h3 id="detailTitle">工资明细</h3><button class="btn small ghost close" id="detailClose" type="button">关闭</button></div>
+    <div class="modal-body" id="detailBody"></div>
+  </section>
+</div>
+<div id="toast" class="toast"></div>
+<script src="staff.js?v=6e3e4ffb3a30"></script>
+</body>
+</html>

@@ -17,14 +17,14 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
   <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
-  <link rel="stylesheet" href="design-tokens.css?v=2ce940198bf2">
-  <link rel="stylesheet" href="ui-polish.css?v=2ce940198bf2">
-  <link rel="stylesheet" href="theme-ui.css?v=2ce940198bf2">
-  <link rel="stylesheet" href="dashboard-home.css?v=2ce940198bf2">
+  <link rel="stylesheet" href="design-tokens.css?v=6e3e4ffb3a30">
+  <link rel="stylesheet" href="ui-polish.css?v=6e3e4ffb3a30">
+  <link rel="stylesheet" href="theme-ui.css?v=6e3e4ffb3a30">
+  <link rel="stylesheet" href="dashboard-home.css?v=6e3e4ffb3a30">
   <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
-  <link rel="stylesheet" href="home-merge.css?v=2ce940198bf2">
-  <link rel="stylesheet" href="global-search.css?v=2ce940198bf2">
-  <link rel="stylesheet" href="partners.css?v=2ce940198bf2">
+  <link rel="stylesheet" href="home-merge.css?v=6e3e4ffb3a30">
+  <link rel="stylesheet" href="global-search.css?v=6e3e4ffb3a30">
+  <link rel="stylesheet" href="partners.css?v=6e3e4ffb3a30">
   <!-- 图纸预览用的 PDF 引擎：首屏空闲时后台预取，别等点开图纸才开始下（2026-10-17） -->
   <link rel="prefetch" href="vendor/pdf.min.mjs">
   <link rel="prefetch" href="vendor/pdf.worker.min.mjs">
@@ -212,6 +212,10 @@
         <a id="desktopWorkEditLink" class="side-link" href="#work-edit" data-desktop-view="workEdit" data-module="work" hidden>
           <span class="nav-dot"></span>
           报工修改
+        </a>
+        <a id="desktopStaffLink" class="side-link" href="staff.html" data-module="work" hidden>
+          <span class="nav-dot"></span>
+          员工 / 工资
         </a>
         <a id="desktopAttendanceLink" class="side-link" href="#attendance" data-desktop-view="attendance" data-module="attendance" hidden>
           <span class="nav-dot"></span>
@@ -797,6 +801,7 @@
               <button type="button" data-mobile-module="entry" style="--i:1"><b>发货管理</b><small>搜索物料、登记装车</small></button>
               <button type="button" data-mobile-module="workReview" style="--i:2"><b>计时计件报工</b><small>报工明细 · 审核 · 月度</small></button>
               <button type="button" data-mobile-module="attendance" style="--i:3"><b>考勤管理</b><small>考勤汇总 · 补卡审核</small></button>
+              <a href="staff.html" class="mobile-module-link" style="--i:4"><b>员工 / 工资</b><small>员工信息 · 月度工资</small></a>
             </div>
           </div>
           </div>
@@ -1431,7 +1436,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "2ce940198bf2";
+      const fallbackVersion = "6e3e4ffb3a30";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
@@ -1466,15 +1471,15 @@
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=2ce940198bf2" defer></script>
-  <script src="dashboard-home.js?v=2ce940198bf2" defer></script>
+  <script src="ui-polish.js?v=6e3e4ffb3a30" defer></script>
+  <script src="dashboard-home.js?v=6e3e4ffb3a30" defer></script>
 
-  <script src="home-merge.js?v=2ce940198bf2" defer></script>
-  <script src="global-search.js?v=2ce940198bf2" defer></script>
-  <script src="drawing-rotate.js?v=2ce940198bf2" defer></script>
-  <script src="drawing-open.js?v=2ce940198bf2" defer></script>
-  <script src="partners.js?v=2ce940198bf2" defer></script>
-  <script src="po-print.js?v=2ce940198bf2" defer></script>
+  <script src="home-merge.js?v=6e3e4ffb3a30" defer></script>
+  <script src="global-search.js?v=6e3e4ffb3a30" defer></script>
+  <script src="drawing-rotate.js?v=6e3e4ffb3a30" defer></script>
+  <script src="drawing-open.js?v=6e3e4ffb3a30" defer></script>
+  <script src="partners.js?v=6e3e4ffb3a30" defer></script>
+  <script src="po-print.js?v=6e3e4ffb3a30" defer></script>
 </body>
 </html>
 
