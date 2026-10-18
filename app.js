@@ -71,6 +71,22 @@ let remainingVisibleLimit = 60;
 let desktopRemainingVisibleLimit = 120;
 let formBaseRevision = null;
 let orderEditBaseRevision = null;
+let boardRoleReady = false;
+
+// 先读本机已验证的管理员角色，避免用户刚打开页面点管理功能时被误判成普通码。
+function primeBoardRoleFromCache() {
+  try {
+    const raw = String(localStorage.getItem(ROLE_STORAGE_KEY) || '');
+    const parts = raw.split('|');
+    const cachedRole = parts[0] || '';
+    const cachedCode = parts.slice(1).join('|') || '';
+    if ((cachedRole === 'admin' || cachedRole === 'user') && canUseRole(cachedRole) && cachedCode === getAccessCode()) {
+      boardRole = cachedRole;
+      boardCanSeeAmount = cachedRole === 'admin';
+    }
+  } catch { }
+}
+primeBoardRoleFromCache();
 
 function boardModeName(mode = BOARD_MODE) {
   return mode === 'admin' ? '管理员模式' : mode === 'user' ? '普通模式' : '通用模式';
@@ -6870,9 +6886,8 @@ function renderMobileModule() {
     [els.mobileEntryPanel, els.mobileRemainingPanel, els.mobileRecordsPanel, els.mobileFilesPanel].forEach((panel) => { if (panel) panel.hidden = true; });
     if (els.mobileWorkModule) els.mobileWorkModule.hidden = true;
     if (els.mobileAttendanceModule) els.mobileAttendanceModule.hidden = true;
-    const codePart = getAccessCode() ? '&code=' + encodeURIComponent(getAccessCode()) : '';
-    if (staffInfoMode && els.mobileStaffInfoFrame && !els.mobileStaffInfoFrame.getAttribute('src')) els.mobileStaffInfoFrame.src = 'staff.html?embed=staffInfo' + codePart;
-    if (payrollMode && els.mobilePayrollFrame && !els.mobilePayrollFrame.getAttribute('src')) els.mobilePayrollFrame.src = 'staff.html?embed=payroll' + codePart;
+    if (staffInfoMode && els.mobileStaffInfoFrame && !els.mobileStaffInfoFrame.getAttribute('src')) els.mobileStaffInfoFrame.src = 'staff.html?embed=staffInfo';
+    if (payrollMode && els.mobilePayrollFrame && !els.mobilePayrollFrame.getAttribute('src')) els.mobilePayrollFrame.src = 'staff.html?embed=payroll';
   } else if (attendanceMode) {
     [els.mobileEntryPanel, els.mobileRemainingPanel, els.mobileRecordsPanel, els.mobileFilesPanel].forEach((panel) => { if (panel) panel.hidden = true; });
     switchMobileAttendanceTab(mobileAttendanceTab);
@@ -6906,6 +6921,10 @@ function switchMobileModule(module) {
 // 电脑端两个页面：实时总览 / 发货记录
 function showDesktopView(name) {
   if ((name === 'workReview' || name === 'workEdit' || name === 'attendance' || name === 'prices' || name === 'staffInfo' || name === 'payroll') && boardRole !== 'admin') {
+    if (!boardRoleReady) {
+      showToast('正在验证管理员权限，请稍后再点一次');
+      return;
+    }
     showToast('只对管理员开放');
     name = 'overview';
   }
@@ -6933,9 +6952,7 @@ function showDesktopView(name) {
   document.querySelectorAll('[data-desktop-view]').forEach((link) => {
     link.classList.toggle('active', link.dataset.desktopView === target);
   });
-  const staffCodePart = getAccessCode() ? '&code=' + encodeURIComponent(getAccessCode()) : '';
-  if (target === 'staffInfo') { const frame = document.getElementById('staffInfoFrame'); if (frame && !frame.getAttribute('src')) frame.src = 'staff.html?embed=staffInfo' + staffCodePart; }
-  if (target === 'payroll') { const frame = document.getElementById('staffPayrollFrame'); if (frame && !frame.getAttribute('src')) frame.src = 'staff.html?embed=payroll' + staffCodePart; }
+
   if (target === 'remaining') renderDesktopRemaining();
   if (target === 'shipments') renderDesktopHistory();
   if (target === 'files') renderCloudFiles();
@@ -12415,7 +12432,7 @@ function startVersionWatch() {
 setupRpcExportLink();
 if (!getAccessCode()) askAccessCode();
 // 身份校验放到后台跑：首屏只需要 state，不必先等 whoami（国内中转下 whoami 也要 1-3 秒）
-const roleReady = loadBoardRole().then(() => { applyRoleUI(); }).catch(() => { });
+const roleReady = loadBoardRole().then(() => { applyRoleUI(); }).catch(() => { }).finally(() => { boardRoleReady = true; applyRoleUI(); });
 await loadMarkMaterials();
 restoreCachedState();
 await loadState({ fast: true });

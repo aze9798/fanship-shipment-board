@@ -17,14 +17,15 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
   <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
-  <link rel="stylesheet" href="design-tokens.css?v=d6f106aa96ce">
-  <link rel="stylesheet" href="ui-polish.css?v=d6f106aa96ce">
-  <link rel="stylesheet" href="theme-ui.css?v=d6f106aa96ce">
-  <link rel="stylesheet" href="dashboard-home.css?v=d6f106aa96ce">
+  <link rel="stylesheet" href="design-tokens.css?v=432c80de7943">
+  <link rel="stylesheet" href="ui-polish.css?v=432c80de7943">
+  <link rel="stylesheet" href="theme-ui.css?v=432c80de7943">
+  <link rel="stylesheet" href="dashboard-home.css?v=432c80de7943">
   <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
-  <link rel="stylesheet" href="home-merge.css?v=d6f106aa96ce">
-  <link rel="stylesheet" href="global-search.css?v=d6f106aa96ce">
-  <link rel="stylesheet" href="partners.css?v=d6f106aa96ce">
+  <link rel="stylesheet" href="home-merge.css?v=432c80de7943">
+  <link rel="stylesheet" href="global-search.css?v=432c80de7943">
+  <link rel="stylesheet" href="partners.css?v=432c80de7943">
+  <link rel="stylesheet" href="staff-v2.css?v=432c80de7943">
   <!-- 图纸预览用的 PDF 引擎：首屏空闲时后台预取，别等点开图纸才开始下（2026-10-17） -->
   <link rel="prefetch" href="vendor/pdf.min.mjs">
   <link rel="prefetch" href="vendor/pdf.worker.min.mjs">
@@ -795,17 +796,15 @@
       </section>
 
       <section id="desktopStaffInfoView" class="desktop-view desktop-only" hidden>
-        <header class="topbar">
-          <div><h1>员工信息</h1><p class="subhead">员工档案、工资类型、日薪、加班工资、月薪、时薪。</p></div>
-        </header>
-        <section class="panel staff-module-panel"><iframe id="staffInfoFrame" class="staff-module-frame" title="员工信息"></iframe></section>
+        <div id="staffInfoMount" class="sv2-mount" aria-live="polite">
+          <div class="sv2-skeleton"><b>正在加载员工信息</b><span>读取员工档案和工资标准…</span></div>
+        </div>
       </section>
 
       <section id="desktopPayrollView" class="desktop-view desktop-only" hidden>
-        <header class="topbar">
-          <div><h1>工资</h1><p class="subhead">按考勤和报工自动计算，也可以查看和修改已导入的历史工资。</p></div>
-        </header>
-        <section class="panel staff-module-panel"><iframe id="staffPayrollFrame" class="staff-module-frame" title="工资"></iframe></section>
+        <div id="payrollMount" class="sv2-mount" aria-live="polite">
+          <div class="sv2-skeleton"><b>正在加载工资</b><span>读取考勤、报工和工资数据…</span></div>
+        </div>
       </section>
 
       <section id="mobileView" class="mobile-view mobile-only">
@@ -1456,7 +1455,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "d6f106aa96ce";
+      const fallbackVersion = "432c80de7943";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
@@ -1491,16 +1490,17 @@
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=d6f106aa96ce" defer></script>
-  <script src="dashboard-home.js?v=d6f106aa96ce" defer></script>
+  <script src="ui-polish.js?v=432c80de7943" defer></script>
+  <script src="dashboard-home.js?v=432c80de7943" defer></script>
 
-  <script src="home-merge.js?v=d6f106aa96ce" defer></script>
-  <script src="global-search.js?v=d6f106aa96ce" defer></script>
-  <script src="drawing-rotate.js?v=d6f106aa96ce" defer></script>
-  <script src="drawing-open.js?v=d6f106aa96ce" defer></script>
-  <script src="partners.js?v=d6f106aa96ce" defer></script>
-  <script src="po-print.js?v=d6f106aa96ce" defer></script>
-  <script src="col-resize-fix.js?v=d6f106aa96ce" defer></script>
+  <script src="home-merge.js?v=432c80de7943" defer></script>
+  <script src="global-search.js?v=432c80de7943" defer></script>
+  <script src="drawing-rotate.js?v=432c80de7943" defer></script>
+  <script src="drawing-open.js?v=432c80de7943" defer></script>
+  <script src="partners.js?v=432c80de7943" defer></script>
+  <script src="staff-v2.js?v=432c80de7943" defer></script>
+  <script src="po-print.js?v=432c80de7943" defer></script>
+  <script src="col-resize-fix.js?v=432c80de7943" defer></script>
 </body>
 </html>
 
