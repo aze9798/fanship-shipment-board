@@ -6870,8 +6870,9 @@ function renderMobileModule() {
     [els.mobileEntryPanel, els.mobileRemainingPanel, els.mobileRecordsPanel, els.mobileFilesPanel].forEach((panel) => { if (panel) panel.hidden = true; });
     if (els.mobileWorkModule) els.mobileWorkModule.hidden = true;
     if (els.mobileAttendanceModule) els.mobileAttendanceModule.hidden = true;
-    if (staffInfoMode && els.mobileStaffInfoFrame && !els.mobileStaffInfoFrame.getAttribute('src')) els.mobileStaffInfoFrame.src = 'staff.html?embed=staffInfo';
-    if (payrollMode && els.mobilePayrollFrame && !els.mobilePayrollFrame.getAttribute('src')) els.mobilePayrollFrame.src = 'staff.html?embed=payroll';
+    const codePart = getAccessCode() ? '&code=' + encodeURIComponent(getAccessCode()) : '';
+    if (staffInfoMode && els.mobileStaffInfoFrame && !els.mobileStaffInfoFrame.getAttribute('src')) els.mobileStaffInfoFrame.src = 'staff.html?embed=staffInfo' + codePart;
+    if (payrollMode && els.mobilePayrollFrame && !els.mobilePayrollFrame.getAttribute('src')) els.mobilePayrollFrame.src = 'staff.html?embed=payroll' + codePart;
   } else if (attendanceMode) {
     [els.mobileEntryPanel, els.mobileRemainingPanel, els.mobileRecordsPanel, els.mobileFilesPanel].forEach((panel) => { if (panel) panel.hidden = true; });
     switchMobileAttendanceTab(mobileAttendanceTab);
@@ -6932,8 +6933,9 @@ function showDesktopView(name) {
   document.querySelectorAll('[data-desktop-view]').forEach((link) => {
     link.classList.toggle('active', link.dataset.desktopView === target);
   });
-  if (target === 'staffInfo') { const frame = document.getElementById('staffInfoFrame'); if (frame && !frame.getAttribute('src')) frame.src = 'staff.html?embed=staffInfo'; }
-  if (target === 'payroll') { const frame = document.getElementById('staffPayrollFrame'); if (frame && !frame.getAttribute('src')) frame.src = 'staff.html?embed=payroll'; }
+  const staffCodePart = getAccessCode() ? '&code=' + encodeURIComponent(getAccessCode()) : '';
+  if (target === 'staffInfo') { const frame = document.getElementById('staffInfoFrame'); if (frame && !frame.getAttribute('src')) frame.src = 'staff.html?embed=staffInfo' + staffCodePart; }
+  if (target === 'payroll') { const frame = document.getElementById('staffPayrollFrame'); if (frame && !frame.getAttribute('src')) frame.src = 'staff.html?embed=payroll' + staffCodePart; }
   if (target === 'remaining') renderDesktopRemaining();
   if (target === 'shipments') renderDesktopHistory();
   if (target === 'files') renderCloudFiles();
