@@ -415,3 +415,8 @@
 .tk-md-list { scrollbar-width: none; -ms-overflow-style: none; }
 .tk-md-list::-webkit-scrollbar { width: 0; height: 0; display: none; }
 .tk-md-head { width: 100%; box-sizing: border-box; }
+/* 2026-10-18 最终版：实时总览所有小表 —— 数据格铺满列 + 文字居中，跟表头严格一致 */
+.tk-dash .tk-md-row > * { justify-self: stretch !important; text-align: center !important; }
+.tk-dash .tk-md-head > * { text-align: center !important; }
+.tk-dash .tk-md-row > b.qty,
+.tk-dash .tk-md-row > i.due { text-align: center !important; }
