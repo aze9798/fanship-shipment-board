@@ -403,3 +403,7 @@
 .tk-head-due > i, .tk-sec-due .tk-md-row > i { text-align: right; }
 .tk-head-special > *, .tk-sec-special .tk-md-row > * { text-align: center; }
 .tk-sec-special .tk-md-row > b, .tk-sec-special .tk-md-row > i { text-align: center; }
+/* 2026-10-18：实时总览所有小表，列名与数据统一居中 */
+.tk-dash .tk-md-head > *,
+.tk-dash .tk-md-row > * { text-align: center; }
+.tk-dash .tk-md-row > em, .tk-dash .tk-md-row > span { justify-self: center; text-align: center; }
