@@ -143,9 +143,12 @@
     const open = Number(r.openQty || 0);
     const canOps = r.status === 'issued' || r.status === 'partial';
     return `<tr data-id="${esc(r.id)}">
-      <td class="wide">${esc(r.vendor)}<span class="sub">${esc(r.name || '')}</span></td>
+      <td class="pick"><input type="checkbox" class="os-pick" data-id="${esc(r.id)}"></td>
+      <td>${esc(r.vendor)}</td>
       <td class="mono">${esc(r.material)}<span class="sub">${esc(r.spec || '—')}</span></td>
+      <td>${esc(r.name || '')}</td>
       <td class="num">${num(r.qty)}<span class="sub">发 ${md(r.issuedAt)}</span></td>
+      <td class="num">${r.unitPrice == null ? '—' : num(r.unitPrice)}</td>
       <td class="num">${num(r.receivedQty)}${Number(r.ngQty) ? `<span class="sub" style="color:var(--accent)">不良 ${num(r.ngQty)}</span>` : ''}</td>
       <td class="num" style="color:${open > 0 ? 'var(--accent)' : 'var(--muted)'}">${num(open)}</td>
       <td>${esc(md(r.dueDate))}<span class="sub">${statusPill(r)}</span></td>
@@ -460,8 +463,9 @@
           <div class="os-tablewrap">
             <table class="os-table">
               <thead><tr>
-                <th>外协厂 / 品名</th><th>料号 / 图号</th><th>发出</th><th>已到</th>
-                <th>欠交</th><th>交期</th><th>关联订单</th><th>操作</th>
+                <th class="pick"><input type="checkbox" id="osPickAll" title="全选"></th>
+                <th>客商</th><th>编号</th><th>品名</th><th>订单数量</th><th>单价</th>
+                <th>已到</th><th>未交</th><th>交期</th><th>关联订单</th><th>操作</th>
               </tr></thead>
               <tbody id="osBody"></tbody>
             </table>
@@ -483,8 +487,7 @@
       if (e.target.closest('#osRefresh')) { load(true); return; }
       if (e.target.closest('#osNew')) { dlgNew(); return; }
       if (e.target.closest('#osMerge')) { mergePo(); return; }
-      const pickTr = e.target.closest('#osBody tr');
-      if (pickTr && !e.target.closest('[data-act]') && !e.target.closest('button')) { pickTr.classList.toggle('picked'); return; }
+      if (e.target.closest('#osPickAll')) { const on = e.target.checked; document.querySelectorAll('#osBody .os-pick').forEach((cb) => { cb.checked = on; }); return; }
       const tab = e.target.closest('#osTabs [data-tab]');
       if (tab) { S.tab = tab.dataset.tab; render(); load(true); return; }
       const op = e.target.closest('#osBody [data-act]');
@@ -510,8 +513,8 @@
 
   /* 合并采购单：勾选几行 → 同供应商合并成一个 PO 号 → 打印一张多行采购单 */
   async function mergePo() {
-    const picked = [...document.querySelectorAll('#osBody tr.picked')]
-      .map((tr) => S.list.find((x) => String(x.id) === tr.dataset.id)).filter(Boolean);
+    const picked = [...document.querySelectorAll('#osBody .os-pick:checked')]
+      .map((cb) => S.list.find((x) => String(x.id) === cb.dataset.id)).filter(Boolean);
     if (!picked.length) { toast('先在列表里点几行（点一下行就是选中）'); return; }
     const groups = new Map();
     picked.forEach((r) => {

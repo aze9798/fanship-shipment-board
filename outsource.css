@@ -147,3 +147,4 @@
 /* 2026-10-18：外协/采购/质量/库存表：表头与数据统一居中 */
 .desktop-view .panel table th,
 .desktop-view .panel table td { text-align: center; }
+.os-table th.pick, .os-table td.pick { width: 34px; padding-left: 8px; padding-right: 2px; }
