@@ -17,14 +17,14 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
   <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
-  <link rel="stylesheet" href="design-tokens.css?v=4e8d43ed3215">
-  <link rel="stylesheet" href="ui-polish.css?v=4e8d43ed3215">
-  <link rel="stylesheet" href="theme-ui.css?v=4e8d43ed3215">
-  <link rel="stylesheet" href="dashboard-home.css?v=4e8d43ed3215">
+  <link rel="stylesheet" href="design-tokens.css?v=f8e142711e2c">
+  <link rel="stylesheet" href="ui-polish.css?v=f8e142711e2c">
+  <link rel="stylesheet" href="theme-ui.css?v=f8e142711e2c">
+  <link rel="stylesheet" href="dashboard-home.css?v=f8e142711e2c">
   <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
-  <link rel="stylesheet" href="home-merge.css?v=4e8d43ed3215">
-  <link rel="stylesheet" href="global-search.css?v=4e8d43ed3215">
-  <link rel="stylesheet" href="partners.css?v=4e8d43ed3215">
+  <link rel="stylesheet" href="home-merge.css?v=f8e142711e2c">
+  <link rel="stylesheet" href="global-search.css?v=f8e142711e2c">
+  <link rel="stylesheet" href="partners.css?v=f8e142711e2c">
   <!-- 图纸预览用的 PDF 引擎：首屏空闲时后台预取，别等点开图纸才开始下（2026-10-17） -->
   <link rel="prefetch" href="vendor/pdf.min.mjs">
   <link rel="prefetch" href="vendor/pdf.worker.min.mjs">
@@ -213,9 +213,13 @@
           <span class="nav-dot"></span>
           报工修改
         </a>
-        <a id="desktopStaffLink" class="side-link" href="staff.html" data-module="work" hidden>
+        <a id="desktopStaffInfoLink" class="side-link" href="#staff-info" data-desktop-view="staffInfo" data-module="work" hidden>
           <span class="nav-dot"></span>
-          员工 / 工资
+          员工信息
+        </a>
+        <a id="desktopPayrollLink" class="side-link" href="#payroll" data-desktop-view="payroll" data-module="work" hidden>
+          <span class="nav-dot"></span>
+          工资
         </a>
         <a id="desktopAttendanceLink" class="side-link" href="#attendance" data-desktop-view="attendance" data-module="attendance" hidden>
           <span class="nav-dot"></span>
@@ -791,6 +795,20 @@
         </section>
       </section>
 
+      <section id="desktopStaffInfoView" class="desktop-view desktop-only" hidden>
+        <header class="topbar">
+          <div><h1>员工信息</h1><p class="subhead">员工档案、工资类型、日薪、加班工资、月薪、时薪。</p></div>
+        </header>
+        <section class="panel staff-module-panel"><iframe id="staffInfoFrame" class="staff-module-frame" title="员工信息"></iframe></section>
+      </section>
+
+      <section id="desktopPayrollView" class="desktop-view desktop-only" hidden>
+        <header class="topbar">
+          <div><h1>工资</h1><p class="subhead">按考勤和报工自动计算，也可以查看和修改已导入的历史工资。</p></div>
+        </header>
+        <section class="panel staff-module-panel"><iframe id="staffPayrollFrame" class="staff-module-frame" title="工资"></iframe></section>
+      </section>
+
       <section id="mobileView" class="mobile-view mobile-only">
         <header class="mobile-head">
           <div class="mobile-fab-slot">
@@ -801,7 +819,6 @@
               <button type="button" data-mobile-module="entry" style="--i:1"><b>发货管理</b><small>搜索物料、登记装车</small></button>
               <button type="button" data-mobile-module="workReview" style="--i:2"><b>计时计件报工</b><small>报工明细 · 审核 · 月度</small></button>
               <button type="button" data-mobile-module="attendance" style="--i:3"><b>考勤管理</b><small>考勤汇总 · 补卡审核</small></button>
-              <a href="staff.html" class="mobile-module-link" style="--i:4"><b>员工 / 工资</b><small>员工信息 · 月度工资</small></a>
             </div>
           </div>
           </div>
@@ -1436,7 +1453,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "4e8d43ed3215";
+      const fallbackVersion = "f8e142711e2c";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
@@ -1471,15 +1488,16 @@
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=4e8d43ed3215" defer></script>
-  <script src="dashboard-home.js?v=4e8d43ed3215" defer></script>
+  <script src="ui-polish.js?v=f8e142711e2c" defer></script>
+  <script src="dashboard-home.js?v=f8e142711e2c" defer></script>
 
-  <script src="home-merge.js?v=4e8d43ed3215" defer></script>
-  <script src="global-search.js?v=4e8d43ed3215" defer></script>
-  <script src="drawing-rotate.js?v=4e8d43ed3215" defer></script>
-  <script src="drawing-open.js?v=4e8d43ed3215" defer></script>
-  <script src="partners.js?v=4e8d43ed3215" defer></script>
-  <script src="po-print.js?v=4e8d43ed3215" defer></script>
+  <script src="home-merge.js?v=f8e142711e2c" defer></script>
+  <script src="global-search.js?v=f8e142711e2c" defer></script>
+  <script src="drawing-rotate.js?v=f8e142711e2c" defer></script>
+  <script src="drawing-open.js?v=f8e142711e2c" defer></script>
+  <script src="partners.js?v=f8e142711e2c" defer></script>
+  <script src="po-print.js?v=f8e142711e2c" defer></script>
+  <script src="col-resize-fix.js?v=f8e142711e2c" defer></script>
 </body>
 </html>
 

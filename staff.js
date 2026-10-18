@@ -9,6 +9,7 @@
     payrollSearch: '', payrollType: '', editEmployee: null, payrollSource: 'auto', imported: []
   };
   let toastTimer = 0;
+  const EMBED = new URLSearchParams(location.search).get('embed') || '';
 
   function currentMonth() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' }).slice(0, 7);
@@ -81,6 +82,16 @@
     $('#refreshButton').hidden = false;
     $('#switchCodeButton').hidden = false;
     await refreshAll();
+    applyEmbedTab();
+  }
+  function applyEmbedTab() {
+    if (!EMBED) return;
+    const tab = EMBED === 'payroll' ? 'payroll' : 'info';
+    state.tab = tab;
+    document.querySelectorAll('[data-tab]').forEach((x) => x.classList.toggle('on', x.dataset.tab === tab));
+    $('#infoTab').hidden = tab !== 'info';
+    $('#payrollTab').hidden = tab !== 'payroll';
+    if (tab === 'payroll') renderPayroll();
   }
 
   async function loadEmployees() {
@@ -230,6 +241,7 @@
     tbody.querySelectorAll('[data-import-edit]').forEach((b) => b.addEventListener('click', () => openImportPayrollModal(b.dataset.importEdit)));
   }
   function renderPayroll() {
+    $('#payrollSource').value = state.payrollSource;
     if (state.payrollSource === 'imported' && state.imported.length) return renderImportedPayroll();
     const rows = payrollRows();
     const total = rows.reduce((s, r) => s + Number(r.calc.total || 0), 0);

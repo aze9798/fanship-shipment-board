@@ -24,7 +24,8 @@
   ];
   const NAV_MORE = [
     { view: 'loading',    label: '装车登记（电脑端备用）' },
-    { href: 'staff.html', label: '员工 / 工资', admin: true },
+    { view: 'staffInfo', label: '员工信息', admin: true },
+    { view: 'payroll', label: '工资', admin: true },
     { view: 'partners',   label: '客商信息', admin: true },
     { view: 'outsource',  label: '外协管理', admin: true },
     { view: 'inventory',  label: '库存', admin: true },
@@ -46,6 +47,8 @@
     desktopWorkReviewView: 'workReview',
     desktopWorkEditView: 'workEdit',
     desktopAttendanceView: 'attendance',
+    desktopStaffInfoView: 'staffInfo',
+    desktopPayrollView: 'payroll',
     desktopOutsourceView: 'outsource',
     desktopInventoryView: 'inventory',
     desktopPurchaseView: 'purchase',

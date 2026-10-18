@@ -6391,7 +6391,7 @@ function setDesktopModule(module, view = '') {
     els.moduleSwitchLabel.textContent = desktopModule === 'attendance'
       ? '考勤管理'
       : desktopModule === 'work'
-        ? (moduleViewText.includes('Edit') ? '报工修改' : (moduleViewText.includes('Review') ? '报工审核' : '报工情况'))
+        ? (moduleViewText === 'staffInfo' ? '员工信息' : moduleViewText === 'payroll' ? '工资' : (moduleViewText.includes('Edit') ? '报工修改' : (moduleViewText.includes('Review') ? '报工审核' : '报工情况')))
         : '装车登记';
   }
   if (desktopModule === 'attendance') showDesktopView(view || 'attendance');
@@ -6888,7 +6888,7 @@ function switchMobileModule(module) {
 }
 // 电脑端两个页面：实时总览 / 发货记录
 function showDesktopView(name) {
-  if ((name === 'workReview' || name === 'workEdit' || name === 'attendance' || name === 'prices') && boardRole !== 'admin') {
+  if ((name === 'workReview' || name === 'workEdit' || name === 'attendance' || name === 'prices' || name === 'staffInfo' || name === 'payroll') && boardRole !== 'admin') {
     showToast('只对管理员开放');
     name = 'overview';
   }
@@ -6904,6 +6904,8 @@ function showDesktopView(name) {
     workReview: document.getElementById('desktopWorkReviewView'),
     workEdit: document.getElementById('desktopWorkEditView'),
     attendance: document.getElementById('desktopAttendanceView'),
+    staffInfo: document.getElementById('desktopStaffInfoView'),
+    payroll: document.getElementById('desktopPayrollView'),
   };
   if (!pages.overview || !pages.shipments) return;
   const target = pages[name] ? name : 'overview';
@@ -6914,6 +6916,8 @@ function showDesktopView(name) {
   document.querySelectorAll('[data-desktop-view]').forEach((link) => {
     link.classList.toggle('active', link.dataset.desktopView === target);
   });
+  if (target === 'staffInfo') { const frame = document.getElementById('staffInfoFrame'); if (frame && !frame.getAttribute('src')) frame.src = 'staff.html?embed=staffInfo'; }
+  if (target === 'payroll') { const frame = document.getElementById('staffPayrollFrame'); if (frame && !frame.getAttribute('src')) frame.src = 'staff.html?embed=payroll'; }
   if (target === 'remaining') renderDesktopRemaining();
   if (target === 'shipments') renderDesktopHistory();
   if (target === 'files') renderCloudFiles();
