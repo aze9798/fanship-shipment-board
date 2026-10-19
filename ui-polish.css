@@ -569,3 +569,4 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
 /* 2026-10-19 白屏：app.js 把 #app 行内设成 display:none，用 !important 压回来 */
 #app { display: block !important; }
 #app[hidden] { display: block !important; }
+@media (min-width: 901px) { #app.app-shell { display: grid !important; grid-template-columns: 248px minmax(0, 1fr); } }
