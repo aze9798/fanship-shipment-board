@@ -64,8 +64,10 @@
     const nav = document.createElement('nav');
     nav.id = 'tkNav2';
     nav.className = 'tk-nav2';
-    old.style.display = 'none';
     old.insertAdjacentElement('afterend', nav);
+    try { render(); } catch (err) { nav.remove(); return; }
+    if (!nav.children.length) { nav.remove(); return; }   // 渲染没内容就保留旧导航
+    old.style.display = 'none';
     const foot = document.querySelector('.sidebar-foot');
     if (foot && !document.getElementById('tkNavEditBtn')) {
       const b = document.createElement('button');
