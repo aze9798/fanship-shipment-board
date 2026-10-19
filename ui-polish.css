@@ -447,3 +447,20 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
 #desktopWorkReportView .work-live-panel { padding: 0 0 4px !important; }
 #desktopWorkReportView .work-live-panel > header,
 #desktopWorkReportView .work-live-panel > .panel-head { padding: 10px 14px !important; }
+/* 报工页：左右分栏 */
+.tk-work-split { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.tk-work-left { min-width: 0; overflow-x: auto; }
+.tk-work-left table { margin: 0 !important; }
+.tk-work-left tbody tr { cursor: pointer; }
+.tk-work-left tbody tr:hover td { background: var(--surface-soft); }
+.tk-work-left tbody tr.on td { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+.tk-work-right {
+  min-height: 220px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+.tk-work-right h4 { margin: 0 0 10px; font-size: calc(var(--tk-ui-fs) * 1.07); }
+.tk-work-right dl { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 6px 10px; margin: 0; font-size: calc(var(--tk-ui-fs) * 0.93); }
+.tk-work-right dt { color: var(--muted); }
+.tk-work-right dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.tk-work-empty { color: var(--muted); font-size: calc(var(--tk-ui-fs) * 0.93); line-height: 1.7; text-align: center; padding-top: 40px; }
+@media (max-width: 1280px) { .tk-work-split { grid-template-columns: minmax(0, 1fr); } }
