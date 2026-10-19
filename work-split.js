@@ -98,6 +98,7 @@
 
     right.innerHTML = '<h4>' + esc(name) + '</h4>' +
       '<div class="tk-kv"><span>状态</span><b>' + esc(status) + '</b></div>' +
+      '<div class="tk-kv" data-att-state><span>考勤签退</span><b>读取中…</b></div>' +
       '<button type="button" class="tk-acc open" data-acc="time"><span>今日计时</span><b>' + esc(timerText) + '</b><i>▾</i></button>' +
       '<div class="tk-acc-body" data-body="time"><div class="none">读取计时时段…</div></div>' +
       '<button type="button" class="tk-acc open" data-acc="piece"><span>今日计件</span><b>' + esc(pieceText) + '</b><i>▾</i></button>' +
@@ -138,6 +139,18 @@
       if (!Array.isArray(arr)) arr = [];
     } catch (e) { arr = []; }
 
+    let att = null;
+    try {
+      const ar = await fetch(base + '/board_attendance_days', {
+        method: 'POST', headers: h,
+        body: JSON.stringify({ p_code: code, p_from: day, p_to: day, p_employee_no: no })
+      });
+      const ad = ar.ok ? await ar.json() : null;
+      att = (ad && Array.isArray(ad.days) && ad.days[0]) ? ad.days[0] : null;
+    } catch (e) { att = null; }
+    const checkOut = att && att.checkOut ? String(att.checkOut).slice(0, 5) : '';
+    const attState = !checkOut ? 'pending' : (checkOut <= '17:00' ? 'left' : 'ot');
+
     const norm = (list) => {
       const seen = new Set();
       const out = [];
@@ -161,17 +174,34 @@
       ? list.map((x) => '<div class="tk-seg ' + cls + '"><b>' + hhmm(x.start) + ' – ' + hhmm(x.end) + '</b><i>' + Number(x.minutes || 0) + ' 分钟</i></div>').join('')
       : '<div class="none">没有时段记录</div>';
 
+    const after17 = [...timers, ...pieces].some((x) => hhmm(x.end) > '17:00');
+    const attLine = '<div class="tk-att-line">考勤签退：<b>' + (checkOut || '未出') + '</b>' +
+      (attState === 'left' ? '<em class="tk-att-bad">已下班</em>' : attState === 'ot' ? '<em class="tk-att-ok">加班</em>' : '<em class="tk-att-pending">待核对</em>') + '</div>';
+    const attWarn = after17
+      ? (attState === 'left'
+          ? '<div class="tk-att-warn bad">考勤 ' + checkOut + ' 已下班；17:00 后的时段按“忘记结束”处理，不计加班工资。</div>'
+          : attState === 'pending'
+            ? '<div class="tk-att-warn pending">考勤签退未出；17:00 后的时段待核对，确认前不计加班工资。</div>'
+            : '<div class="tk-att-warn ok">考勤 ' + checkOut + ' 下班；17:00 后的时段按加班核对。</div>')
+      : '';
+    const attEl = right.querySelector('[data-att-state] b');
+    if (attEl) attEl.textContent = checkOut || '未出';
     const tb = right.querySelector('[data-body="time"]');
     const pb = right.querySelector('[data-body="piece"]');
-    if (tb) tb.innerHTML = li(timers, 'timer') + '<div class="tk-seg-sum">计时合计 ' + Math.round(tMin / 60 * 10) / 10 + ' 小时</div>';
+    if (tb) tb.innerHTML = li(timers, 'timer') + '<div class="tk-seg-sum">计时合计 ' + Math.round(tMin / 60 * 10) / 10 + ' 小时</div>' + attLine + attWarn;
     if (pb) {
       const pl = pb.querySelector('[data-piece-periods]');
       if (pl) {
+        const tagFor = (x) => {
+          if (hhmm(x.end) <= '17:00') return '';
+          if (attState === 'left') return ' <em class="tk-ot tk-left">忘记结束</em>';
+          if (attState === 'ot') return ' <em class="tk-ot">加班</em>';
+          return ' <em class="tk-ot tk-pending">待核对</em>';
+        };
         pl.innerHTML = pieces.length
-          ? '<div class="tk-sub-h">计件时段</div>' + pieces.map((x) => {
-              const ot = hhmm(x.start) >= '17:00';
-              return '<div class="tk-seg piece"><b>' + hhmm(x.start) + ' – ' + hhmm(x.end) + (ot ? ' <em class="tk-ot">加班</em>' : '') + '</b><i>' + Number(x.minutes || 0) + ' 分钟</i></div>';
-            }).join('')
+          ? '<div class="tk-sub-h">计件时段</div>' + pieces.map((x) =>
+              '<div class="tk-seg piece"><b>' + hhmm(x.start) + ' – ' + hhmm(x.end) + tagFor(x) + '</b><i>' + Number(x.minutes || 0) + ' 分钟</i></div>'
+            ).join('')
           : '';
       }
       const ps = pb.querySelector('[data-piece-sum]');
