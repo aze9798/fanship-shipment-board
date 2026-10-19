@@ -1,93 +1,137 @@
-/* 报工页：左侧列表 + 右侧详情（不改 app.js，只在渲染后接管布局） 2026-10-19 */
+/* 报工页：员工实况（左表 + 右明细）｜报工记录（单独页签）
+   2026-10-19 修复：旧版 hideNative 把“员工实况”整个面板误隐藏；
+   现在只隐藏原生重复详情区，并把记录表移到「报工记录」页签。 */
 (() => {
   'use strict';
   const VIEW = 'desktopWorkReportView';
   let lastTr = null;
+  let lastNo = '';
+  let mode = 'live'; // live | records
 
-  function build() {
-    const v = document.getElementById(VIEW);
-    if (!v) return;
-    const panel = v.querySelector('.work-live-panel');
-    if (!panel) return;
-    // 找「员工实况」那张表（表头含 今日计时 / 今日工资 / 当前状态），找不到就不接管
+  const shanghaiToday = () => new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(new Date());
+
+  const money = (v) => '¥' + Number(v || 0).toLocaleString('zh-CN', { maximumFractionDigits: 1 });
+  const hhmm = (s) => {
+    const x = new Date(s);
+    return isNaN(x) ? '--:--' : x.toLocaleTimeString('zh-CN', {
+      hour12: false, timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit'
+    });
+  };
+
+  function findLiveTable(panel) {
     const tables = [...panel.querySelectorAll('table')].filter((x) => x.querySelector('tbody'));
-    const table = tables.find((x) => /今日计时|今日工资|当前状态/.test(String((x.querySelector('thead') || {}).innerText || '')));
-    if (!table) return;
-    // 记录表（时间/单价/金额）不属于员工实况，收起，避免同屏两张表
-    tables.forEach((x) => { if (x !== table) { const box = x.closest('.panel, section'); if (box && box !== panel) box.style.display = 'none'; } });
-    if (panel.querySelector('.tk-work-split')) return;
+    return tables.find((x) => /今日计时|今日工资|当前状态/.test(String((x.querySelector('thead') || {}).innerText || ''))) || null;
+  }
 
-    const split = document.createElement('div');
+  function ensureSplit(panel, table) {
+    let split = panel.querySelector('.tk-work-split');
+    if (split) return split;
+
+    const nativeSplit = panel.querySelector('.work-live-split');
+    split = document.createElement('div');
     split.className = 'tk-work-split';
     const left = document.createElement('div');
     left.className = 'tk-work-left';
     const right = document.createElement('div');
     right.className = 'tk-work-right';
-    table.parentNode.insertBefore(split, table);
     split.appendChild(left);
     split.appendChild(right);
-    left.appendChild(table);
-    right.innerHTML = '<div class="tk-work-empty">点左侧任意一行<br>这里显示该员工当天的逐笔明细</div>';
 
-    table.addEventListener('click', (e) => {
-      const tr = e.target.closest('tbody tr');
-      if (!tr || tr === lastTr) return;
-      lastTr = tr;
-      [...table.querySelectorAll('tbody tr')].forEach((x) => x.classList.toggle('on', x === tr));
-      const cells = [...tr.children].map((td) => td.textContent.trim().replace(/\s+/g, ' '));
-      const no = (cells[0] || '').replace(/[^0-9A-Za-z]/g, '');
-      const mine = (window.__tkWorkEntries || []).filter((x) => String(x.employeeNo) === no);
-      const money = (v) => '¥' + Number(v || 0).toLocaleString('zh-CN', { maximumFractionDigits: 1 });
-      const pieceHtml = mine.length
-        ? mine.map((e) => '<div class="row2"><span>' + (e.name || '') + '</span><i>' + (e.material || '') + ' · ' + (e.process || '') + '</i><b>' + Number(e.quantity || 0) + ' 件</b><em>单价 ' + Number(e.unitPrice || 0) + ' · ' + money(e.amount) + '</em></div>').join('')
-        : '<div class="none">今天没有计件记录</div>';
-      right.innerHTML = '<h4>' + (cells[0] || '明细') + '</h4>' +
-        '<div class="tk-kv"><span>状态</span><b>' + (cells[1] || '—') + '</b></div>' +
-        '<button type="button" class="tk-acc" data-acc="time"><span>今日计时</span><b>' + (cells[2] || '—') + '</b><i>▾</i></button>' +
-        '<div class="tk-acc-body" data-body="time" hidden><div class="none">' + (cells[2] || '—') + '</div><div class="none">（时段明细接口加好后显示 09:00–11:30 这类区间）</div></div>' +
-        '<button type="button" class="tk-acc" data-acc="piece"><span>今日计件</span><b>' + (cells[3] || '—') + '</b><i>▾</i></button>' +
-        '<div class="tk-acc-body" data-body="piece" hidden>' + pieceHtml + '</div>' +
-        '<div class="tk-work-actions"></div>';
-      fillPeriods(right, no);
-      right.querySelectorAll('.tk-acc').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const body = right.querySelector('[data-body="' + btn.dataset.acc + '"]');
-          if (!body) return;
-          body.hidden = !body.hidden;
-          btn.classList.toggle('open', !body.hidden);
-        });
+    // 放在原生两栏的位置，并把实况表移进左栏
+    if (nativeSplit) panel.insertBefore(split, nativeSplit);
+    else panel.appendChild(split);
+    left.appendChild(table);
+
+    // 原生右栏只负责 app.js 的内部状态；我们用自己的明细栏，原生整栏隐藏
+    if (nativeSplit) nativeSplit.style.display = 'none';
+
+    right.innerHTML = '<div class="tk-work-empty">点左侧任意一行<br>这里显示该员工当天的计时与计件明细</div>';
+
+    if (!table.dataset.tkBound) {
+      table.dataset.tkBound = '1';
+      table.addEventListener('click', (e) => {
+        const tr = e.target.closest('tbody tr');
+        if (!tr || !tr.querySelector('td')) return;
+        lastTr = tr;
+        const cells = [...tr.children].map((td) => td.textContent.trim().replace(/\s+/g, ' '));
+        lastNo = String((tr.querySelector('td:first-child small') || {}).textContent || cells[0] || '').replace(/[^0-9A-Za-z]/g, '');
+        [...table.querySelectorAll('tbody tr')].forEach((x) => x.classList.toggle('on', x === tr));
+        renderDetail(right, tr, cells);
       });
-      const src = tr.querySelector('a, button');
-      const box = right.querySelector('.tk-work-actions');
-      if (src && box) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'button primary';
-        btn.textContent = '查看该员工明细';
-        btn.addEventListener('click', () => src.click());
-        box.appendChild(btn);
-      }
-    });
+    }
+    return split;
   }
 
-  /* 取某员工当天的计时/计件时段（board_work_periods） */
+  function renderDetail(right, tr, cells) {
+    if (!right) return;
+    const name = String((tr.querySelector('td:first-child strong') || {}).textContent || cells[0] || '员工');
+    const no = lastNo;
+    const status = cells[1] || '—';
+    const timerText = cells[2] || '—';
+    const pieceText = cells[3] || '—';
+    const entriesReady = Array.isArray(window.__tkWorkEntries);
+    const mine = (window.__tkWorkEntries || []).filter((x) => String(x.employeeNo) === no);
+    const pieceHtml = !entriesReady
+      ? '<div class="none">读取计件明细…</div>'
+      : mine.length
+        ? mine.map((e) => '<div class="row2"><span>' + (e.name || '') + '</span><i>' + (e.material || '') + ' · ' + (e.process || '') + '</i><b>' + Number(e.quantity || 0) + ' 件</b><em>单价 ' + Number(e.unitPrice || 0) + ' · ' + money(e.amount) + '</em></div>').join('')
+        : '<div class="none">今天没有计件记录</div>';
+
+    right.innerHTML = '<h4>' + name + '</h4>' +
+      '<div class="tk-kv"><span>状态</span><b>' + status + '</b></div>' +
+      '<button type="button" class="tk-acc" data-acc="time"><span>今日计时</span><b>' + timerText + '</b><i>▾</i></button>' +
+      '<div class="tk-acc-body" data-body="time"><div class="none">读取计时时段…</div></div>' +
+      '<button type="button" class="tk-acc" data-acc="piece"><span>今日计件</span><b>' + pieceText + '</b><i>▾</i></button>' +
+      '<div class="tk-acc-body" data-body="piece">' + pieceHtml + '</div>' +
+      '<div class="tk-work-actions"></div>';
+
+    right.querySelectorAll('.tk-acc').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const body = right.querySelector('[data-body="' + btn.dataset.acc + '"]');
+        if (!body) return;
+        body.hidden = !body.hidden;
+        btn.classList.toggle('open', !body.hidden);
+      });
+    });
+
+    const src = tr.querySelector('a, button');
+    const box = right.querySelector('.tk-work-actions');
+    if (src && box) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'button primary';
+      btn.textContent = '查看该员工明细';
+      btn.addEventListener('click', () => src.click());
+      box.appendChild(btn);
+    }
+    fillPeriods(right, no);
+  }
+
   async function fillPeriods(right, no) {
     const base = window.SHIPMENT_RPC_BASE || '';
-    if (!base) return;
-    const mode = new URLSearchParams(location.search).get('mode');
-    const suffix = (mode === 'admin' || mode === 'user') ? ':' + mode : '';
+    if (!base || !right) return;
+    const modeName = new URLSearchParams(location.search).get('mode');
+    const suffix = (modeName === 'admin' || modeName === 'user') ? ':' + modeName : '';
     const code = localStorage.getItem('shipmentBoardAccessCode' + suffix) || '';
     const h = { 'Content-Type': 'application/json' };
-    if (window.SHIPMENT_ANON_KEY) { h.apikey = window.SHIPMENT_ANON_KEY; h.Authorization = 'Bearer ' + window.SHIPMENT_ANON_KEY; }
-    const d = new Date();
-    const today = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    if (window.SHIPMENT_ANON_KEY) {
+      h.apikey = window.SHIPMENT_ANON_KEY;
+      h.Authorization = 'Bearer ' + window.SHIPMENT_ANON_KEY;
+    }
+    const dateInput = document.getElementById('desktopWorkReportDate');
+    const day = (dateInput && dateInput.value) || shanghaiToday();
     let arr = [];
     try {
-      const r = await fetch(base + '/board_work_periods', { method: 'POST', headers: h, body: JSON.stringify({ p_code: code, p_date: today, p_employee_no: no }) });
+      const r = await fetch(base + '/board_work_periods', {
+        method: 'POST', headers: h,
+        body: JSON.stringify({ p_code: code, p_date: day, p_employee_no: no })
+      });
       arr = r.ok ? await r.json() : [];
       if (!Array.isArray(arr)) arr = [];
     } catch (e) { arr = []; }
-    const hhmm = (s) => { const x = new Date(s); return isNaN(x) ? '--:--' : x.toLocaleTimeString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit' }); };
+
     const norm = (list) => {
       const seen = new Set();
       const out = [];
@@ -103,49 +147,122 @@
     const timers = norm(arr.filter((x) => x.kind === 'timer'));
     const pieces = norm(arr.filter((x) => x.kind === 'piece'));
     const tMin = timers.reduce((s, x) => s + Number(x.minutes || 0), 0);
-    const all = arr.map((x) => [new Date(x.start).getTime(), new Date(x.end).getTime()]).filter((p) => !isNaN(p[0]) && !isNaN(p[1]));
+    const all = arr.map((x) => [new Date(x.start).getTime(), new Date(x.end).getTime()])
+      .filter((p) => !isNaN(p[0]) && !isNaN(p[1]));
     const span = all.length ? Math.round((Math.max(...all.map((p) => p[1])) - Math.min(...all.map((p) => p[0]))) / 60000) : 0;
     const pieceMin = Math.max(0, span - tMin);
     const li = (list, cls) => list.length
       ? list.map((x) => '<div class="tk-seg ' + cls + '"><b>' + hhmm(x.start) + ' – ' + hhmm(x.end) + '</b><i>' + Number(x.minutes || 0) + ' 分钟</i></div>').join('')
       : '<div class="none">没有时段记录</div>';
+
     const tb = right.querySelector('[data-body="time"]');
     const pb = right.querySelector('[data-body="piece"]');
     if (tb) tb.innerHTML = li(timers, 'timer') + '<div class="tk-seg-sum">计时合计 ' + Math.round(tMin / 60 * 10) / 10 + ' 小时</div>';
     if (pb) pb.innerHTML = li(pieces, 'piece') + '<div class="tk-seg-sum">计件总工时 ' + Math.round(pieceMin / 60 * 10) / 10 + ' 小时（全天 ' + Math.round(span / 60 * 10) / 10 + ' − 计时 ' + Math.round(tMin / 60 * 10) / 10 + '）</div>';
   }
 
-  /* 取今天全部计件明细，按员工号分组用 */
   async function loadEntries() {
     try {
       const base = window.SHIPMENT_RPC_BASE || '';
       if (!base) return;
-      const mode = new URLSearchParams(location.search).get('mode');
-      const suffix = (mode === 'admin' || mode === 'user') ? ':' + mode : '';
+      const modeName = new URLSearchParams(location.search).get('mode');
+      const suffix = (modeName === 'admin' || modeName === 'user') ? ':' + modeName : '';
       const code = localStorage.getItem('shipmentBoardAccessCode' + suffix) || '';
       const h = { 'Content-Type': 'application/json' };
-      if (window.SHIPMENT_ANON_KEY) { h.apikey = window.SHIPMENT_ANON_KEY; h.Authorization = 'Bearer ' + window.SHIPMENT_ANON_KEY; }
-      const today = new Date().toISOString().slice(0, 10);
-      const r = await fetch(base + '/work_admin_report_list', { method: 'POST', headers: h, body: JSON.stringify({ p_code: code, p_date: today, p_employee_id: null, p_status: 'all', p_query: '', p_limit: 500 }) });
+      if (window.SHIPMENT_ANON_KEY) {
+        h.apikey = window.SHIPMENT_ANON_KEY;
+        h.Authorization = 'Bearer ' + window.SHIPMENT_ANON_KEY;
+      }
+      const dateInput = document.getElementById('desktopWorkReportDate');
+      const day = (dateInput && dateInput.value) || shanghaiToday();
+      const r = await fetch(base + '/work_admin_report_list', {
+        method: 'POST', headers: h,
+        body: JSON.stringify({ p_code: code, p_date: day, p_employee_id: null, p_status: 'all', p_query: '', p_limit: 1000 })
+      });
       const d = r.ok ? await r.json() : null;
       window.__tkWorkEntries = (d && Array.isArray(d.rows)) ? d.rows : [];
+      // 点击时明细还没加载完：加载完自动补上
+      if (lastTr && document.contains(lastTr)) {
+        const right = document.querySelector('#desktopWorkReportView .tk-work-right');
+        if (right) {
+          const cells = [...lastTr.children].map((td) => td.textContent.trim().replace(/\s+/g, ' '));
+          renderDetail(right, lastTr, cells);
+        }
+      }
     } catch (e) { window.__tkWorkEntries = []; }
   }
-  loadEntries();
-  setInterval(() => { if (!window.__tkWorkEntries) loadEntries(); }, 5000);
 
-  /* 隐藏 app.js 原生的重复详情区 */
-  function hideNative() {
-    [...document.querySelectorAll('div, section')].forEach((el) => {
-      if (el.dataset.tkHid === '1') return;
-      if (String(el.textContent || '').indexOf('点左侧员工的「查看明细」') >= 0 && el.children.length <= 3) {
-        el.dataset.tkHid = '1';
-        el.style.display = 'none';
-      }
-    });
+  function recordsSection(v) {
+    return [...v.children].find((el) => el.matches('section.panel') &&
+      !el.classList.contains('work-live-panel') &&
+      el.querySelector('.work-report-table') &&
+      el.querySelector('#desktopWorkReportBody')) || null;
   }
-  setInterval(() => { build(); hideNative(); }, 1200);
+
+  function paint(v) {
+    const panel = v.querySelector('.work-live-panel');
+    const records = recordsSection(v);
+    if (panel) panel.style.display = mode === 'records' ? 'none' : '';
+    if (records) {
+      records.classList.add('tk-work-records');
+      records.style.display = mode === 'records' ? '' : 'none';
+    }
+    v.querySelectorAll('[data-work-view="workReport"]').forEach((b) => b.classList.toggle('on', mode === 'live'));
+    v.querySelectorAll('[data-tk-work-mode="records"]').forEach((b) => b.classList.toggle('on', mode === 'records'));
+  }
+
+  function ensureRecordTab(v) {
+    const bar = v.querySelector('.tk-work-tabs');
+    if (!bar) return;
+    if (!bar.querySelector('[data-tk-work-mode="records"]')) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.tkWorkMode = 'records';
+      b.textContent = '报工记录';
+      bar.appendChild(b);
+    }
+    if (!bar.dataset.tkModeBound) {
+      bar.dataset.tkModeBound = '1';
+      bar.addEventListener('click', (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        if (b.dataset.tkWorkMode === 'records') {
+          e.preventDefault();
+          e.stopPropagation();
+          mode = 'records';
+          paint(v);
+        } else if (b.dataset.workView === 'workReport') {
+          mode = 'live';
+          paint(v);
+        }
+      }, true);
+    }
+  }
+
+  function build() {
+    const v = document.getElementById(VIEW);
+    if (!v) return;
+    const panel = v.querySelector('.work-live-panel');
+    if (!panel) return;
+    const table = findLiveTable(panel);
+    if (!table) return;
+    ensureSplit(panel, table);
+    ensureRecordTab(v);
+    paint(v);
+    // 原生重复详情区不再用大范围 textContent 隐藏（旧版就是这样把整个实况面板误藏的）
+    const native = panel.querySelector('.work-live-split');
+    if (native) native.style.display = 'none';
+  }
+
+  loadEntries();
+  setInterval(() => { if (!Array.isArray(window.__tkWorkEntries)) loadEntries(); }, 5000);
+  setInterval(build, 1200);
+
   document.addEventListener('click', (e) => {
-    if (e.target.closest('[data-tk-view="work"]')) setTimeout(build, 400);
+    if (e.target.closest('[data-work-view="workReport"]')) mode = 'live';
+    if (e.target.closest('[data-tk-view="work"], [data-desktop-view="workReport"]')) setTimeout(build, 400);
   }, true);
+  document.addEventListener('change', (e) => {
+    if (e.target && e.target.id === 'desktopWorkReportDate') loadEntries();
+  });
 })();

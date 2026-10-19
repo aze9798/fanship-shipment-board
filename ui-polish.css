@@ -573,3 +573,21 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
 .version-update-bar { position: static !important; }
 /* 2026-10-19：外协 / 采购 / 质量 三个板块固定 5 行高（空的也占同样高度），多了内部滚动 */
 .tk-dash-3col .tk-md-list { height: 190px !important; max-height: 190px !important; overflow-y: auto !important; }
+/* 报工实况右栏：计件明细行（2026-10-19） */
+.tk-work-right .row2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 8px 0; border-bottom: 1px dashed var(--line2, var(--line)); font-size: calc(var(--tk-ui-fs) * 0.92); }
+.tk-work-right .row2 span { font-weight: 600; }
+.tk-work-right .row2 i { grid-column: 1; font-style: normal; color: var(--muted); font-size: calc(var(--tk-ui-fs) * 0.86); }
+.tk-work-right .row2 b { grid-column: 2; grid-row: 1; text-align: right; font-variant-numeric: tabular-nums; }
+.tk-work-right .row2 em { grid-column: 2; grid-row: 2; font-style: normal; color: var(--muted); font-size: calc(var(--tk-ui-fs) * 0.86); text-align: right; }
+.tk-work-right .none { color: var(--muted); font-size: calc(var(--tk-ui-fs) * 0.9); padding: 8px 0; }
+
+/* 2026-10-19 报工实况：桌面端只保留 员工 / 状态 / 今日计时 / 今日计件 / 操作 */
+@media (min-width: 1281px) {
+  #desktopWorkReportView .tk-work-left table th:nth-child(4),
+  #desktopWorkReportView .tk-work-left table td:nth-child(4) { display: table-cell !important; }
+  #desktopWorkReportView .tk-work-left table th:nth-child(5),
+  #desktopWorkReportView .tk-work-left table td:nth-child(5),
+  #desktopWorkReportView .tk-work-left table th:nth-child(6),
+  #desktopWorkReportView .tk-work-left table td:nth-child(6) { display: none !important; }
+}
+#desktopWorkReportView .work-live-panel > .section-head { padding: 14px 16px 6px !important; }
