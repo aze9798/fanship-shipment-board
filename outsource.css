@@ -148,3 +148,23 @@
 .desktop-view .panel table th,
 .desktop-view .panel table td { text-align: center; }
 .os-table th.pick, .os-table td.pick { width: 34px; padding-left: 8px; padding-right: 2px; }
+
+/* 采购单记录：按单号归档，默认折叠，展开看明细 */
+.os-card.wide { width: min(100%, 860px); }
+.os-po-records { display: grid; gap: 9px; margin-top: 12px; }
+.os-po-record { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); overflow: hidden; }
+.os-po-record summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 160px minmax(0,1fr) auto; gap: 12px; align-items: center; padding: 11px 13px; background: var(--surface-soft); }
+.os-po-record summary::-webkit-details-marker { display: none; }
+.os-po-record summary b { font-size: 13px; color: var(--ink); }
+.os-po-record summary span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+.os-po-record summary i { font-style: normal; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.os-po-record[open] summary { border-bottom: 1px solid var(--line); }
+.os-po-lines { padding: 10px 12px 2px; overflow-x: auto; }
+.os-po-lines table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 680px; }
+.os-po-lines th, .os-po-lines td { border-bottom: 1px solid var(--line); padding: 7px 8px; text-align: center; vertical-align: middle; }
+.os-po-lines th { color: var(--muted); font-size: 11px; font-weight: 600; background: var(--surface-soft); }
+.os-po-lines td.mono { font-family: Consolas, monospace; font-size: 11.5px; }
+.os-po-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 12px 12px; }
+.os-po-actions button { height: 30px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: 11.5px; cursor: pointer; }
+.os-po-actions button.pri { background: var(--ink); border-color: var(--ink); color: var(--surface); font-weight: 600; }
+@media (max-width: 760px) { .os-po-record summary { grid-template-columns: 1fr; gap: 4px; } .os-po-record summary i { white-space: normal; } }

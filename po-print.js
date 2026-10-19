@@ -72,7 +72,7 @@
       '</body></html>';
   }
 
-  window.tkPrintPo = async function (kind, input, poNoIn) {
+  window.tkPrintPo = async function (kind, input, poNoIn, options = {}) {
     const rows = Array.isArray(input) ? input.filter(Boolean) : (input ? [input] : []);
     if (!rows.length) return;
     const k = kind === '01' ? '01' : '02';
@@ -86,7 +86,9 @@
     if (!w) { alert('浏览器拦了弹窗，请允许本页弹出窗口'); return; }
     try {
       w.document.open(); w.document.write(buildHtml(k, rows, poNo)); w.document.close(); w.focus();
-      setTimeout(() => { try { w.print(); } catch { } }, 400);
+      // 采购单记录里的“打开 PDF 版”只看预览，不自动弹打印框；
+      // 需要文件时在浏览器里 Ctrl+P → 另存为 PDF。
+      if (options.print !== false) setTimeout(() => { try { w.print(); } catch { } }, 400);
     } catch (e) { alert('打开失败：' + e.message); }
   };
 })();

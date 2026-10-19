@@ -14,6 +14,7 @@
 
   const VIEW = 'outsource';
   const S = { tab: 'open', list: [], ov: null, orders: [], loaded: false, err: '', busy: false };
+  let poDocsCache = null;
 
   const $ = (s) => document.querySelector(s);
   const num = (n) => Number(n || 0).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
@@ -159,7 +160,7 @@
         <button class="ops" data-act="history">记录</button>
         <button class="ops" data-act="edit" ${canOps ? '' : 'disabled'}>改</button>
         <button class="ops ng" data-act="ng" ${Number(r.receivedQty) > 0 ? '' : 'disabled'}>标不良</button>
-        <button class="ops" data-act="po" title="按单号打印采购单">采购单</button>
+        <button class="ops" data-act="po" title="查看这张外协单所属的采购单记录">查看采购单</button>
         <button class="ops" data-act="close" ${canOps ? '' : 'disabled'}>结单</button>
       </div></td>
     </tr>`;
@@ -452,7 +453,8 @@
           <div><div class="eyebrow">委外加工</div><h1>外协管理</h1></div>
           <div class="topbar-actions">
             <button id="osRefresh" class="button">刷新</button>
-            <button id="osMerge" class="button">合并采购单</button>
+            <button id="osPoRecords" class="button">采购单记录</button>
+            <button id="osMerge" class="button">生成采购单</button>
             <button id="osNew" class="button primary">新建外协单</button>
           </div>
         </header>
@@ -486,6 +488,7 @@
     document.addEventListener('click', (e) => {
       if (e.target.closest('#osRefresh')) { load(true); return; }
       if (e.target.closest('#osNew')) { dlgNew(); return; }
+      if (e.target.closest('#osPoRecords')) { openPoRecords(); return; }
       if (e.target.closest('#osMerge')) { mergePo(); return; }
       if (e.target.closest('#osPickAll')) { const on = e.target.checked; document.querySelectorAll('#osBody .os-pick').forEach((cb) => { cb.checked = on; }); return; }
       const tab = e.target.closest('#osTabs [data-tab]');
@@ -498,7 +501,7 @@
         if (act === 'receipt') dlgReceipt(r);
         else if (act === 'arrived') rpc('board_outsource_note_arrived', { p_id: r.id }).then((res) => {
           if (!res.ok) { toast('标记失败：' + res.error); return; } toast('已标记「货已到，待登记」'); load(true); });
-        else if (act === 'po') window.tkPrintPo && window.tkPrintPo('02', r);
+        else if (act === 'po') openPoRecordByRow(r);
         else if (act === 'history') dlgHistory(r);
         else if (act === 'edit') dlgEdit(r);
         else if (act === 'ng') dlgNg(r);
@@ -511,30 +514,131 @@
     });
   }
 
-  /* 合并采购单：勾选几行 → 同供应商合并成一个 PO 号 → 打印一张多行采购单 */
+  /* ---------------- 采购单记录 ---------------- */
+  function poRecordTotalQty(rec) {
+    return (rec.lines || []).reduce((sum, line) => sum + Number(line.qty || 0), 0);
+  }
+
+  function poRecordHtml(rec, index, focusPo) {
+    const lines = Array.isArray(rec.lines) ? rec.lines : [];
+    const total = poRecordTotalQty(rec);
+    const date = String(rec.createdAt || '').slice(0, 10) || '—';
+    const open = index === 0 || String(rec.poNo || '') === String(focusPo || '');
+    return `<details class="os-po-record" ${open ? 'open' : ''} data-po-rec="${index}">
+      <summary>
+        <b class="mono">${esc(rec.poNo || '—')}</b>
+        <span>${esc(rec.vendor || '—')}</span>
+        <i>${esc(date)} · ${lines.length} 项 · ${num(total)} 件</i>
+      </summary>
+      <div class="os-po-lines">
+        <table>
+          <thead><tr><th>项次</th><th>品名</th><th>料号</th><th>规格 / 图号</th><th>数量</th><th>交期</th><th>单价</th></tr></thead>
+          <tbody>${lines.map((line, i) => `<tr>
+            <td>${i + 1}</td>
+            <td>${esc(line.name || '—')}</td>
+            <td class="mono">${esc(line.material || '—')}</td>
+            <td class="mono">${esc(line.spec || '—')}</td>
+            <td>${num(line.qty)}</td>
+            <td>${esc(String(line.dueDate || '').slice(0, 10) || '—')}</td>
+            <td>${line.unitPrice == null ? '—' : num(line.unitPrice)}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+      <div class="os-po-actions">
+        <button type="button" data-po-copy="${esc(rec.poNo || '')}">复制单号</button>
+        <button type="button" class="pri" data-po-pdf="${index}">打开 PDF 版</button>
+      </div>
+    </details>`;
+  }
+
+  async function fetchPoDocuments(force) {
+    if (poDocsCache && !force) return poDocsCache;
+    const res = await rpc('board_po_documents', { p_kind: '02' });
+    if (!res.ok) throw res;
+    poDocsCache = Array.isArray(res.data) ? res.data : [];
+    return poDocsCache;
+  }
+
+  async function openPoRecords(focusPo, recordsIn) {
+    let records = recordsIn || null;
+    try {
+      if (!records) records = await fetchPoDocuments(true);
+    } catch (err) {
+      openModal(`<h3>采购单记录</h3>
+        <div class="os-sub">采购单记录接口还没装好。请先在 Supabase → SQL Editor 执行 <b>cloud/po-documents.sql</b>，然后点“采购单记录”重试。</div>
+        <div class="os-foot"><button data-x="cancel">关闭</button></div>`);
+      return;
+    }
+    if (!records.length) {
+      openModal(`<h3>采购单记录</h3><div class="os-sub">还没有生成过采购单。勾选外协单后点“生成采购单”，系统会把单号和明细一起存成记录。</div>
+        <div class="os-foot"><button data-x="cancel">关闭</button></div>`);
+      return;
+    }
+    const modal = openModal(`<h3>采购单记录</h3>
+      <div class="os-sub">这里保存的是已经生成过的采购单快照。不需要打印；需要文件时点“打开 PDF 版”，在浏览器里另存为 PDF 即可。</div>
+      <div class="os-po-records">${records.map((rec, i) => poRecordHtml(rec, i, focusPo)).join('')}</div>
+      <div class="os-foot"><button data-x="cancel">关闭</button></div>`);
+    modal.querySelector('.os-card')?.classList.add('wide');
+    modal.addEventListener('click', async (e) => {
+      if (e.target.closest('[data-x]')) { closeModal(); return; }
+      const copy = e.target.closest('[data-po-copy]');
+      if (copy) {
+        try { await navigator.clipboard.writeText(copy.dataset.poCopy || ''); toast('单号已复制'); }
+        catch { toast('单号：' + (copy.dataset.poCopy || '')); }
+        return;
+      }
+      const pdf = e.target.closest('[data-po-pdf]');
+      if (pdf) {
+        const rec = records[Number(pdf.dataset.poPdf)];
+        if (!rec || !window.tkPrintPo) return;
+        const rows = (rec.lines || []).map((line) => ({ ...line, vendor: rec.vendor || '', poNo: rec.poNo || '' }));
+        window.tkPrintPo('02', rows, rec.poNo || '', { print: false });
+      }
+    });
+  }
+
+  async function openPoRecordByRow(row) {
+    try {
+      const records = await fetchPoDocuments(true);
+      const rec = records.find((doc) => (doc.lines || []).some((line) => String(line.id) === String(row.id)));
+      if (!rec) { toast('这张外协单还没有生成采购单，请勾选后点“生成采购单”'); return; }
+      await openPoRecords(rec.poNo, records);
+    } catch (err) {
+      await openPoRecords();
+    }
+  }
+
+  /* 生成采购单：勾选几行 → 同供应商合并成一个 PO 号 → 保存采购单记录（不自动打印） */
   async function mergePo() {
     const picked = [...document.querySelectorAll('#osBody .os-pick:checked')]
       .map((cb) => S.list.find((x) => String(x.id) === cb.dataset.id)).filter(Boolean);
     if (!picked.length) { toast('先在列表里点几行（点一下行就是选中）'); return; }
     const groups = new Map();
     picked.forEach((r) => {
-      const k = String(r.vendor || '未填外协厂').trim();
+      const k = String(r.vendor || '未填外协公司').trim();
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k).push(r);
     });
+    const generated = [];
     for (const [, rows] of groups) {
       const res = await rpc('board_po_merge', { p_ids: rows.map((r) => r.id) });
       if (!res.ok || typeof res.data !== 'string') {
-        toast('合并失败：' + (res.error || '') + '（先在 Supabase 执行 po-merge.sql）');
+        toast('生成失败：' + (res.error || '') + '（先在 Supabase 执行 po-merge.sql）');
         return;
       }
       const poNo = res.data;
       rows.forEach((r) => { r.poNo = poNo; });
-      if (window.tkPrintPo) window.tkPrintPo('02', rows, poNo);
-      await new Promise((r) => setTimeout(r, 600));
+      generated.push({ poNo, rows });
     }
-    toast(groups.size > 1 ? ('已按供应商拆成 ' + groups.size + ' 张采购单') : '已合并为一张采购单');
-    load(true);
+    poDocsCache = null;
+    toast(groups.size > 1 ? ('已按外协公司生成 ' + groups.size + ' 张采购单，记录已保存') : '采购单已生成，记录已保存');
+    await load(true);
+    try {
+      const docs = await fetchPoDocuments(true);
+      await openPoRecords(generated[0]?.poNo || '', docs);
+    } catch {
+      await openPoRecords('', []);
+    }
   }
 
   function init() {
