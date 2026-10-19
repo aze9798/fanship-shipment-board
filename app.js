@@ -182,12 +182,12 @@ function rpcHeaders() {
   };
 }
 
-async function callRpc(name, body, timeoutMs = 0) {
+async function callRpc(name, body, timeoutMs = 0, forceDirect = false) {
   const controller = timeoutMs > 0 ? new AbortController() : null;
   const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
   try {
     const payloadText = JSON.stringify(body);
-    const useDirect = Boolean(DIRECT_RPC_BASE) && (payloadText.length > LARGE_RPC_LIMIT || LARGE_RPC_RESPONSE_NAMES.has(name));
+    const useDirect = Boolean(DIRECT_RPC_BASE) && (forceDirect || payloadText.length > LARGE_RPC_LIMIT || LARGE_RPC_RESPONSE_NAMES.has(name));
     const rpcBase = useDirect ? DIRECT_RPC_BASE : RPC_BASE;
     const response = await fetch(`${rpcBase}/${name}`, {
       method: 'POST',
@@ -485,6 +485,13 @@ function unitMatchesCompany(unit, company) {
   return (unit?.members || []).some((member) => String(member.customer || '') === String(company));
 }
 
+function unitMatchesQuery(unit, queryText) {
+  const query = String(queryText || '').trim().toLowerCase();
+  if (!query) return true;
+  return (unit?.members || []).some((member) => [member.material, member.name, member.spec, member.po, member.seq, member.dueDate]
+    .some((value) => String(value ?? '').toLowerCase().includes(query)));
+}
+
 function loadingItems(orderRows, options = {}) {
   const includeReplacements = options.includeReplacements !== false;
   const planQuery = String(options.planQuery || '').trim().toLowerCase();
@@ -520,7 +527,7 @@ function loadingItems(orderRows, options = {}) {
       selected: true,
       legacyIndex,
     })) : [];
-  const activeUnits = [...new Map(shipmentUnits().filter((unit) => !['shipped','archived'].includes(String(unit.status || 'ready')) && (typeof options.unitFilter !== 'function' || options.unitFilter(unit))).sort((left, right) => String(left.updatedAt || left.createdAt || '').localeCompare(String(right.updatedAt || right.createdAt || ''))).map((unit) => [String(unit.unitId || unit.id), unit])).values()];
+  const activeUnits = [...new Map(shipmentUnits().filter((unit) => !['shipped','archived'].includes(String(unit.status || 'ready')) && unitMatchesQuery(unit, planQuery) && (typeof options.unitFilter !== 'function' || options.unitFilter(unit))).sort((left, right) => String(left.updatedAt || left.createdAt || '').localeCompare(String(right.updatedAt || right.createdAt || ''))).map((unit) => [String(unit.unitId || unit.id), unit])).values()];
   const unitPlanIds = new Set(activeUnits.flatMap((unit) => (unit.members || []).map((member) => String(member.planId || (member.replacement ? member.orderId : '')).trim()).filter(Boolean)));
   const unitOrderIds = new Set(activeUnits.flatMap((unit) => (unit.members || []).map((member) => String(member.orderId || '')).filter(Boolean)));
   const visibleOrderRows = (orderRows || []).filter((order) => !unitOrderIds.has(String(order.id || '')));
@@ -547,12 +554,17 @@ function loadingItems(orderRows, options = {}) {
     ...planItems.filter((item) => !unitPlanIds.has(String(item.planId || item.item?.id || ''))),
     ...unitItems,
     ...legacyItems.filter((item) => !unitPlanIds.has(String(item.item?.planId || ''))),
-  ].sort((left, right) =>
-    String(left.dueDate || '9999-12-31').localeCompare(String(right.dueDate || '9999-12-31'))
-    || Number(left.rank || 0) - Number(right.rank || 0)
-    || String(left.material || '').localeCompare(String(right.material || ''), 'zh-CN')
-    || String(left.name || '').localeCompare(String(right.name || ''), 'zh-CN')
-    || String(left.seq || '').localeCompare(String(right.seq || '')));
+  ].sort((left, right) => {
+    // 装车单元已经组好实体，优先放在最前面，避免被大量逾期行挤出首屏。
+    const leftUnit = left.kind === 'unit' ? 0 : 1;
+    const rightUnit = right.kind === 'unit' ? 0 : 1;
+    return leftUnit - rightUnit
+      || String(left.dueDate || '9999-12-31').localeCompare(String(right.dueDate || '9999-12-31'))
+      || Number(left.rank || 0) - Number(right.rank || 0)
+      || String(left.material || '').localeCompare(String(right.material || ''), 'zh-CN')
+      || String(left.name || '').localeCompare(String(right.name || ''), 'zh-CN')
+      || String(left.seq || '').localeCompare(String(right.seq || ''));
+  });
 }function removeReplacementPlan(index) {
   const current = Number(index);
   if (!Number.isInteger(current) || current < 0 || current >= sessionReplacements.length) return;
@@ -611,10 +623,26 @@ async function deleteReplacementPlan(planId) {
   await loadState({ quiet: true });
   renderAll();
   showToast('补发计划已删除');
-}function normalizePhotoRow(row) {
+}function photoMaterialIdentity(item) {
+  return [
+    String(item?.material || '').trim(),
+    String(item?.spec || '').trim(),
+    String(item?.orderId || item?.order_id || '').trim(),
+    String(item?.planId || '').trim(),
+    String(item?.dueDate || '').slice(0, 10),
+  ].join('|');
+}
+function normalizePhotoRow(row) {
   let meta = {};
   try { meta = JSON.parse(String(row?.batch || '{}')); } catch {}
-  const materials = Array.isArray(meta.materials) ? meta.materials : [];
+  const raw = Array.isArray(meta.materials) ? meta.materials : [];
+  const seen = new Set();
+  const materials = raw.filter((item) => {
+    const key = photoMaterialIdentity(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   return { ...row, meta, materials, note: String(meta.note || ''), capturedAt: String(meta.capturedAt || row?.createdAt || ''), shipmentId: String(meta.shipmentId || ''), pending: !String(meta.shipmentId || '') };
 }
 
@@ -623,8 +651,16 @@ function shipmentPhotos() {
 }
 function photoArchiveRows() {
   const map = new Map();
-  for (const photo of sessionPhotos) map.set(String(photo.fileName || photo.localId), { ...photo, local: true, pending: !String(photo.meta?.shipmentId || '') });
-  for (const row of shipmentPhotos()) { const key = String(row.fileName || row.id); if (!map.has(key)) map.set(key, row); }
+  const add = (row, local = false) => {
+    // 只按同一条云端记录/同一张本机照片去重；不能按时间或物料合并，
+    // 否则连续快速拍下的两张不同照片会被误当成重复照片隐藏。
+    const key = String(row.id || row.fileName || row.localId || row.dataUrl || '').trim();
+    if (!key || map.has(key)) return;
+    map.set(key, local ? { ...row, local: true, pending: !String(row.meta?.shipmentId || '') } : row);
+  };
+  // 本机刚拍的照片优先，能直接显示 dataUrl
+  for (const photo of sessionPhotos) add(photo, true);
+  for (const row of shipmentPhotos()) add(row, false);
   return [...map.values()].sort((left, right) => String(right.capturedAt || right.createdAt || '').localeCompare(String(left.capturedAt || left.createdAt || '')));
 }
 
@@ -636,11 +672,15 @@ function photoMaterialIndex() {
   if (photoMaterialIndexCache && photoMaterialIndexKey === key) return photoMaterialIndexCache;
   const map = new Map();
   for (const row of rows) {
+    const rowKey = photoRowKey(row);
+    const seen = new Set();
     for (const materialRow of (row.materials || [])) {
       const material = String(materialRow.material || '').trim();
-      if (!material) continue;
+      if (!material || seen.has(material)) continue;
+      seen.add(material);
       if (!map.has(material)) map.set(material, []);
-      map.get(material).push(row);
+      // 老数据里同一条照片关联了两遍同一物料时，索引也只放一次
+      if (!map.get(material).some((item) => photoRowKey(item) === rowKey)) map.get(material).push(row);
     }
   }
   photoMaterialIndexCache = map;
@@ -925,7 +965,14 @@ function renderPhotoViewerCurrent() {
 }
 
 function openPhotoViewerList(rows, index = 0, target = null) {
-  const list = (rows || []).filter(Boolean);
+  const seen = new Set();
+  const list = (rows || []).filter((row) => {
+    if (!row) return false;
+    const key = photoRowKey(row);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   if (!list.length) return;
   photoViewerRows = list;
   photoViewerIndex = Math.max(0, Math.min(Number(index) || 0, list.length - 1));
@@ -1027,7 +1074,7 @@ function compressPhotoFile(file) {
 async function savePhotoCapture() {
   const photos = photoPendingQueue.length ? [...photoPendingQueue] : (photoPendingDataUrl ? [photoPendingDataUrl] : []);
   if (!photos.length) { showToast('请先拍照或选择照片'); return; }
-  const materials = [...photoSelectedMaterials.values()];
+  const materials = [...new Map([...photoSelectedMaterials.values()].map((row) => [photoMaterialIdentity(row), row])).values()];
   const unitContext = photoUnitContext;
   if (!materials.length) { showToast('请至少关联一个物料'); return; }
   const note = String(els.photoNote?.value || '').trim();
@@ -1054,13 +1101,15 @@ async function savePhotoCapture() {
       savedFileNames.push(item.fileName);
     }
     let unitUpdated = false;
+    const nextUnitMembers = buildUnitMembers(materials, photoUnitQuantities);
     if (uploadedAny && unitContext) {
-      const nextMembers = buildUnitMembers(materials, photoUnitQuantities);
-      await persistUnit({ ...unitContext, members: nextMembers.length ? nextMembers : unitContext.members, photoFileNames: savedFileNames, status: 'ready' });
-    } else if (uploadedAny && materials.length > 1) {
-      const unitId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2)).replace(/-/g, '');
-      await createUnitFromPhoto(unitId, materials, savedFileNames, photoUnitQuantities);
+      await persistUnit({ ...unitContext, members: nextUnitMembers.length ? nextUnitMembers : unitContext.members, photoFileNames: savedFileNames, status: 'ready' });
       unitUpdated = true;
+    } else if (uploadedAny && nextUnitMembers.length >= 2) {
+      // 先按“订单行”去重后判断，不能按关联数组长度判断；
+      // 同一订单被自动关联两遍时，数组有 2 项但实际只有 1 行，不应生成装车单元。
+      const unitId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2)).replace(/-/g, '');
+      unitUpdated = Boolean(await createUnitFromPhoto(unitId, materials, savedFileNames, photoUnitQuantities));
     }
     if (unitUpdated) {
       await waitForStateIdle();
@@ -1274,13 +1323,15 @@ function openLocalPhoto(row) {
   if (els.photoViewerModal) els.photoViewerModal.hidden = false;
 }
 function unitIdentityKeys(unit) {
+  // 去重只认“同一个装车单元”，不能因为两个单元碰巧含同一笔订单就互相吞掉。
+  // 例如 10-15 已发货单元和 10-19 待装车单元可能都会引用同一订单行。
+  if (unit?.unitId) return ['unit:' + String(unit.unitId)];
   const keys = (unit?.members || []).map((member) => {
     if (member.planId) return 'plan:' + String(member.planId);
     if (member.orderId) return 'order:' + String(member.orderId);
     return 'material:' + String(member.material || '') + '|' + String(member.dueDate || '');
-  }).filter(Boolean);
-  if (!keys.length && unit?.unitId) keys.push('unit:' + String(unit.unitId));
-  return keys;
+  }).filter(Boolean).sort();
+  return [['legacy', String(unit?.status || ''), String(unit?.shipmentId || ''), keys.join(',')].join('|')];
 }
 
 function unitQualityScore(unit) {
@@ -1305,16 +1356,21 @@ function dedupeShipmentUnits(units) {
   return result;
 }
 
+function unitMemberRowCount(unit) {
+  // 用于判断“单元是否还存在/是否够成组”。数量为 0 的订单行仍保留，
+  // 这样把一个料号的总数改小到只覆盖第一笔订单时，单元不会突然消失。
+  return (unit?.members || []).filter((member) => member && String(member.material || '').trim()).length;
+}
 function shipmentUnits() {
   const units = dedupeShipmentUnits(Array.isArray(snapshot?.shipmentUnits) ? snapshot.shipmentUnits : []);
-  // 待装车单元至少要有 2 个不同物料；已发货的历史单元保留展示，避免历史记录消失
-  return units.filter((unit) => String(unit.status || '') === 'shipped' || unitMaterialCount(unit) >= 2);
+  // 同一料号可以跨多个订单合并成一个装车单元；但至少要有 2 个订单/物料行。
+  return units.filter((unit) => String(unit.status || '') === 'shipped' || unitMemberRowCount(unit) >= 2);
 }
 
 let invalidUnitsCleanupDone = false;
 async function cleanupInvalidShipmentUnits() {
   if (invalidUnitsCleanupDone || !snapshot || !Array.isArray(snapshot.shipmentUnits)) return;
-  const invalid = snapshot.shipmentUnits.filter((unit) => String(unit.status || '') !== 'shipped' && unitMaterialCount(unit) < 2);
+  const invalid = snapshot.shipmentUnits.filter((unit) => String(unit.status || '') !== 'shipped' && unitMemberRowCount(unit) < 2);
   if (!invalid.length) { invalidUnitsCleanupDone = true; return; }
   invalidUnitsCleanupDone = true;
   let removed = false;
@@ -1345,13 +1401,24 @@ function normalizeUnitRow(row) {
 }
 
 async function fetchDeliveryFileRows() {
-  if (!RPC_BASE) return [];
+  if (!RPC_BASE && !DIRECT_RPC_BASE) return [];
   const accessCode = getAccessCode();
   if (!accessCode) return [];
   if (!deliveryFilesPromise) {
-    deliveryFilesPromise = callRpc('board_get_delivery_files', { p_code: accessCode, p_limit: 300 })
-      .then((result) => result.response.ok && Array.isArray(result.data) ? result.data : [])
-      .catch(() => []);
+    const loadOnce = async (forceDirect = false) => {
+      const result = await callRpc('board_get_delivery_files', { p_code: accessCode, p_limit: 300 }, 15000, forceDirect);
+      if (!result.response.ok || !Array.isArray(result.data)) return null;
+      return result.data;
+    };
+    deliveryFilesPromise = (async () => {
+      let rows = null;
+      try { rows = await loadOnce(false); } catch { rows = null; }
+      // 国内中转偶尔会超时/断线；照片和装车单元不能因此整批消失，失败时直连 Supabase 再取一次。
+      if (!rows && DIRECT_RPC_BASE) {
+        try { rows = await loadOnce(true); } catch { rows = null; }
+      }
+      return rows || [];
+    })();
   }
   return deliveryFilesPromise;
 }
@@ -1606,8 +1673,7 @@ function buildUnitMeta(unitId, materials, photoFileName, quantities = new Map())
 
 async function createUnitFromPhoto(unitId, materials, photoFileName, quantities = new Map()) {
   const members = buildUnitMembers(materials, quantities);
-  const distinctMaterials = new Set((materials || []).map((row) => String(row?.material || '').trim()).filter(Boolean)).size;
-  if (!materials || !members.length || distinctMaterials < 2) return null;
+  if (!materials || members.length < 2) return null;
   const unit = buildUnitMeta(unitId, materials, photoFileName, quantities);
   const fileName = 'unit-' + currentDeliveryDate().replace(/-/g, '') + '-' + unitId + '.json';
   return persistUnit({ ...unit, fileName });
@@ -1624,30 +1690,67 @@ function unitDisplayDate(unit) {
   return dates[0] || String(unit.deliveryDate || '').trim() || currentDeliveryDate();
 }
 
+function unitMaterialGroupKey(member) {
+  return [String(member?.material || '').trim(), String(member?.spec || '').trim()].join('|');
+}
+
+function unitMaterialGroups(unit) {
+  const map = new Map();
+  for (const member of (unit?.members || [])) {
+    if (!member || !String(member.material || '').trim()) continue;
+    const key = unitMaterialGroupKey(member);
+    let group = map.get(key);
+    if (!group) {
+      group = { key, material: String(member.material || ''), name: String(member.name || ''), spec: String(member.spec || ''), total: 0, members: [], dates: new Set() };
+      map.set(key, group);
+    }
+    group.total += Number(member.quantity || 0);
+    group.members.push(member);
+    if (member.dueDate) group.dates.add(String(member.dueDate).slice(0, 10));
+  }
+  return [...map.values()];
+}
+
 function unitCardHtml(unit, index) {
   const photo = unitPhoto(unit);
   const status = unit.status || 'ready';
-  const members = unit.members || [];
-  const memberHtml = members.map((member, memberIndex) => `
+  const groups = unitMaterialGroups(unit);
+  const memberCount = unitMemberRowCount(unit);
+  const totalQuantity = unitTotalQuantity(unit);
+  const badgeClass = status === 'loaded' ? 'done' : status === 'needs_rephoto' ? 'overdue' : '';
+  const materialSummary = groups.slice(0, 4).map((group) => group.material).filter(Boolean).join('、');
+  const memberHtml = groups.map((group) => {
+    const dates = [...group.dates].sort().map((date) => formatDate(date)).join('、') || '—';
+    return `
     <div class="unit-member-row">
       <div class="unit-member-info">
-        <strong>${escapeHtml(member.material || '')} ${escapeHtml(member.name || '')}</strong>
-        <small>${escapeHtml(member.po || '')} 项次${escapeHtml(member.seq || '')} · ${escapeHtml(member.spec || '—')} · 交期 ${escapeHtml(formatDate(member.dueDate || unit.deliveryDate))}</small>
+        <strong>${escapeHtml(group.material)} ${escapeHtml(group.name || '')}</strong>
+        <small>${escapeHtml(group.spec || '—')} · ${escapeHtml(fmt(group.members.length))} 笔订单 · 交期 ${escapeHtml(dates)}</small>
       </div>
-      <input type="number" min="0" step="1" inputmode="numeric" value="${Number(member.quantity || 0) || ''}" placeholder="数量" data-unit-member-qty="${memberIndex}" data-unit-id="${escapeHtml(unit.unitId)}" aria-label="本次装车数量">
-      <button type="button" class="cart-remove" data-unit-member-remove="${memberIndex}">移除</button>
-    </div>`).join('');
+      <input type="number" min="0" step="1" inputmode="numeric" value="${Number(group.total || 0) || ''}" placeholder="总数" data-unit-member-qty="${escapeHtml(encodeURIComponent(group.key))}" data-unit-id="${escapeHtml(unit.unitId)}" aria-label="本次装车总数量">
+      <button type="button" class="cart-remove" data-unit-member-remove="${escapeHtml(encodeURIComponent(group.key))}">移除</button>
+    </div>`;
+  }).join('');
   const retakeAction = status === 'needs_rephoto' ? `<button type="button" class="button primary" data-unit-retake="${escapeHtml(unit.unitId)}">重新拍照</button>` : '';
   const loadAction = status === 'needs_rephoto' ? '' : `<button type="button" class="button primary" data-unit-load="${escapeHtml(unit.unitId)}">${status === 'loaded' ? '更新装车数量' : '整组装车'}</button>`;
   const addAction = status === 'shipped' ? '' : `<button type="button" class="button ghost" data-unit-add="${escapeHtml(unit.unitId)}">增加物料</button>`;
   const dissolveAction = status === 'shipped' ? '' : `<button type="button" class="button ghost danger-text" data-unit-dissolve="${escapeHtml(unit.unitId)}">取消装车单元</button>`;
   return `<article class="order-card shipment-unit-card" data-unit-card="${escapeHtml(unit.unitId)}">
-    <div class="unit-card-head">
-      <div>
-        <div class="order-name-line"><strong>${escapeHtml(unit.label || '装车单元')}</strong><span class="unit-status ${escapeHtml(status)}">${escapeHtml(unitStatusText(unit))}</span></div>
-        <span class="mono">交期 ${escapeHtml(formatDate(unitDisplayDate(unit)))} · ${escapeHtml(fmt(unitMaterialCount(unit)))} 项物料 · 共 ${escapeHtml(fmt(unitTotalQuantity(unit)))} 件</span>
+    <div class="card-top">
+      <div class="order-title">
+        <div class="order-name-line"><strong>装车单元</strong></div>
+        <span class="mono">${escapeHtml(materialSummary || '未填写物料')}${groups.length > 4 ? ' 等' : ''}</span>
+        <span>交期 ${escapeHtml(formatDate(unitDisplayDate(unit)))} · 共 ${escapeHtml(fmt(memberCount))} 笔订单</span>
       </div>
-      ${photo ? `<button type="button" class="unit-photo-button" data-unit-view-photo="${escapeHtml(unit.unitId)}">现场照片</button>` : '<span class="unit-photo-button empty">无照片</span>'}
+      <span class="due-badge ${badgeClass}">${escapeHtml(unitStatusText(unit))}</span>
+    </div>
+    <div class="card-actions">
+      ${photo ? `<button type="button" class="photo-open has-photo" data-unit-view-photo="${escapeHtml(unit.unitId)}">现场照片</button>` : ''}
+    </div>
+    <div class="order-numbers">
+      <div class="order-number"><span>物料</span><strong>${escapeHtml(fmt(groups.length))} 项</strong></div>
+      <div class="order-number"><span>订单行</span><strong>${escapeHtml(fmt(memberCount))} 笔</strong></div>
+      <div class="order-number remaining"><span>本次装车</span><strong>${escapeHtml(totalQuantity > 0 ? fmt(totalQuantity) : '待填写')}</strong></div>
     </div>
     <div class="unit-member-list">${memberHtml || '<div class="unit-member-empty">没有匹配到待发货订单</div>'}</div>
     <div class="unit-card-actions">${addAction}${loadAction}${retakeAction}${dissolveAction}</div>
@@ -1697,64 +1800,84 @@ async function loadUnitToCart(unitId) {
   showToast(`已装入 ${loaded} 项物料，确认装车后一起发货`);
 }
 
-async function removeUnitMember(unitId, memberIndex) {
+async function removeUnitMember(unitId, memberKeyRaw) {
   const unit = shipmentUnits().find((row) => String(row.unitId) === String(unitId));
   if (!unit) { showToast('装车单元不存在或已更新'); return; }
-  const index = Number(memberIndex);
-  const member = (unit.members || [])[index];
-  if (!member) return;
-  if (!window.confirm(`要把 ${member.material} 从装车单元中移除吗？\n移除后需要重新拍照。`)) return;
-  const members = (unit.members || []).filter((_, i) => i !== index);
-  const remainingMaterials = new Set(members.map((row) => String(row.material || '').trim()).filter(Boolean)).size;
-  if (remainingMaterials < 2) {
+  let key = '';
+  try { key = decodeURIComponent(String(memberKeyRaw || '')); } catch { key = String(memberKeyRaw || ''); }
+  const group = (unit.members || []).filter((member) => unitMaterialGroupKey(member) === key);
+  if (!group.length) return;
+  const label = [group[0].material, group[0].name].filter(Boolean).join(' ');
+  if (!window.confirm(`要把 ${label} 从装车单元中移除吗？\n移除后需要重新拍照。`)) return;
+  const members = (unit.members || []).filter((member) => unitMaterialGroupKey(member) !== key);
+  if (unitMemberRowCount({ members }) < 2) {
     detachUnitMembersFromCart(unit);
-    try {
-      await dissolveShipmentUnit(unit);
-    } catch (error) {
-      showToast(error.message || '解除装车单元失败');
-      return;
-    }
+    try { await dissolveShipmentUnit(unit); }
+    catch (error) { showToast(error.message || '解除装车单元失败'); return; }
     renderMobileSummary();
     renderMobileList();
     renderDesktopLoading();
     renderCart();
-    showToast('已移除物料，装车单元不足 2 个物料，已自动解除');
+    showToast('已移除物料，装车单元不足 2 行，已自动解除');
     return;
   }
-  if (member.orderId && !member.planId) selected.delete(String(member.orderId));
+  for (const member of group) if (member.orderId && !member.planId) selected.delete(String(member.orderId));
   await updateShipmentUnit(unit, { members, status: 'needs_rephoto', photoFileNames: [] });
   showToast('已移除物料，请重新拍照后再确认整组装车');
 }
 
-async function updateUnitMemberQuantity(unitId, memberIndex, value) {
+async function updateUnitMemberQuantity(unitId, memberKeyRaw, value) {
   const unit = shipmentUnits().find((row) => String(row.unitId) === String(unitId));
   if (!unit) return;
-  const index = Number(memberIndex);
+  let key = '';
+  try { key = decodeURIComponent(String(memberKeyRaw || '')); } catch { key = String(memberKeyRaw || ''); }
+  const group = (unit.members || []).filter((member) => unitMaterialGroupKey(member) === key);
+  if (!group.length) return;
+  const representative = group[0];
   const quantity = Number(value);
-  const member = (unit.members || [])[index];
-  if (!member) return;
   const safeQuantity = Number.isFinite(quantity) && quantity > 0 ? quantity : 0;
-  const sourceOrder = (snapshot?.orders || []).find((order) => String(order.id) === String(member.orderId));
-  const rowRemaining = Number(sourceOrder?.remaining || member.quantity || 0);
-  let members;
-  if (safeQuantity <= rowRemaining) {
-    members = (unit.members || []).map((item, i) => i === index ? { ...item, quantity: safeQuantity } : item);
+  let allocated = [];
+  const hasReplacement = group.some((member) => member.replacement || member.planId);
+  if (hasReplacement) {
+    let remaining = safeQuantity;
+    const sorted = [...group].sort((a, b) => String(a.dueDate || '9999-12-31').localeCompare(String(b.dueDate || '9999-12-31')));
+    for (const member of sorted) {
+      if (remaining <= 0) break;
+      const cap = Number(member.quantity || 0);
+      const q = Math.min(cap, remaining);
+      if (q > 0) { allocated.push({ ...member, quantity: q }); remaining -= q; }
+    }
   } else {
-    // 跟普通订单一个逻辑：超过这一行未交，就按交期把总数分摊到该料号后面的采购单
-    const allocated = allocateUnitMember(member, safeQuantity);
-    if (!allocated.length) {
-      members = (unit.members || []).map((item, i) => i === index ? { ...item, quantity: safeQuantity } : item);
-    } else {
-      const others = (unit.members || []).filter((item) => String(item.material || '').trim() !== String(member.material || '').trim());
-      const position = Math.min(index, others.length);
-      members = [...others];
-      members.splice(position, 0, ...allocated);
-      const totalAllocated = allocated.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-      if (totalAllocated < safeQuantity) showToast(`${member.material} 未交只有 ${fmt(totalAllocated)} 件，已按未交分配`, 7000);
-      else showToast(`已按交期分配：${allocated.map((item) => fmt(item.quantity)).join(' + ')} = ${fmt(totalAllocated)} 件`, 5000);
+    allocated = allocateUnitMember(representative, safeQuantity);
+  }
+  const allocatedByKey = new Map(allocated.map((member) => [String(member.orderId || member.planId || ''), Number(member.quantity || 0)]));
+  const seenAllocated = new Set();
+  const nextGroup = [];
+  // 原有订单行全部保留（不够分配的记 0），新的后续订单再追加。
+  for (const member of group) {
+    const memberKey = String(member.orderId || member.planId || '');
+    const quantity = allocatedByKey.get(memberKey) || 0;
+    seenAllocated.add(memberKey);
+    nextGroup.push({ ...member, quantity });
+  }
+  for (const member of allocated) {
+    const memberKey = String(member.orderId || member.planId || '');
+    if (seenAllocated.has(memberKey)) continue;
+    nextGroup.push(member);
+  }
+  const next = [];
+  let inserted = false;
+  for (const member of (unit.members || [])) {
+    if (unitMaterialGroupKey(member) !== key) { next.push(member); continue; }
+    if (!inserted) {
+      next.push(...(nextGroup.length ? nextGroup : [{ ...representative, quantity: 0 }]));
+      inserted = true;
     }
   }
-  await updateShipmentUnit(unit, { members });
+  const totalAllocated = allocated.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  if (safeQuantity > 0 && totalAllocated < safeQuantity) showToast(`${representative.material} 未交只有 ${fmt(totalAllocated)} 件，已按未交分配`, 7000);
+  else if (allocated.length > 1) showToast(`${representative.material} 已按交期分配：${allocated.map((item) => fmt(item.quantity)).join(' + ')} = ${fmt(totalAllocated)} 件`, 5000);
+  await updateShipmentUnit(unit, { members: next });
 }
 
 function viewUnitPhoto(unitId) {
