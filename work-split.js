@@ -181,7 +181,7 @@
       ? list.map((x) => '<div class="tk-seg ' + cls + '"><b>' + hhmm(x.start) + ' – ' + hhmm(x.end) + '</b><i>' + Number(x.minutes || 0) + ' 分钟</i></div>').join('')
       : '<div class="none">没有时段记录</div>';
 
-    const after17 = [...timers, ...pieces].some((x) => hhmm(x.end) > '17:00');
+    const after17 = timers.some((x) => hhmm(x.end) > '17:30');
     const timerOT = timers.filter((x) => hhmm(x.end) > '17:30');
     const attLine = '<div class="tk-att-line">考勤签退：<b>' + (checkOut || '未导入') + '</b>' +
       (attState === 'left' ? '<em class="tk-att-bad">已下班</em>' : attState === 'ot' ? '<em class="tk-att-ok">加班</em>' : '<em class="tk-att-pending">待考勤导入</em>') + '</div>';
@@ -211,15 +211,9 @@
     if (pb) {
       const pl = pb.querySelector('[data-piece-periods]');
       if (pl) {
-        const tagFor = (x) => {
-          if (hhmm(x.end) <= '17:00') return '';
-          if (attState === 'left') return ' <em class="tk-ot tk-left">忘记结束</em>';
-          if (attState === 'ot') return ' <em class="tk-ot">加班</em>';
-          return ' <em class="tk-ot tk-pending">待考勤</em>';
-        };
         pl.innerHTML = pieces.length
           ? '<div class="tk-sub-h">计件时段</div>' + pieces.map((x) =>
-              '<div class="tk-seg piece"><b>' + hhmm(x.start) + ' – ' + hhmm(x.end) + tagFor(x) + '</b><i>' + Number(x.minutes || 0) + ' 分钟</i></div>'
+              '<div class="tk-seg piece"><b>' + hhmm(x.start) + ' – ' + hhmm(x.end) + '</b><i>' + Number(x.minutes || 0) + ' 分钟</i></div>'
             ).join('')
           : '';
       }
