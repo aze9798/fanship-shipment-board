@@ -98,10 +98,10 @@
 
     right.innerHTML = '<h4>' + esc(name) + '</h4>' +
       '<div class="tk-kv"><span>状态</span><b>' + esc(status) + '</b></div>' +
-      '<button type="button" class="tk-acc" data-acc="time"><span>今日计时</span><b>' + esc(timerText) + '</b><i>▾</i></button>' +
-      '<div class="tk-acc-body" data-body="time" hidden><div class="none">读取计时时段…</div></div>' +
-      '<button type="button" class="tk-acc" data-acc="piece"><span>今日计件</span><b>' + esc(pieceText) + '</b><i>▾</i></button>' +
-      '<div class="tk-acc-body" data-body="piece" hidden><div data-piece-list>' + pieceHtml + '</div><div data-piece-periods></div><div class="tk-seg-sum" data-piece-sum></div></div>';
+      '<button type="button" class="tk-acc open" data-acc="time"><span>今日计时</span><b>' + esc(timerText) + '</b><i>▾</i></button>' +
+      '<div class="tk-acc-body" data-body="time"><div class="none">读取计时时段…</div></div>' +
+      '<button type="button" class="tk-acc open" data-acc="piece"><span>今日计件</span><b>' + esc(pieceText) + '</b><i>▾</i></button>' +
+      '<div class="tk-acc-body" data-body="piece"><div data-piece-list>' + pieceHtml + '</div><div data-piece-periods></div><div class="tk-seg-sum" data-piece-sum></div></div>';
 
     right.querySelectorAll('.tk-acc').forEach((btn) => {
       btn.addEventListener('click', () => {
