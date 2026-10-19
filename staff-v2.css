@@ -167,3 +167,19 @@
   .employee-table th:nth-child(9),.employee-table td:nth-child(9){display:none}
   .sv2-print-only{display:block}
 }
+
+/* 年度未付汇总 */
+.sv2-year-tools { display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.sv2-year-tools .sv2-field { width:130px; }
+.sv2-year-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:10px 0 12px; }
+.sv2-year-kpis article { border:1px solid var(--sv2-line, #dce7e6); border-radius:12px; padding:10px; background:var(--sv2-soft, #f6f9f9); }
+.sv2-year-kpis span { display:block; color:#6d8185; font-size:11px; }
+.sv2-year-kpis strong { display:block; margin-top:4px; font-size:18px; color:#183b42; }
+.sv2-year-kpis article.neg strong, .sv2-year-negative { color:#c0392b !important; }
+.sv2-year-table-wrap { overflow:auto; border:1px solid #dce7e6; border-radius:12px; }
+.sv2-year-table { width:100%; min-width:720px; border-collapse:collapse; font-size:12px; }
+.sv2-year-table th, .sv2-year-table td { padding:9px 10px; border-bottom:1px solid #e5eeee; text-align:center; white-space:nowrap; }
+.sv2-year-table th { background:#f3f8f7; color:#60777c; font-size:11px; font-weight:700; }
+.sv2-year-table tbody tr:last-child td { border-bottom:0; }
+.sv2-year-table .money { font-variant-numeric:tabular-nums; }
+@media (max-width:760px) { .sv2-year-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }

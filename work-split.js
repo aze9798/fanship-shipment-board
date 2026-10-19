@@ -149,7 +149,10 @@
       att = (ad && Array.isArray(ad.days) && ad.days[0]) ? ad.days[0] : null;
     } catch (e) { att = null; }
     const checkOut = att && att.checkOut ? String(att.checkOut).slice(0, 5) : '';
-    const attState = !checkOut ? 'pending' : (checkOut <= '17:00' ? 'left' : 'ot');
+    const isDayShift = !att || !att.shift || att.shift === 'day';
+    const attState = !isDayShift
+      ? (Number(att.overtimeMinutes || 0) > 0 ? 'ot' : 'pending')
+      : (!checkOut ? 'pending' : (checkOut <= '17:00' ? 'left' : 'ot'));
 
     const norm = (list) => {
       const seen = new Set();

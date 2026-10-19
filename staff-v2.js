@@ -240,9 +240,9 @@ function currentMonth() { return new Date().toLocaleDateString('en-CA', { timeZo
 
   function renderPayrollShell() {
     const mount = document.getElementById('payrollMount'); if (!mount || state.payrollMounted) return; state.payrollMounted = true;
-    mount.innerHTML = `<div class="sv2-page"><header class="sv2-head"><div class="sv2-head-main"><p class="sv2-eyebrow">月度结算</p><h1>工资</h1><p>按考勤、报工和有效工资标准生成月度快照；历史导入、自动计算和手工调整分开显示，不再互相覆盖。</p></div><div class="sv2-actions"><button class="sv2-btn" type="button" id="sv2PayRefresh">刷新</button><button class="sv2-btn primary" type="button" id="sv2PayRecalc">重算本月</button></div></header><section class="sv2-kpis" id="sv2PayKpis"></section><section class="sv2-panel"><div class="sv2-toolbar"><div class="sv2-monthbar"><button class="sv2-btn small" type="button" id="sv2PayPrev" aria-label="上个月">‹</button><label class="sv2-field"><span>工资月份</span><input id="sv2PayMonth" type="month"></label><button class="sv2-btn small" type="button" id="sv2PayNext" aria-label="下个月">›</button><button class="sv2-btn small ghost" type="button" id="sv2PayThisMonth">本月</button></div><label class="sv2-field grow"><span>搜索</span><input id="sv2PaySearch" type="search" placeholder="工号 / 姓名"></label><label class="sv2-field" style="width:150px"><span>工资类型</span><select id="sv2PayType"><option value="">全部类型</option><option value="daily">固定日薪</option><option value="hourly_piece">计时计件</option><option value="monthly">固定月薪</option><option value="management">管理</option></select></label><label class="sv2-field" style="width:150px"><span>数据来源</span><select id="sv2PaySource"><option value="all">全部来源</option><option value="auto">自动计算</option><option value="imported">历史导入</option><option value="manual">手工调整</option></select></label><label class="sv2-field" style="width:140px"><span>状态</span><select id="sv2PayStatus"><option value="all">全部</option><option value="review">待核对</option><option value="locked">已锁定</option><option value="paid">已发放</option><option value="anomaly">有异常</option></select></label><button class="sv2-btn" type="button" id="sv2PayExport">导出 Excel</button><button class="sv2-btn" type="button" id="sv2PayPrint">打印</button></div><div class="sv2-statusline" id="sv2PayStatusLine"></div><div class="sv2-table-wrap"><table class="sv2-table payroll-table"><thead><tr><th>工号</th><th>姓名</th><th>类型</th><th class="num">出勤</th><th class="num">基本</th><th class="num">加班</th><th class="num">计时</th><th class="num">计件</th><th class="num">调整</th><th class="num">应付合计</th><th class="num">社保</th><th class="num">个税</th><th class="num">已付</th><th class="num">未付</th><th>来源</th><th>状态</th><th>操作</th></tr></thead><tbody id="sv2PayBody"><tr><td colspan="17"><div class="sv2-skeleton"><b>正在读取工资</b><span>核对考勤、报工和历史导入…</span></div></td></tr></tbody></table><div id="sv2PayEmpty" class="sv2-empty" hidden></div></div></section></div>`;
+    mount.innerHTML = `<div class="sv2-page"><header class="sv2-head"><div class="sv2-head-main"><p class="sv2-eyebrow">月度结算</p><h1>工资</h1><p>按考勤、报工和有效工资标准生成月度快照；历史导入、自动计算和手工调整分开显示，不再互相覆盖。</p></div><div class="sv2-actions"><button class="sv2-btn" type="button" id="sv2PayRefresh">刷新</button><button class="sv2-btn" type="button" id="sv2PayYear">年度未付汇总</button><button class="sv2-btn primary" type="button" id="sv2PayRecalc">重算本月</button></div></header><section class="sv2-kpis" id="sv2PayKpis"></section><section class="sv2-panel"><div class="sv2-toolbar"><div class="sv2-monthbar"><button class="sv2-btn small" type="button" id="sv2PayPrev" aria-label="上个月">‹</button><label class="sv2-field"><span>工资月份</span><input id="sv2PayMonth" type="month"></label><button class="sv2-btn small" type="button" id="sv2PayNext" aria-label="下个月">›</button><button class="sv2-btn small ghost" type="button" id="sv2PayThisMonth">本月</button></div><label class="sv2-field grow"><span>搜索</span><input id="sv2PaySearch" type="search" placeholder="工号 / 姓名"></label><label class="sv2-field" style="width:150px"><span>工资类型</span><select id="sv2PayType"><option value="">全部类型</option><option value="daily">固定日薪</option><option value="hourly_piece">计时计件</option><option value="monthly">固定月薪</option><option value="management">管理</option></select></label><label class="sv2-field" style="width:150px"><span>数据来源</span><select id="sv2PaySource"><option value="all">全部来源</option><option value="auto">自动计算</option><option value="imported">历史导入</option><option value="manual">手工调整</option></select></label><label class="sv2-field" style="width:140px"><span>状态</span><select id="sv2PayStatus"><option value="all">全部</option><option value="review">待核对</option><option value="locked">已锁定</option><option value="paid">已发放</option><option value="anomaly">有异常</option></select></label><button class="sv2-btn" type="button" id="sv2PayExport">导出 Excel</button><button class="sv2-btn" type="button" id="sv2PayPrint">打印</button></div><div class="sv2-statusline" id="sv2PayStatusLine"></div><div class="sv2-table-wrap"><table class="sv2-table payroll-table"><thead><tr><th>工号</th><th>姓名</th><th>类型</th><th class="num">出勤</th><th class="num">基本</th><th class="num">加班</th><th class="num">计时</th><th class="num">计件</th><th class="num">调整</th><th class="num">应付合计</th><th class="num">社保</th><th class="num">个税</th><th class="num">已付</th><th class="num">未付</th><th>来源</th><th>状态</th><th>操作</th></tr></thead><tbody id="sv2PayBody"><tr><td colspan="17"><div class="sv2-skeleton"><b>正在读取工资</b><span>核对考勤、报工和历史导入…</span></div></td></tr></tbody></table><div id="sv2PayEmpty" class="sv2-empty" hidden></div></div></section></div>`;
     $('#sv2PayMonth').value = state.payrollMonth;
-    $('#sv2PayRefresh').addEventListener('click', () => loadPayroll(state.payrollMonth).catch(() => {})); $('#sv2PayRecalc').addEventListener('click', recalcPayroll);
+    $('#sv2PayRefresh').addEventListener('click', () => loadPayroll(state.payrollMonth).catch(() => {})); $('#sv2PayYear').addEventListener('click', () => openYearPayrollSummary().catch((e) => toast(e.message || '读取失败', 'err'))); $('#sv2PayRecalc').addEventListener('click', recalcPayroll);
     $('#sv2PayPrev').addEventListener('click', () => changePayrollMonth(addMonth(state.payrollMonth, -1))); $('#sv2PayNext').addEventListener('click', () => changePayrollMonth(addMonth(state.payrollMonth, 1))); $('#sv2PayThisMonth').addEventListener('click', () => changePayrollMonth(currentMonth())); $('#sv2PayMonth').addEventListener('change', (e) => changePayrollMonth(e.target.value || currentMonth()));
     $('#sv2PaySearch').addEventListener('input', (e) => { state.payrollQuery = e.target.value; renderPayroll(); }); $('#sv2PayType').addEventListener('change', (e) => { state.payrollType = e.target.value; renderPayroll(); }); $('#sv2PaySource').addEventListener('change', (e) => { state.payrollSource = e.target.value; renderPayroll(); }); $('#sv2PayStatus').addEventListener('change', (e) => { state.payrollStatus = e.target.value; renderPayroll(); });
     $('#sv2PayExport').addEventListener('click', exportPayroll); $('#sv2PayPrint').addEventListener('click', () => window.print());
@@ -359,6 +359,63 @@ function currentMonth() { return new Date().toLocaleDateString('en-CA', { timeZo
       if (!result.ok) { toast(result.error || '保存失败', 'err'); return; }
       closeDrawer(); await loadPayroll(state.payrollMonth); toast('工资标准已更新', 'ok');
     });
+  }
+
+  function payrollYearText(year) { return String(year) + '年'; }
+  async function loadYearPayrollSummary(year) {
+    const now = currentMonth();
+    const maxMonth = Number(String(now).slice(0, 4)) === Number(year) ? Number(String(now).slice(5, 7)) : 12;
+    const months = [];
+    for (let m = 1; m <= maxMonth; m += 1) months.push(year + '-' + String(m).padStart(2, '0'));
+    const results = await Promise.all(months.map((m) => rpc('board_payroll_history', { p_month: m + '-01' })));
+    const people = new Map();
+    let dataThrough = '';
+    for (const result of results) {
+      if (!result.ok) continue;
+      const monthRows = result.data && Array.isArray(result.data.rows) ? result.data.rows : [];
+      if (!monthRows.length) continue;
+      const month = String(result.data.month || '').slice(0, 7);
+      if (!dataThrough || month > dataThrough) dataThrough = month;
+      for (const row of monthRows) {
+        const key = String(row.employeeNo || '').trim() || String(row.employeeName || '').trim();
+        if (!key) continue;
+        if (!people.has(key)) people.set(key, { key, employeeNo: row.employeeNo || '', employeeName: row.employeeName || '', gross: 0, social: 0, tax: 0, paid: 0, unpaid: 0, months: [] });
+        const p = people.get(key);
+        p.gross += Number(row.grossPay || 0); p.social += Number(row.socialInsurance || 0); p.tax += Number(row.tax || 0); p.paid += Number(row.paid || 0); p.unpaid += Number(row.unpaid || 0);
+        p.months.push({ month, gross: Number(row.grossPay || 0), social: Number(row.socialInsurance || 0), tax: Number(row.tax || 0), paid: Number(row.paid || 0), unpaid: Number(row.unpaid || 0) });
+      }
+    }
+    return { year, dataThrough, people: [...people.values()].sort((a, b) => b.unpaid - a.unpaid || String(a.employeeName).localeCompare(String(b.employeeName), 'zh-CN')) };
+  }
+  function yearSummaryRowsHtml(people) {
+    return people.map((p) => `<tr>
+      <td class="mono">${esc(p.employeeNo || '—')}</td><td><strong>${esc(p.employeeName || '—')}</strong></td>
+      <td class="money">${money(p.gross)}</td><td class="money">${money(p.social)}</td><td class="money">${money(p.tax)}</td>
+      <td class="money">${money(p.paid)}</td><td class="money ${p.unpaid < 0 ? 'sv2-year-negative' : ''}"><strong>${money(p.unpaid)}</strong></td>
+      <td class="num">${p.months.length}</td><td><button class="sv2-btn small" type="button" data-year-detail="${esc(p.key)}">月度明细</button></td>
+    </tr>`).join('');
+  }
+  async function openYearPayrollSummary(year = Number(String(currentMonth()).slice(0, 4))) {
+    const data = await loadYearPayrollSummary(year);
+    const total = data.people.reduce((s, p) => ({ gross: s.gross + p.gross, social: s.social + p.social, tax: s.tax + p.tax, paid: s.paid + p.paid, unpaid: s.unpaid + p.unpaid }), { gross: 0, social: 0, tax: 0, paid: 0, unpaid: 0 });
+    const body = `<div class="sv2-year-tools"><label class="sv2-field"><span>年份</span><input id="sv2YearInput" type="number" min="2000" max="2100" value="${year}"></label><button class="sv2-btn small" type="button" id="sv2YearGo">查看</button><span class="muted">数据截至 ${esc(data.dataThrough || '暂无')}，共 ${data.people.length} 人</span></div>
+      <div class="sv2-year-kpis"><article><span>应付合计</span><strong>${money(total.gross)}</strong></article><article><span>社保 / 个税</span><strong>${money(total.social + total.tax)}</strong></article><article><span>已付</span><strong>${money(total.paid)}</strong></article><article class="${total.unpaid < 0 ? 'neg' : ''}"><span>未付 / 多付</span><strong>${money(total.unpaid)}</strong></article></div>
+      <div class="sv2-note">按员工汇总全年已保存的工资记录。负数表示多付；点“月度明细”可看每个月怎么算出来的。</div>
+      <div class="sv2-year-table-wrap"><table class="sv2-year-table"><thead><tr><th>工号</th><th>姓名</th><th>应付</th><th>社保</th><th>个税</th><th>已付</th><th>未付</th><th>月数</th><th>明细</th></tr></thead><tbody>${yearSummaryRowsHtml(data.people)}</tbody></table></div>`;
+    const drawer = openDrawer({ title: '年度未付汇总', subtitle: payrollYearText(year), body, footer: '<button class="sv2-btn ghost" type="button" data-sv2-close>关闭</button>' });
+    drawer.querySelector('#sv2YearGo')?.addEventListener('click', () => openYearPayrollSummary(Number(drawer.querySelector('#sv2YearInput').value) || year));
+    drawer.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-year-detail]');
+      if (!button) return;
+      const person = data.people.find((p) => p.key === button.dataset.yearDetail);
+      if (person) openYearEmployeeDetail(person, year);
+    });
+  }
+  function openYearEmployeeDetail(person, year) {
+    const body = `<div class="sv2-year-kpis"><article><span>年度应付</span><strong>${money(person.gross)}</strong></article><article><span>已付</span><strong>${money(person.paid)}</strong></article><article class="${person.unpaid < 0 ? 'neg' : ''}"><span>未付 / 多付</span><strong>${money(person.unpaid)}</strong></article></div>
+      <div class="sv2-year-table-wrap"><table class="sv2-year-table"><thead><tr><th>月份</th><th>应付</th><th>社保</th><th>个税</th><th>已付</th><th>未付</th></tr></thead><tbody>${person.months.map((m) => `<tr><td>${esc(m.month)}</td><td>${money(m.gross)}</td><td>${money(m.social)}</td><td>${money(m.tax)}</td><td>${money(m.paid)}</td><td class="${m.unpaid < 0 ? 'sv2-year-negative' : ''}"><strong>${money(m.unpaid)}</strong></td></tr>`).join('')}</tbody></table></div>`;
+    const drawer = openDrawer({ title: `${person.employeeName} · ${payrollYearText(year)}明细`, subtitle: person.employeeNo || '无工号', body, footer: '<button class="sv2-btn ghost" type="button" id="sv2YearBack">返回年度汇总</button><button class="sv2-btn ghost" type="button" data-sv2-close>关闭</button>' });
+    drawer.querySelector('#sv2YearBack')?.addEventListener('click', () => openYearPayrollSummary(year));
   }
 
   function openAdjustmentForm(row) {
