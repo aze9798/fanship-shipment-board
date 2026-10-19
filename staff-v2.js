@@ -303,7 +303,15 @@ function currentMonth() { return new Date().toLocaleDateString('en-CA', { timeZo
     const statusLine = $('#sv2PayStatusLine');
     if (statusLine) {
       const status = state.period && state.period.status || 'draft';
-      statusLine.innerHTML = `<span>月份状态 <strong>${esc(STATUS_TEXT[status] || status)}</strong></span><span>数据来源 <strong>${state.schemaMissing ? '兼容预览' : '工资快照'}</strong></span><span>${state.schemaMissing ? '执行 staff-v2-schema.sql 后可锁定、调整和留痕。' : '锁定后禁止直接修改，解锁需填写原因。'}</span><span style="margin-left:auto"></span><button class="sv2-btn small" type="button" data-sv2-period="review">标记待核对</button><button class="sv2-btn small primary" type="button" data-sv2-period="locked">锁定工资</button><button class="sv2-btn small" type="button" data-sv2-period="paid">标记发放</button><button class="sv2-btn small warn" type="button" data-sv2-period="unlock">解锁</button>`;
+      const hasSnapshot = Boolean(state.period && state.period.id);
+      const sourceText = state.schemaMissing ? '兼容预览' : hasSnapshot ? '工资快照' : '实时预览（未生成快照）';
+      const hintText = state.schemaMissing
+        ? '执行 staff-v2-schema.sql 后可锁定、调整和留痕。'
+        : hasSnapshot
+          ? '锁定后禁止直接修改，解锁需填写原因。'
+          : '当前为实时预览；点“重算本月”生成快照后才能锁定、调整和发放。';
+      const disabled = hasSnapshot ? '' : ' disabled';
+      statusLine.innerHTML = `<span>月份状态 <strong>${esc(STATUS_TEXT[status] || status)}</strong></span><span>数据来源 <strong>${sourceText}</strong></span><span>${hintText}</span><span style="margin-left:auto"></span><button class="sv2-btn small" type="button" data-sv2-period="review"${disabled}>标记待核对</button><button class="sv2-btn small primary" type="button" data-sv2-period="locked"${disabled}>锁定工资</button><button class="sv2-btn small" type="button" data-sv2-period="paid"${disabled}>标记发放</button><button class="sv2-btn small warn" type="button" data-sv2-period="unlock"${disabled}>解锁</button>`;
       $$('[data-sv2-period]', statusLine).forEach((btn) => btn.addEventListener('click', () => payrollPeriodAction(btn.dataset.sv2Period)));
     }
     const body = $('#sv2PayBody');
