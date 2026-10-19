@@ -566,3 +566,6 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
 /* 2026-10-19 白屏修复：页面切换动画有时停在 opacity:0，直接强制可见 */
 #app, .desktop-view, .sidebar, .main-area { opacity: 1 !important; }
 .desktop-view { animation: none !important; }
+/* 2026-10-19 白屏：app.js 把 #app 行内设成 display:none，用 !important 压回来 */
+#app { display: block !important; }
+#app[hidden] { display: block !important; }
