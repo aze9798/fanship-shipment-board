@@ -9,8 +9,12 @@
     if (!v) return;
     const panel = v.querySelector('.work-live-panel');
     if (!panel) return;
-    const table = panel.querySelector('table');
-    if (!table || !table.querySelector('tbody')) return;
+    // 找「员工实况」那张表（表头含 今日计时 / 今日工资 / 当前状态），找不到就不接管
+    const tables = [...panel.querySelectorAll('table')].filter((x) => x.querySelector('tbody'));
+    const table = tables.find((x) => /今日计时|今日工资|当前状态/.test(String((x.querySelector('thead') || {}).innerText || '')));
+    if (!table) return;
+    // 记录表（时间/单价/金额）不属于员工实况，收起，避免同屏两张表
+    tables.forEach((x) => { if (x !== table) { const box = x.closest('.panel, section'); if (box && box !== panel) box.style.display = 'none'; } });
     if (panel.querySelector('.tk-work-split')) return;
 
     const split = document.createElement('div');
