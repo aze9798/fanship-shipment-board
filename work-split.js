@@ -82,9 +82,9 @@
     right.innerHTML = '<h4>' + name + '</h4>' +
       '<div class="tk-kv"><span>状态</span><b>' + status + '</b></div>' +
       '<button type="button" class="tk-acc" data-acc="time"><span>今日计时</span><b>' + timerText + '</b><i>▾</i></button>' +
-      '<div class="tk-acc-body" data-body="time"><div class="none">读取计时时段…</div></div>' +
+      '<div class="tk-acc-body" data-body="time" hidden><div class="none">读取计时时段…</div></div>' +
       '<button type="button" class="tk-acc" data-acc="piece"><span>今日计件</span><b>' + pieceText + '</b><i>▾</i></button>' +
-      '<div class="tk-acc-body" data-body="piece">' + pieceHtml + '</div>' +
+      '<div class="tk-acc-body" data-body="piece" hidden>' + pieceHtml + '</div>' +
       '<div class="tk-work-actions"></div>';
 
     right.querySelectorAll('.tk-acc').forEach((btn) => {
