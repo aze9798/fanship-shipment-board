@@ -87,6 +87,10 @@
               window.tkPrintDashboardDue();
               return;
             }
+            if (id === 'desktopLabelPrint' && overview && !overview.hidden && typeof window.tkOpenDashboardLabelPrint === 'function') {
+              window.tkOpenDashboardLabelPrint('big');
+              return;
+            }
             const target = document.getElementById(id);
             if (target) target.click();
           });

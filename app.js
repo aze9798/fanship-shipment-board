@@ -8805,6 +8805,7 @@ let labelMergePending = null;         // 正在等待合并的那一行（点两
 let labelPrintSearch = '';            // 弹窗里的补打搜索词
 let labelPrintedRecords = {};         // 本机永久打印记录：key -> { at, day, mode, count }
 let labelSmallRecovery = false;        // 小标签历史丢失时，临时显示全部未打印项
+let labelDateFilter = new Set();       // 打印标签时选中的交期（空=全部）
 const LABEL_PRINTED_KEY = 'shipmentLabelPrinted';
 const LABEL_STATS_KEY = 'shipmentLabelStats';
 const LABEL_ASSIGN_KEY = 'shipmentLabelAssign';
@@ -8974,7 +8975,7 @@ function labelPool(anyMode = false) {
   // 只要在搜索，就把已打印的一起带出来，方便找出来补打
   const keepPrinted = Boolean(query) || Boolean(String(desktopRemainingSearch || '').trim());
   // 同一个料号（同图号）的多个交期合并成一个标签，数量相加
-  return mergeRemainingGroupsForPrint(remainingGroups(desktopRemainingSearch))
+  return mergeRemainingGroupsForPrint(remainingGroupsForDates([...labelDateFilter], desktopRemainingSearch))
     .map((group) => {
       const key = labelSourceKey(group);
       return { group, key, record: labelPrintedRecords[key] || null };
@@ -9010,12 +9011,15 @@ function remainingMaterialTotals() {
   return map;
 }
 
-function labelRemainingAllDates() {
-  // 待交合计：订单未交 + 有效补发计划，统计料号在所有交期上的数量，不受当前交期筛选影响
+function labelRemainingAllDates(dateFilter = labelDateFilter) {
+  // 待交合计：订单未交 + 有效补发计划。
+  // 打印标签选了交期时，这里也只统计选中的交期。
+  const selected = dateFilter instanceof Set ? dateFilter : new Set(dateFilter || []);
   const map = new Map();
   for (const row of remainingBaseRows()) {
     const remaining = Number(row.remaining || 0);
     if (remaining <= 0) continue;
+    if (selected.size && !selected.has(String(row.dueDate || '').trim())) continue;
     const material = String(row.material || '').trim();
     if (!material) continue;
     map.set(material, (map.get(material) || 0) + remaining);
@@ -9059,8 +9063,9 @@ function buildLabelRows(allModes = false) {
   });
 }
 
-function openLabelPrintModal(mode = 'big') {
+function openLabelPrintModal(mode = 'big', dateFilter = null) {
   if (!snapshot) return;
+  labelDateFilter = new Set((Array.isArray(dateFilter) ? dateFilter : []).map((d) => String(d || '').trim()).filter(Boolean));
   labelPrintedRecords = readPrintedRecords();
   labelPrintSearch = '';
   if (els.labelPrintSearch) els.labelPrintSearch.value = '';
@@ -9204,7 +9209,8 @@ function updateLabelSummary() {
       return labelMaterialFilled(row.material) > remaining;
     })
     .map((row) => String(row.material || '').trim()))];
-  els.labelPrintSummary.textContent = `${labelModeText()}：已勾选 ${picked.length} 行 / ${fmt(total)} 件`
+  const dateText = labelDateFilter.size ? `交期：${[...labelDateFilter].sort().map((d) => formatDate(d)).join('、')} · ` : '';
+  els.labelPrintSummary.textContent = `${dateText}${labelModeText()}：已勾选 ${picked.length} 行 / ${fmt(total)} 件`
     + (reprinted ? `（含补打 ${reprinted} 行）` : '')
     + (blank ? `（其中 ${blank} 行数量留空）` : '')
     + `，共 ${valid.length} 行`
@@ -9728,16 +9734,22 @@ function printRemainingList(groups = remainingGroups()) {
 
 // 首页“未交明细”多选几个交期后，直接打印这几个交期。
 // 不走完整清单页，避免为了打印再切页面；合并规则仍沿用打印清单原有逻辑。
-function printRemainingListForDates(dates = [], queryText = '') {
-  if (!snapshot) return;
+function remainingGroupsForDates(dates = [], queryText = '') {
+  if (!snapshot) return [];
   const selected = new Set((Array.isArray(dates) ? dates : []).map((date) => String(date || '').trim()).filter(Boolean));
   let rows = remainingBaseRows();
   const query = String(queryText || '').trim().toLowerCase();
   if (query) rows = rows.filter((order) => searchable(order).includes(query));
   if (selected.size) rows = rows.filter((order) => selected.has(String(order.dueDate || '').trim()));
-  printRemainingList(groupRemainingRows(rows));
+  return groupRemainingRows(rows);
+}
+
+function printRemainingListForDates(dates = [], queryText = '') {
+  if (!snapshot) return;
+  printRemainingList(remainingGroupsForDates(dates, queryText));
 }
 window.tkPrintRemainingListByDates = printRemainingListForDates;
+window.tkOpenLabelPrintForDates = (dates, mode = 'big') => openLabelPrintModal(mode, dates);
 
 async function loadXlsx() {
   if (window.XLSX) return Promise.resolve(window.XLSX);

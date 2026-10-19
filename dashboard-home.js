@@ -645,6 +645,9 @@
     window.alert('打印组件还在加载，请稍后再点一次');
   }
   window.tkPrintDashboardDue = printDueDates;
+  window.tkOpenDashboardLabelPrint = (mode = 'big') => {
+    if (typeof window.tkOpenLabelPrintForDates === 'function') window.tkOpenLabelPrintForDates([...duePicks].sort(), mode);
+  };
 
   function onClick(e) {
     // 板块页签（没有 data-act，所以要单独认）
