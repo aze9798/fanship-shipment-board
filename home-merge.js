@@ -271,7 +271,6 @@
     box.appendChild(merge);
     mergeMountedIn = want;
     if (!admin) {
-      applyFold(true);
       const navLink = document.querySelector('#tkNav a[data-tk-view="remaining"]');
       if (navLink) navLink.style.display = 'none';
       const lp = document.getElementById('desktopLabelPrint');
