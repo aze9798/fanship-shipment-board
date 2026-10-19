@@ -376,3 +376,22 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
   height: 100%; padding: 0 18px 0 2px; border: 0; outline: 0;
   background: transparent; color: var(--ink); font: inherit; cursor: pointer;
 }
+/* 覆盖 styles.css 里更具体的老搜索框/下拉样式 */
+.desktop-view .search-box, .tk-merge .search-box, .drawing-toolbar .search-box {
+  display: flex !important; align-items: center !important; gap: 8px !important;
+  height: 38px !important; padding: 0 12px !important;
+  background: var(--surface) !important; border: 1px solid var(--line) !important; border-radius: 10px !important;
+}
+.desktop-view .search-box input, .tk-merge .search-box input, .drawing-toolbar .search-box input {
+  height: 100% !important; padding: 0 !important; border: 0 !important; outline: 0 !important;
+  background: transparent !important; color: var(--ink) !important; font: inherit !important;
+}
+.desktop-view .select-box, .tk-merge .select-box {
+  display: inline-flex !important; align-items: center !important;
+  height: 38px !important; padding: 0 10px !important;
+  background: var(--surface) !important; border: 1px solid var(--line) !important; border-radius: 10px !important;
+}
+.desktop-view .select-box select, .tk-merge .select-box select {
+  height: 100% !important; padding: 0 18px 0 2px !important; border: 0 !important; outline: 0 !important;
+  background: transparent !important; color: var(--ink) !important; font: inherit !important; cursor: pointer !important;
+}
