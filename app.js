@@ -12302,8 +12302,8 @@ function connectEvents() {
       if (boardRole !== 'admin') return;
       // 报工情况 / 报工审核页不再自动刷新（页面上有"刷新报工"按钮，避免打断管理员查看）
     };
-    // 后台标签页完全停止轮询；前台 10 秒同步一次，减少频繁网络请求造成的卡顿。
-    connectEvents.pollTimer = setInterval(poll, 10000);
+    // 后台标签页完全停止轮询；前台 30 秒同步一次。\n    // 2026-10-19 流量压降：board_get_state 单次约 418KB，10 秒轮询是 Egress 的最大来源。
+    connectEvents.pollTimer = setInterval(poll, 30000);
     if (connectEvents.visibilityHandler) document.removeEventListener('visibilitychange', connectEvents.visibilityHandler);
     connectEvents.visibilityHandler = () => { if (document.visibilityState === 'visible') void loadState({ quiet: true, fast: true }); };
     document.addEventListener('visibilitychange', connectEvents.visibilityHandler);

@@ -15,7 +15,7 @@
 (() => {
   'use strict';
 
-  const REFRESH_MS = 60000;
+  const REFRESH_MS = 180000; // 2026-10-19 流量压降：首页汇总从 1 分钟改为 3 分钟
   let state = null, work = null, att = null, os = null, inv = null, pur = null, ql = null;
   let osList = [], puList = [], qlList = [];   // 三个模块的完整列表（板块的页签要用）
   let workErr = false, attErr = false, osErr = false;
@@ -718,7 +718,7 @@
         const cached = readStateCache();
         if (cached) { state = cached.snapshot; stateAt = cached.savedAt; render(); }
       }
-      if (!state || Date.now() - stateAt > 20000) {
+      if (!state || Date.now() - stateAt > 120000) {
         const s = await fetchState();
         if (s) { state = s; stateAt = Date.now(); }
       }
