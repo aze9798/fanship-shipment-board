@@ -9011,15 +9011,13 @@ function remainingMaterialTotals() {
   return map;
 }
 
-function labelRemainingAllDates(dateFilter = labelDateFilter) {
-  // 待交合计：订单未交 + 有效补发计划。
-  // 打印标签选了交期时，这里也只统计选中的交期。
-  const selected = dateFilter instanceof Set ? dateFilter : new Set(dateFilter || []);
+function labelRemainingAllDates() {
+  // 旧规则：标签页“订单剩余未交”始终统计同料号所有交期的未交总数，
+  // 不受打印标签时选中的交期影响。标签本体的数量仍然按所选交期统计。
   const map = new Map();
   for (const row of remainingBaseRows()) {
     const remaining = Number(row.remaining || 0);
     if (remaining <= 0) continue;
-    if (selected.size && !selected.has(String(row.dueDate || '').trim())) continue;
     const material = String(row.material || '').trim();
     if (!material) continue;
     map.set(material, (map.get(material) || 0) + remaining);
