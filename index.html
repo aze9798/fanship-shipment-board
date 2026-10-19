@@ -17,15 +17,15 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
   <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
-  <link rel="stylesheet" href="design-tokens.css?v=d0abbff7ec96">
-  <link rel="stylesheet" href="ui-polish.css?v=d0abbff7ec96">
-  <link rel="stylesheet" href="theme-ui.css?v=d0abbff7ec96">
-  <link rel="stylesheet" href="dashboard-home.css?v=d0abbff7ec96">
+  <link rel="stylesheet" href="design-tokens.css?v=9a1a893e609c">
+  <link rel="stylesheet" href="ui-polish.css?v=9a1a893e609c">
+  <link rel="stylesheet" href="theme-ui.css?v=9a1a893e609c">
+  <link rel="stylesheet" href="dashboard-home.css?v=9a1a893e609c">
   <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
-  <link rel="stylesheet" href="home-merge.css?v=d0abbff7ec96">
-  <link rel="stylesheet" href="global-search.css?v=d0abbff7ec96">
-  <link rel="stylesheet" href="partners.css?v=d0abbff7ec96">
-  <link rel="stylesheet" href="staff-v2.css?v=d0abbff7ec96">
+  <link rel="stylesheet" href="home-merge.css?v=9a1a893e609c">
+  <link rel="stylesheet" href="global-search.css?v=9a1a893e609c">
+  <link rel="stylesheet" href="partners.css?v=9a1a893e609c">
+  <link rel="stylesheet" href="staff-v2.css?v=9a1a893e609c">
   <!-- 图纸预览用的 PDF 引擎：首屏空闲时后台预取，别等点开图纸才开始下（2026-10-17） -->
   <link rel="prefetch" href="vendor/pdf.min.mjs">
   <link rel="prefetch" href="vendor/pdf.worker.min.mjs">
@@ -866,6 +866,7 @@
             <div id="mobileFilters" class="filter-chips">
               <button class="chip active" data-filter="active" type="button">全部未交</button>
               <button class="chip" data-filter="dueToday" type="button">今日到期</button>
+              <button class="chip" data-filter="dueTomorrow" type="button">明日到期</button>
               <button class="chip" data-filter="special" type="button">试制/承样</button>
               <button class="chip" data-filter="overdue" type="button">已逾期</button>
             </div>
@@ -1450,7 +1451,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "d0abbff7ec96";
+      const fallbackVersion = "9a1a893e609c";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
@@ -1485,17 +1486,17 @@
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=d0abbff7ec96" defer></script>
-  <script src="dashboard-home.js?v=d0abbff7ec96" defer></script>
+  <script src="ui-polish.js?v=9a1a893e609c" defer></script>
+  <script src="dashboard-home.js?v=9a1a893e609c" defer></script>
 
-  <script src="home-merge.js?v=d0abbff7ec96" defer></script>
-  <script src="global-search.js?v=d0abbff7ec96" defer></script>
-  <script src="drawing-rotate.js?v=d0abbff7ec96" defer></script>
-  <script src="drawing-open.js?v=d0abbff7ec96" defer></script>
-  <script src="partners.js?v=d0abbff7ec96" defer></script>
-  <script src="staff-v2.js?v=d0abbff7ec96" defer></script>
-  <script src="po-print.js?v=d0abbff7ec96" defer></script>
-  <script src="col-resize-fix.js?v=d0abbff7ec96" defer></script>
+  <script src="home-merge.js?v=9a1a893e609c" defer></script>
+  <script src="global-search.js?v=9a1a893e609c" defer></script>
+  <script src="drawing-rotate.js?v=9a1a893e609c" defer></script>
+  <script src="drawing-open.js?v=9a1a893e609c" defer></script>
+  <script src="partners.js?v=9a1a893e609c" defer></script>
+  <script src="staff-v2.js?v=9a1a893e609c" defer></script>
+  <script src="po-print.js?v=9a1a893e609c" defer></script>
+  <script src="col-resize-fix.js?v=9a1a893e609c" defer></script>
 </body>
 </html>
 

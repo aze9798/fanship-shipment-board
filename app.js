@@ -465,19 +465,37 @@ function loadingReplacementPriority(item) {
   return dueDate && dueDate < currentDeliveryDate() ? 0 : 1;
 }
 
+function dateKeyOffset(dateText, offsetDays) {
+  const match = String(dateText || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return '';
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + Number(offsetDays || 0)));
+  return date.toISOString().slice(0, 10);
+}
+
 function unitDueDates(unit) {
   return [...new Set((unit?.members || []).map((member) => String(member.dueDate || '').slice(0, 10)).filter(Boolean))];
 }
 
 function unitMatchesDueFilter(unit, filter) {
-  if (!filter || filter === 'all' || filter === 'active') return true;
+  if (!filter || filter === 'all' || filter === 'active' || filter === 'special') return true;
   const dates = unitDueDates(unit);
   if (!dates.length) return false;
   const today = String(snapshot?.today || TODAY || '').slice(0, 10);
   if (filter === 'today' || filter === 'dueToday') return dates.some((date) => date === today);
+  if (filter === 'tomorrow' || filter === 'dueTomorrow') { const tomorrow = dateKeyOffset(today, 1); return dates.some((date) => date === tomorrow); }
   if (filter === 'overdue') return dates.some((date) => date && date < today);
   if (String(filter).startsWith('date:')) { const target = String(filter).slice(5); return dates.some((date) => date === target); }
   return true;
+}
+
+function unitMatchesOrderTypeFilter(unit, filter) {
+  if (filter !== 'special') return true;
+  const members = (unit?.members || []).filter((member) => String(member.orderId || '').trim());
+  if (!members.length) return false;
+  return members.every((member) => {
+    const order = (snapshot?.orders || []).find((row) => String(row.id || '') === String(member.orderId || ''));
+    return Boolean(order && ['trial', 'sample'].includes(String(order.orderType || '')));
+  });
 }
 
 function unitMatchesCompany(unit, company) {
@@ -2578,6 +2596,7 @@ function filteredOrders(filter) {
   const active = snapshot.orders.filter((order) => order.remaining > 0);
   if (filter === 'urgent') return active.filter((order) => order.dueDate <= TODAY);
   if (filter === 'dueToday') return active.filter((order) => order.dueDate === TODAY);
+  if (filter === 'dueTomorrow') { const tomorrow = dateKeyOffset(String(snapshot?.today || TODAY || '').slice(0, 10), 1); return active.filter((order) => order.dueDate === tomorrow); }
   // 试制 / 承样订单（工装订单请用「全部未交」查看）
   if (filter === 'special') return active.filter((order) => ['trial', 'sample'].includes(String(order.orderType || '')));
   if (filter === 'overdue') return active.filter((order) => order.dueDate < TODAY);
@@ -8602,7 +8621,7 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
 function renderMobileList() {
   if (!snapshot) return;
   const items = loadingItems(mobileRows(), {
-    unitFilter: (unit) => unitMatchesDueFilter(unit, mobileFilter),
+    unitFilter: (unit) => unitMatchesDueFilter(unit, mobileFilter) && unitMatchesOrderTypeFilter(unit, mobileFilter),
     includeReplacements: mobileFilter === 'active',
     planQuery: mobileSearch,
   });
