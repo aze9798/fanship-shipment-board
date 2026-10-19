@@ -500,3 +500,27 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
 .tk-nav-tools button.pri { background: var(--primary); border-color: var(--primary); color: var(--surface); font-weight: 600; }
 .tk-nav-edit { width: 100%; height: 30px; margin-bottom: 6px; border: 1px dashed var(--line); border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 11.5px; cursor: pointer; }
 .tk-nav-edit:hover { border-color: var(--primary); color: var(--ink); }
+/* 2026-10-19：报工页对齐 WORK 预览版 */
+/* 指标行 = 4 个小卡片 */
+#desktopWorkReportView .work-review-stats {
+  display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 12px !important; padding: 0 !important; margin: 0 0 14px !important;
+  background: transparent !important; border: 0 !important;
+}
+#desktopWorkReportView .work-review-stats > * {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+}
+/* 左表 5 列（员工/状态/计时/计件/工资），只藏「最新动态」 */
+#desktopWorkReportView .tk-work-left table th:nth-child(4),
+#desktopWorkReportView .tk-work-left table td:nth-child(4),
+#desktopWorkReportView .tk-work-left table th:nth-child(5),
+#desktopWorkReportView .tk-work-left table td:nth-child(5) { display: table-cell !important; }
+#desktopWorkReportView .tk-work-left table th:nth-child(6),
+#desktopWorkReportView .tk-work-left table td:nth-child(6) { display: none !important; }
+/* 页签：灰底 + 白色选中 */
+#desktopWorkReportView .tk-work-tabs { background: #efefef !important; border: 0 !important; padding: 3px !important; }
+#desktopWorkReportView .tk-work-tabs button { color: #737373 !important; background: transparent !important; }
+#desktopWorkReportView .tk-work-tabs button.on {
+  background: var(--surface) !important; color: var(--ink) !important; font-weight: 600 !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,.06);
+}
