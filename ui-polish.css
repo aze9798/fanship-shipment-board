@@ -464,3 +464,20 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
 .tk-work-right dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 .tk-work-empty { color: var(--muted); font-size: calc(var(--tk-ui-fs) * 0.93); line-height: 1.7; text-align: center; padding-top: 40px; }
 @media (max-width: 1280px) { .tk-work-split { grid-template-columns: minmax(0, 1fr); } }
+/* 报工页第二版：筛选分行、左表减列、右栏可操作 */
+#desktopWorkReportView .work-report-filters {
+  display: grid !important;
+  grid-template-columns: 190px 170px 150px minmax(220px, 1fr) !important;
+  gap: 12px !important; align-items: end !important;
+}
+#desktopWorkReportView .work-report-filters label { display: grid !important; gap: 4px !important; }
+@media (max-width: 1400px) {
+  #desktopWorkReportView .work-report-filters { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+.tk-work-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; gap: 16px !important; }
+.tk-work-left table th:nth-child(n+4),
+.tk-work-left table td:nth-child(n+4) { display: none !important; }
+.tk-work-left table th, .tk-work-left table td { padding: 10px 12px !important; }
+.tk-work-right dl { grid-template-columns: 92px minmax(0, 1fr) !important; gap: 8px 12px !important; line-height: 1.5 !important; }
+.tk-work-actions { margin-top: 14px; }
+.tk-work-actions .button { height: 34px; padding: 0 16px; border-radius: 10px; font-size: calc(var(--tk-ui-fs) * 0.93); }

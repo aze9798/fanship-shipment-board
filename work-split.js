@@ -33,7 +33,18 @@
       const heads = [...table.querySelectorAll('thead th')].map((t) => t.textContent.trim());
       const cells = [...tr.children].map((td) => td.innerText.trim().replace(/\s+/g, ' '));
       right.innerHTML = '<h4>' + (cells[0] || '明细') + '</h4>' +
-        '<dl>' + heads.map((h, i) => '<dt>' + (h || '—') + '</dt><dd>' + (cells[i] || '—') + '</dd>').join('') + '</dl>';
+        '<dl>' + heads.map((h, i) => '<dt>' + (h || '—') + '</dt><dd>' + (cells[i] || '—') + '</dd>').join('') + '</dl>' +
+        '<div class="tk-work-actions"></div>';
+      const src = tr.querySelector('a, button');
+      const box = right.querySelector('.tk-work-actions');
+      if (src && box) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'button primary';
+        btn.textContent = '查看该员工明细';
+        btn.addEventListener('click', () => src.click());
+        box.appendChild(btn);
+      }
     });
   }
 
