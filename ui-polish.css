@@ -566,7 +566,10 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
 /* 2026-10-19 白屏修复：页面切换动画有时停在 opacity:0，直接强制可见 */
 #app, .desktop-view, .sidebar, .main-area { opacity: 1 !important; }
 .desktop-view { animation: none !important; }
-/* 2026-10-19 白屏：app.js 把 #app 行内设成 display:none，用 !important 压回来 */
-#app { display: block !important; }
-#app[hidden] { display: block !important; }
+/* 2026-10-19 整理：只压掉 app.js 的 display:none，其余布局交回 .app-shell 自己 */
 @media (min-width: 901px) { #app.app-shell { display: grid !important; grid-template-columns: 248px minmax(0, 1fr); } }
+@media (max-width: 900px) { #app.app-shell { display: block !important; } }
+/* 顶部「有新版本」提示条不该盖住页面 */
+.version-update-bar { position: static !important; }
+/* 2026-10-19：外协 / 采购 / 质量 三个板块固定 5 行高（空的也占同样高度），多了内部滚动 */
+.tk-dash-3col .tk-md-list { height: 190px !important; max-height: 190px !important; overflow-y: auto !important; }
