@@ -416,3 +416,34 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
 .sidebar { overflow: hidden !important; }
 #tkNav, .side-nav { flex: 1 1 auto !important; min-height: 0 !important; overflow-y: auto !important; scrollbar-width: thin; }
 .sidebar-foot { flex: 0 0 auto !important; }
+/* ============================================================
+   2026-10-19：报工页排版整理（分区明确 / 字号统一 / 列对齐）
+   ============================================================ */
+#desktopWorkReportView .topbar { margin-bottom: 4px !important; }
+#desktopWorkReportView .tk-work-tabs { margin: 0 0 14px !important; }
+#desktopWorkReportView > .panel,
+#desktopWorkReportView > section.panel { margin: 0 0 12px !important; }
+
+/* 筛选区：压扁成一行 */
+#desktopWorkReportView .work-report-filters {
+  padding: 10px 14px !important;
+  display: flex !important; flex-wrap: wrap !important; align-items: center !important;
+  gap: 10px !important;
+}
+#desktopWorkReportView .work-report-filters label { gap: 4px !important; font-size: calc(var(--tk-ui-fs) * 0.86) !important; }
+#desktopWorkReportView .work-report-filters input,
+#desktopWorkReportView .work-report-filters select { height: 34px !important; font-size: calc(var(--tk-ui-fs) * 0.93) !important; }
+
+/* 统计条：改成横向一行、去掉大块留白 */
+#desktopWorkReportView .work-review-stats { padding: 6px 14px !important; margin-bottom: 12px !important; gap: 18px !important; }
+
+/* 列表：字号统一 + 表头/数据居中 */
+#desktopWorkReportView table { width: 100% !important; }
+#desktopWorkReportView table th,
+#desktopWorkReportView table td { text-align: center !important; font-size: calc(var(--tk-ui-fs) * 0.93) !important; vertical-align: middle !important; }
+#desktopWorkReportView table th { font-weight: 600 !important; color: var(--muted) !important; }
+
+/* 主列表区域留出呼吸 */
+#desktopWorkReportView .work-live-panel { padding: 0 0 4px !important; }
+#desktopWorkReportView .work-live-panel > header,
+#desktopWorkReportView .work-live-panel > .panel-head { padding: 10px 14px !important; }
