@@ -120,4 +120,50 @@
 .sv2-print-only{display:none}
 @media(max-width:1180px){.sv2-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.sv2-page{padding:18px 16px 44px}.sv2-table-wrap{max-height:none}}
 @media(max-width:760px){.sv2-head h1{font-size:22px}.sv2-actions{width:100%;justify-content:flex-start}.sv2-kpis{grid-template-columns:1fr 1fr;gap:8px}.sv2-kpi{padding:11px 12px}.sv2-kpi strong{font-size:18px}.sv2-form-grid,.sv2-detail-grid,.sv2-money-summary{grid-template-columns:1fr}.sv2-form-grid .full,.sv2-detail-item.full{grid-column:auto}.sv2-drawer{width:100vw}.sv2-drawer-body{padding:14px}.sv2-rate{grid-template-columns:1fr}.sv2-rate .cur{justify-self:start}.sv2-toolbar{padding:11px 12px}.sv2-toolbar .grow{flex-basis:100%}}
-@media print{body{background:#fff}.sidebar,.side-nav,.mobile-head,.mobile-bottom-nav,.topbar,.sv2-actions,.sv2-toolbar,.sv2-kpis,.sv2-statusline,.sv2-drawer-mask,.sv2-drawer-foot,.sv2-toast,.task-status-bar{display:none!important}.main-area{margin-left:0!important}.sv2-page{max-width:none;padding:0}.sv2-panel{border:0;box-shadow:none}.sv2-table-wrap{max-height:none;overflow:visible}.sv2-table{min-width:0;font-size:10px}.sv2-table th,.sv2-table td{padding:4px 5px;white-space:normal}.sv2-print-only{display:block}}
+@page{size:A4 landscape;margin:8mm}
+@media print{
+  body{background:#fff}
+  .sidebar,.side-nav,.mobile-head,.mobile-bottom-nav,.topbar,.sv2-actions,.sv2-toolbar,.sv2-kpis,.sv2-statusline,.sv2-drawer-mask,.sv2-drawer-foot,.sv2-toast,.task-status-bar{display:none!important}
+  .main-area{margin-left:0!important}
+  .sv2-page{max-width:none;padding:0}
+  .sv2-head{margin-bottom:6px}
+  .sv2-head h1{font-size:18px}
+  .sv2-head p{margin-top:2px;font-size:9px;line-height:1.3}
+  .sv2-eyebrow{display:none}
+  .sv2-panel{border:0;box-shadow:none;border-radius:0}
+  .sv2-table-wrap{max-height:none;overflow:visible}
+  .sv2-table{width:100%;min-width:0;table-layout:fixed;font-size:8.5px;border-spacing:0}
+  .sv2-table thead{display:table-header-group}
+  .sv2-table tr{page-break-inside:avoid}
+  .sv2-table th,.sv2-table td{padding:2px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:1px solid #d8e3e1;line-height:1.25}
+  .sv2-table th{font-size:8px}
+  .sv2-avatar{display:none!important}
+  .sv2-cell-strong{display:block;min-width:0}
+  .sv2-cell-strong b{display:inline;font-size:8.5px}
+  .sv2-cell-strong small,.sv2-anomaly{display:none!important}
+  .sv2-pill{padding:0;min-height:0;border-radius:0;background:none!important;color:#000!important;font-size:8px}
+  .sv2-row-actions,.col-op{display:none!important}
+  .payroll-table th:nth-child(1),.payroll-table td:nth-child(1){width:3.5%}
+  .payroll-table th:nth-child(2),.payroll-table td:nth-child(2){width:10%}
+  .payroll-table th:nth-child(3),.payroll-table td:nth-child(3){width:7%}
+  .payroll-table th:nth-child(4),.payroll-table td:nth-child(4){width:4.5%}
+  .payroll-table th:nth-child(5),.payroll-table td:nth-child(5){width:9%}
+  .payroll-table th:nth-child(6),.payroll-table td:nth-child(6){width:6%}
+  .payroll-table th:nth-child(7),.payroll-table td:nth-child(7){width:8%}
+  .payroll-table th:nth-child(8),.payroll-table td:nth-child(8){width:8%}
+  .payroll-table th:nth-child(9),.payroll-table td:nth-child(9){width:6%}
+  .payroll-table th:nth-child(10),.payroll-table td:nth-child(10){width:9%}
+  .payroll-table th:nth-child(11),.payroll-table td:nth-child(11){display:none}
+  .payroll-table th:nth-child(12),.payroll-table td:nth-child(12){width:10%}
+  .payroll-table th:nth-child(13),.payroll-table td:nth-child(13){display:none}
+  .employee-table th:nth-child(1),.employee-table td:nth-child(1){width:5%}
+  .employee-table th:nth-child(2),.employee-table td:nth-child(2){width:13%}
+  .employee-table th:nth-child(3),.employee-table td:nth-child(3){width:20%}
+  .employee-table th:nth-child(4),.employee-table td:nth-child(4){width:11%}
+  .employee-table th:nth-child(5),.employee-table td:nth-child(5){width:13%}
+  .employee-table th:nth-child(6),.employee-table td:nth-child(6){width:10%}
+  .employee-table th:nth-child(7),.employee-table td:nth-child(7){width:8%}
+  .employee-table th:nth-child(8),.employee-table td:nth-child(8){width:12%}
+  .employee-table th:nth-child(9),.employee-table td:nth-child(9){display:none}
+  .sv2-print-only{display:block}
+}
