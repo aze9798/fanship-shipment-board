@@ -32,20 +32,24 @@
   /* 整站缩放：字小不是某一页的问题，是 4K 屏 + 浏览器缩放不匹配。
      直接对 <html> 做 zoom，等于把整个应用放大，所有页面（云端送货单/查询/图纸库/报工…）一起变大。
      小=100%（原始） 中=108%  大=116%  特大=126% */
-  const ZOOMS = { s: 0.92, m: 1, l: 1.12, xl: 1.24 };
-  let uiSize = 'm';
+  let uiZoom = 1;
   function loadUiSize() {
-    try { const v = String(localStorage.getItem('tkUiSize') || 'm'); uiSize = ZOOMS[v] ? v : 'm'; } catch { uiSize = 'm'; }
+    try {
+      const v = Number(localStorage.getItem('tkUiZoom'));
+      uiZoom = (v >= 0.85 && v <= 1.35) ? v : 1;
+    } catch { uiZoom = 1; }
   }
   function applyUiSize() {
-    document.body.dataset.uiSize = uiSize;
-    const z = ZOOMS[uiSize] || 1;
+    const z = Math.round(uiZoom * 100) / 100;
     if (z === 1) document.documentElement.style.removeProperty('zoom');
     else document.documentElement.style.zoom = String(z);
     document.documentElement.style.setProperty('--tk-zoom', String(z));
-    document.querySelectorAll('[data-size-pick]').forEach((b) => b.classList.toggle('on', b.dataset.sizePick === uiSize));
+    const out = document.querySelector('[data-out="zoom"]');
+    if (out) out.textContent = Math.round(z * 100) + '%';
+    const inp = document.querySelector('[data-in="zoom"]');
+    if (inp) inp.value = String(Math.round(z * 100));
   }
-  function saveUiSize() { try { localStorage.setItem('tkUiSize', uiSize); } catch { } }
+  function saveUiSize() { try { localStorage.setItem('tkUiZoom', String(uiZoom)); } catch { } }
 
   function loadDensity() {
     try {
@@ -107,12 +111,10 @@
     pop.innerHTML = `
 
 
-      <h4>字号 <span>整页生效</span></h4>
-      <div class="tk-seg" role="group">
-        <button type="button" data-size-pick="s">小</button>
-        <button type="button" data-size-pick="m">中</button>
-        <button type="button" data-size-pick="l">大</button>
-        <button type="button" data-size-pick="xl">特大</button>
+      <h4>字号 <span>整页缩放</span></h4>
+      <div class="tk-row">
+        <div class="lb">缩放比例 <b data-out="zoom"></b></div>
+        <input type="range" data-in="zoom" min="85" max="135" step="1">
       </div>
       <h4>行距 <span>表格的行高</span></h4>
       <div class="tk-seg" role="group">
@@ -124,10 +126,7 @@
         <div class="lb">行 · 上下内边距 <b data-out="y"></b></div>
         <input type="range" data-in="y" min="4" max="18" step="1">
       </div>
-      <div class="tk-row">
-        <div class="lb">列 · 左右内边距 <b data-out="x"></b></div>
-        <input type="range" data-in="x" min="4" max="24" step="1">
-      </div>
+
 
 
       <div class="tk-actions">
@@ -137,6 +136,9 @@
     document.body.appendChild(pop);
 
     popBtn.addEventListener('click', () => togglePop());
+    pop.addEventListener('input', (e) => {
+      if (e.target.matches('[data-in="zoom"]')) { uiZoom = Number(e.target.value) / 100; applyUiSize(); saveUiSize(); }
+    });
     pop.addEventListener('click', (e) => {
       const sizePick = e.target.closest('[data-size-pick]');
       if (sizePick) {

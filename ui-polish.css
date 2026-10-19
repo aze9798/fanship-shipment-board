@@ -356,3 +356,23 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
 .desktop-view section.panel > div[class$='-kpis'] { padding-left: 6px !important; padding-right: 6px !important; }
 .desktop-view .panel table th:first-child,
 .desktop-view .panel table td:first-child { padding-left: 18px !important; }
+
+/* 2026-10-19：搜索框 / 下拉筛选统一（原来大框套小框、内外底色不一致） */
+.search-box {
+  display: flex; align-items: center; gap: 8px;
+  height: 38px; padding: 0 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+}
+.search-box input {
+  flex: 1 1 auto; height: 100%; padding: 0; border: 0; outline: 0;
+  background: transparent; color: var(--ink); font: inherit;
+}
+.select-box {
+  display: inline-flex; align-items: center;
+  height: 38px; padding: 0 10px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+}
+.select-box select {
+  height: 100%; padding: 0 18px 0 2px; border: 0; outline: 0;
+  background: transparent; color: var(--ink); font: inherit; cursor: pointer;
+}
