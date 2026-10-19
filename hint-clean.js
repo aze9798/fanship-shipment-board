@@ -10,6 +10,7 @@
       if (PAT.test(el.textContent || '')) el.style.display = 'none';
     });
     document.querySelectorAll('.desktop-view p, .desktop-view small, .desktop-view em, .desktop-view div').forEach((el) => {
+      if (el.closest('.sv2-page')) return;
       if (el.children.length > 2) return;
       const t = String(el.textContent || '').trim();
       if (!t || t.length > 60) return;
