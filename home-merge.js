@@ -270,10 +270,14 @@
     if (!box) return;
     box.appendChild(merge);
     mergeMountedIn = want;
-    if (!admin) {
-      const navLink = document.querySelector('#tkNav a[data-tk-view="remaining"]');
+    const navLink = document.querySelector('#tkNav a[data-tk-view="remaining"]');
+    const lp = document.getElementById('desktopLabelPrint');
+    if (admin) {
+      // 管理端：恢复「未交清单」入口和「打印标签」（角色是异步识别的，前面可能先按普通端藏过）
+      if (navLink) navLink.style.display = '';
+      if (lp) lp.style.display = '';
+    } else {
       if (navLink) navLink.style.display = 'none';
-      const lp = document.getElementById('desktopLabelPrint');
       if (lp) lp.style.display = 'none';
     }
   }
