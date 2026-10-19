@@ -258,11 +258,33 @@
   }
 
   // 普通模式：管理员专属项隐藏
+  let mergeMountedIn = '';
+  // 普通端：详细未交清单直接接在主页（不单独开页），并隐藏「未交清单」入口、打印标签
+  function mountMergeForRole() {
+    const merge = document.getElementById('tkMerge');
+    if (!merge) return;
+    const admin = document.body.dataset.boardRole === 'admin';
+    const want = admin ? 'desktopRemainingView' : 'desktopView';
+    if (mergeMountedIn === want) return;
+    const box = document.getElementById(want);
+    if (!box) return;
+    box.appendChild(merge);
+    mergeMountedIn = want;
+    if (!admin) {
+      applyFold(true);
+      const navLink = document.querySelector('#tkNav a[data-tk-view="remaining"]');
+      if (navLink) navLink.style.display = 'none';
+      const lp = document.getElementById('desktopLabelPrint');
+      if (lp) lp.style.display = 'none';
+    }
+  }
+
   function applyRoleVisibility() {
     const nav = document.getElementById('tkNav');
     const admin = isAdmin();
     if (nav) nav.querySelectorAll('a[data-admin="1"]').forEach((a) => a.classList.toggle('tk-off', !admin));
     // 普通端只保留以前的功能：新模块的页面 + 它们自己建的侧栏链接都藏起来（双保险）
+    mountMergeForRole();
     if (admin) return;
     Object.values(MODULE_PAGE_IDS).forEach((id) => {
       const el = document.getElementById(id);

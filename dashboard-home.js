@@ -589,22 +589,22 @@
       </div>
 
       <div class="tk-dash-2col${(workBlock && attBlock) ? '' : ' is-single'}">
-        ${workBlock || `<div class="tk-dash-sec">${secHead('未交总览', '口径：按订单项', 'remaining')}
+        ${workBlock || (isAdmin() ? `<div class="tk-dash-sec">${secHead('未交总览', '口径：按订单项', 'remaining')}
           <div class="tk-stats four">
             ${stat({ label: '未交', value: num(c.open.length), unit: `行 · ${num(c.remainQty)} 件` })}
             ${stat({ label: '已发', value: num(c.shippedQty), unit: '件（累计）' })}
             ${stat({ label: '履约完成率', value: c.doneRate + '%', unit: '已发 ÷ 总量' })}
             ${stat({ label: '发货车次', value: num(c.shipCount), unit: '张发货单' })}
-          </div></div>`}
+          </div></div>` : '')}
         ${attBlock}
       </div>
 
-      <div class="tk-dash-2col is-single">
+      ${isAdmin() ? `<div class="tk-dash-2col is-single">
         <div class="tk-dash-sec">
           ${secHead('今天装车', c.todayShipCount ? `今日 ${c.todayShipCount} 车 · ${num(c.todayShipQty)} 件` : '今天还没装车，下面是最近 6 次', 'shipments')}
           <div class="tk-list">${shipRows}</div>
         </div>
-      </div>
+      </div>` : ''}
 
       ${invBlock}
     `;
