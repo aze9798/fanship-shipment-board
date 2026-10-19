@@ -48,4 +48,34 @@
     if (i >= 0 && cols[i]) cols[i].style.width = '';
     if (th) th.style.width = '';
   }, true);
+  /* 2026-10-19：给考勤等表格自动装拖拽手柄（保留当前列宽当初始值） */
+  function enhanceTables() {
+    document.querySelectorAll('#desktopAttendanceView table').forEach((table) => {
+      if (table.dataset.tkResizable === '1') return;
+      const ths = [...table.querySelectorAll('thead th')];
+      if (!ths.length) return;
+      const widths = ths.map((th) => Math.max(56, Math.round(th.getBoundingClientRect().width)));
+      let cg = table.querySelector('colgroup');
+      if (!cg) {
+        cg = document.createElement('colgroup');
+        ths.forEach(() => cg.appendChild(document.createElement('col')));
+        table.insertBefore(cg, table.firstChild);
+      }
+      [...cg.children].forEach((col, i2) => { if (widths[i2]) col.style.width = widths[i2] + 'px'; });
+      table.style.tableLayout = 'fixed';
+      ths.forEach((th) => {
+        th.style.position = 'relative';
+        if (th.querySelector('.col-resizer')) return;
+        const s = document.createElement('span');
+        s.className = 'col-resizer';
+        s.setAttribute('title', '拖动调整列宽，双击恢复');
+        th.appendChild(s);
+      });
+      table.dataset.tkResizable = '1';
+    });
+  }
+  setInterval(enhanceTables, 1500);
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-tk-view="attendance"]')) setTimeout(enhanceTables, 400);
+  }, true);
 })();
