@@ -550,3 +550,11 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
 .tk-piece-box .row2 b { grid-column: 2; grid-row: 1; text-align: right; font-variant-numeric: tabular-nums; }
 .tk-piece-box .row2 em { grid-column: 2; grid-row: 2; font-style: normal; color: var(--muted); font-size: 11.5px; text-align: right; }
 .tk-piece-box .none { color: var(--muted); font-size: 12px; padding: 8px 0; }
+.tk-kv { display: flex; justify-content: space-between; font-size: 12.5px; padding: 6px 0; }
+.tk-kv span { color: var(--muted); }
+.tk-acc { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 0; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; font-size: 12.5px; cursor: pointer; text-align: left; }
+.tk-acc span { color: var(--muted); min-width: 64px; }
+.tk-acc b { flex: 1 1 auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tk-acc i { font-style: normal; color: var(--muted); font-size: 10px; transition: transform .15s ease; }
+.tk-acc.open i { transform: rotate(180deg); }
+.tk-acc-body { padding: 4px 0 8px 74px; }

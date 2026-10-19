@@ -34,16 +34,24 @@
       const no = (cells[0] || '').replace(/[^0-9A-Za-z]/g, '');
       const mine = (window.__tkWorkEntries || []).filter((x) => String(x.employeeNo) === no);
       const money = (v) => '¥' + Number(v || 0).toLocaleString('zh-CN', { maximumFractionDigits: 1 });
+      const pieceHtml = mine.length
+        ? mine.map((e) => '<div class="row2"><span>' + (e.name || '') + '</span><i>' + (e.material || '') + ' · ' + (e.process || '') + '</i><b>' + Number(e.quantity || 0) + ' 件</b><em>单价 ' + Number(e.unitPrice || 0) + ' · ' + money(e.amount) + '</em></div>').join('')
+        : '<div class="none">今天没有计件记录</div>';
       right.innerHTML = '<h4>' + (cells[0] || '明细') + '</h4>' +
-        '<dl>' +
-        '<dt>状态</dt><dd>' + (cells[1] || '—') + '</dd>' +
-        '<dt>今日计时</dt><dd>' + (cells[2] || '—') + '</dd>' +
-        '<dt>今日计件</dt><dd>' + (cells[3] || '—') + '</dd>' +
-        '</dl>' +
-        '<div class="tk-piece-box"><b>计件明细（' + mine.length + ' 笔）</b>' +
-        (mine.length ? mine.map((e) => '<div class="row2"><span>' + (e.name || '') + '</span><i>' + (e.material || '') + ' · ' + (e.process || '') + '</i><b>' + Number(e.quantity || 0) + ' 件</b><em>单价 ' + Number(e.unitPrice || 0) + ' · ' + money(e.amount) + '</em></div>').join('') : '<div class="none">今天没有计件记录</div>') +
-        '</div>' +
+        '<div class="tk-kv"><span>状态</span><b>' + (cells[1] || '—') + '</b></div>' +
+        '<button type="button" class="tk-acc" data-acc="time"><span>今日计时</span><b>' + (cells[2] || '—') + '</b><i>▾</i></button>' +
+        '<div class="tk-acc-body" data-body="time" hidden><div class="none">' + (cells[2] || '—') + '</div><div class="none">（时段明细接口加好后显示 09:00–11:30 这类区间）</div></div>' +
+        '<button type="button" class="tk-acc" data-acc="piece"><span>今日计件</span><b>' + (cells[3] || '—') + '</b><i>▾</i></button>' +
+        '<div class="tk-acc-body" data-body="piece" hidden>' + pieceHtml + '</div>' +
         '<div class="tk-work-actions"></div>';
+      right.querySelectorAll('.tk-acc').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const body = right.querySelector('[data-body="' + btn.dataset.acc + '"]');
+          if (!body) return;
+          body.hidden = !body.hidden;
+          btn.classList.toggle('open', !body.hidden);
+        });
+      });
       const src = tr.querySelector('a, button');
       const box = right.querySelector('.tk-work-actions');
       if (src && box) {
