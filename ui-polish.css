@@ -396,7 +396,11 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
   background: transparent !important; color: var(--ink) !important; font: inherit !important; cursor: pointer !important;
 }
 /* 2026-10-19：显示面板在高缩放下被截断 → 限高可滚 */
-.tk-pop { max-height: calc(100vh / var(--tk-zoom, 1) - 24px) !important; overflow-y: auto !important; }
+.tk-pop {
+  position: fixed !important; left: 12px !important; right: auto !important; top: auto !important; bottom: 12px !important;
+  max-height: calc(100vh / var(--tk-zoom, 1) - 24px) !important;
+  overflow-y: auto !important;
+}
 
 /* 2026-10-19：全局搜索结果 —— 料号列统一字体字号，跟后面列垂直居中对齐 */
 .tk-gs-item { align-items: center !important; }
