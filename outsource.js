@@ -575,7 +575,7 @@
       return;
     }
     const modal = openModal(`<h3>采购单记录</h3>
-      <div class="os-sub">这里保存的是已经生成过的采购单快照。不需要打印；需要文件时点“打开 PDF 版”，在浏览器里另存为 PDF 即可。</div>
+      <div class="os-sub">这里保存的是已经生成过的采购单记录。不需要打印；需要文件时点“打开 PDF 版”，在浏览器里另存为 PDF 即可。</div>
       <div class="os-po-records">${records.map((rec, i) => poRecordHtml(rec, i, focusPo)).join('')}</div>
       <div class="os-foot"><button data-x="cancel">关闭</button></div>`);
     modal.querySelector('.os-card')?.classList.add('wide');
