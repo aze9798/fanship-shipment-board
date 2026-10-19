@@ -524,3 +524,8 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
   background: var(--surface) !important; color: var(--ink) !important; font-weight: 600 !important;
   box-shadow: 0 1px 2px rgba(0,0,0,.06);
 }
+.tk-gap-sum { margin: 10px 0 12px; padding: 10px 14px; border: 1px dashed var(--line); border-radius: 10px; background: var(--surface-soft); font-size: 12.5px; }
+.tk-gap-sum > b { font-size: 13px; }
+.tk-gap-sum .list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.tk-gap-sum .list span { padding: 3px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.tk-gap-sum .list i { font-style: normal; color: var(--muted); margin-left: 5px; font-size: 11px; }
