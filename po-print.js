@@ -25,13 +25,15 @@
 
   function buildHtml(kind, rows, poNo) {
     const isOs = kind === '02';
-    const r0 = rows[0] || {};
+    // 交期按日期从早到晚排列，项次跟着重排
+    const sortedRows = [...rows].sort((left, right) => String(left.dueDate || '9999-12-31').localeCompare(String(right.dueDate || '9999-12-31')));
+    const r0 = sortedRows[0] || {};
     const vendor = isOs ? r0.vendor : r0.supplier;
     const title = isOs ? '外协加工采购单' : '原材料采购单';
     const t = new Date(); const p = (n) => String(n).padStart(2, '0');
     const dateStr = t.getFullYear() + '-' + p(t.getMonth() + 1) + '-' + p(t.getDate());
     let totalQty = 0, totalAmt = 0;
-    const body = rows.map((r, i) => {
+    const body = sortedRows.map((r, i) => {
       const unit = isOs ? '件' : (r.unit || '件');
       const price = Number(r.unitPrice || 0);
       const amt = r.qty && price ? Number(r.qty) * price : 0;
@@ -45,33 +47,28 @@
     }).join('');
     return '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>' + esc(poNo || title) + '</title><style>' +
       '@page{size:A4;margin:14mm 12mm}' +
-      'body{font-family:"Microsoft YaHei","PingFang SC",Arial,sans-serif;color:#111;font-size:12px;margin:0}' +
-      'h1{font-size:19px;text-align:center;margin:0 0 3px;letter-spacing:2px}' +
-      '.doctitle{text-align:center;font-size:15px;letter-spacing:6px;margin-bottom:10px;color:#333}' +
-      '.meta{display:grid;grid-template-columns:1fr 1fr;gap:5px 24px;margin:0 0 10px;font-size:12px}' +
-      '.meta b{display:inline-block;width:62px;font-weight:400;color:#555}.meta .wide{grid-column:1/-1}' +
-      'table{width:100%;border-collapse:collapse;table-layout:fixed}' +
-      'th,td{border:1px solid #333;padding:5px 6px;word-break:break-all;vertical-align:middle}' +
-      'th{background:#f3f3f3;font-weight:600;font-size:11.5px}.num{text-align:right}.c{text-align:center}' +
-      '.sum{margin-top:6px;display:flex;justify-content:space-between;font-size:12px}' +
-      '.note{margin-top:10px;font-size:12px;line-height:1.7;min-height:26px}' +
-      '.sign{display:flex;justify-content:space-between;gap:40px;margin-top:34px;font-size:12px}' +
-      '.sign>div{flex:1}.sign .line{border-bottom:1px solid #999;height:26px;margin-bottom:4px}' +
-      '.tips{margin-top:14px;font-size:10.5px;color:#777;line-height:1.6}' +
+      'body{font-family:"Microsoft YaHei","PingFang SC",Arial,sans-serif;color:#111;font-size:14px;line-height:1.4;margin:0}' +
+      'h1{font-size:22px;text-align:center;margin:0 0 5px;letter-spacing:2px;font-family:inherit}' +
+      '.doctitle{text-align:center;font-size:18px;letter-spacing:6px;margin-bottom:12px;color:#222;font-family:inherit}' +
+      '.meta{display:grid;grid-template-columns:1fr 1fr;gap:7px 24px;margin:0 0 12px;font-size:14px;font-family:inherit}' +
+      '.meta b{display:inline-block;width:70px;font-weight:400;color:#444;font-family:inherit}.meta .wide{grid-column:1/-1}' +
+      'table{width:100%;border-collapse:collapse;table-layout:fixed;font-family:inherit}' +
+      'th,td{border:1px solid #333;padding:7px 6px;word-break:break-all;vertical-align:middle;text-align:center;font-family:inherit;font-size:14px;line-height:1.45}' +
+      'th:last-child,td:last-child{white-space:nowrap}' +
+      'th{background:#f3f3f3;font-weight:700;font-size:14px}.num{text-align:center}.c{text-align:center}' +
+      '.sum{margin-top:8px;display:flex;justify-content:space-between;font-size:14px;font-family:inherit}' +
+      '.note{margin-top:10px;font-size:14px;line-height:1.7;min-height:26px;font-family:inherit}' +
       '</style></head><body>' +
       '<h1>无锡市帆顺金属科技有限公司</h1><div class="doctitle">' + title + '</div>' +
       '<div class="meta"><div><b>单号：</b>' + esc(poNo || '—') + '</div><div><b>日期：</b>' + dateStr + '</div>' +
-      '<div class="wide"><b>' + (isOs ? '外协厂' : '供应商') + '：</b>' + esc(vendor || '—') + '</div></div>' +
+      '<div class="wide"><b>' + (isOs ? '外协公司' : '供应商') + '：</b>' + esc(vendor || '—') + '</div></div>' +
       '<table><thead><tr><th style="width:38px">项次</th><th>品名</th><th style="width:104px">料号</th>' +
       '<th style="width:104px">规格 / 图号</th><th class="num" style="width:60px">数量</th>' +
       '<th class="c" style="width:40px">单位</th><th class="num" style="width:64px">单价</th>' +
-      '<th class="num" style="width:78px">金额</th><th class="c" style="width:74px">交期</th></tr></thead>' +
+      '<th class="num" style="width:78px">金额</th><th class="c" style="width:96px">交期</th></tr></thead>' +
       '<tbody>' + body + '</tbody></table>' +
       '<div class="sum"><span>总数量：' + qty(totalQty) + '</span><span>金额合计：<b>' + (totalAmt ? '¥ ' + num(totalAmt) : '—') + '</b></span></div>' +
       '<div class="note"><b>备注：</b>' + (r0.note ? esc(r0.note) : '—') + '</div>' +
-      '<div class="sign"><div><div class="line"></div>供方（盖章）：' + esc(vendor || '') + '</div>' +
-      '<div><div class="line"></div>需方（盖章）：无锡市帆顺金属科技有限公司</div></div>' +
-      '<div class="tips">说明：请按各项次交期送货；数量、单价如有异议请在 1 个工作日内回复。</div>' +
       '</body></html>';
   }
 
