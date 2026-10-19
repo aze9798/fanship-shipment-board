@@ -2805,6 +2805,16 @@ let slowAuxRefreshing = null;
 let amountsFetchedAt = 0;
 let drawingsFetchedAt = 0;
 // 后台刷新金额 + 图纸清单（不阻塞界面）
+// 导入订单/补图纸/改单价后强制刷新一次：不能继续用 5~10 分钟前的金额、图纸缓存，
+// 否则主页全局搜索已经看到新数据，订单卡和单价详情页还是旧的。
+async function refreshAuxiliaryNow() {
+  amountsFetchedAt = 0;
+  drawingsFetchedAt = 0;
+  const job = refreshSlowAux();
+  if (job) await job;
+  renderAll();
+}
+
 function refreshSlowAux() {
   if (slowAuxRefreshing || !snapshot) return slowAuxRefreshing;
   const FRESH = 5 * 60 * 1000;
@@ -3883,6 +3893,8 @@ async function confirmPdfImport() {
     }
 
     showToast(`已导入 ${count} 行新订单（未交已更新）`);
+    // 图纸/金额是单独的慢数据缓存；刚同步进来的图纸和新单价必须立即生效
+    await refreshAuxiliaryNow();
     await loadState({ quiet: true });
     renderAll();
     finishTask('采购订单导入完成', 'success', 3000);
@@ -4574,6 +4586,23 @@ function priceCardHtml(group) {
   </article>`;
 }
 
+let priceDataLoading = false;
+async function ensurePriceAmounts() {
+  if (priceDataLoading || (Array.isArray(snapshot?.amounts) && snapshot.amounts.length)) return;
+  priceDataLoading = true;
+  try {
+    const rows = await loadAmounts();
+    if (!rows.length || !snapshot) return;
+    snapshot.amounts = rows;
+    amountsFetchedAt = Date.now();
+    writeSlowAuxCache({ amounts: rows });
+    rebuildAmountMap();
+    renderDesktopPrices();
+  } finally {
+    priceDataLoading = false;
+  }
+}
+
 function renderDesktopPrices() {
   const box = els.priceSummary;
   if (!box) return;
@@ -4586,6 +4615,7 @@ function renderDesktopPrices() {
     return;
   }
   if (els.priceHint) els.priceHint.hidden = true;
+  if (!(Array.isArray(snapshot?.amounts) && snapshot.amounts.length)) void ensurePriceAmounts();
   const groups = priceProductGroups()
     .filter((group) => [group.material, group.name, [...group.specs].join(' ')].join(' ').toLowerCase().includes(query))
     .sort((left, right) => (right.remaining > 0 ? 1 : 0) - (left.remaining > 0 ? 1 : 0)
@@ -7545,6 +7575,7 @@ async function saveOrderEdit() {
       priceSaved = true;
     }
     closeOrderEdit();
+    if (priceSaved) await refreshAuxiliaryNow();
     if (cancelling) {
       showToast(`已取消 ${order.po} 项次 ${order.seq}`);
     } else {
