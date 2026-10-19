@@ -195,7 +195,7 @@
       const days = Number(att?.attendanceDays || 0);
       const otDays = Number(att?.overtimeDays || 0);
       const base = Number(e.dailySalary || 0) * days;
-      const overtime = Number(att?.overtimeAmount || 0);
+      const overtime = Number(att?.overtimeDays || 0) * Number(e.overtimeRate || 0);
       return { days, otDays, base, overtime, timerPay: 0, piecePay: 0, total: base + overtime, pending: 0 };
     }
     if (e.salaryType === 'monthly' || e.salaryType === 'management') {

@@ -250,7 +250,7 @@ function currentMonth() { return new Date().toLocaleDateString('en-CA', { timeZo
   }
   function changePayrollMonth(month) { state.payrollMonth = month || currentMonth(); const input = $('#sv2PayMonth'); if (input) input.value = state.payrollMonth; loadPayroll(state.payrollMonth).catch(() => {}); }
   function calcAuto(e, att, work) {
-    const days = Number(att && att.attendanceDays || 0); const overtimeDays = Number(att && att.overtimeDays || 0); const overtimePay = Number(att && att.overtimeAmount || 0);
+    const days = Number(att && att.attendanceDays || 0); const overtimeDays = Number(att && att.overtimeDays || 0); const overtimePay = Number(att && att.overtimeDays || 0) * Number(e.overtimeRate || 0);
     if (e.salaryType === 'daily') { const basePay = Number(e.dailySalary || 0) * days; return { attendanceDays: days, overtimeDays, basePay, overtimePay, timerMinutes: 0, timerPay: 0, pieceCount: 0, pieceQty: 0, piecePay: 0, adjustmentTotal: 0, grossPay: basePay + overtimePay, anomalies: [] }; }
     if (e.salaryType === 'monthly' || e.salaryType === 'management') return { attendanceDays: days, overtimeDays: 0, basePay: Number(e.monthlySalary || 0), overtimePay: 0, timerMinutes: 0, timerPay: 0, pieceCount: 0, pieceQty: 0, piecePay: 0, adjustmentTotal: 0, grossPay: Number(e.monthlySalary || 0), anomalies: [] };
     const timerPay = Number(work && work.timerPay || 0); const piecePay = Number(work && work.piecePay || 0); const anomalies = Number(work && work.pendingCount || 0) ? [`有 ${work.pendingCount} 笔计件待审核`] : [];

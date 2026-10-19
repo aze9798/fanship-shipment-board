@@ -84,8 +84,20 @@
       if (!Array.isArray(arr)) arr = [];
     } catch (e) { arr = []; }
     const hhmm = (s) => { const x = new Date(s); return isNaN(x) ? '--:--' : x.toLocaleTimeString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit' }); };
-    const timers = arr.filter((x) => x.kind === 'timer');
-    const pieces = arr.filter((x) => x.kind === 'piece');
+    const norm = (list) => {
+      const seen = new Set();
+      const out = [];
+      list.forEach((x) => {
+        const k = String(x.start) + '|' + String(x.end);
+        if (seen.has(k)) return;
+        seen.add(k);
+        const calc = Math.round((new Date(x.end) - new Date(x.start)) / 60000);
+        out.push({ start: x.start, end: x.end, minutes: Number(x.minutes || 0) || (calc > 0 ? calc : 0) });
+      });
+      return out.sort((a, b) => new Date(a.start) - new Date(b.start));
+    };
+    const timers = norm(arr.filter((x) => x.kind === 'timer'));
+    const pieces = norm(arr.filter((x) => x.kind === 'piece'));
     const tMin = timers.reduce((s, x) => s + Number(x.minutes || 0), 0);
     const all = arr.map((x) => [new Date(x.start).getTime(), new Date(x.end).getTime()]).filter((p) => !isNaN(p[0]) && !isNaN(p[1]));
     const span = all.length ? Math.round((Math.max(...all.map((p) => p[1])) - Math.min(...all.map((p) => p[0]))) / 60000) : 0;
