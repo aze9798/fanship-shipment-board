@@ -6,6 +6,8 @@
   const VIEW = 'desktopWorkReportView';
   let lastTr = null;
   let lastNo = '';
+  let lastEmployeeId = '';
+  let lastCells = [];
   let mode = 'live'; // live | records
 
   const shanghaiToday = () => new Intl.DateTimeFormat('en-CA', {
@@ -57,7 +59,9 @@
         const tr = e.target.closest('tbody tr');
         if (!tr || !tr.querySelector('td')) return;
         lastTr = tr;
-        const cells = [...tr.children].map((td) => td.textContent.trim().replace(/\s+/g, ' '));
+        const cells = [...tr.children].map((td) => td.textContent.trim().replace(/\\s+/g, ' '));
+        lastCells = cells;
+        lastEmployeeId = tr.dataset.workLiveRow || '';
         lastNo = String((tr.querySelector('td:first-child small') || {}).textContent || cells[0] || '').replace(/[^0-9A-Za-z]/g, '');
         [...table.querySelectorAll('tbody tr')].forEach((x) => x.classList.toggle('on', x === tr));
         renderDetail(right, tr, cells);
@@ -152,7 +156,7 @@
     const isDayShift = !att || !att.shift || att.shift === 'day';
     const attState = !isDayShift
       ? (Number(att.overtimeMinutes || 0) > 0 ? 'ot' : 'pending')
-      : (!checkOut ? 'pending' : (checkOut <= '17:00' ? 'left' : 'ot'));
+      : (!checkOut ? 'pending' : (checkOut <= '17:30' ? 'left' : 'ot'));
 
     const norm = (list) => {
       const seen = new Set();
@@ -178,20 +182,32 @@
       : '<div class="none">没有时段记录</div>';
 
     const after17 = [...timers, ...pieces].some((x) => hhmm(x.end) > '17:00');
-    const attLine = '<div class="tk-att-line">考勤签退：<b>' + (checkOut || '未出') + '</b>' +
-      (attState === 'left' ? '<em class="tk-att-bad">已下班</em>' : attState === 'ot' ? '<em class="tk-att-ok">加班</em>' : '<em class="tk-att-pending">待核对</em>') + '</div>';
+    const timerOT = timers.filter((x) => hhmm(x.end) > '17:30');
+    const attLine = '<div class="tk-att-line">考勤签退：<b>' + (checkOut || '未导入') + '</b>' +
+      (attState === 'left' ? '<em class="tk-att-bad">已下班</em>' : attState === 'ot' ? '<em class="tk-att-ok">加班</em>' : '<em class="tk-att-pending">待考勤导入</em>') + '</div>';
     const attWarn = after17
       ? (attState === 'left'
-          ? '<div class="tk-att-warn bad">考勤 ' + checkOut + ' 已下班；17:00 后的时段按“忘记结束”处理，不计加班工资。</div>'
+          ? '<div class="tk-att-warn bad">考勤 ' + checkOut + ' 已下班；未到 17:30 加班起点，不计加班工资。</div>'
           : attState === 'pending'
-            ? '<div class="tk-att-warn pending">考勤签退未出；17:00 后的时段待核对，确认前不计加班工资。</div>'
-            : '<div class="tk-att-warn ok">考勤 ' + checkOut + ' 下班；17:00 后的时段按加班核对。</div>')
+            ? '<div class="tk-att-warn pending">最新考勤还没导入；17:00 后的时段先不计加班工资，等考勤导入后再确定。</div>'
+            : '<div class="tk-att-warn ok">考勤 ' + checkOut + ' 下班；17:00 后如有计时加班，需要管理员复核。</div>')
+      : '';
+    const reviewBlock = (attState === 'ot' && timerOT.length)
+      ? '<div class="tk-ot-review"><div class="tk-ot-review-h">加班待复核 <span>' +
+          timerOT.map((x) => hhmm(x.start) + '–' + hhmm(x.end)).join('、') +
+        '</span></div><div class="tk-ot-review-btns">' +
+          '<button type="button" class="button primary" data-ot-review="yes">确认加班</button>' +
+          '<button type="button" class="button ghost" data-ot-review="no">按忘记结束</button>' +
+        '</div><div class="tk-ot-review-msg" hidden></div></div>'
       : '';
     const attEl = right.querySelector('[data-att-state] b');
-    if (attEl) attEl.textContent = checkOut || '未出';
+    if (attEl) attEl.textContent = checkOut || '未导入';
     const tb = right.querySelector('[data-body="time"]');
     const pb = right.querySelector('[data-body="piece"]');
-    if (tb) tb.innerHTML = li(timers, 'timer') + '<div class="tk-seg-sum">计时合计 ' + Math.round(tMin / 60 * 10) / 10 + ' 小时</div>' + attLine + attWarn;
+    if (tb) {
+      tb.innerHTML = li(timers, 'timer') + '<div class="tk-seg-sum">计时合计 ' + Math.round(tMin / 60 * 10) / 10 + ' 小时</div>' + attLine + attWarn + reviewBlock;
+      tb.querySelectorAll('[data-ot-review]').forEach((b) => b.addEventListener('click', () => reviewOvertime(b.dataset.otReview, right)));
+    }
     if (pb) {
       const pl = pb.querySelector('[data-piece-periods]');
       if (pl) {
@@ -199,7 +215,7 @@
           if (hhmm(x.end) <= '17:00') return '';
           if (attState === 'left') return ' <em class="tk-ot tk-left">忘记结束</em>';
           if (attState === 'ot') return ' <em class="tk-ot">加班</em>';
-          return ' <em class="tk-ot tk-pending">待核对</em>';
+          return ' <em class="tk-ot tk-pending">待考勤</em>';
         };
         pl.innerHTML = pieces.length
           ? '<div class="tk-sub-h">计件时段</div>' + pieces.map((x) =>
@@ -209,6 +225,63 @@
       }
       const ps = pb.querySelector('[data-piece-sum]');
       if (ps) ps.textContent = '计件总工时 ' + Math.round(pieceMin / 60 * 10) / 10 + ' 小时（全天 ' + Math.round(span / 60 * 10) / 10 + ' − 计时 ' + Math.round(tMin / 60 * 10) / 10 + '）';
+    }
+  }
+
+  async function reviewOvertime(decision, right) {
+    if (!lastEmployeeId || !right) return;
+    const yes = decision === 'yes';
+    if (!window.confirm(yes ? '确认给该员工计算加班工资？' : '按“忘记结束”处理，不计加班工资？')) return;
+    const base = window.SHIPMENT_RPC_BASE || '';
+    if (!base) return;
+    const modeName = new URLSearchParams(location.search).get('mode');
+    const suffix = (modeName === 'admin' || modeName === 'user') ? ':' + modeName : '';
+    const code = localStorage.getItem('shipmentBoardAccessCode' + suffix) || '';
+    const h = { 'Content-Type': 'application/json' };
+    if (window.SHIPMENT_ANON_KEY) {
+      h.apikey = window.SHIPMENT_ANON_KEY;
+      h.Authorization = 'Bearer ' + window.SHIPMENT_ANON_KEY;
+    }
+    const day = (document.getElementById('desktopWorkReportDate') || {}).value || shanghaiToday();
+    const box = right.querySelector('.tk-ot-review-msg');
+    try {
+      const er = await fetch(base + '/work_admin_time_entries', {
+        method: 'POST', headers: h,
+        body: JSON.stringify({ p_code: code, p_date: day, p_employee_id: lastEmployeeId })
+      });
+      const entries = er.ok ? await er.json() : [];
+      const targets = (Array.isArray(entries) ? entries : []).filter((e) => e.endedAt && hhmm(e.endedAt) > '17:30');
+      if (!targets.length) throw new Error('没有找到 17:30 后结束的计时记录');
+      for (const e of targets) {
+        const sr = await fetch(base + '/work_admin_save_time_entry', {
+          method: 'POST', headers: h,
+          body: JSON.stringify({
+            p_code: code,
+            p_employee_id: lastEmployeeId,
+            p_started_at: e.startedAt,
+            p_ended_at: e.endedAt,
+            p_id: e.id,
+            p_reason: '管理员加班复核',
+            p_overtime_confirmed: yes
+          })
+        });
+        if (!sr.ok) {
+          const txt = await sr.text();
+          throw new Error(txt || '保存失败');
+        }
+      }
+      right.querySelectorAll('[data-ot-review]').forEach((b) => { b.disabled = true; });
+      if (box) {
+        box.hidden = false;
+        box.style.color = '';
+        box.textContent = yes ? '已确认加班；本段计入加班工资。' : '已按忘记结束处理；不计加班工资。';
+      }
+    } catch (e) {
+      if (box) {
+        box.hidden = false;
+        box.style.color = '#b91c1c';
+        box.textContent = '保存失败：' + (e.message || e);
+      }
     }
   }
 

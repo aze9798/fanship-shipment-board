@@ -631,3 +631,9 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
 .tk-att-warn.ok { color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; }
 .tk-ot.tk-left { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
 .tk-ot.tk-pending { color: #92400e; background: #fffbeb; border-color: #fde68a; }
+.tk-ot-review { margin-top: 8px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+.tk-ot-review-h { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; font-weight: 600; }
+.tk-ot-review-h span { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+.tk-ot-review-btns { display: flex; gap: 8px; margin-top: 8px; }
+.tk-ot-review-btns .button { height: 30px; padding: 0 12px; font-size: 11.5px; }
+.tk-ot-review-msg { margin-top: 7px; font-size: 11.5px; color: var(--primary); }
