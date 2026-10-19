@@ -13,6 +13,8 @@
   }).format(new Date());
 
   const money = (v) => '¥' + Number(v || 0).toLocaleString('zh-CN', { maximumFractionDigits: 1 });
+  const money2 = (v) => '¥' + Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const hhmm = (s) => {
     const x = new Date(s);
     return isNaN(x) ? '--:--' : x.toLocaleTimeString('zh-CN', {
@@ -76,16 +78,30 @@
     const pieceHtml = !entriesReady
       ? '<div class="none">读取计件明细…</div>'
       : mine.length
-        ? mine.map((e) => '<div class="row2"><span>' + (e.name || '') + '</span><i>' + (e.material || '') + ' · ' + (e.process || '') + '</i><b>' + Number(e.quantity || 0) + ' 件</b><em>单价 ' + Number(e.unitPrice || 0) + ' · ' + money(e.amount) + '</em></div>').join('')
+        ? (() => {
+            const qty = mine.reduce((s, e) => s + Number(e.quantity || 0), 0);
+            const amount = mine.reduce((s, e) => s + Number(e.amount != null ? e.amount : Number(e.quantity || 0) * Number(e.unitPrice || 0)), 0);
+            const row = (e) => {
+              const q = Number(e.quantity || 0);
+              const price = Number(e.unitPrice != null ? e.unitPrice : (e.submittedUnitPrice || 0));
+              const amt = Number(e.amount != null ? e.amount : q * price);
+              const st = e.status === 'approved' ? '已通过' : e.status === 'submitted' ? '待审核' : e.status === 'rejected' ? '已退回' : '已撤回';
+              return '<div class="tk-piece-row">' +
+                '<div class="tk-piece-top"><b>' + esc(e.name || '') + '</b><span>' + hhmm(e.createdAt) + ' · ' + st + '</span></div>' +
+                '<div class="tk-piece-sub">' + esc(e.material || '') + (e.process ? ' · ' + esc(e.process) : '') + '</div>' +
+                '<div class="tk-piece-math">' + q + ' 件 × ' + money2(price) + ' = <b>' + money2(amt) + '</b></div>' +
+              '</div>';
+            };
+            return '<div class="tk-piece-sum">共 ' + mine.length + ' 笔 · ' + qty + ' 件 · ' + money2(amount) + '</div>' + mine.map(row).join('');
+          })()
         : '<div class="none">今天没有计件记录</div>';
 
-    right.innerHTML = '<h4>' + name + '</h4>' +
-      '<div class="tk-kv"><span>状态</span><b>' + status + '</b></div>' +
-      '<button type="button" class="tk-acc" data-acc="time"><span>今日计时</span><b>' + timerText + '</b><i>▾</i></button>' +
+    right.innerHTML = '<h4>' + esc(name) + '</h4>' +
+      '<div class="tk-kv"><span>状态</span><b>' + esc(status) + '</b></div>' +
+      '<button type="button" class="tk-acc" data-acc="time"><span>今日计时</span><b>' + esc(timerText) + '</b><i>▾</i></button>' +
       '<div class="tk-acc-body" data-body="time" hidden><div class="none">读取计时时段…</div></div>' +
-      '<button type="button" class="tk-acc" data-acc="piece"><span>今日计件</span><b>' + pieceText + '</b><i>▾</i></button>' +
-      '<div class="tk-acc-body" data-body="piece" hidden>' + pieceHtml + '</div>' +
-      '<div class="tk-work-actions"></div>';
+      '<button type="button" class="tk-acc" data-acc="piece"><span>今日计件</span><b>' + esc(pieceText) + '</b><i>▾</i></button>' +
+      '<div class="tk-acc-body" data-body="piece" hidden><div data-piece-list>' + pieceHtml + '</div><div data-piece-periods></div><div class="tk-seg-sum" data-piece-sum></div></div>';
 
     right.querySelectorAll('.tk-acc').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -96,16 +112,6 @@
       });
     });
 
-    const src = tr.querySelector('a, button');
-    const box = right.querySelector('.tk-work-actions');
-    if (src && box) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'button primary';
-      btn.textContent = '查看该员工明细';
-      btn.addEventListener('click', () => src.click());
-      box.appendChild(btn);
-    }
     fillPeriods(right, no);
   }
 
@@ -158,7 +164,19 @@
     const tb = right.querySelector('[data-body="time"]');
     const pb = right.querySelector('[data-body="piece"]');
     if (tb) tb.innerHTML = li(timers, 'timer') + '<div class="tk-seg-sum">计时合计 ' + Math.round(tMin / 60 * 10) / 10 + ' 小时</div>';
-    if (pb) pb.innerHTML = li(pieces, 'piece') + '<div class="tk-seg-sum">计件总工时 ' + Math.round(pieceMin / 60 * 10) / 10 + ' 小时（全天 ' + Math.round(span / 60 * 10) / 10 + ' − 计时 ' + Math.round(tMin / 60 * 10) / 10 + '）</div>';
+    if (pb) {
+      const pl = pb.querySelector('[data-piece-periods]');
+      if (pl) {
+        pl.innerHTML = pieces.length
+          ? '<div class="tk-sub-h">计件时段</div>' + pieces.map((x) => {
+              const ot = hhmm(x.start) >= '17:00';
+              return '<div class="tk-seg piece"><b>' + hhmm(x.start) + ' – ' + hhmm(x.end) + (ot ? ' <em class="tk-ot">加班</em>' : '') + '</b><i>' + Number(x.minutes || 0) + ' 分钟</i></div>';
+            }).join('')
+          : '';
+      }
+      const ps = pb.querySelector('[data-piece-sum]');
+      if (ps) ps.textContent = '计件总工时 ' + Math.round(pieceMin / 60 * 10) / 10 + ' 小时（全天 ' + Math.round(span / 60 * 10) / 10 + ' − 计时 ' + Math.round(tMin / 60 * 10) / 10 + '）';
+    }
   }
 
   async function loadEntries() {

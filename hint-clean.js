@@ -12,6 +12,7 @@
     document.querySelectorAll('.desktop-view p, .desktop-view small, .desktop-view em, .desktop-view div').forEach((el) => {
       if (el.closest('.sv2-page')) return;
       if (el.children.length > 2) return;
+      if (el.querySelector('h1, h2, h3, h4')) return;
       const t = String(el.textContent || '').trim();
       if (!t || t.length > 60) return;
       if (!PAT.test(t)) return;
