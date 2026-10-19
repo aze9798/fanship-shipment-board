@@ -563,3 +563,6 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
 .tk-seg i { font-style: normal; color: var(--muted); }
 .tk-seg.piece b { color: var(--primary); }
 .tk-seg-sum { margin-top: 8px; font-size: 12px; color: var(--muted); }
+/* 2026-10-19 白屏修复：页面切换动画有时停在 opacity:0，直接强制可见 */
+#app, .desktop-view, .sidebar, .main-area { opacity: 1 !important; }
+.desktop-view { animation: none !important; }
