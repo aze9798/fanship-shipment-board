@@ -30,10 +30,19 @@
       if (!tr || tr === lastTr) return;
       lastTr = tr;
       [...table.querySelectorAll('tbody tr')].forEach((x) => x.classList.toggle('on', x === tr));
-      const heads = [...table.querySelectorAll('thead th')].map((t) => t.textContent.trim());
-      const cells = [...tr.children].map((td) => td.innerText.trim().replace(/\s+/g, ' '));
+      const cells = [...tr.children].map((td) => td.textContent.trim().replace(/\s+/g, ' '));
+      const no = (cells[0] || '').replace(/[^0-9A-Za-z]/g, '');
+      const mine = (window.__tkWorkEntries || []).filter((x) => String(x.employeeNo) === no);
+      const money = (v) => '¥' + Number(v || 0).toLocaleString('zh-CN', { maximumFractionDigits: 1 });
       right.innerHTML = '<h4>' + (cells[0] || '明细') + '</h4>' +
-        '<dl>' + heads.map((h, i) => '<dt>' + (h || '—') + '</dt><dd>' + (cells[i] || '—') + '</dd>').join('') + '</dl>' +
+        '<dl>' +
+        '<dt>状态</dt><dd>' + (cells[1] || '—') + '</dd>' +
+        '<dt>今日计时</dt><dd>' + (cells[2] || '—') + '</dd>' +
+        '<dt>今日计件</dt><dd>' + (cells[3] || '—') + '</dd>' +
+        '</dl>' +
+        '<div class="tk-piece-box"><b>计件明细（' + mine.length + ' 笔）</b>' +
+        (mine.length ? mine.map((e) => '<div class="row2"><span>' + (e.name || '') + '</span><i>' + (e.material || '') + ' · ' + (e.process || '') + '</i><b>' + Number(e.quantity || 0) + ' 件</b><em>单价 ' + Number(e.unitPrice || 0) + ' · ' + money(e.amount) + '</em></div>').join('') : '<div class="none">今天没有计件记录</div>') +
+        '</div>' +
         '<div class="tk-work-actions"></div>';
       const src = tr.querySelector('a, button');
       const box = right.querySelector('.tk-work-actions');
@@ -48,7 +57,36 @@
     });
   }
 
-  setInterval(build, 1200);
+  /* 取今天全部计件明细，按员工号分组用 */
+  async function loadEntries() {
+    try {
+      const base = window.SHIPMENT_RPC_BASE || '';
+      if (!base) return;
+      const mode = new URLSearchParams(location.search).get('mode');
+      const suffix = (mode === 'admin' || mode === 'user') ? ':' + mode : '';
+      const code = localStorage.getItem('shipmentBoardAccessCode' + suffix) || '';
+      const h = { 'Content-Type': 'application/json' };
+      if (window.SHIPMENT_ANON_KEY) { h.apikey = window.SHIPMENT_ANON_KEY; h.Authorization = 'Bearer ' + window.SHIPMENT_ANON_KEY; }
+      const today = new Date().toISOString().slice(0, 10);
+      const r = await fetch(base + '/work_admin_report_list', { method: 'POST', headers: h, body: JSON.stringify({ p_code: code, p_date: today, p_employee_id: null, p_status: 'all', p_query: '', p_limit: 500 }) });
+      const d = r.ok ? await r.json() : null;
+      window.__tkWorkEntries = (d && Array.isArray(d.rows)) ? d.rows : [];
+    } catch (e) { window.__tkWorkEntries = []; }
+  }
+  loadEntries();
+  setInterval(() => { if (!window.__tkWorkEntries) loadEntries(); }, 5000);
+
+  /* 隐藏 app.js 原生的重复详情区 */
+  function hideNative() {
+    [...document.querySelectorAll('div, section')].forEach((el) => {
+      if (el.dataset.tkHid === '1') return;
+      if (String(el.textContent || '').indexOf('点左侧员工的「查看明细」') >= 0 && el.children.length <= 3) {
+        el.dataset.tkHid = '1';
+        el.style.display = 'none';
+      }
+    });
+  }
+  setInterval(() => { build(); hideNative(); }, 1200);
   document.addEventListener('click', (e) => {
     if (e.target.closest('[data-tk-view="work"]')) setTimeout(build, 400);
   }, true);

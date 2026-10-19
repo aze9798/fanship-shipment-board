@@ -542,3 +542,11 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
 @media (max-width: 1280px) {
   .tk-work-split { grid-template-columns: minmax(0, 1fr) !important; }
 }
+.tk-piece-box { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.tk-piece-box > b { font-size: 12.5px; }
+.tk-piece-box .row2 { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 2px 8px; padding: 8px 0; border-bottom: 1px dashed var(--line2, var(--line)); font-size: 12px; }
+.tk-piece-box .row2 span { font-weight: 600; }
+.tk-piece-box .row2 i { grid-column: 1; font-style: normal; color: var(--muted); font-size: 11.5px; }
+.tk-piece-box .row2 b { grid-column: 2; grid-row: 1; text-align: right; font-variant-numeric: tabular-nums; }
+.tk-piece-box .row2 em { grid-column: 2; grid-row: 2; font-style: normal; color: var(--muted); font-size: 11.5px; text-align: right; }
+.tk-piece-box .none { color: var(--muted); font-size: 12px; padding: 8px 0; }
