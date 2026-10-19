@@ -529,3 +529,16 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
 .tk-gap-sum .list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .tk-gap-sum .list span { padding: 3px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
 .tk-gap-sum .list i { font-style: normal; color: var(--muted); margin-left: 5px; font-size: 11px; }
+/* 2026-10-19：报工左表被挤压/遮挡 → 左表占满剩余宽度，右详情固定 360，窄屏收列 */
+.tk-work-split { grid-template-columns: minmax(0, 1fr) minmax(0, 360px) !important; }
+.tk-work-left { overflow-x: auto; }
+.tk-work-left table { min-width: 0 !important; width: 100% !important; table-layout: auto !important; }
+@media (max-width: 1700px) {
+  #desktopWorkReportView .tk-work-left table th:nth-child(4),
+  #desktopWorkReportView .tk-work-left table td:nth-child(4),
+  #desktopWorkReportView .tk-work-left table th:nth-child(5),
+  #desktopWorkReportView .tk-work-left table td:nth-child(5) { display: none !important; }
+}
+@media (max-width: 1280px) {
+  .tk-work-split { grid-template-columns: minmax(0, 1fr) !important; }
+}
