@@ -95,8 +95,11 @@
   }
 
   async function loadEmployees() {
-    const data = await rpc('board_employee_list', { p_code: state.code });
-    state.employees = (data.employees || []).slice().sort((a, b) => {
+    let data;
+    try { data = await rpc('board_employee_directory', { p_code: state.code }); }
+    catch { data = await rpc('board_employee_list', { p_code: state.code }); }
+    if (!data || !Array.isArray(data.employees)) throw new Error('员工档案读取失败');
+    state.employees = data.employees.slice().sort((a, b) => {
       const na = Number(String(a.employeeNo || '').replace(/\D/g, '')) || 999999;
       const nb = Number(String(b.employeeNo || '').replace(/\D/g, '')) || 999999;
       return na - nb || String(a.name || '').localeCompare(String(b.name || ''), 'zh-CN');
@@ -281,8 +284,20 @@
     if (type !== 'hourly_piece') $('#fTrack').value = 'fixed';
     else if ($('#fTrack').value === 'fixed') $('#fTrack').value = 'back';
   }
-  function openEmployeeModal(employeeNo = '', payrollFocus = false) {
-    const e = employeeNo ? state.employees.find((x) => String(x.employeeNo) === String(employeeNo)) : null;
+  async function openEmployeeModal(employeeNo = '', payrollFocus = false) {
+    let e = employeeNo ? state.employees.find((x) => String(x.employeeNo) === String(employeeNo)) : null;
+    if (e && employeeNo) {
+      try {
+        const detail = await rpc('board_employee_detail', { p_code: state.code, p_employee_no: employeeNo });
+        if (detail && detail.employee) e = { ...e, ...detail.employee };
+      } catch {
+        try {
+          const list = await rpc('board_employee_list', { p_code: state.code });
+          const found = (list.employees || []).find((x) => String(x.employeeNo) === String(employeeNo));
+          if (found) e = { ...e, ...found };
+        } catch { }
+      }
+    }
     state.editEmployee = e || null;
     $('#employeeModalTitle').textContent = e ? '编辑员工 · ' + e.name : '新增员工';
     $('#fEmployeeNo').value = e ? e.employeeNo : '';
