@@ -17,15 +17,15 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
   <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
-  <link rel="stylesheet" href="design-tokens.css?v=629195a34a71">
-  <link rel="stylesheet" href="ui-polish.css?v=629195a34a71">
-  <link rel="stylesheet" href="theme-ui.css?v=629195a34a71">
-  <link rel="stylesheet" href="dashboard-home.css?v=629195a34a71">
+  <link rel="stylesheet" href="design-tokens.css?v=d08019837ccf">
+  <link rel="stylesheet" href="ui-polish.css?v=d08019837ccf">
+  <link rel="stylesheet" href="theme-ui.css?v=d08019837ccf">
+  <link rel="stylesheet" href="dashboard-home.css?v=d08019837ccf">
   <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
-  <link rel="stylesheet" href="home-merge.css?v=629195a34a71">
-  <link rel="stylesheet" href="global-search.css?v=629195a34a71">
-  <link rel="stylesheet" href="partners.css?v=629195a34a71">
-  <link rel="stylesheet" href="staff-v2.css?v=629195a34a71">
+  <link rel="stylesheet" href="home-merge.css?v=d08019837ccf">
+  <link rel="stylesheet" href="global-search.css?v=d08019837ccf">
+  <link rel="stylesheet" href="partners.css?v=d08019837ccf">
+  <link rel="stylesheet" href="staff-v2.css?v=d08019837ccf">
   <!-- 图纸预览用的 PDF 引擎：首屏空闲时后台预取，别等点开图纸才开始下（2026-10-17） -->
   <link rel="prefetch" href="vendor/pdf.min.mjs">
   <link rel="prefetch" href="vendor/pdf.worker.min.mjs">
@@ -1450,7 +1450,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "629195a34a71";
+      const fallbackVersion = "d08019837ccf";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
@@ -1485,17 +1485,17 @@
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=629195a34a71" defer></script>
-  <script src="dashboard-home.js?v=629195a34a71" defer></script>
+  <script src="ui-polish.js?v=d08019837ccf" defer></script>
+  <script src="dashboard-home.js?v=d08019837ccf" defer></script>
 
-  <script src="home-merge.js?v=629195a34a71" defer></script>
-  <script src="global-search.js?v=629195a34a71" defer></script>
-  <script src="drawing-rotate.js?v=629195a34a71" defer></script>
-  <script src="drawing-open.js?v=629195a34a71" defer></script>
-  <script src="partners.js?v=629195a34a71" defer></script>
-  <script src="staff-v2.js?v=629195a34a71" defer></script>
-  <script src="po-print.js?v=629195a34a71" defer></script>
-  <script src="col-resize-fix.js?v=629195a34a71" defer></script>
+  <script src="home-merge.js?v=d08019837ccf" defer></script>
+  <script src="global-search.js?v=d08019837ccf" defer></script>
+  <script src="drawing-rotate.js?v=d08019837ccf" defer></script>
+  <script src="drawing-open.js?v=d08019837ccf" defer></script>
+  <script src="partners.js?v=d08019837ccf" defer></script>
+  <script src="staff-v2.js?v=d08019837ccf" defer></script>
+  <script src="po-print.js?v=d08019837ccf" defer></script>
+  <script src="col-resize-fix.js?v=d08019837ccf" defer></script>
 </body>
 </html>
 

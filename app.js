@@ -492,6 +492,23 @@ function unitMatchesQuery(unit, queryText) {
     .some((value) => String(value ?? '').toLowerCase().includes(query)));
 }
 
+function unitOutstandingQuantity(unit) {
+  let total = 0;
+  for (const member of (unit?.members || [])) {
+    const planId = String(member.planId || '').trim();
+    if (planId) {
+      const plan = replacementPlans().find((row) => String(row.id || row.planId || '') === planId);
+      if (plan) total += Math.max(0, Number(plan.quantity || 0));
+      continue;
+    }
+    const orderId = String(member.orderId || '').trim();
+    if (!orderId) continue;
+    const order = (snapshot?.orders || []).find((row) => String(row.id || '') === orderId);
+    if (order) total += Math.max(0, Number(order.remaining || 0));
+  }
+  return total;
+}
+
 function loadingItems(orderRows, options = {}) {
   const includeReplacements = options.includeReplacements !== false;
   const planQuery = String(options.planQuery || '').trim().toLowerCase();
@@ -527,7 +544,7 @@ function loadingItems(orderRows, options = {}) {
       selected: true,
       legacyIndex,
     })) : [];
-  const activeUnits = [...new Map(shipmentUnits().filter((unit) => !['shipped','archived'].includes(String(unit.status || 'ready')) && unitMatchesQuery(unit, planQuery) && (typeof options.unitFilter !== 'function' || options.unitFilter(unit))).sort((left, right) => String(left.updatedAt || left.createdAt || '').localeCompare(String(right.updatedAt || right.createdAt || ''))).map((unit) => [String(unit.unitId || unit.id), unit])).values()];
+  const activeUnits = [...new Map(shipmentUnits().filter((unit) => !['shipped','archived'].includes(String(unit.status || 'ready')) && unitOutstandingQuantity(unit) > 0 && unitMatchesQuery(unit, planQuery) && (typeof options.unitFilter !== 'function' || options.unitFilter(unit))).sort((left, right) => String(left.updatedAt || left.createdAt || '').localeCompare(String(right.updatedAt || right.createdAt || ''))).map((unit) => [String(unit.unitId || unit.id), unit])).values()];
   const unitPlanIds = new Set(activeUnits.flatMap((unit) => (unit.members || []).map((member) => String(member.planId || (member.replacement ? member.orderId : '')).trim()).filter(Boolean)));
   const unitOrderIds = new Set(activeUnits.flatMap((unit) => (unit.members || []).map((member) => String(member.orderId || '')).filter(Boolean)));
   const visibleOrderRows = (orderRows || []).filter((order) => !unitOrderIds.has(String(order.id || '')));
