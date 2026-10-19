@@ -395,3 +395,13 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
   height: 100% !important; padding: 0 18px 0 2px !important; border: 0 !important; outline: 0 !important;
   background: transparent !important; color: var(--ink) !important; font: inherit !important; cursor: pointer !important;
 }
+/* 2026-10-19：显示面板在高缩放下被截断 → 限高可滚 */
+.tk-pop { max-height: calc(100vh / var(--tk-zoom, 1) - 24px) !important; overflow-y: auto !important; }
+
+/* 2026-10-19：全局搜索结果 —— 料号列统一字体字号，跟后面列垂直居中对齐 */
+.tk-gs-item { align-items: center !important; }
+.tk-gs-item > em,
+.tk-gs-item > span,
+.tk-gs-item > b { font-size: 13px !important; line-height: 1.35 !important; }
+.tk-gs-item > em { font-family: inherit !important; font-weight: 600 !important; letter-spacing: 0 !important; }
+.tk-gs-item > span small { font-size: 11.5px !important; line-height: 1.3 !important; }
