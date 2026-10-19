@@ -620,6 +620,7 @@
       groups.get(k).push(r);
     });
     const generated = [];
+    let saveError = '';
     for (const [, rows] of groups) {
       const res = await rpc('board_po_merge', { p_ids: rows.map((r) => r.id) });
       if (!res.ok || typeof res.data !== 'string') {
@@ -627,17 +628,20 @@
         return;
       }
       const poNo = res.data;
+      const saved = await rpc('board_po_save_document', { p_kind: '02', p_po_no: poNo });
+      if (!saved.ok) saveError = saved.error || '记录保存失败';
       rows.forEach((r) => { r.poNo = poNo; });
       generated.push({ poNo, rows });
     }
     poDocsCache = null;
-    toast(groups.size > 1 ? ('已按外协公司生成 ' + groups.size + ' 张采购单，记录已保存') : '采购单已生成，记录已保存');
+    if (saveError) toast('采购单号已生成，但记录保存失败：' + saveError + '（先执行 cloud/po-documents.sql）', 12000);
+    else toast(groups.size > 1 ? ('已按外协公司生成 ' + groups.size + ' 张采购单，记录已保存') : '采购单已生成，记录已保存');
     await load(true);
     try {
       const docs = await fetchPoDocuments(true);
       await openPoRecords(generated[0]?.poNo || '', docs);
     } catch {
-      await openPoRecords('', []);
+      await openPoRecords();
     }
   }
 
