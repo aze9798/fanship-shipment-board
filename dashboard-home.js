@@ -95,6 +95,12 @@
   const dayDiff = (iso, today) => Math.round(
     (Date.parse(String(iso).slice(0, 10) + 'T00:00:00') - Date.parse(today + 'T00:00:00')) / 86400000);
   const md = (iso) => { const p = String(iso || '').slice(5, 10).split('-'); return p.length === 2 ? `${+p[0]}月${+p[1]}日` : '—'; };
+  /* 时间统一按上海时区显示（原来直接截 ISO 的第 11-16 位，拿到的是 UTC，才会出现 23点多） */
+  const hhmm = (iso) => {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso || '').slice(11, 16);
+    return d.toLocaleTimeString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit' });
+  };
   const hm = (min) => { const m = Number(min || 0); return m >= 60 ? `${Math.floor(m / 60)}小时${m % 60 ? (m % 60) + '分' : ''}` : `${m}分`; };
 
   function computeAll() {
