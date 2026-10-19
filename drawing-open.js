@@ -186,4 +186,38 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(() => { void loadMap(); void loadManifest(); }, 0));
   else setTimeout(() => { void loadMap(); void loadManifest(); }, 0);
+  /* 2026-10-19：图纸库搜索兜底（输入后列表不筛时，这里自己按文字过滤） */
+  function filterDrawingRows(q) {
+    const v = document.getElementById('desktopDrawingsView');
+    if (!v) return;
+    const rows = [...v.querySelectorAll('.drawing-row')];
+    if (!rows.length) return;
+    const key = String(q || '').trim().toLowerCase();
+    let shown = 0;
+    rows.forEach((row) => {
+      const hit = !key || String(row.textContent || '').toLowerCase().includes(key) ||
+        String(row.getAttribute('title') || '').toLowerCase().includes(key);
+      row.style.display = hit ? '' : 'none';
+      if (hit) shown += 1;
+    });
+    let tip = document.getElementById('tkDrawEmpty');
+    if (!tip) {
+      tip = document.createElement('div');
+      tip.id = 'tkDrawEmpty';
+      tip.style.padding = '18px 4px';
+      tip.style.color = 'var(--muted)';
+      (v.querySelector('.panel') || v).appendChild(tip);
+    }
+    tip.textContent = shown ? '' : ('没有找到「' + q + '」对应的图纸');
+    tip.hidden = shown > 0;
+  }
+  document.addEventListener('input', (e) => {
+    if (e.target && e.target.id === 'drawingSearch') setTimeout(() => filterDrawingRows(e.target.value), 60);
+  }, true);
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#drawingCategoryTabs button') || e.target.closest('[data-format]')) {
+      const inp = document.getElementById('drawingSearch');
+      if (inp && inp.value.trim()) setTimeout(() => filterDrawingRows(inp.value), 120);
+    }
+  }, true);
 })();
