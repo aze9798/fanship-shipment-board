@@ -9451,13 +9451,11 @@ function handleLabelPrintChange(event) {
   const perBox = row.perBox || (liveRule ? liveRule.perBox : 0);
   if (!row || !perBox) return;
   row.perBox = perBox;
-  const entered = labelQuantityNumber(event.target.value);
-  if (!entered) return;
-  const text = labelBoxQuantityText(entered, perBox);
-  row.quantity = text;
+  // 保留用户手填的数量，不再自动向上取整成整框。
+  // 整框只用于提示和“按整框发”的可选操作，不能覆盖手改数量。
+  row.quantity = event.target.value;
   row.overAccepted = false;
   row.boxMixed = false;
-  event.target.value = text;
   updateLabelSummary();
 }
 
