@@ -558,3 +558,8 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
 .tk-acc i { font-style: normal; color: var(--muted); font-size: 10px; transition: transform .15s ease; }
 .tk-acc.open i { transform: rotate(180deg); }
 .tk-acc-body { padding: 4px 0 8px 74px; }
+.tk-seg { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 12px; border-bottom: 1px dashed var(--line2, var(--line)); }
+.tk-seg b { font-variant-numeric: tabular-nums; }
+.tk-seg i { font-style: normal; color: var(--muted); }
+.tk-seg.piece b { color: var(--primary); }
+.tk-seg-sum { margin-top: 8px; font-size: 12px; color: var(--muted); }

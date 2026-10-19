@@ -44,6 +44,7 @@
         '<button type="button" class="tk-acc" data-acc="piece"><span>今日计件</span><b>' + (cells[3] || '—') + '</b><i>▾</i></button>' +
         '<div class="tk-acc-body" data-body="piece" hidden>' + pieceHtml + '</div>' +
         '<div class="tk-work-actions"></div>';
+      fillPeriods(right, no);
       right.querySelectorAll('.tk-acc').forEach((btn) => {
         btn.addEventListener('click', () => {
           const body = right.querySelector('[data-body="' + btn.dataset.acc + '"]');
@@ -63,6 +64,39 @@
         box.appendChild(btn);
       }
     });
+  }
+
+  /* 取某员工当天的计时/计件时段（board_work_periods） */
+  async function fillPeriods(right, no) {
+    const base = window.SHIPMENT_RPC_BASE || '';
+    if (!base) return;
+    const mode = new URLSearchParams(location.search).get('mode');
+    const suffix = (mode === 'admin' || mode === 'user') ? ':' + mode : '';
+    const code = localStorage.getItem('shipmentBoardAccessCode' + suffix) || '';
+    const h = { 'Content-Type': 'application/json' };
+    if (window.SHIPMENT_ANON_KEY) { h.apikey = window.SHIPMENT_ANON_KEY; h.Authorization = 'Bearer ' + window.SHIPMENT_ANON_KEY; }
+    const d = new Date();
+    const today = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    let arr = [];
+    try {
+      const r = await fetch(base + '/board_work_periods', { method: 'POST', headers: h, body: JSON.stringify({ p_code: code, p_date: today, p_employee_no: no }) });
+      arr = r.ok ? await r.json() : [];
+      if (!Array.isArray(arr)) arr = [];
+    } catch (e) { arr = []; }
+    const hhmm = (s) => { const x = new Date(s); return isNaN(x) ? '--:--' : x.toLocaleTimeString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit' }); };
+    const timers = arr.filter((x) => x.kind === 'timer');
+    const pieces = arr.filter((x) => x.kind === 'piece');
+    const tMin = timers.reduce((s, x) => s + Number(x.minutes || 0), 0);
+    const all = arr.map((x) => [new Date(x.start).getTime(), new Date(x.end).getTime()]).filter((p) => !isNaN(p[0]) && !isNaN(p[1]));
+    const span = all.length ? Math.round((Math.max(...all.map((p) => p[1])) - Math.min(...all.map((p) => p[0]))) / 60000) : 0;
+    const pieceMin = Math.max(0, span - tMin);
+    const li = (list, cls) => list.length
+      ? list.map((x) => '<div class="tk-seg ' + cls + '"><b>' + hhmm(x.start) + ' – ' + hhmm(x.end) + '</b><i>' + Number(x.minutes || 0) + ' 分钟</i></div>').join('')
+      : '<div class="none">没有时段记录</div>';
+    const tb = right.querySelector('[data-body="time"]');
+    const pb = right.querySelector('[data-body="piece"]');
+    if (tb) tb.innerHTML = li(timers, 'timer') + '<div class="tk-seg-sum">计时合计 ' + Math.round(tMin / 60 * 10) / 10 + ' 小时</div>';
+    if (pb) pb.innerHTML = li(pieces, 'piece') + '<div class="tk-seg-sum">计件总工时 ' + Math.round(pieceMin / 60 * 10) / 10 + ' 小时（全天 ' + Math.round(span / 60 * 10) / 10 + ' − 计时 ' + Math.round(tMin / 60 * 10) / 10 + '）</div>';
   }
 
   /* 取今天全部计件明细，按员工号分组用 */
