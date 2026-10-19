@@ -412,3 +412,7 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
 /* 2026-10-19：未交清单工具栏 —— 跟表头留出间距、控件垂直居中 */
 .toolbar { align-items: center !important; padding-bottom: 20px !important; margin-bottom: 14px !important; }
 .toolbar .search-box, .toolbar .select-box { align-self: center !important; }
+/* 2026-10-19：侧栏「更多」展开后底部按钮被挤出去 → 导航区自己滚，底栏常驻 */
+.sidebar { overflow: hidden !important; }
+#tkNav, .side-nav { flex: 1 1 auto !important; min-height: 0 !important; overflow-y: auto !important; scrollbar-width: thin; }
+.sidebar-foot { flex: 0 0 auto !important; }

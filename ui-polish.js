@@ -33,9 +33,15 @@
      直接对 <html> 做 zoom，等于把整个应用放大，所有页面（云端送货单/查询/图纸库/报工…）一起变大。
      小=100%（原始） 中=108%  大=116%  特大=126% */
   let uiZoom = 1;
+  let zoomPage = '';
+  function pageKey() {
+    const v = document.querySelector('.desktop-view:not([hidden])');
+    return v ? v.id : 'default';
+  }
   function loadUiSize() {
+    zoomPage = pageKey();
     try {
-      const v = Number(localStorage.getItem('tkUiZoom'));
+      const v = Number(localStorage.getItem('tkUiZoom_' + zoomPage));
       uiZoom = (v >= 0.85 && v <= 1.35) ? v : 1;
     } catch { uiZoom = 1; }
   }
@@ -49,7 +55,7 @@
     const inp = document.querySelector('[data-in="zoom"]');
     if (inp) inp.value = String(Math.round(z * 100));
   }
-  function saveUiSize() { try { localStorage.setItem('tkUiZoom', String(uiZoom)); } catch { } }
+  function saveUiSize() { try { localStorage.setItem('tkUiZoom_' + (zoomPage || pageKey()), String(uiZoom)); } catch { } }
 
   function loadDensity() {
     try {
@@ -627,6 +633,10 @@
     applyTheme();
     applyHome();
     watchRoleForDefault();
+    setInterval(() => {
+      const k = pageKey();
+      if (k !== zoomPage) { loadUiSize(); applyUiSize(); }
+    }, 800);
     polishDates();
     buildDrawer();
     installRowClicks();
