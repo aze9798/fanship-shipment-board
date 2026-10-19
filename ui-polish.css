@@ -481,3 +481,22 @@ body[data-density] { --tk-cell-fs: var(--tk-ui-fs); }   /* 2026-10-19：表格�
 .tk-work-right dl { grid-template-columns: 92px minmax(0, 1fr) !important; gap: 8px 12px !important; line-height: 1.5 !important; }
 .tk-work-actions { margin-top: 14px; }
 .tk-work-actions .button { height: 34px; padding: 0 16px; border-radius: 10px; font-size: calc(var(--tk-ui-fs) * 0.93); }
+/* 可编辑导航 */
+.tk-nav2 { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 2px; }
+.tk-grp { margin-bottom: 10px; }
+.tk-grp-h { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; font-size: 11px; color: var(--muted); letter-spacing: .05em; cursor: default; }
+.tk-grp-h b { font-weight: 600; }
+.tk-grp-del { width: 18px; height: 18px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; line-height: 1; }
+.tk-grp-del:hover { background: var(--accent-soft); color: var(--accent); }
+.tk-grp-items { min-height: 8px; border-radius: 8px; }
+.tk-grp-items.drop-on { outline: 2px dashed var(--primary); outline-offset: 2px; }
+.tk-grp-item { display: block; padding: 7px 10px 7px 14px; border-radius: 7px; color: var(--muted); font-size: 13px; cursor: pointer; text-decoration: none; position: relative; }
+.tk-grp-item:hover { background: var(--surface-soft); color: var(--ink); }
+.tk-grp-item.on { background: var(--primary); color: var(--surface); font-weight: 600; }
+.tk-grp-item.dragging { opacity: .45; }
+.tk-grp-empty { padding: 6px 12px; font-size: 11.5px; color: var(--muted); opacity: .7; }
+.tk-nav-tools { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 2px; }
+.tk-nav-tools button { height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 11.5px; cursor: pointer; }
+.tk-nav-tools button.pri { background: var(--primary); border-color: var(--primary); color: var(--surface); font-weight: 600; }
+.tk-nav-edit { width: 100%; height: 30px; margin-bottom: 6px; border: 1px dashed var(--line); border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 11.5px; cursor: pointer; }
+.tk-nav-edit:hover { border-color: var(--primary); color: var(--ink); }
