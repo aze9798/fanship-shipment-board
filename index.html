@@ -17,15 +17,15 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
   <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
-  <link rel="stylesheet" href="design-tokens.css?v=6fe658b06934">
-  <link rel="stylesheet" href="ui-polish.css?v=6fe658b06934">
-  <link rel="stylesheet" href="theme-ui.css?v=6fe658b06934">
-  <link rel="stylesheet" href="dashboard-home.css?v=6fe658b06934">
+  <link rel="stylesheet" href="design-tokens.css?v=ad32877a43cb">
+  <link rel="stylesheet" href="ui-polish.css?v=ad32877a43cb">
+  <link rel="stylesheet" href="theme-ui.css?v=ad32877a43cb">
+  <link rel="stylesheet" href="dashboard-home.css?v=ad32877a43cb">
   <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
-  <link rel="stylesheet" href="home-merge.css?v=6fe658b06934">
-  <link rel="stylesheet" href="global-search.css?v=6fe658b06934">
-  <link rel="stylesheet" href="partners.css?v=6fe658b06934">
-  <link rel="stylesheet" href="staff-v2.css?v=6fe658b06934">
+  <link rel="stylesheet" href="home-merge.css?v=ad32877a43cb">
+  <link rel="stylesheet" href="global-search.css?v=ad32877a43cb">
+  <link rel="stylesheet" href="partners.css?v=ad32877a43cb">
+  <link rel="stylesheet" href="staff-v2.css?v=ad32877a43cb">
   <!-- 图纸预览用的 PDF 引擎：首屏空闲时后台预取，别等点开图纸才开始下（2026-10-17） -->
   <link rel="prefetch" href="vendor/pdf.min.mjs">
   <link rel="prefetch" href="vendor/pdf.worker.min.mjs">
@@ -138,9 +138,25 @@
         }
         var homeQ = new URLSearchParams(location.search).get('home');
         if (homeQ !== 'list') document.body.dataset.home = 'panel';
-        var z = localStorage.getItem('tkUiSize') || 'm';
-        var map = { s: 0.92, m: 1, l: 1.12, xl: 1.24 };
-        var v = map[z] || 1;
+        var v = Number(localStorage.getItem('tkUiZoom'));
+        if (!(v >= 0.85 && v <= 1.35)) {
+          var best = NaN;
+          for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i);
+            if (k && k.indexOf('tkUiZoom_') === 0) {
+              var n = Number(localStorage.getItem(k));
+              if (n >= 0.85 && n <= 1.35 && (!isFinite(best) || n > best)) best = n;
+            }
+          }
+          if (isFinite(best)) {
+            v = best;
+            localStorage.setItem('tkUiZoom', String(best));
+          } else {
+            var z = localStorage.getItem('tkUiSize') || 'm';
+            var map = { s: 0.92, m: 1, l: 1.12, xl: 1.24 };
+            v = map[z] || 1;
+          }
+        }
         if (v !== 1) document.documentElement.style.zoom = String(v);
         document.documentElement.style.setProperty('--tk-zoom', String(v));
       } catch (e) { }
@@ -1450,7 +1466,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "6fe658b06934";
+      const fallbackVersion = "ad32877a43cb";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
@@ -1485,21 +1501,21 @@
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=6fe658b06934" defer></script>
-  <script src="dashboard-home.js?v=6fe658b06934" defer></script>
+  <script src="ui-polish.js?v=ad32877a43cb" defer></script>
+  <script src="dashboard-home.js?v=ad32877a43cb" defer></script>
 
-  <script src="home-merge.js?v=6fe658b06934" defer></script>
-  <script src="global-search.js?v=6fe658b06934" defer></script>
-  <script src="work-rates.js?v=6fe658b06934" defer></script>
-  <script src="drawing-rotate.js?v=6fe658b06934" defer></script>
-  <script src="drawing-open.js?v=6fe658b06934" defer></script>
-  <script src="partners.js?v=6fe658b06934" defer></script>
-  <script src="staff-v2.js?v=6fe658b06934" defer></script>
-  <script src="po-print.js?v=6fe658b06934" defer></script>
-  <script src="col-resize-fix.js?v=6fe658b06934" defer></script>
-  <script src="work-split.js?v=6fe658b06934" defer></script>
-  <script src="hint-clean.js?v=6fe658b06934" defer></script>
-  <script src="sidebar-tidy.js?v=6fe658b06934" defer></script>
+  <script src="home-merge.js?v=ad32877a43cb" defer></script>
+  <script src="global-search.js?v=ad32877a43cb" defer></script>
+  <script src="work-rates.js?v=ad32877a43cb" defer></script>
+  <script src="drawing-rotate.js?v=ad32877a43cb" defer></script>
+  <script src="drawing-open.js?v=ad32877a43cb" defer></script>
+  <script src="partners.js?v=ad32877a43cb" defer></script>
+  <script src="staff-v2.js?v=ad32877a43cb" defer></script>
+  <script src="po-print.js?v=ad32877a43cb" defer></script>
+  <script src="col-resize-fix.js?v=ad32877a43cb" defer></script>
+  <script src="work-split.js?v=ad32877a43cb" defer></script>
+  <script src="hint-clean.js?v=ad32877a43cb" defer></script>
+  <script src="sidebar-tidy.js?v=ad32877a43cb" defer></script>
 </body>
 </html>
 

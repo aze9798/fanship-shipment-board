@@ -33,16 +33,28 @@
      直接对 <html> 做 zoom，等于把整个应用放大，所有页面（云端送货单/查询/图纸库/报工…）一起变大。
      小=100%（原始） 中=108%  大=116%  特大=126% */
   let uiZoom = 1;
-  let zoomPage = '';
-  function pageKey() {
-    const v = document.querySelector('.desktop-view:not([hidden])');
-    return v ? v.id : 'default';
-  }
+  const ZOOM_KEY = 'tkUiZoom';
+  const LEGACY_ZOOMS = { s: 0.92, m: 1, l: 1.12, xl: 1.24 };
   function loadUiSize() {
-    zoomPage = pageKey();
     try {
-      const v = Number(localStorage.getItem('tkUiZoom_' + zoomPage));
-      uiZoom = (v >= 0.85 && v <= 1.35) ? v : 1;
+      let v = Number(localStorage.getItem(ZOOM_KEY));
+      if (!(v >= 0.85 && v <= 1.35)) {
+        let best = NaN;
+        for (let i = 0; i < localStorage.length; i += 1) {
+          const k = localStorage.key(i);
+          if (!k || k.indexOf('tkUiZoom_') !== 0) continue;
+          const n = Number(localStorage.getItem(k));
+          if (n >= 0.85 && n <= 1.35 && (!Number.isFinite(best) || n > best)) best = n;
+        }
+        if (Number.isFinite(best)) {
+          v = best;
+          localStorage.setItem(ZOOM_KEY, String(best));
+        } else {
+          const legacy = localStorage.getItem('tkUiSize') || 'm';
+          v = LEGACY_ZOOMS[legacy] || 1;
+        }
+      }
+      uiZoom = v;
     } catch { uiZoom = 1; }
   }
   function applyUiSize() {
@@ -55,7 +67,7 @@
     const inp = document.querySelector('[data-in="zoom"]');
     if (inp) inp.value = String(Math.round(z * 100));
   }
-  function saveUiSize() { try { localStorage.setItem('tkUiZoom_' + (zoomPage || pageKey()), String(uiZoom)); } catch { } }
+  function saveUiSize() { try { localStorage.setItem(ZOOM_KEY, String(uiZoom)); } catch { } }
 
   function loadDensity() {
     try {
@@ -117,9 +129,9 @@
     pop.innerHTML = `
 
 
-      <h4>字号 <span>整页缩放</span></h4>
+      <h4>字号 <span>所有页面统一</span></h4>
       <div class="tk-row">
-        <div class="lb">缩放比例 <b data-out="zoom"></b></div>
+        <div class="lb">字号比例 <b data-out="zoom"></b></div>
         <input type="range" data-in="zoom" min="85" max="135" step="1">
       </div>
       <h4>行距 <span>表格的行高</span></h4>
@@ -146,13 +158,6 @@
       if (e.target.matches('[data-in="zoom"]')) { uiZoom = Number(e.target.value) / 100; applyUiSize(); saveUiSize(); }
     });
     pop.addEventListener('click', (e) => {
-      const sizePick = e.target.closest('[data-size-pick]');
-      if (sizePick) {
-        uiSize = ZOOMS[sizePick.dataset.sizePick] ? sizePick.dataset.sizePick : 'm';
-        saveUiSize(); applyUiSize();
-        showTip('字号已调成「' + sizePick.textContent.trim() + '」');
-        return;
-      }
 
       const themePick = null;
       if (themePick) {
@@ -633,10 +638,7 @@
     applyTheme();
     applyHome();
     watchRoleForDefault();
-    setInterval(() => {
-      const k = pageKey();
-      if (k !== zoomPage) { loadUiSize(); applyUiSize(); }
-    }, 800);
+
     polishDates();
     buildDrawer();
     installRowClicks();
