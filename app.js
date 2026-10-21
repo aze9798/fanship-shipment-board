@@ -6993,7 +6993,8 @@ async function loadAttendanceDetail(empNo) {
       const manual = d.manualOverride ? ' <span class="att-pill">人工</span>' : '';
       const isWang = Boolean(days[0] && days[0].employeeName === '王华涛');
       const noteText = d.note || '';
-      const statusOpts = ATT_EDIT_STATUSES
+      const statusList = ATT_EDIT_STATUSES.includes(d.status) ? ATT_EDIT_STATUSES : [d.status, ...ATT_EDIT_STATUSES];
+      const statusOpts = statusList
         .map((s) => `<option value="${s}"${s === d.status ? ' selected' : ''}>${escapeHtml(ATTENDANCE_STATUS_TEXT[s] || s)}</option>`)
         .join('');
       const shiftOpts = [['day','白班'],['night','夜班'],['manual','人工判定']]
@@ -7007,6 +7008,11 @@ async function loadAttendanceDetail(empNo) {
     }).join('');
     els.desktopAttendanceDetailBody.querySelectorAll('.att-edit').forEach((s) => s.addEventListener('change', () => saveAttendanceEdit(s.closest('[data-att-row]'), empNo)));
     els.desktopAttendanceDetailBody.querySelectorAll('[data-att-notebtn]').forEach((b) => b.addEventListener('click', () => editAttendanceNote(b.closest('[data-att-row]'), empNo)));
+    requestAnimationFrame(() => {
+      if (!els.desktopAttendanceDetailHint) return;
+      const over = els.desktopAttendanceDetailBody.scrollHeight > els.desktopAttendanceDetailBody.clientHeight + 1;
+      els.desktopAttendanceDetailHint.textContent = `共 ${days.length} 天` + (over ? ' · 可上下滚动' : '');
+    });
   }
   if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = false;
   if (els.desktopAttendanceDetailMask) els.desktopAttendanceDetailMask.hidden = false;

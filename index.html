@@ -17,15 +17,15 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
   <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
-  <link rel="stylesheet" href="design-tokens.css?v=dd544610eedc">
-  <link rel="stylesheet" href="ui-polish.css?v=dd544610eedc">
-  <link rel="stylesheet" href="theme-ui.css?v=dd544610eedc">
-  <link rel="stylesheet" href="dashboard-home.css?v=dd544610eedc">
+  <link rel="stylesheet" href="design-tokens.css?v=a405b60417ea">
+  <link rel="stylesheet" href="ui-polish.css?v=a405b60417ea">
+  <link rel="stylesheet" href="theme-ui.css?v=a405b60417ea">
+  <link rel="stylesheet" href="dashboard-home.css?v=a405b60417ea">
   <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
-  <link rel="stylesheet" href="home-merge.css?v=dd544610eedc">
-  <link rel="stylesheet" href="global-search.css?v=dd544610eedc">
-  <link rel="stylesheet" href="partners.css?v=dd544610eedc">
-  <link rel="stylesheet" href="staff-v2.css?v=dd544610eedc">
+  <link rel="stylesheet" href="home-merge.css?v=a405b60417ea">
+  <link rel="stylesheet" href="global-search.css?v=a405b60417ea">
+  <link rel="stylesheet" href="partners.css?v=a405b60417ea">
+  <link rel="stylesheet" href="staff-v2.css?v=a405b60417ea">
   <!-- 图纸预览用的 PDF 引擎：首次打开图纸时按需加载。 -->
 <style>
 /* ===== 考勤管理 视觉 ===== */
@@ -61,24 +61,28 @@
 #desktopAttendanceDetailPanel .section-head{position:sticky;top:0;background:#fff;padding:14px 16px;border-bottom:1px solid #eef3f3;margin:0;z-index:1}
 #desktopAttendanceDetailPanel .table-wrap{flex:1;overflow:auto;padding:0}
 #desktopAttendanceDetailPanel table{min-width:540px}
-.att-day-list{flex:1;overflow:auto;padding:0 0 18px}
-.att-day{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid #f2f7f6}
+.att-day-list{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 0 20px;scrollbar-width:thin;scrollbar-color:#c8d8d5 transparent}
+.att-day-list::-webkit-scrollbar{width:10px}
+.att-day-list::-webkit-scrollbar-track{background:transparent}
+.att-day-list::-webkit-scrollbar-thumb{background:#c8d8d5;border-radius:999px;border:2px solid #fff}
+.att-day-list::-webkit-scrollbar-thumb:hover{background:#a9c0bc}
+.att-day{display:flex;align-items:center;gap:8px;padding:6px 16px;border-bottom:1px solid #f2f7f6}
 .att-day:last-child{border-bottom:0}
-.att-day .dt{width:64px;flex:0 0 auto;font-weight:800;font-size:13px;color:#15363f}
-.att-day .dt small{display:block;color:#70858a;font-weight:400;font-size:11px;margin-top:1px}
-.att-day .tm{flex:1;min-width:0;color:#4a6267;font-size:13px}
+.att-day .dt{width:80px;flex:0 0 auto;font-weight:800;font-size:12.5px;color:#15363f;white-space:nowrap}
+.att-day .dt small{display:inline;color:#70858a;font-weight:400;font-size:11px;margin-left:4px}
+.att-day .tm{flex:1;min-width:0;color:#4a6267;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .att-day .tm em{font-style:normal;color:#9fb0b3;margin:0 2px}
-.att-day .nt{display:block;color:#8a6b22;font-size:11px;margin-top:3px}
+.att-day .nt{display:inline;color:#8a6b22;font-size:11px;margin-left:6px}
 .att-day .att-pill{flex:0 0 auto}
-.att-day button{flex:0 0 auto;padding:5px 12px;min-height:34px}
-.att-day select.att-edit{flex:0 0 auto;max-width:104px;min-height:34px;padding:4px 6px;border:1px solid #dbe7e5;border-radius:9px;background:#fff;color:#15363f;font-size:12px;font-weight:700;cursor:pointer}
+.att-day button{flex:0 0 auto;padding:3px 10px;min-height:30px}
+.att-day select.att-edit{flex:0 0 auto;max-width:104px;min-height:30px;padding:3px 6px;border:1px solid #dbe7e5;border-radius:8px;background:#fff;color:#15363f;font-size:12px;font-weight:700;cursor:pointer}
 .att-day select.att-edit:focus{outline:2px solid #0f766e;outline-offset:1px}
 .att-day select.att-edit-normal,.att-day select.att-edit-reissued{background:#e8f6f3;color:#0f766e;border-color:#cfe9e4}
 .att-day select.att-edit-late,.att-day select.att-edit-early_leave{background:#fff4e5;color:#b54708;border-color:#f2ddc0}
 .att-day select.att-edit-missing_once{background:#fff8e1;color:#8a6b22;border-color:#ece0b4}
 .att-day select.att-edit-missing_overdue,.att-day select.att-edit-absent{background:#fff1f0;color:#b42318;border-color:#f0d2cf}
 .att-day select.att-edit-leave{background:#e8f0ff;color:#3b5bdb;border-color:#cfdcf7}
-.att-day .att-note-btn{font-size:12px;padding:4px 10px;min-height:34px}
+.att-day .att-note-btn{font-size:12px;padding:3px 10px;min-height:30px}
 .att-mask{position:fixed;inset:0;background:rgba(9,32,38,.35);z-index:65}
 @media(max-width:760px){#desktopAttendanceDetailPanel{width:100vw}}
 /* 考勤日期/月份控件统一 */
@@ -1474,7 +1478,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "dd544610eedc";
+      const fallbackVersion = "a405b60417ea";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
@@ -1509,21 +1513,21 @@
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=dd544610eedc" defer></script>
-  <script src="dashboard-home.js?v=dd544610eedc" defer></script>
+  <script src="ui-polish.js?v=a405b60417ea" defer></script>
+  <script src="dashboard-home.js?v=a405b60417ea" defer></script>
 
-  <script src="home-merge.js?v=dd544610eedc" defer></script>
-  <script src="global-search.js?v=dd544610eedc" defer></script>
-  <script src="work-rates.js?v=dd544610eedc" defer></script>
-  <script src="drawing-rotate.js?v=dd544610eedc" defer></script>
-  <script src="drawing-open.js?v=dd544610eedc" defer></script>
-  <script src="partners.js?v=dd544610eedc" defer></script>
-  <script src="staff-v2.js?v=dd544610eedc" defer></script>
-  <script src="po-print.js?v=dd544610eedc" defer></script>
-  <script src="col-resize-fix.js?v=dd544610eedc" defer></script>
-  <script src="work-split.js?v=dd544610eedc" defer></script>
-  <script src="hint-clean.js?v=dd544610eedc" defer></script>
-  <script src="sidebar-tidy.js?v=dd544610eedc" defer></script>
+  <script src="home-merge.js?v=a405b60417ea" defer></script>
+  <script src="global-search.js?v=a405b60417ea" defer></script>
+  <script src="work-rates.js?v=a405b60417ea" defer></script>
+  <script src="drawing-rotate.js?v=a405b60417ea" defer></script>
+  <script src="drawing-open.js?v=a405b60417ea" defer></script>
+  <script src="partners.js?v=a405b60417ea" defer></script>
+  <script src="staff-v2.js?v=a405b60417ea" defer></script>
+  <script src="po-print.js?v=a405b60417ea" defer></script>
+  <script src="col-resize-fix.js?v=a405b60417ea" defer></script>
+  <script src="work-split.js?v=a405b60417ea" defer></script>
+  <script src="hint-clean.js?v=a405b60417ea" defer></script>
+  <script src="sidebar-tidy.js?v=a405b60417ea" defer></script>
 </body>
 </html>
 
