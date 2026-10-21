@@ -258,7 +258,79 @@
       #payrollPanel .ghost,#payrollRangeSwitch,.month-nav,#payrollRefresh,#payrollPrint{display:none!important}
     }
   #pieceEntries{max-height:420px;overflow:auto;padding-right:2px}
-  </style>
+  
+
+  /* 手机端现场作业优化：安全区、吸顶标签、计件步骤和清晰校验 */
+  .page { padding-top: max(16px, env(safe-area-inset-top, 0px)); padding-bottom: calc(42px + env(safe-area-inset-bottom, 0px)); }
+  .tabs {
+    position: sticky;
+    top: max(8px, env(safe-area-inset-top, 0px));
+    z-index: 52;
+    backdrop-filter: blur(14px);
+  }
+  .active-timer-banner {
+    top: calc(max(8px, env(safe-area-inset-top, 0px)) + 61px);
+    z-index: 50;
+  }
+  .piece-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin: 12px 0 4px; }
+  .piece-step {
+    min-width: 0;
+    padding: 8px 5px;
+    display: grid;
+    justify-items: center;
+    gap: 3px;
+    border: 1px solid #d9e6e3;
+    border-radius: 11px;
+    background: #f7faf9;
+    color: #647a7f;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.25;
+  }
+  .piece-step b {
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #e7efed;
+    color: #577077;
+    font-size: 12px;
+  }
+  .piece-step.active { border-color: #7bc5ba; background: #eef9f6; color: #0b665f; }
+  .piece-step.active b { background: #0f766e; color: #fff; }
+  .piece-step.done { border-color: #9bd4c9; background: #e8f7f3; color: #0b665f; }
+  .piece-step.done b { background: #16a394; color: #fff; }
+  .piece-field { display: grid; gap: 6px; color: #38575d; font-size: 14px; font-weight: 800; }
+  .piece-field > span { display: block; }
+  .piece-form-error {
+    padding: 9px 11px;
+    border: 1px solid #efc8c4;
+    border-radius: 10px;
+    background: #fff3f2;
+    color: #a92b22;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+  .piece-submit:disabled,
+  .piece-submit[disabled] {
+    opacity: .46;
+    filter: none;
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .clock-card:not(.is-running) .clock-action:not(.is-loading):not(.is-success):not(.is-result) {
+    background: #fff !important;
+    border-color: rgba(255,255,255,.92) !important;
+    color: #0b625c !important;
+    box-shadow: 0 9px 22px rgba(0,0,0,.16);
+  }
+  .toast { bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+  .modal-backdrop { padding-top: max(20px, env(safe-area-inset-top, 0px)); padding-bottom: max(20px, env(safe-area-inset-bottom, 0px)); }
+</style>
 </head><body>
 <div class="page">
   <div class="brand"><div class="logo">帆顺</div><div><strong>帆顺科技</strong></div></div>
@@ -327,9 +399,16 @@
         <div id="variantBox" class="variant-box hidden"></div>
         <div id="selectedPriceCard" class="selected-price-card hidden"></div>
         <div class="action-stack"><button id="priceChangeButton" class="ghost hidden" type="button">单价不对？申请修改</button></div>
+        <div id="pieceSteps" class="piece-steps" aria-label="计件申报步骤">
+          <div class="piece-step" data-piece-step="product"><b>1</b><span>选择产品</span></div>
+          <div class="piece-step" data-piece-step="process"><b>2</b><span>选择工序</span></div>
+          <div class="piece-step" data-piece-step="qty"><b>3</b><span>填写数量</span></div>
+        </div>
         <div class="piece-form">
-          <div class="row"><input id="pieceQty" type="number" min="1" step="1" inputmode="numeric" placeholder="数量（整数）"><input id="pieceNote" type="text" placeholder="选填"></div>
-          <button id="pieceSubmit" class="primary piece-submit">提交计件</button>
+          <label class="piece-field"><span>本次数量 *</span><input id="pieceQty" type="number" min="1" step="1" inputmode="numeric" placeholder="请输入大于 0 的整数"></label>
+          <label class="piece-field"><span>备注（选填）</span><input id="pieceNote" type="text" placeholder="例如：上午第一批"></label>
+          <div id="pieceFormError" class="piece-form-error hidden" role="alert"></div>
+          <button id="pieceSubmit" class="primary piece-submit" type="button" disabled>提交计件</button>
         </div>
       </div>
       <div class="list-title"><strong>最近计件记录</strong><span id="pieceCount">0 笔</span></div><div id="pieceEntries"></div>
@@ -651,7 +730,7 @@ window.WORK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
       actions.innerHTML = `<button class="ghost" type="button" data-beta-action="switch-piece">结束计时并开始计件</button><button class="primary" type="button" data-beta-action="end">结束全部工作</button>`;
     }
     $('sessionBetaHistory').innerHTML = betaHistory.length ? betaHistory.slice(-6).reverse().map((row) => `<div class="session-history-row"><strong>${row.mode === 'piece' ? '计件' : '计时'}</strong><span>${fmtClock(row.startedAt)} → ${fmtClock(row.endedAt)}</span></div>`).join('') : '';
-    const canPiece = betaSession?.mode === 'piece'; show($('pieceSessionNotice'), !canPiece); $('pieceSubmit').disabled = !canPiece;
+    const canPiece = betaSession?.mode === 'piece'; show($('pieceSessionNotice'), !canPiece); updatePieceSubmitState();
   }
   async function startBetaSession(mode) {
     const startedAt = new Date().toISOString();
@@ -829,7 +908,7 @@ function renderVariant() {
   const box = $('variantBox');
   const process = currentProcess();
   const config = process ? PROCESS_VARIANTS[process.name] : null;
-  if (!config) { selectedVariant = null; show(box, false); box.innerHTML = ''; return; }
+  if (!config) { selectedVariant = null; show(box, false); box.innerHTML = ''; updatePieceSubmitState(); return; }
   if (config.type === 'select') {
     const options = currentVariantOptions().options;
     box.innerHTML = `<div class="variant-label">${config.label}</div><div class="variant-options">${options.map((v) => `<button type="button" data-variant-value="${v}" data-variant-label="${variantDisplay(process.name, v)}" class="${Number(selectedVariant?.value) === v && !selectedVariant?.custom ? 'active' : ''}">${variantDisplay(process.name, v)}</button>`).join('')}${allowCustomForProcess(process) ? '<button type="button" data-variant-custom="1" class="' + (selectedVariant?.custom ? 'active' : '') + '">自填</button>' : ''}</div>${allowCustomForProcess(process) ? '<div id="variantCustomWrap" class="variant-custom hidden"><input id="variantCustomValue" type="number" min="1" step="1" inputmode="numeric" placeholder="请输入正整数"><button id="variantCustomConfirm" class="primary" type="button">确定</button></div>' : ''}`;
@@ -837,6 +916,7 @@ function renderVariant() {
     box.innerHTML = `<div class="variant-label">${config.label}</div><input id="variantValue" type="number" min="1" step="1" inputmode="numeric" placeholder="${config.placeholder}" value="${selectedVariant?.value || ''}">`;
   }
   show(box, true);
+  updatePieceSubmitState();
 }
 async function refreshSelectedPrice() {
   const card = $('selectedPriceCard');
@@ -917,6 +997,40 @@ async function loadProductProcesses(productId) {
   renderPiece();
   if (selectedProcessId && PROCESS_VARIANTS[allowed[0]?.name] && !selectedVariant) openVariantModal();
 }
+function pieceFormState() {
+  const process = currentProcess();
+  const config = process ? PROCESS_VARIANTS[process.name] : null;
+  const variantValue = config?.type === 'select'
+    ? Number(selectedVariant?.value || 0)
+    : Number($('variantValue')?.value || 0);
+  const variantReady = !config || variantValue > 0;
+  const quantity = Number($('pieceQty')?.value || 0);
+  const quantityReady = Number.isInteger(quantity) && quantity > 0;
+  const sessionReady = !SESSION_BETA || betaSession?.mode === 'piece';
+  return {
+    product: Boolean(selectedProduct),
+    process: Boolean(selectedProcessId) && variantReady,
+    qty: quantityReady,
+    ready: Boolean(selectedProduct && selectedProcessId && variantReady && quantityReady && !state?.activeEntry && sessionReady),
+  };
+}
+function showPieceFormError(message = '') {
+  const box = $('pieceFormError');
+  if (!box) return;
+  box.textContent = message;
+  show(box, Boolean(message));
+}
+function updatePieceSubmitState() {
+  const formState = pieceFormState();
+  const btn = $('pieceSubmit');
+  if (btn) btn.disabled = !formState.ready;
+  const values = [formState.product, formState.process, formState.qty];
+  const firstPending = values.findIndex((value) => !value);
+  document.querySelectorAll('[data-piece-step]').forEach((step, index) => {
+    step.classList.toggle('done', Boolean(values[index]));
+    step.classList.toggle('active', firstPending >= 0 ? index === firstPending : false);
+  });
+}
 function renderPiece() {
   const rows = state?.pieceEntries || [];
   const activeCount = rows.filter((x) => x.status === 'submitted' || x.status === 'approved').length;
@@ -951,8 +1065,8 @@ function renderPiece() {
   if (!SESSION_BETA) {
     show($('pieceSessionNotice'), timerActive);
     if (timerActive) $('pieceSessionNotice').textContent = '正在计时，结束后才能申报计件。';
-    $('pieceSubmit').disabled = timerActive;
   }
+  updatePieceSubmitState();
 }
   function fmtMoney(value, digits = 2) {
     return Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: digits, maximumFractionDigits: digits });
@@ -1860,24 +1974,25 @@ function variantDisplay(processName, value) {
   async function submitPiece() {
     if (SESSION_BETA && betaSession?.mode !== 'piece') return toast('请先开始计件工作');
     if (state?.activeEntry) return toast('正在计时，结束后才能申报计件');
-    if (!selectedProduct) return toast('请先搜索并选择产品');
-    if (!selectedProcessId) return toast('请选择工序');
+    if (!selectedProduct) { showPieceFormError('请先搜索并选择产品'); $('productSearch').focus(); return; }
+    if (!selectedProcessId) { showPieceFormError('请选择工序'); return; }
     const process = currentProcess();
     const config = process ? PROCESS_VARIANTS[process.name] : null;
     let variant = { key:'', value:0, label:'' };
     if (config) {
       if (config.type === 'select') {
         const value = Number(selectedVariant?.value || 0);
-        if (!value) return toast(`请选择${config.label}`);
+        if (!value) { showPieceFormError('请选择' + config.label); return; }
         variant = { key:config.key, value, label:variantDisplay(process.name, value) };
       } else {
         const value = Number($('variantValue')?.value || 0);
-        if (!Number.isInteger(value) || value <= 0) return toast(`请填写${config.label}`);
+        if (!Number.isInteger(value) || value <= 0) { showPieceFormError('请填写' + config.label); return; }
         variant = { key:config.key, value, label:variantDisplay(process.name, value) };
       }
     }
     const qty = Number($('pieceQty').value);
-    if (!Number.isInteger(qty) || qty <= 0) return toast('数量必须是大于 0 的整数');
+    if (!Number.isInteger(qty) || qty <= 0) { showPieceFormError('数量必须是大于 0 的整数'); $('pieceQty').focus(); return; }
+    showPieceFormError('');
     const btn = $('pieceSubmit'); btn.disabled = true;
     try {
       await rpc('work_add_piece_entry', {
@@ -1894,7 +2009,7 @@ function variantDisplay(processName, value) {
       selectedProcessId = ''; selectedProduct = null; selectedVariant = null;
       await loadState();
       toast('计件已提交');
-    } catch (e) { toast(e.message || '提交失败'); } finally { btn.disabled = false; }
+    } catch (e) { const message = e.message || '提交失败'; toast(message); showPieceFormError(message); } finally { updatePieceSubmitState(); }
   }
 
   function setRequestError(message) {
@@ -2489,6 +2604,7 @@ $('clockStopModal').addEventListener('click', (e) => { if (e.target === $('clock
   $('requestSubmit').addEventListener('click', submitRequest);
   $('requestModal').addEventListener('click', (e) => { if (e.target === $('requestModal')) closeRequestModal(); });
   $('pieceSubmit').addEventListener('click', submitPiece);
+  $('pieceQty').addEventListener('input', () => { showPieceFormError(''); updatePieceSubmitState(); });
   setInterval(() => {
     if (SESSION_BETA) renderBetaSession();
     else if (state?.activeEntry) {

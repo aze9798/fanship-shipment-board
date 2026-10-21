@@ -8962,7 +8962,7 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
     <div class="replacement-plan-note">补发原因：${escapeHtml(remark || '未填写')}</div>
     <div class="replacement-plan-actions">${photoAction}${selectedAction}${legacyIndex === null ? '' : legacyAction}${deleteAction}</div>
   </article>`;
-}function orderCard(order) {
+}function orderCard(order, options = {}) {
   const hasPhoto = materialHasPhoto(order);
   const badge = dueBadge(order);
   const selectedQuantity = Number(selected.get(order.id) || 0);
@@ -8981,7 +8981,7 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
       <div class="card-actions">
         ${order.orderType === 'sample' ? `<button type="button" class="sample-approval-open" data-sample-approval="${escapeHtml(order.id)}">样品承认书</button>` : ''}
         ${boardRole === 'admin' ? `<button type="button" class="order-edit-link mobile" data-edit-order="${escapeHtml(order.id)}">变更数量 / 交期</button>` : ''}
-        ${(() => { const info = materialSummary(order); return info.count > 1
+        ${options.showMaterialSummary === false ? '' : (() => { const info = materialSummary(order); return info.count > 1
           ? `<div class="material-total"><span>同料号共 ${info.count} 单 · 未交合计</span><b>${fmt(info.total)}</b></div>` : ''; })()}
         <button type="button" class="photo-open${hasPhoto ? ' has-photo' : ''}" data-photo-order="${escapeHtml(order.id)}">${hasPhoto ? '已留档' : '拍照留档'}</button>
       </div>
@@ -9011,11 +9011,15 @@ function renderMobileList() {
   });
   const limit = mobileOrderVisibleLimit;
   const shown = items.slice(0, limit);
-  els.mobileOrderList.innerHTML = shown.map((item) => item.kind === 'replacement'
-    ? replacementPlanCard(item.item, item.selected, item.legacyIndex)
-    : item.kind === 'unit'
-      ? unitCardHtml(item.unit, item.index)
-      : orderCard(item.order)).join('');
+  const seenProductSummary = new Set();
+  els.mobileOrderList.innerHTML = shown.map((item) => {
+    if (item.kind === 'replacement') return replacementPlanCard(item.item, item.selected, item.legacyIndex);
+    if (item.kind === 'unit') return unitCardHtml(item.unit, item.index);
+    const productKey = productIdentityKey(item.order);
+    const showMaterialSummary = !seenProductSummary.has(productKey);
+    seenProductSummary.add(productKey);
+    return orderCard(item.order, { showMaterialSummary });
+  }).join('');
   if (items.length > limit) {
     els.mobileOrderList.insertAdjacentHTML('beforeend', `<div class="load-more-row mobile-empty"><span>已显示 ${shown.length} / ${items.length} 项</span><button class="button ghost" type="button" data-mobile-entry-more>再显示 20 项</button></div>`);
   }
@@ -9329,7 +9333,7 @@ function renderMobileRemaining() {
           </div>
           <div class="remaining-cell meta-cell">
             <div class="meta-line"><span>未交</span><strong class="quantity-value">${escapeHtml(qtyText(group.total))}</strong></div>
-            <div class="meta-line total-line" title="该料号所有交期的未交合计"><span>总数</span><strong class="total-value">${escapeHtml(qtyText(materialTotals.get(remainingMaterialKey(group.material, group.name)) ?? group.total))}</strong></div>
+            <div class="meta-line total-line" title="该料号所有交期的未交合计"><span>总数</span><strong class="total-value">${escapeHtml(qtyText(materialTotals.get(productIdentityKey(group)) ?? group.total))}</strong></div>
           </div>
           <div class="remaining-cell due-cell">
             <span>交期</span>
@@ -9638,37 +9642,40 @@ function labelPool(anyMode = false, includeAllStatus = false) {
       || String(a.group.name || '').localeCompare(String(b.group.name || ''), 'zh-CN'));
 }
 
+// 全站唯一的产品身份口径：普通料号只认基础料号；试制/承样/工装与 MISC 认图号+品名。
+function productIdentityKey(item = {}) {
+  const material = String(item.material || '').trim();
+  const base = material.replace(/[-_\s]*[A-Za-z]+$/, '') || material;
+  const spec = String(item.spec || (item.specs || []).join('、') || '').trim();
+  const name = String(item.name || '').trim();
+  const types = Array.isArray(item.types) ? item.types : [];
+  const orderType = String(item.orderType || '').trim();
+  const special = /^MISC$/i.test(material)
+    || types.some((type) => type && type !== 'normal')
+    || (orderType && orderType !== 'normal');
+  return special
+    ? [base, normalizeSearchText(spec), normalizeSearchText(name)].join('\u0000')
+    : base;
+}
+
 function remainingMaterialKey(material, name = '') {
-  const code = String(material || '').trim();
-  const base = code.replace(/[-_\s]*[A-Za-z]+$/, '') || code;
-  const normalizedName = normalizeSearchText(name);
-  return base + '\u0000' + normalizedName;
+  return productIdentityKey({ material, name });
 }
 
 function remainingMaterialTotals() {
-  // 同料号的所有交期合计：基础料号 + 品名，兼容 614004014 / 614004014B 这类尾字母差异
+  // 同料号所有交期合计；MISC 等特殊产品按图号+品名分开统计。
   const map = new Map();
   for (const row of remainingBaseRows()) {
     const remaining = Number(row.remaining || 0);
     if (remaining <= 0) continue;
-    const key = remainingMaterialKey(row.material, row.name);
+    const key = productIdentityKey(row);
     map.set(key, (map.get(key) || 0) + remaining);
   }
   return map;
 }
 
 function labelRemainingTotalKey(item = {}) {
-  const material = String(item.material || '').trim();
-  const spec = String(item.spec || (item.specs || []).join('、') || '').trim();
-  const name = String(item.name || '').trim();
-  const types = Array.isArray(item.types) ? item.types : [];
-  const orderType = String(item.orderType || '').trim();
-  // 普通订单仍按料号汇总所有交期；试制/承样/工装和 MISC 必须按图号+品名分开，
-  // 否则多个试制产品都会被算成同一个 MISC 的未交。
-  const special = /^MISC$/i.test(material)
-    || types.some((type) => type && type !== 'normal')
-    || (orderType && orderType !== 'normal');
-  return special ? [material, spec, name].join('\u0000') : material;
+  return productIdentityKey(item);
 }
 
 function labelRemainingAllDates() {
@@ -10727,10 +10734,7 @@ function materialSummary(order) {
   // 普通订单按「料件编号」合并（同一料号的多张未交单要合计）；
   // 但试制 / 承样 / 工装的料件编号统一是 MISC，按料号合并会把不同产品算成一单，
   // 所以这三类改用「料件编号 + 图号 + 品名」当合并口径
-  const special = Boolean(order && order.orderType && order.orderType !== 'normal');
-  const groupKeyOf = (item) => (special
-    ? [String(item.material || '').trim(), String(item.spec || '').trim(), String(item.name || '').trim()].join('\u0000')
-    : String(item.material || '').trim());
+  const groupKeyOf = (item) => productIdentityKey(item);
   const target = groupKeyOf(order);
   const map = new Map();
   for (const item of snapshot.orders) {
@@ -11627,6 +11631,7 @@ async function confirmImportOrders() {
 }
 
 function switchMobileTab(tab) {
+  const previousTab = mobileTab;
   mobileTab = tab;
   mobileModule = 'entry';
   mobileOrderVisibleLimit = 20;
@@ -11649,6 +11654,7 @@ function switchMobileTab(tab) {
   renderMobileModule();
   const finalLabel = document.getElementById('mobileBrandModule');
   if (finalLabel) finalLabel.textContent = tabLabels[tab] || '装车登记';
+  if (previousTab !== tab) requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
 }
 
 // 点搜索框任意位置都能直接输入
