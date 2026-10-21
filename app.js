@@ -380,7 +380,7 @@ const sessionOver = new Map();
 // 本次装车里的补发（不良补货）：不扣未交，直接进送货单
 const REPLACEMENT_PLAN_MARK = '【补发计划待装车】';
 const PHOTO_FILE_KIND = 'SHIPMENT_PHOTO';
-const PHOTO_RETENTION_MONTHS = 1;
+const PHOTO_RETENTION_DAYS = 20;
 const UNIT_FILE_KIND = 'SHIPMENT_UNIT';
 const sessionReplacements = [];
 const sessionPhotos = [];
@@ -730,7 +730,7 @@ function shipmentPhotos() {
 }
 function photoRetentionCutoff() {
   const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - PHOTO_RETENTION_MONTHS);
+  cutoff.setDate(cutoff.getDate() - PHOTO_RETENTION_DAYS);
   return cutoff.getTime();
 }
 
