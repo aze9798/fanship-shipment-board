@@ -67,6 +67,43 @@ let workLiveRows = [];
 let workEmployeeRates = null;
 let workLiveLoading = false;
 let workLiveLoadedAt = 0;
+let workDailyRows = [];
+let workDailyDate = '';
+let workDailyLoadedAt = 0;
+let workDailyLoading = null;
+let workDailyRequestDate = '';
+let workDailyError = '';
+let workReportLoadedKey = '';
+let workReportLoadedAt = 0;
+let workReportLoadSeq = 0;
+let workReportSearchTimer = 0;
+let workReviewLoadedKey = '';
+let workReviewLoadedAt = 0;
+let workEditLoadedKey = '';
+let workEditLoadedAt = 0;
+const WORK_CACHE_KEY = 'shipmentBoardWorkCacheV1';
+function readWorkPrefetchCache() {
+  try {
+    const direct = JSON.parse(localStorage.getItem(WORK_CACHE_KEY) || 'null');
+    if (direct && Date.now() - Number(direct.savedAt || 0) < 30 * 60 * 1000) return { ...direct, at: direct.savedAt };
+  } catch { }
+  try {
+    const dashboard = JSON.parse(localStorage.getItem('shipmentBoardDashboardCacheV2') || 'null');
+    const work = dashboard?.data?.work;
+    if (work && Date.now() - Number(dashboard.savedAt || 0) < 2 * 60 * 60 * 1000) {
+      return { date: dashboard.data.workDate || '', report: work.report || null, liveRows: work.live || null, at: dashboard.savedAt };
+    }
+  } catch { }
+  return null;
+}
+function saveWorkPrefetchCache() {
+  if (workReportStatus !== 'all' || workReportEmployeeId || workReportQuery) return;
+  try {
+    localStorage.setItem(WORK_CACHE_KEY, JSON.stringify({
+      savedAt: Date.now(), date: workReportDate || todayShanghai(), report: workReportRows || null, liveRows: workLiveRows || []
+    }));
+  } catch { }
+}
 let remainingVisibleLimit = 20;
 let desktopRemainingVisibleLimit = 20;
 let mobileOrderVisibleLimit = 20;
@@ -2453,6 +2490,7 @@ const els = {
   labelPrintModes: $('#labelPrintModes'),
   labelPrintTip: $('#labelPrintTip'),
   labelPrintShowPrinted: $('#labelPrintShowPrinted'),
+  labelPrintShowRemoved: $('#labelPrintShowRemoved'),
   labelPrintPrintedInfo: $('#labelPrintPrintedInfo'),
   labelPrintError: $('#labelPrintError'),
   labelPrintClose: $('#labelPrintClose'),
@@ -2893,16 +2931,17 @@ function fetchAuxiliaryState() {
       () => loadReplacements(),        // 6
       () => (useDrawingsCache ? Promise.resolve(cached.drawings) : loadDrawings().then((rows) => { if (rows.length) drawingsFetchedAt = Date.now(); return rows; })),   // 7 图纸清单
       () => loadBilledStatus(),        // 8
+      () => loadDirectReceived(),      // 9
     ];
     const results = await mapLimit(tasks, 3, (task) => task());
-    const [amounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings] = results;
+    const [amounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings, , directReceived] = results;
     // 首屏能拿到缓存就用缓存，避免为了金额/图纸多等好几秒
     const finalAmounts = amounts.length ? amounts : (cacheIsFresh && Array.isArray(cached.amounts) ? cached.amounts : amounts);
     const finalDrawings = drawings.length ? drawings : (cacheIsFresh && Array.isArray(cached.drawings) ? cached.drawings : drawings);
     if (amounts.length) writeSlowAuxCache({ amounts });
     if (drawings.length) writeSlowAuxCache({ drawings });
     auxiliaryLoadedAt = Date.now();
-    return { amounts: finalAmounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings: finalDrawings };
+    return { amounts: finalAmounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings: finalDrawings, directReceived };
   })();
   auxiliaryPromise = promise.finally(() => { auxiliaryPromise = null; });
   return auxiliaryPromise;
@@ -2929,6 +2968,7 @@ async function loadState({ quiet = false, fast = false } = {}) {
       nextSnapshot.shipmentUnits = previous?.shipmentUnits || [];
       nextSnapshot.replacements = previous?.replacements || [];
       nextSnapshot.drawings = previous?.drawings || [];
+      nextSnapshot.directReceived = previous?.directReceived || [];
     }
     const changed = !previous || nextSnapshot.revision !== previous.revision || (!fast && shouldRefreshAuxiliary);
     const stateChanged = !previous || nextSnapshot.revision !== previous.revision;
@@ -3962,7 +4002,7 @@ function applyRoleUI() {
   const el2 = document.getElementById('mobileBrandTitle');
   if (el2) el2.textContent = '帆顺科技' + suffix;
   const el3 = document.getElementById('mobileBrandModule');
-  if (el3) el3.textContent = mobileModule === 'workReview' ? '报工审核' : '装车登记';
+  if (el3) el3.textContent = mobileModule === 'workReview' ? (WORK_EDIT_TAB_LABEL[mobileWorkTab] || '报工情况') : '装车登记';
   const stamp = document.getElementById('sourceStamp');
   if (stamp) stamp.dataset.role = boardRole;
   document.title = '帆顺科技' + suffix;
@@ -4008,12 +4048,29 @@ function drawingFor(order) {
     || null;
 }
 
+// 图纸存储地址：优先直连 Supabase（更快，PDF 是 inline），腾讯中转只作兜底（会强制下载）
+const SUPABASE_STORAGE_ORIGIN = 'https://dkbeigqtiilgxthwkixg.supabase.co';
+
+function relayOrigin() {
+  return String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
+}
+
+function storageObjectUrl(origin, storagePath) {
+  const path = String(storagePath || '').trim();
+  if (!origin || !path) return '';
+  return `${String(origin).replace(/\/+$/, '')}/storage/v1/object/public/product-drawings/${path.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+function drawingDirectUrl(drawing) {
+  return storageObjectUrl(SUPABASE_STORAGE_ORIGIN, drawing?.storagePath);
+}
+
+function drawingRelayUrl(drawing) {
+  return storageObjectUrl(relayOrigin(), drawing?.storagePath);
+}
+
 function drawingPublicUrl(drawing) {
-  const storagePath = String(drawing?.storagePath || '').trim();
-  if (!storagePath) return '';
-  const origin = String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
-  if (!origin) return '';
-  return `${origin}/storage/v1/object/public/product-drawings/${storagePath.split('/').map(encodeURIComponent).join('/')}`;
+  return drawingDirectUrl(drawing) || drawingRelayUrl(drawing);
 }
 
 const DRAWING_CHUNK_BYTES = 1.5 * 1024 * 1024;
@@ -4150,35 +4207,51 @@ async function renderDrawingPdf(pdf) {
   status.textContent = `共 ${total} 页`;
 }
 
-function drawingPreviewUrl(drawing) {
+function previewStoragePath(drawing, suffix) {
   const storagePath = String(drawing?.storagePath || '').trim();
   if (!storagePath) return '';
-  const origin = String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
-  if (!origin) return '';
-  const previewPath = storagePath.replace(/\.pdf$/i, '') + '-p1.jpg';
-  return `${origin}/storage/v1/object/public/product-drawings/${previewPath.split('/').map(encodeURIComponent).join('/')}`;
+  return storagePath.replace(/\.pdf$/i, '') + suffix;
+}
+
+function previewUrlFor(drawing, suffix) {
+  const path = previewStoragePath(drawing, suffix);
+  return storageObjectUrl(SUPABASE_STORAGE_ORIGIN, path) || storageObjectUrl(relayOrigin(), path);
+}
+
+function drawingPreviewThumbUrl(drawing) {
+  return previewUrlFor(drawing, '-t1.jpg');
+}
+
+function drawingPreviewUrl(drawing) {
+  return previewUrlFor(drawing, '-p1.jpg');
 }
 
 let drawingPreviewManifestPromise = null;
 
 function drawingPreviewPageUrl(drawing, page) {
-  const storagePath = String(drawing?.storagePath || '').trim();
-  if (!storagePath) return '';
-  const origin = String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
-  if (!origin) return '';
-  const previewPath = storagePath.replace(/\.pdf$/i, '') + `-p${page}.jpg`;
-  return `${origin}/storage/v1/object/public/product-drawings/${previewPath.split('/').map(encodeURIComponent).join('/')}`;
+  return previewUrlFor(drawing, `-p${page}.jpg`);
 }
 
 async function loadDrawingPreviewManifest() {
   if (!drawingPreviewManifestPromise) {
-    const origin = String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
-    const url = `${origin}/storage/v1/object/public/product-drawings/_previews.json`;
-    drawingPreviewManifestPromise = fetch(url, { cache: 'no-store' })
+    const url = storageObjectUrl(SUPABASE_STORAGE_ORIGIN, '_previews.json') || storageObjectUrl(relayOrigin(), '_previews.json');
+    drawingPreviewManifestPromise = fetch(url, { cache: 'force-cache' })
       .then((response) => response.ok ? response.json() : {})
       .catch(() => ({}));
   }
   return drawingPreviewManifestPromise;
+}
+
+function setImageWithFallback(image, primary, fallback) {
+  if (!image) return;
+  image.dataset.fallback = '';
+  image.onerror = () => {
+    if (!image.dataset.fallback && fallback && fallback !== primary) {
+      image.dataset.fallback = '1';
+      image.src = fallback;
+    }
+  };
+  if (primary) image.src = primary;
 }
 
 async function renderDrawingImagePreview(drawing) {
@@ -4189,7 +4262,9 @@ async function renderDrawingImagePreview(drawing) {
   if (!modal || !pages || !status || !storagePath) return false;
   const manifest = await loadDrawingPreviewManifest();
   const pageCount = Math.max(1, Math.min(200, Number(manifest?.[storagePath] || 1)));
-  const firstUrl = drawingPreviewPageUrl(drawing, 1);
+  const directFirst = previewUrlFor(drawing, '-p1.jpg');
+  const relayFirst = storageObjectUrl(relayOrigin(), previewStoragePath(drawing, '-p1.jpg'));
+  const firstUrl = directFirst || relayFirst;
   if (!firstUrl) return false;
   const label = [drawing?.material, drawing?.name, drawing?.spec].filter(Boolean).join(' · ') || '图纸';
   const makeImage = (page, eager) => {
@@ -4197,20 +4272,27 @@ async function renderDrawingImagePreview(drawing) {
     image.alt = `${label} 第 ${page} 页`;
     image.decoding = 'async';
     image.loading = eager ? 'eager' : 'lazy';
+    if (eager && 'fetchPriority' in image) image.fetchPriority = 'high';
     return image;
   };
   pages.replaceChildren();
   status.hidden = false;
   status.textContent = '正在加载图纸预览...';
-  // 手机端先只取第 1 页，首屏出来后再放其余页；
-  // 这样不会为了 8 页图纸同时抢带宽，打开速度会明显快很多。
+  // 先只取第 1 页，首屏出来后再放其余页，避免一次抢带宽
   const first = makeImage(1, true);
   const firstLoaded = new Promise((resolve) => {
     let done = false;
     const finish = (ok) => { if (done) return; done = true; clearTimeout(timer); resolve(ok); };
-    const timer = setTimeout(() => finish(false), 6500);
+    const timer = setTimeout(() => finish(false), 8000);
     first.onload = () => finish(true);
-    first.onerror = () => finish(false);
+    first.onerror = () => {
+      if (directFirst && !first.dataset.fallback && relayFirst) {
+        first.dataset.fallback = '1';
+        first.src = relayFirst;
+        return;
+      }
+      finish(false);
+    };
   });
   first.src = firstUrl;
   pages.appendChild(first);
@@ -4218,9 +4300,18 @@ async function renderDrawingImagePreview(drawing) {
     pages.replaceChildren();
     return false;
   }
+  // 用第 1 页的宽高比给后续页占位，图片陆续加载时页面不再上下抖动
+  const ratio = first.naturalWidth && first.naturalHeight ? `${first.naturalWidth} / ${first.naturalHeight}` : '';
   for (let page = 2; page <= pageCount; page += 1) {
     const image = makeImage(page, false);
-    image.src = drawingPreviewPageUrl(drawing, page);
+    if (ratio) {
+      image.style.aspectRatio = ratio;
+      image.style.width = '100%';
+      image.style.height = 'auto';
+    }
+    const directPage = storageObjectUrl(SUPABASE_STORAGE_ORIGIN, previewStoragePath(drawing, `-p${page}.jpg`));
+    const relayPage = storageObjectUrl(relayOrigin(), previewStoragePath(drawing, `-p${page}.jpg`));
+    setImageWithFallback(image, directPage || relayPage, relayPage);
     pages.appendChild(image);
   }
   status.textContent = `图纸预览 · 共 ${pageCount} 页`;
@@ -4273,7 +4364,20 @@ async function openDrawingViewer(drawing, url, options = {}) {
 
 async function openDrawing(id) {
   const cached = (snapshot?.drawings || []).find((row) => String(row.id) === String(id));
-  const directUrl = drawingPublicUrl(cached);
+  const nativeUrl = drawingDirectUrl(cached);
+  // 电脑端：直接交给浏览器原生 PDF 阅读器（新标签页），首屏快、可缩放、不会抖
+  if (!isMobileBoardView() && nativeUrl) {
+    // 用临时 <a target=_blank rel=noopener> 打开，比 window.open 更稳，也不会被拦截
+    const link = document.createElement('a');
+    link.href = nativeUrl;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    return;
+  }
+  const directUrl = nativeUrl || drawingRelayUrl(cached);
   if (directUrl) {
     // 手机端先走预览图，不要一开始就分块下载整份 PDF。
     // 之前 8 页图纸要先下 3 段 PDF 才弹预览，手机上要等十几秒。
@@ -4325,6 +4429,16 @@ function isBilledShipment(id) {
 
 function isBilledExtra(id) {
   return billedExtraIds.has(String(id));
+}
+
+async function loadDirectReceived() {
+  if (!RPC_BASE) return [];
+  const accessCode = getAccessCode();
+  if (!accessCode) return [];
+  try {
+    const result = await callRpc('board_get_direct_received', { p_code: accessCode });
+    return result.response.ok && Array.isArray(result.data) ? result.data : [];
+  } catch { return []; }
 }
 
 async function loadBilledStatus() {
@@ -5597,10 +5711,37 @@ async function loadWorkLiveOverview(employees = null) {
     workLiveLoading = false;
   }
 }
-async function loadWorkReportWorkspace() {
+async function loadWorkReportWorkspace(force = false) {
   if (boardRole !== 'admin') return;
+  ensureReportDate(null);
+  const key = [workReportDate, workReportEmployeeId, workReportStatus, workReportQuery].join('|');
+  if (!force && workReportLoadedKey === key && Date.now() - workReportLoadedAt < 30000) return;
+  const cached = window.__tkWorkCache || readWorkPrefetchCache();
+  const canUseCache = !force && workReportStatus === 'all' && !workReportEmployeeId && !workReportQuery
+    && cached && cached.date === workReportDate && cached.report && Date.now() - Number(cached.at || 0) < 30000;
+  if (canUseCache) {
+    workReportRows = cached.report;
+    renderWorkReport();
+    if (Array.isArray(cached.liveRows) && cached.liveRows.length) {
+      workLiveRows = cached.liveRows.map((row) => normalizeWorkLiveRow(
+        { id: row.id, employeeNo: row.employeeNo, name: row.name, track: row.track }, row
+      ));
+      workLiveLoadedAt = Number(cached.at || Date.now());
+      renderWorkLiveOverview();
+    }
+    workReportLoadedKey = key;
+    workReportLoadedAt = Number(cached.at || Date.now());
+  }
   const employees = await loadWorkEmployees();
-  await Promise.all([loadWorkReport(employees), loadWorkLiveOverview(employees)]);
+  const liveFresh = !force && workLiveLoadedAt && Date.now() - workLiveLoadedAt < 30000;
+  await Promise.all([
+    canUseCache ? Promise.resolve() : loadWorkReport(employees),
+    liveFresh ? Promise.resolve() : loadWorkLiveOverview(employees)
+  ]);
+  workReportLoadedKey = key;
+  workReportLoadedAt = Date.now();
+  window.__tkWorkCache = { date: workReportDate, report: workReportRows, liveRows: workLiveRows, at: Date.now() };
+  saveWorkPrefetchCache();
 }
 function workTimelineTime(value) {
   if (!value) return '--';
@@ -5992,7 +6133,59 @@ function renderWorkReport() {
   }
   if (els.desktopWorkReportEmpty) els.desktopWorkReportEmpty.hidden = list.length > 0;
 }
-async function loadWorkReport(employees = null) {
+function renderWorkDailyRecords() {
+  const rows = Array.isArray(workDailyRows) ? workDailyRows : [];
+  const date = workDailyDate || workReportDate || workEditDate || todayShanghai();
+  const pending = rows.filter((row) => row.status === 'submitted').length;
+  const approved = rows.filter((row) => row.status === 'approved').length;
+  const hint = workDailyError
+    ? `读取失败：${workDailyError}`
+    : `${date} · 共 ${rows.length} 笔 · 待审 ${pending} 笔 · 已通过 ${approved} 笔`;
+  [document.getElementById('desktopWorkReviewDailyHint'), document.getElementById('desktopWorkEditDailyHint')].forEach((el) => { if (el) el.textContent = hint; });
+  [document.getElementById('mobileWorkReviewDailyHint'), document.getElementById('mobileWorkEditDailyHint')].forEach((el) => { if (el) el.textContent = `${rows.length} 笔 · 待审 ${pending}`; });
+  const desktopRows = rows.map((row) => {
+    const employeeId = String(row.employeeId || row.employee_id || (workEmployeesCache || []).find((employee) => String(employee.employeeNo) === String(row.employeeNo))?.id || '');
+    return `<tr><td>${escapeHtml(String(row.createdAt || '').slice(11, 16))}<small>${escapeHtml(row.workDate || date)}</small></td><td><strong>${escapeHtml(row.employeeName || '')}</strong><small>${escapeHtml(row.employeeNo || '')}</small></td><td>${escapeHtml(row.name || '')}<small>${escapeHtml(row.material || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</small></td><td>${escapeHtml(row.process || '')}<small>${escapeHtml(row.variantLabel || '')}</small></td><td class="number">${fmt(row.quantity)}</td><td><span class="review-status ${escapeHtml(row.status || '')}">${escapeHtml(workReviewStatusText(row.status))}</span></td><td>${employeeId ? `<button class="work-report-action" type="button" data-work-daily-pick="${escapeHtml(employeeId)}">带入修改</button>` : '--'}</td></tr>`;
+  }).join('');
+  const mobileRows = rows.map((row) => {
+    const employeeId = String(row.employeeId || row.employee_id || (workEmployeesCache || []).find((employee) => String(employee.employeeNo) === String(row.employeeNo))?.id || '');
+    return `<article class="mobile-review-card work-daily-card"><div><span class="review-status ${escapeHtml(row.status || '')}">${escapeHtml(workReviewStatusText(row.status))}</span><span>${escapeHtml(String(row.createdAt || '').slice(11, 16))}</span></div><h3>${escapeHtml(row.employeeName || '')} · ${escapeHtml(row.name || '')}</h3><p>${escapeHtml(row.material || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</p><p>${escapeHtml(row.process || '')} · ${fmt(row.quantity)} 件</p>${employeeId ? `<button type="button" data-work-daily-pick="${escapeHtml(employeeId)}">带入报工修改</button>` : ''}</article>`;
+  }).join('') || '<div class="empty-state"><strong>当天没有报工记录</strong><span>可以更换日期后再看。</span></div>';
+  [document.getElementById('desktopWorkReviewDailyBody'), document.getElementById('desktopWorkEditDailyBody')].forEach((body) => { if (body) body.innerHTML = desktopRows; });
+  [document.getElementById('mobileWorkReviewDailyList'), document.getElementById('mobileWorkEditDailyList')].forEach((list) => { if (list) list.innerHTML = mobileRows; });
+  [document.getElementById('desktopWorkReviewDailyEmpty'), document.getElementById('desktopWorkEditDailyEmpty')].forEach((empty) => { if (empty) empty.hidden = rows.length > 0; });
+}
+async function loadWorkDailyRecords(force = false) {
+  const day = workReportDate || workEditDate || todayShanghai();
+  if (!force && workDailyDate === day && Date.now() - workDailyLoadedAt < 30000) {
+    renderWorkDailyRecords();
+    return workDailyRows;
+  }
+  if (workDailyLoading && workDailyRequestDate === day) return workDailyLoading;
+  workDailyDate = day;
+  workDailyRequestDate = day;
+  workDailyError = '';
+  const request = (async () => {
+    try {
+      const result = await callRpc('work_admin_report_list', {
+        p_code: getAccessCode(), p_date: day, p_employee_id: null,
+        p_status: 'all', p_query: '', p_limit: 1000
+      });
+      if (!result.response.ok) throw new Error(result.data?.error || result.data?.message || '当天报工记录加载失败');
+      workDailyRows = Array.isArray(result.data?.rows) ? result.data.rows : [];
+      workDailyLoadedAt = Date.now();
+    } catch (error) {
+      workDailyRows = [];
+      workDailyError = String(error.message || error);
+    } finally {
+      renderWorkDailyRecords();
+      if (workDailyLoading === request) workDailyLoading = null;
+    }
+    return workDailyRows;
+  })();
+  workDailyLoading = request;
+  return request;
+}async function loadWorkReport(employees = null) {
   if (boardRole !== 'admin') return;
   ensureReportDate(els.desktopWorkReportDate);
   ensureReportDate(els.mobileWorkReportDate);
@@ -6002,10 +6195,12 @@ async function loadWorkReport(employees = null) {
   if (els.mobileWorkReportStatus) els.mobileWorkReportStatus.value = workReportStatus;
   if (els.desktopWorkReportSearch && els.desktopWorkReportSearch.value !== workReportQuery) els.desktopWorkReportSearch.value = workReportQuery;
   if (els.mobileWorkReportSearch && els.mobileWorkReportSearch.value !== workReportQuery) els.mobileWorkReportSearch.value = workReportQuery;
+  const seq = ++workReportLoadSeq;
   try {
     const employeeRows = employees || await loadWorkEmployees();
     fillEmployeeOptions(employeeRows);
     const result = await callRpc('work_admin_report_list', { p_code:getAccessCode(), p_date:workReportDate, p_employee_id:workReportEmployeeId || null, p_status:workReportStatus, p_query:workReportQuery, p_limit:1000 });
+    if (seq !== workReportLoadSeq) return;
     if (!result.response.ok) throw new Error(result.data?.error || '报工情况加载失败');
     workReportRows = result.data || { rows:[], summary:{} };
     renderWorkReport();
@@ -6279,17 +6474,35 @@ function renderWorkEdit() {
 }
 async function loadWorkEdit(force = false) {
   if (boardRole !== 'admin') return;
+  if (force) {
+    workReportLoadedKey = '';
+    workReportLoadedAt = 0;
+    workReviewLoadedKey = '';
+    workReviewLoadedAt = 0;
+    window.__tkWorkCache = null;
+    try { localStorage.removeItem(WORK_CACHE_KEY); } catch { }
+  }
+  if (!workEditDate) workEditDate = workReportDate || todayShanghai();
+  if (!workEditEmployeeId && workReportEmployeeId) workEditEmployeeId = workReportEmployeeId;
+  const daily = loadWorkDailyRecords(force).catch(() => []);
   try { fillWorkEditEmployeeOptions(await loadWorkEmployees()); } catch (error) {}
   syncWorkEditControls();
+  const key = `${workEditDate}|${workEditEmployeeId}`;
+  if (!force && workEditLoadedKey === key && Date.now() - workEditLoadedAt < 15000) {
+    renderWorkEdit();
+    await daily;
+    return;
+  }
   if (!workEditEmployeeId) {
     workEditTimers = [];
     workEditPieces = [];
     workEditLogs = [];
     workEditMonthClosed = false;
     renderWorkEdit();
+    await daily;
     return;
   }
-  if (workEditBusy) return;
+  if (workEditBusy) { await daily; return; }
   workEditBusy = true;
   const day = workEditDate || todayShanghai();
   try {
@@ -6305,6 +6518,8 @@ async function loadWorkEdit(force = false) {
     workEditPieces = Array.isArray(pieces.data) ? pieces.data : (pieces.data?.rows || []);
     workEditLogs = logs && logs.response && logs.response.ok && Array.isArray(logs.data) ? logs.data : [];
     workEditMonthClosed = Boolean(timeline && timeline.response && timeline.response.ok && timeline.data && timeline.data.monthClosed);
+    workEditLoadedKey = key;
+    workEditLoadedAt = Date.now();
     renderWorkEdit();
     syncWorkEditControls();
   } catch (error) {
@@ -6315,6 +6530,7 @@ async function loadWorkEdit(force = false) {
     showToast(error.message || '报工修改数据加载失败');
   } finally {
     workEditBusy = false;
+    await daily;
   }
 }
 async function loadWorkEditHistory() {
@@ -6720,15 +6936,25 @@ function renderWorkReviews() {
   if (els.desktopWorkReviewCount) els.desktopWorkReviewCount.textContent = String(workReviewRows.length);
   if (els.desktopWorkReviewEmpty) els.desktopWorkReviewEmpty.hidden = workReviewRows.length > 0;
 }
-async function loadWorkReviews(status = workReviewStatus) {
+async function loadWorkReviews(status = workReviewStatus, force = false) {
   if (boardRole !== 'admin') return;
   workReviewStatus = status || 'submitted';
   if (els.desktopWorkReviewStatus) els.desktopWorkReviewStatus.value = workReviewStatus;
   if (els.mobileWorkReviewStatus) els.mobileWorkReviewStatus.value = workReviewStatus;
-  const result = await callRpc('work_admin_list_reviews', { p_code:getAccessCode(), p_status:workReviewStatus, p_limit:300 });
+  if (!force && workReviewLoadedKey === workReviewStatus && Date.now() - workReviewLoadedAt < 30000) {
+    renderWorkReviews();
+    await loadWorkDailyRecords();
+    return;
+  }
+  const [result] = await Promise.all([
+    callRpc('work_admin_list_reviews', { p_code:getAccessCode(), p_status:workReviewStatus, p_limit:300 }),
+    loadWorkDailyRecords(force)
+  ]);
   if (!result.response.ok) { showToast(result.data?.error || '报工审核加载失败'); return; }
   workReviewRows = Array.isArray(result.data) ? result.data : [];
   renderWorkReviews();
+  workReviewLoadedKey = workReviewStatus;
+  workReviewLoadedAt = Date.now();
   const pendingResult = await callRpc('work_admin_list_reviews', { p_code:getAccessCode(), p_status:'submitted', p_limit:300 });
   if (els.desktopWorkReviewPending) els.desktopWorkReviewPending.textContent = pendingResult.response.ok && Array.isArray(pendingResult.data) ? String(pendingResult.data.length) : '--';
 }
@@ -6808,8 +7034,8 @@ async function submitWorkReview(action) {
     }
     if (!result.response.ok) throw new Error(result.data?.error || '审核提交失败');
     closeWorkReviewEditor();
-    await loadWorkReviews(workReviewStatus);
-    if (desktopModule === 'work' || mobileModule === 'workReview') await loadWorkReportWorkspace();
+    await loadWorkReviews(workReviewStatus, true);
+    if (desktopModule === 'work' || mobileModule === 'workReview') await loadWorkReportWorkspace(true);
     showToast(action === 'approve' ? '审核通过，已更新产品和当前单价' : action === 'reject' ? '已回退该报工（不计入工资）' : '修改已保存');
   } catch (error) {
     setWorkReviewError(error.message || '审核提交失败');
@@ -6917,7 +7143,8 @@ async function loadAttendanceDetail(empNo) {
       const manual = d.manualOverride ? ' <span class="att-pill">人工</span>' : '';
       const isWang = Boolean(days[0] && days[0].employeeName === '王华涛');
       const noteText = d.note || '';
-      const statusOpts = ATT_EDIT_STATUSES
+      const statusList = ATT_EDIT_STATUSES.includes(d.status) ? ATT_EDIT_STATUSES : [d.status, ...ATT_EDIT_STATUSES];
+      const statusOpts = statusList
         .map((s) => `<option value="${s}"${s === d.status ? ' selected' : ''}>${escapeHtml(ATTENDANCE_STATUS_TEXT[s] || s)}</option>`)
         .join('');
       const shiftOpts = [['day','白班'],['night','夜班'],['manual','人工判定']]
@@ -6931,6 +7158,11 @@ async function loadAttendanceDetail(empNo) {
     }).join('');
     els.desktopAttendanceDetailBody.querySelectorAll('.att-edit').forEach((s) => s.addEventListener('change', () => saveAttendanceEdit(s.closest('[data-att-row]'), empNo)));
     els.desktopAttendanceDetailBody.querySelectorAll('[data-att-notebtn]').forEach((b) => b.addEventListener('click', () => editAttendanceNote(b.closest('[data-att-row]'), empNo)));
+    requestAnimationFrame(() => {
+      if (!els.desktopAttendanceDetailHint) return;
+      const over = els.desktopAttendanceDetailBody.scrollHeight > els.desktopAttendanceDetailBody.clientHeight + 1;
+      els.desktopAttendanceDetailHint.textContent = `共 ${days.length} 天` + (over ? ' · 可上下滚动' : '');
+    });
   }
   if (els.desktopAttendanceDetailPanel) els.desktopAttendanceDetailPanel.hidden = false;
   if (els.desktopAttendanceDetailMask) els.desktopAttendanceDetailMask.hidden = false;
@@ -7203,10 +7435,15 @@ function showDesktopView(name) {
     if (target === 'prices') renderDesktopPrices();
   if (target === 'loading') renderDesktopLoading();
   if (target === 'workReport') loadWorkReportWorkspace().catch(() => {});
-  if (target === 'workReview') loadWorkReviews().catch(() => {});
-  if (target === 'workEdit') loadWorkEdit(true).catch(() => {});
+  if (target === 'workReview') loadWorkReviews(workReviewStatus, false).catch(() => {});
+  if (target === 'workEdit') {
+    if (!workEditDate || (workReportDate && workEditDate !== workReportDate)) workEditDate = workReportDate || workEditDate || todayShanghai();
+    if (!workEditEmployeeId && workReportEmployeeId) workEditEmployeeId = workReportEmployeeId;
+    loadWorkEdit(false).catch(() => {});
+  }
   if (target === 'attendance') loadAttendance().catch(() => {});
   window.scrollTo({ top: 0 });
+  window.dispatchEvent(new CustomEvent('tk-desktop-view', { detail: { view: target } }));
   refreshElasticTabs();
 }
 
@@ -7554,7 +7791,10 @@ function openOrderEdit(orderId) {
   }
   if (els.orderEditQty) els.orderEditQty.value = String(Number(order.orderQty || order.openingRemaining || 0));
   if (els.orderEditShipped) els.orderEditShipped.value = String(Number(order.shipped || 0));
-  if (els.orderEditDue) els.orderEditDue.value = order.dueDate || '';
+  if (els.orderEditDue) {
+    els.orderEditDue.value = order.dueDate || '';
+    els.orderEditDue.disabled = Number(order.orderQty || order.openingRemaining || 0) === 0;
+  }
   if (els.orderEditType) {
     const t = String(order.orderType || '');
     els.orderEditType.value = ['trial', 'sample', 'tooling'].includes(t) ? t : 'normal';
@@ -7684,13 +7924,14 @@ function orderMetaFor(orderId, fallback = {}, lookup = null) {
     material: String(order?.material || fallback.material || '').trim(),
     name: String(order?.name || fallback.name || '').trim(),
     spec: String(order?.spec || fallback.spec || '').trim(),
+    company: String(order?.customer || fallback.customer || '').trim(),
   };
 }
 
 function orderMetaSearchText(orderId, fallback = {}, lookup = null) {
   const meta = orderMetaFor(orderId, fallback, lookup);
   // 只匹配可见的编号/品名信息；字段用 | 分隔，避免跨字段拼出假匹配（如 0717+22 -> 1722）
-  return [meta.po, meta.seq, meta.material, meta.name, meta.spec].join('|').toLowerCase();
+  return [meta.po, meta.seq, meta.material, meta.name, meta.spec, meta.company].join('|').toLowerCase();
 }
 
 function normalizeSearchText(value) {
@@ -7946,6 +8187,26 @@ function mergedShipmentsByDate(shipments) {
   return [...map.values()].sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0));
 }
 
+function shipmentCompanyBreakdown(shipment, lookup = null) {
+  const source = lookup || orderLookupMap();
+  const totals = new Map();
+  for (const line of shipment?.items || []) {
+    const meta = orderMetaFor(line.orderId, line, source);
+    const code = String(meta.company || '').trim();
+    if (!['4074', '4137'].includes(code)) continue;
+    totals.set(code, (totals.get(code) || 0) + Number(line.quantity || 0));
+  }
+  return [...totals.entries()].map(([code, qty]) => `${code} ${fmt(qty)}件`).join(' · ');
+}
+
+function orderCompanyBadge(meta) {
+  const code = String(meta?.company || '').trim();
+  if (!code) return '';
+  const known = ['4074', '4137'].includes(code);
+  const cls = known ? `is-${code}` : 'is-unmarked';
+  return `<span class="history-company-badge ${cls}" title="${escapeHtml(companyName(code))}">${escapeHtml(code)}</span>`;
+}
+
 function renderHistoryCards(shipments) {
   if (!shipments.length) return '<div class="empty-state"><strong>没有符合条件的发货记录</strong><span>换个日期或清空搜索词再试。</span></div>';
   const orderLookup = orderLookupMap();
@@ -7966,18 +8227,21 @@ function renderHistoryCards(shipments) {
       return (!text || text === '未填写' || text === '-') ? fallbackLabel : text;
     };
     const vehicleLabel = label(shipment.vehicle);
+    const companyBreakdown = shipmentCompanyBreakdown(shipment, orderLookup);
     return `
     <article class="history-card">
       <div class="history-head">
         <strong>${escapeHtml(vehicleLabel)}</strong>
         <span>${escapeHtml(stamp)}</span>
       </div>
+      ${companyBreakdown ? `<div class="history-company-summary">公司归属：${escapeHtml(companyBreakdown)}</div>` : ''}
+      ${shipment.note ? `<div class="history-shipment-note">备注：${escapeHtml(shipment.note)}</div>` : ''}
       <div class="history-lines">
         ${shown.map((line) => {
           const meta = orderMetaFor(line.orderId, line, orderLookup);
           return `<div class="history-line history-line-rich">
             <div class="history-line-main"><span><b>${escapeHtml(line.material)}</b> ${escapeHtml(line.name || '')}${line.spec ? ' · ' + escapeHtml(line.spec) : ''}</span><strong>本次 ${fmt(line.quantity)} 件</strong></div>
-            <div class="history-line-meta"><span>采购单号：${escapeHtml(meta.po || '无')}</span><span>项次：${escapeHtml(meta.seq || '无')}</span><span>订单量：${fmt(meta.orderQty)}</span><span>已发：${fmt(meta.shipped)}</span><span>未交：${fmt(meta.remaining)}</span></div>
+            <div class="history-line-meta">${orderCompanyBadge(meta)}<span>采购单号：${escapeHtml(meta.po || '无')}</span><span>项次：${escapeHtml(meta.seq || '无')}</span><span>订单量：${fmt(meta.orderQty)}</span><span>已发：${fmt(meta.shipped)}</span><span>未交：${fmt(meta.remaining)}</span></div>
           </div>`;
         }).join('')}
       </div>
@@ -8158,6 +8422,7 @@ function buildDeliveryGroups(shipments, queryText = '') {
   const orderLookup = orderLookupMap();
   const selectedBatch = new Set((shipments || []).map((shipment) => shipmentDisplayBatch(shipment)).filter(Boolean));
   const selectedShipmentIds = new Set((shipments || []).map((shipment) => String(shipment.id)));
+  const directShipmentMap = new Map((snapshot?.directReceived || []).map((row) => [String(row.shipmentId || ''), row]));
   const allShipments = (snapshot?.shipments || []).filter((shipment) => {
     if (selectedShipmentIds.has(String(shipment.id))) return true;
     return shipmentItemBatches(shipment).some((batch) => selectedBatch.has(batch));
@@ -8197,17 +8462,20 @@ function buildDeliveryGroups(shipments, queryText = '') {
           remark: '',
         });
       }
+      const direct = directShipmentMap.get(String(shipment.id));
       for (const [company, items] of itemsByCompany) {
         if (!items.length) continue;
-        const displayBatch = shipmentBatchForCompany(shipment, company);
+        const displayBatch = direct ? '' : shipmentBatchForCompany(shipment, company);
         searchGroups.push({
           key: `search:${shipment.id}:${company}`,
-          batch: displayBatch,
-          title: displayBatch ? `送货单 ${displayBatch} · ${deliveryStamp(shipment.createdAt)}` : `发货记录 · ${deliveryStamp(shipment.createdAt)}`,
-          billed: Boolean(displayBatch),
+          batch: direct ? '客户已入库' : displayBatch,
+          title: direct ? `客户已入库（免开单） · ${deliveryStamp(shipment.createdAt)}` : (displayBatch ? `送货单 ${displayBatch} · ${deliveryStamp(shipment.createdAt)}` : `发货记录 · ${deliveryStamp(shipment.createdAt)}`),
+          billed: Boolean(displayBatch) || Boolean(direct),
+          directReceived: Boolean(direct),
+          directReceivedNote: direct?.note || '',
           createdAt: shipment.createdAt,
           shipmentIds: [String(shipment.id)],
-          items,
+          items: items.map((item) => ({ ...item, billed: Boolean(displayBatch) || Boolean(direct) })),
           searchMode: true,
         });
       }
@@ -8238,8 +8506,10 @@ function buildDeliveryGroups(shipments, queryText = '') {
       map.set(key, {
         key,
         batch: deliveryBatchText(options.batch),
-        title: deliveryBatchText(options.batch) ? (/^\d+$/.test(deliveryBatchText(options.batch)) ? `送货单 ${deliveryBatchText(options.batch)}` : deliveryBatchText(options.batch)) : '未开单发货',
-        billed: Boolean(options.batch),
+        title: options.title || (deliveryBatchText(options.batch) ? (/^\d+$/.test(deliveryBatchText(options.batch)) ? `送货单 ${deliveryBatchText(options.batch)}` : deliveryBatchText(options.batch)) : '未开单发货'),
+        billed: Boolean(options.batch) || Boolean(options.directReceived),
+        directReceived: Boolean(options.directReceived),
+        directReceivedNote: String(options.directReceivedNote || ''),
         createdAt: options.createdAt || '',
         shipmentIds: [],
         items: [],
@@ -8255,10 +8525,12 @@ function buildDeliveryGroups(shipments, queryText = '') {
       itemsByCompany.get(company).push(line);
     }
     for (const [company, lines] of itemsByCompany) {
-      const batch = shipmentBatchForCompany(shipment, company);
-      const key = batch ? `batch:${batch}:${company}` : `shipment:${shipment.id}:${company}`;
-      const group = ensureGroup(key, { batch, createdAt: shipment.billedAt || shipment.createdAt });
-      group.billed = group.billed || Boolean(batch);
+      const direct = directShipmentMap.get(String(shipment.id));
+      const batch = direct ? '' : shipmentBatchForCompany(shipment, company);
+      const key = direct ? `direct:${shipment.id}:${company}` : (batch ? `batch:${batch}:${company}` : `shipment:${shipment.id}:${company}`);
+      const group = ensureGroup(key, { batch, title: direct ? '客户已入库（免开单）' : '', directReceived: Boolean(direct), directReceivedNote: direct?.note || '', createdAt: shipment.billedAt || shipment.createdAt });
+      group.billed = group.billed || Boolean(batch) || Boolean(direct);
+      group.directReceived = group.directReceived || Boolean(direct);
       group.shipmentIds.push(String(shipment.id));
       for (const line of lines) {
         const meta = orderMetaFor(line.orderId, line, orderLookup);
@@ -8280,7 +8552,7 @@ function buildDeliveryGroups(shipments, queryText = '') {
           orderDue: meta.order ? String(meta.order.dueDate || '') : '',
           hasOrder: Boolean(meta.po || meta.orderQty || meta.seq),
           remark: '',
-          billed: Boolean(batch) || isBilledShipment(shipment.id),
+          billed: Boolean(batch) || isBilledShipment(shipment.id) || Boolean(direct),
         });
       }
     }
@@ -8355,6 +8627,7 @@ function renderDeliveryGroups(groups) {
     return `<article class="history-card delivery-batch-card ${group.billed ? 'billed-card' : ''}">
       <div class="history-head">
         <strong>${escapeHtml(group.title)}</strong>
+        ${group.directReceived ? '<span class="due-badge done">客户已入库 · 免开单</span>' : ''}
       </div>
       <div class="delivery-lines grouped">
         <div class="delivery-lines-head">${groupedHeadHtml}</div>
@@ -8372,9 +8645,11 @@ function renderDeliveryGroups(groups) {
       ${unitHistoryHtml(group.shipmentIds)}
       <div class="history-foot">
         <span class="history-total">合计 ${fmt(group.total)} 件 · ${group.items.length} 项</span>
-        ${group.billed
-          ? '<span class="row-locked">已开单</span>'
-          : group.shipmentIds.length ? `<button class="row-revoke" type="button" data-undo="${escapeHtml(group.shipmentIds[0])}" title="撤销这笔发货">撤回</button>` : ''}
+        ${group.directReceived
+          ? `<span class="row-locked">客户已入库（免开单）</span><button class="row-revoke" type="button" data-undo-direct="${escapeHtml(group.shipmentIds.join(','))}">撤销入库标记</button>`
+          : group.billed
+            ? '<span class="row-locked">已开单</span>'
+            : group.shipmentIds.length ? `<button class="row-revoke" type="button" data-direct-received="${escapeHtml(group.shipmentIds.join(','))}" title="客户已直接入库，不生成送货单">客户已入库</button><button class="row-revoke" type="button" data-undo="${escapeHtml(group.shipmentIds[0])}" title="撤销这笔发货">撤回</button>` : ''}
       </div>
     </article>`;
   }).join('');
@@ -8410,7 +8685,7 @@ function renderMergedDeliveryRows(groups) {
   const unitHtml = unitHistoryHtml(groups.flatMap((group) => group.shipmentIds || []));
   const rows = [];
   for (const group of groups) {
-    for (const item of group.items) rows.push({ ...item, batch: group.batch || '', shippedAt: group.createdAt || '', billed: item.billed });
+    for (const item of group.items) rows.push({ ...item, batch: group.directReceived ? '客户已入库' : (group.batch || ''), shippedAt: group.createdAt || '', billed: item.billed });
   }
   if (!rows.length) return '<div class="empty-state"><strong>没有符合条件的发货记录</strong><span>可以搜索送货单号、采购单号、料件编号或品名。</span></div>';
   rows.sort((a, b) => String(b.shippedAt || '').localeCompare(String(a.shippedAt || '')));
@@ -8423,11 +8698,13 @@ function buildSearchDateGroups(groups) {
     for (const item of group.items) {
       const shippedAt = group.createdAt || '';
       const date = shipShanghaiDate(shippedAt) || String(shippedAt).slice(0, 10) || '未知日期';
-      const row = { ...item, batch: group.batch || '', shippedAt, shipmentId: item.shipmentId || group.shipmentIds?.[0] || '', billed: Boolean(item.billed || group.billed) };
-      if (!map.has(date)) map.set(date, { date, rows: [], total: 0, batches: new Set(), shipmentIds: new Set() });
+      const direct = Boolean(group.directReceived || item.directReceived);
+      const row = { ...item, batch: direct ? '客户已入库' : (group.batch || ''), directReceived: direct, shippedAt, shipmentId: item.shipmentId || group.shipmentIds?.[0] || '', billed: Boolean(item.billed || group.billed || direct) };
+      if (!map.has(date)) map.set(date, { date, rows: [], total: 0, batches: new Set(), shipmentIds: new Set(), directReceived: false });
       const bucket = map.get(date);
       bucket.rows.push(row);
       bucket.total += Number(row.quantity || 0);
+      bucket.directReceived = bucket.directReceived || direct;
       if (row.batch) bucket.batches.add(String(row.batch));
       if (row.shipmentId) bucket.shipmentIds.add(String(row.shipmentId));
     }
@@ -8585,6 +8862,15 @@ function addSearchExtrasToDateGroups(dateGroups, queryText, dateFilter = '') {
   dateGroups.sort((a, b) => String(b.date).localeCompare(String(a.date)));
 }
 
+function directReceivedActionsHtml(group) {
+  const directIds = [...new Set((group.rows || []).filter((row) => row.directReceived && row.shipmentId).map((row) => String(row.shipmentId)))];
+  const unbilledIds = [...new Set((group.rows || []).filter((row) => row.shipmentId && !row.billed && !row.directReceived).map((row) => String(row.shipmentId)))];
+  if (!directIds.length && !unbilledIds.length) return '';
+  return '<div class="search-date-actions">'
+    + (directIds.length ? '<span class="row-locked">客户已入库（免开单）</span><button class="row-revoke" type="button" data-undo-direct="' + escapeHtml(directIds.join(',')) + '">撤销入库标记</button>' : '')
+    + (!directIds.length && unbilledIds.length ? '<button class="row-revoke" type="button" data-direct-received="' + escapeHtml(unbilledIds.join(',')) + '">客户已入库</button>' : '')
+    + '</div>';
+}
 function renderSearchByDate(groups, queryText = '', dateFilter = '') {
   const dateGroups = buildSearchDateGroups(groups);
   addSearchExtrasToDateGroups(dateGroups, queryText, dateFilter);
@@ -8603,6 +8889,7 @@ function renderSearchByDate(groups, queryText = '', dateFilter = '') {
         <div class="search-date-main">
           <strong>${escapeHtml(formatDate(group.date))}</strong>
           <span>${escapeHtml(batchText)}</span>
+          ${group.directReceived ? '<span class="due-badge done">客户已入库 · 免开单</span>' : ''}
         </div>
         <div class="search-date-stats">
           <strong>${escapeHtml(fmt(group.total))} 件 · ${group.rows.length} 笔</strong>
@@ -8610,7 +8897,7 @@ function renderSearchByDate(groups, queryText = '', dateFilter = '') {
         </div>
         <span class="search-date-toggle">${expanded ? '收起明细' : '展开明细'}</span>
       </div>
-      ${expanded ? `<div class="search-date-detail">${mergedDeliveryTableHtml(rows)}</div>` : ''}
+      ${expanded ? `<div class="search-date-detail">${mergedDeliveryTableHtml(rows)}${directReceivedActionsHtml(group)}</div>` : ''}
     </article>`;
   }).join('');
 }
@@ -9065,6 +9352,9 @@ let labelDateFilter = new Set();       // 打印标签时选中的交期（空=�
 const LABEL_PRINTED_KEY = 'shipmentLabelPrinted';
 const LABEL_STATS_KEY = 'shipmentLabelStats';
 const LABEL_ASSIGN_KEY = 'shipmentLabelAssign';
+const LABEL_REMOVED_KEY = 'shipmentLabelRemoved';
+const LABEL_DRAFT_KEY = 'shipmentLabelDraft';
+let labelRemovedRecords = {};
 
 // 固定一框数量的产品：编号里包含这些数字就按整框折算
 const LABEL_BOX_RULES = [
@@ -9121,6 +9411,98 @@ function readLabelAssign() {
 
 function writeLabelAssign(assign) {
   try { localStorage.setItem(LABEL_ASSIGN_KEY, JSON.stringify(assign)); } catch { }
+}
+function readLabelRemoved() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LABEL_REMOVED_KEY) || '{}');
+    return saved && typeof saved === 'object' ? saved : {};
+  } catch { return {}; }
+}
+function writeLabelRemoved(rows) {
+  try { localStorage.setItem(LABEL_REMOVED_KEY, JSON.stringify(rows)); } catch { }
+}
+
+function labelDraftDateKey(dates = labelDateFilter) {
+  return [...dates].map((value) => String(value || '').trim()).filter(Boolean).sort().join(',') || '*';
+}
+
+function readLabelDrafts() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LABEL_DRAFT_KEY) || '{}');
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+  } catch { return {}; }
+}
+
+function writeLabelDrafts(drafts) {
+  try { localStorage.setItem(LABEL_DRAFT_KEY, JSON.stringify(drafts)); } catch { }
+}
+
+function snapshotLabelRow(row) {
+  const copy = {};
+  [
+    'sourceKey', 'printed', 'printedAt', 'printedDay', 'printedMode', 'printedCount',
+    'removed', 'removedAt', 'mode', 'selected', 'material', 'name', 'spec',
+    'quantity', 'remaining', 'remainingKey', 'perBox', 'date', 'overAccepted', 'boxMixed',
+    'copiedFrom', 'mergedFrom'
+  ].forEach((field) => {
+    if (row[field] !== undefined) copy[field] = row[field];
+  });
+  return JSON.parse(JSON.stringify(copy));
+}
+
+function labelRowSourceKeys(row) {
+  const merged = Array.isArray(row?.mergedFrom)
+    ? row.mergedFrom.map((part) => String(part?.sourceKey || '')).filter(Boolean)
+    : [];
+  return [...new Set((merged.length ? merged : [String(row?.sourceKey || '')]).filter(Boolean))];
+}
+
+function persistLabelDraftRows() {
+  if (!Array.isArray(labelRows)) return;
+  const drafts = readLabelDrafts();
+  drafts[labelDraftDateKey()] = {
+    at: labelNowStamp(),
+    dates: [...labelDateFilter].sort(),
+    rows: labelRows.map(snapshotLabelRow),
+  };
+  writeLabelDrafts(drafts);
+}
+
+function restoreLabelDraftRows(baseRows) {
+  const saved = readLabelDrafts()[labelDraftDateKey()];
+  if (!saved || !Array.isArray(saved.rows) || !saved.rows.length) return baseRows;
+  const baseByKey = new Map(baseRows.map((row) => [row.sourceKey, row]));
+  const restored = [];
+  for (const raw of saved.rows) {
+    const refs = labelRowSourceKeys(raw);
+    if (!refs.length || !refs.every((key) => baseByKey.has(key))) continue;
+    const primary = baseByKey.get(String(raw.sourceKey || refs[0])) || baseByKey.get(refs[0]) || {};
+    // 保存过逐行状态时以逐行为准：同一料号复制成两张后，只打印其中一张，
+    // 重新打开时不能把未打印的那一张也误标成已打印。旧数据没有该字段时才回退到料号记录。
+    const hasSavedPrintState = Object.prototype.hasOwnProperty.call(raw, 'printed');
+    const printed = hasSavedPrintState ? Boolean(raw.printed) : refs.some((key) => Boolean(labelPrintedRecords[key]));
+    const removed = Boolean(raw.removed || refs.some((key) => Boolean(labelRemovedRecords[key])));
+    const latestRecord = printed ? (refs.map((key) => labelPrintedRecords[key]).filter(Boolean)
+      .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')))[0] || null) : null;
+    const remaining = refs.reduce((sum, key) => sum + Number(baseByKey.get(key)?.remaining || 0), 0);
+    restored.push({
+      ...primary,
+      ...raw,
+      id: nextLabelRowId(),
+      sourceKey: String(raw.sourceKey || refs[0]),
+      printed,
+      printedAt: printed ? String(raw.printedAt || latestRecord?.at || '') : '',
+      printedDay: printed ? String(raw.printedDay || (latestRecord ? labelShortDay(latestRecord.day) : '')) : '',
+      printedMode: printed ? String(raw.printedMode || latestRecord?.mode || '') : '',
+      printedCount: printed ? Number(raw.printedCount || latestRecord?.count || 1) : 0,
+      removed,
+      selected: !printed && !removed && Boolean(raw.selected),
+      remaining: raw.mergedFrom ? remaining : (primary.remaining ?? raw.remaining ?? remaining),
+    });
+  }
+  const referenced = new Set(restored.flatMap(labelRowSourceKeys));
+  const added = baseRows.filter((row) => !referenced.has(row.sourceKey));
+  return [...restored, ...added];
 }
 
 // 这个料号归哪种标签打：手动转过优先 → 再按打印习惯 → 都没有的默认归大标签
@@ -9224,20 +9606,28 @@ function labelModeText(mode = labelPrintMode) {
   return mode === 'small' ? '小标签' : '大标签';
 }
 
-function labelPool(anyMode = false) {
+function labelPool(anyMode = false, includeAllStatus = false) {
   const onlyPrinted = Boolean(els.labelPrintShowPrinted && els.labelPrintShowPrinted.checked);
+  const showRemoved = Boolean(els.labelPrintShowRemoved && els.labelPrintShowRemoved.checked);
   const mode = labelPrintMode;
   const query = labelPrintSearch.trim().toLowerCase();
   // 只要在搜索，就把已打印的一起带出来，方便找出来补打
   const keepPrinted = Boolean(query) || Boolean(String(desktopRemainingSearch || '').trim());
   // 同一个料号（同图号）的多个交期合并成一个标签，数量相加
-  return mergeRemainingGroupsForPrint(remainingGroupsForDates([...labelDateFilter], desktopRemainingSearch))
+  const items = mergeRemainingGroupsForPrint(remainingGroupsForDates([...labelDateFilter], desktopRemainingSearch))
     .map((group) => {
       const key = labelSourceKey(group);
-      return { group, key, record: labelPrintedRecords[key] || null };
+      return { group, key, record: labelPrintedRecords[key] || null, removed: labelRemovedRecords[key] || null };
     })
-    // 归类：每个料号只出现在它归属的那一页
-    .filter((item) => anyMode || labelAssignOf(item.group.material) === mode || (mode === 'small' && labelSmallRecovery))
+    // 打开弹窗时一次装入全部状态，后续搜索/筛选只改显示，避免把刚改的数量、复制和合并清掉。
+    .filter((item) => anyMode || labelAssignOf(item.group.material) === mode || (mode === 'small' && labelSmallRecovery));
+  if (includeAllStatus) {
+    return items.sort((a, b) => compareMaterialOrder(a.group.material, b.group.material)
+      || (labelMaterialCount(b.group.material, mode) - labelMaterialCount(a.group.material, mode))
+      || String(a.group.name || '').localeCompare(String(b.group.name || ''), 'zh-CN'));
+  }
+  return items
+    .filter((item) => showRemoved ? Boolean(item.removed) : !item.removed)
     .filter((item) => (onlyPrinted ? Boolean(item.record) : (!item.record || keepPrinted)))
     .filter((item) => !query || [item.group.material, item.group.name, (item.group.specs || []).join(' ')]
       .some((value) => String(value || '').toLowerCase().includes(query)))
@@ -9267,23 +9657,36 @@ function remainingMaterialTotals() {
   return map;
 }
 
+function labelRemainingTotalKey(item = {}) {
+  const material = String(item.material || '').trim();
+  const spec = String(item.spec || (item.specs || []).join('、') || '').trim();
+  const name = String(item.name || '').trim();
+  const types = Array.isArray(item.types) ? item.types : [];
+  const orderType = String(item.orderType || '').trim();
+  // 普通订单仍按料号汇总所有交期；试制/承样/工装和 MISC 必须按图号+品名分开，
+  // 否则多个试制产品都会被算成同一个 MISC 的未交。
+  const special = /^MISC$/i.test(material)
+    || types.some((type) => type && type !== 'normal')
+    || (orderType && orderType !== 'normal');
+  return special ? [material, spec, name].join('\u0000') : material;
+}
+
 function labelRemainingAllDates() {
-  // 旧规则：标签页“订单剩余未交”始终统计同料号所有交期的未交总数，
-  // 不受打印标签时选中的交期影响。标签本体的数量仍然按所选交期统计。
+  // 标签页“订单剩余未交”统计同一产品所有交期的总数；标签本体数量仍按所选交期统计。
   const map = new Map();
   for (const row of remainingBaseRows()) {
     const remaining = Number(row.remaining || 0);
     if (remaining <= 0) continue;
-    const material = String(row.material || '').trim();
-    if (!material) continue;
-    map.set(material, (map.get(material) || 0) + remaining);
+    const key = labelRemainingTotalKey(row);
+    if (!key) continue;
+    map.set(key, (map.get(key) || 0) + remaining);
   }
   return map;
 }
 
-function buildLabelRows(allModes = false) {
+function buildLabelRows(allModes = false, includeAllStatus = false) {
   const remainingAll = labelRemainingAllDates();
-  return labelPool(allModes).map((item) => {
+  return labelPool(allModes, includeAllStatus).map((item) => {
     const material = String(item.group.material || '');
     const record = item.record;
     const habit = labelHabit(material);
@@ -9296,18 +9699,21 @@ function buildLabelRows(allModes = false) {
       printedDay: record ? labelShortDay(record.day) : '',
       printedMode: record ? String(record.mode || '') : '',
       printedCount: record ? Number(record.count || 1) : 0,
+      removed: Boolean(item.removed),
+      removedAt: item.removed ? String(item.removed.at || '') : '',
       // 已打印的默认不勾（要补打自己勾上）；归到另一页的默认也不勾
       mode: labelAssignOf(material),
-      selected: !record && labelAssignOf(material) === labelPrintMode,
+      selected: !record && !item.removed && labelAssignOf(material) === labelPrintMode,
       material,
       name: String(item.group.name || ''),
       spec: (item.group.specs || []).join('、'),
       quantity: rule
         ? labelBoxQuantityText(item.group.total, rule.perBox)
         : Number(item.group.total) || 0,
-      remaining: remainingAll.has(material.trim())
-        ? Number(remainingAll.get(material.trim()))
+      remaining: remainingAll.has(labelRemainingTotalKey(item.group))
+        ? Number(remainingAll.get(labelRemainingTotalKey(item.group)))
         : Number(item.group.total) || 0,
+      remainingKey: labelRemainingTotalKey(item.group),
       perBox: rule ? rule.perBox : 0,
       habit,
       bigCount: labelMaterialCount(material, 'big'),
@@ -9321,19 +9727,23 @@ function openLabelPrintModal(mode = 'big', dateFilter = null) {
   if (!snapshot) return;
   labelDateFilter = new Set((Array.isArray(dateFilter) ? dateFilter : []).map((d) => String(d || '').trim()).filter(Boolean));
   labelPrintedRecords = readPrintedRecords();
+  labelRemovedRecords = readLabelRemoved();
   labelPrintSearch = '';
   if (els.labelPrintSearch) els.labelPrintSearch.value = '';
+  if (els.labelPrintShowPrinted) els.labelPrintShowPrinted.checked = false;
+  if (els.labelPrintShowRemoved) els.labelPrintShowRemoved.checked = false;
   labelPrintMode = mode === 'small' ? 'small' : 'big';
   labelSmallRecovery = false;
   labelMergePending = null;
-  // 一次把所有料号都建出来（两个页签共用同一份），切页签/转小标签不会丢掉合并、改数量、删除
-  labelRows = buildLabelRows(true);
+  // 一次把所有料号和状态都建出来，并恢复本机上次的改数量、复制、合并、删除操作。
+  labelRows = restoreLabelDraftRows(buildLabelRows(true, true));
   renderLabelRows();
   if (els.labelPrintError) els.labelPrintError.hidden = true;
   if (els.labelPrintModal) els.labelPrintModal.hidden = false;
 }
 
 function closeLabelPrintModal() {
+  persistLabelDraftRows();
   if (els.labelPrintModal) els.labelPrintModal.hidden = true;
 }
 
@@ -9345,8 +9755,9 @@ function switchLabelPrintMode(mode) {
 }
 
 function labelRowHtml(row, index) {
-  // 已打印状态只用于「已打印」过滤，不在行里显示字样，免得挡内容
-  const printedTag = '';
+  const printedTag = row.printed
+    ? '<span class="label-printed-tag" title="本机打印记录">' + escapeHtml(row.printedAt ? row.printedAt.slice(5) : '已打印') + '</span>'
+    : '';
   const moveTarget = labelPrintMode === 'big' ? 'small' : 'big';
   const moveText = moveTarget === 'small' ? '转小标签' : '转大标签';
   return `<div class="label-print-row${row.printed ? ' printed' : ''}" data-label-row="${index}">
@@ -9360,13 +9771,16 @@ function labelRowHtml(row, index) {
     <span class="label-remaining" data-label-remaining="${index}">${fmt(labelRowRemaining(row))}</span>
     <input class="label-print-input" type="date" data-label-field="date" value="${escapeHtml(row.date)}">
     <div class="label-print-row-actions">
+      ${row.removed ? '<span class="label-printed-tag">已删除</span>' : ''}
       ${printedTag}
       ${row.mergedFrom
 
         ? `<button type="button" class="label-row-btn" data-label-unmerge="${index}">取消合并</button>`
 
         : `<button type="button" class="label-row-btn${labelMergePending === index ? ' active' : ''}" data-label-merge="${index}" title="和另一项合并成一张标签（比如内外梁、导向板A/B）：先点这一行，再点另一行">${labelMergePending === index ? '合并中…' : '合并'}</button>`}      <button type="button" class="label-row-btn" data-label-copy="${index}">复制</button>
-      <button type="button" class="label-row-btn danger" data-label-remove="${index}">删除</button>
+      ${row.removed
+        ? `<button type="button" class="label-row-btn done" data-label-restore="${index}">恢复</button>`
+        : `<button type="button" class="label-row-btn danger" data-label-remove="${index}">删除</button>`}
       <button type="button" class="label-row-btn move" data-label-move="${index}" title="把这一项挪到${moveText.slice(1)}打印（只影响本次；以后按这个料号大/小标签的打印次数自动归）">${moveText}</button>
       <button type="button" class="label-row-btn done" data-label-mark="${index}" title="标记为已打印，从待打印列表里移走">已打印</button>
     </div>
@@ -9374,9 +9788,33 @@ function labelRowHtml(row, index) {
   </div>`;
 }
 
+function labelRowMatchesUi(row) {
+  if (!labelRowVisibleInMode(row)) return false;
+  const onlyPrinted = Boolean(els.labelPrintShowPrinted && els.labelPrintShowPrinted.checked);
+  const showRemoved = Boolean(els.labelPrintShowRemoved && els.labelPrintShowRemoved.checked);
+  const query = labelPrintSearch.trim().toLowerCase();
+  if (showRemoved) {
+    if (!row.removed) return false;
+  } else {
+    if (row.removed) return false;
+    if (onlyPrinted) {
+      if (!row.printed) return false;
+    } else if (row.printed && !query) {
+      return false;
+    }
+  }
+  if (query && ![row.material, row.name, row.spec, row.quantity]
+    .some((value) => String(value || '').toLowerCase().includes(query))) return false;
+  return true;
+}
+
+function visibleLabelEntries() {
+  return labelRows.map((row, index) => ({ row, index })).filter(({ row }) => labelRowMatchesUi(row));
+}
+
 function renderLabelRows() {
   if (!els.labelPrintRows) return;
-  const visible = labelRows.map((row, index) => ({ row, index })).filter(({ row }) => labelRowVisibleInMode(row));
+  const visible = visibleLabelEntries();
   els.labelPrintRows.innerHTML = visible.length
     ? visible.map(({ row, index }) => labelRowHtml(row, index)).join('')
     : (labelPrintMode === 'small'
@@ -9402,11 +9840,12 @@ function renderLabelRows() {
   updateLabelSummary();
 }
 
-function labelMaterialFilled(material) {
-  const key = String(material || '').trim();
-  if (!key) return 0;
+function labelMaterialFilled(target) {
+  const targetKey = String(target?.remainingKey || labelRemainingTotalKey(target || {}) || '').trim();
+  if (!targetKey) return 0;
   return labelRows
-    .filter((row) => String(row.material || '').trim() === key)
+    .filter((row) => !row.removed && !row.printed && (row.mode || 'big') === labelPrintMode)
+    .filter((row) => String(row.remainingKey || labelRemainingTotalKey(row) || '').trim() === targetKey)
     .reduce((sum, row) => sum + labelRowQuantity(row), 0);
 }
 
@@ -9416,7 +9855,7 @@ function refreshLabelRemaining() {
     const cell = els.labelPrintRows.querySelector(`[data-label-remaining="${index}"]`);
     const warn = els.labelPrintRows.querySelector(`[data-label-box-warn="${index}"]`);
     const remaining = labelRowRemaining(row);
-    const filled = labelMaterialFilled(row.material);
+    const filled = labelMaterialFilled(row);
     const box = labelBoxState(row);
     const over = !box && remaining > 0 && filled > remaining;
     if (cell) {
@@ -9448,19 +9887,19 @@ function refreshLabelRemaining() {
 function updateLabelSummary() {
   refreshLabelRemaining();
   if (!els.labelPrintSummary) return;
-  const valid = labelRows.filter((row) => labelRowVisibleInMode(row) && labelRowIsValid(row));
+  const visible = labelRows.filter(labelRowMatchesUi);
+  const valid = visible.filter(labelRowIsValid);
   const picked = valid.filter((row) => row.selected);
   const reprinted = picked.filter((row) => row.printed).length;
   const total = picked.reduce((sum, row) => sum + labelRowQuantity(row), 0);
   const blank = picked.filter((row) => labelRowQuantity(row) === 0).length;
-  const overMaterials = [...new Set(labelRows
-    .filter((row) => labelRowVisibleInMode(row))
+  const overMaterials = [...new Set(visible
     .filter((row) => {
       const remaining = labelRowRemaining(row);
       if (remaining <= 0) return false;
       const box = labelBoxState(row);
       if (box) return box.over && !row.overAccepted;
-      return labelMaterialFilled(row.material) > remaining;
+      return labelMaterialFilled(row) > remaining;
     })
     .map((row) => String(row.material || '').trim()))];
   const dateText = labelDateFilter.size ? `交期：${[...labelDateFilter].sort().map((d) => formatDate(d)).join('、')} · ` : '';
@@ -9590,10 +10029,11 @@ function mergeLabelRowsAt(firstIndex, secondIndex) {
   labelRows.splice(secondIndex, 1);
 
   labelMergePending = null;
+  persistLabelDraftRows();
 
   renderLabelRows();
 
-  showToast('已合并：' + merged.material + ' · ' + merged.quantity + '（点「取消合并」可拆回）');
+  showToast('已合并：' + merged.material + ' · ' + merged.quantity + '（已记住，点「取消合并」可拆回）');
 
 }
 
@@ -9608,6 +10048,7 @@ function unmergeLabelRow(index) {
   labelRows.splice(index, 1, ...parts);
 
   labelMergePending = null;
+  persistLabelDraftRows();
 
   renderLabelRows();
 
@@ -9694,6 +10135,7 @@ function handleLabelPrintInput(event) {
     const rule = labelBoxRule(row.material, row.name);
     row.perBox = rule ? rule.perBox : 0;
   }
+  persistLabelDraftRows();
   updateLabelSummary();
 }
 
@@ -9712,6 +10154,7 @@ function handleLabelPrintChange(event) {
   row.quantity = event.target.value;
   row.overAccepted = false;
   row.boxMixed = false;
+  persistLabelDraftRows();
   updateLabelSummary();
 }
 
@@ -9765,8 +10208,17 @@ function handleLabelPrintClick(event) {
     const index = Number(copyButton.dataset.labelCopy);
     const source = labelRows[index];
     if (!source) return;
-    labelRows.splice(index + 1, 0, { ...source, id: nextLabelRowId(), printed: false });
+    labelRows.splice(index + 1, 0, {
+      ...source,
+      id: nextLabelRowId(),
+      printed: false,
+      printedAt: '',
+      selected: true,
+      copiedFrom: source.id,
+    });
+    persistLabelDraftRows();
     renderLabelRows();
+    showToast(source.material + ' 已复制，复制出来的数量和内容会一起记住');
     return;
   }
   const fixButton = event.target.closest('[data-label-box-fix]');
@@ -9779,6 +10231,7 @@ function handleLabelPrintClick(event) {
         row.quantity = labelBoxFitText(box.remaining, box.perBox);
         row.overAccepted = false;
         row.boxMixed = true;
+        persistLabelDraftRows();
         renderLabelRows();
         showToast(`已改为 ${row.quantity}`);
       }
@@ -9791,6 +10244,7 @@ function handleLabelPrintClick(event) {
     const row = labelRows[index];
     if (row) {
       row.overAccepted = true;
+      persistLabelDraftRows();
       refreshLabelRemaining();
       updateLabelSummary();
       showToast(`按 ${labelBoxState(row).rounded} 发，超出部分走无订单发货`);
@@ -9805,6 +10259,7 @@ function handleLabelPrintClick(event) {
       const target = labelPrintMode === 'big' ? 'small' : 'big';
       row.mode = target;
       setLabelAssign(row.material, target);
+      persistLabelDraftRows();
       showToast(`${row.material} 已固定到${labelModeText(target)}，下次会自动归到这里`);
       renderLabelRows();
     }
@@ -9815,18 +10270,49 @@ function handleLabelPrintClick(event) {
     const index = Number(markButton.dataset.labelMark);
     const row = labelRows[index];
     if (row) {
-      if (row.sourceKey) markLabelPrinted([row.sourceKey], labelPrintMode);
-      labelRows.splice(index, 1);
+      const sourceKeys = labelRowSourceKeys(row);
+      markLabelPrinted(sourceKeys, labelPrintMode);
+      row.printed = true;
+      row.printedAt = labelNowStamp();
+      row.selected = false;
+      persistLabelDraftRows();
       renderLabelRows();
-      showToast(`${row.material} 已标记为已打印`);
+      showToast(row.material + ' 已标记为已打印，勾选“已打印”可以查看和补打');
     }
+    return;
+  }
+  const restoreButton = event.target.closest('[data-label-restore]');
+  if (restoreButton) {
+    const index = Number(restoreButton.dataset.labelRestore);
+    const row = labelRows[index];
+    if (row) {
+      labelRowSourceKeys(row).forEach((key) => { delete labelRemovedRecords[key]; });
+      writeLabelRemoved(labelRemovedRecords);
+      row.removed = false;
+      row.selected = !row.printed;
+      persistLabelDraftRows();
+    }
+    renderLabelRows();
+    showToast('已恢复这个标签');
     return;
   }
   const removeButton = event.target.closest('[data-label-remove]');
   if (removeButton) {
     const index = Number(removeButton.dataset.labelRemove);
-    if (index >= 0 && index < labelRows.length) labelRows.splice(index, 1);
+    const row = labelRows[index];
+    if (row) {
+      // 原始行删除后整项不再出现；复制行/合并行只删当前这一张，避免把同料号其他标签一起删掉。
+      if (!row.copiedFrom && !row.mergedFrom && row.sourceKey) {
+        labelRemovedRecords[row.sourceKey] = { at: labelNowStamp(), material: row.material, mode: labelPrintMode };
+        writeLabelRemoved(labelRemovedRecords);
+      }
+      row.removed = true;
+      row.selected = false;
+      persistLabelDraftRows();
+    }
     renderLabelRows();
+    showToast('标签已删除并记住；勾选“已删除”可以恢复');
+    return;
   }
 }
 
@@ -9851,6 +10337,13 @@ function labelPayload(rows) {
 
 function finishLabelPrint(mode, sourceKeys, picked, result, manual) {
   markLabelPrinted(sourceKeys, mode);
+  const printedAt = labelNowStamp();
+  picked.forEach((row) => {
+    row.printed = true;
+    row.printedAt = printedAt;
+    row.selected = false;
+  });
+  persistLabelDraftRows();
   // 合并标签不计次数（按用户要求：合并不算）
   bumpLabelStats(picked.filter((row) => !row.mergedFrom).map((row) => row.material), mode);
 
@@ -9876,7 +10369,7 @@ async function closeLabelAppAfterManualPrint() {
 
 async function confirmLabelPrint() {
   const mode = labelPrintMode;
-  const valid = labelRows.filter((row) => labelRowVisibleInMode(row) && labelRowIsValid(row));
+  const valid = labelRows.filter((row) => labelRowMatchesUi(row) && labelRowIsValid(row));
   const picked = valid.filter((row) => row.selected);
   if (!picked.length) {
     showLabelPrintError('还没有勾选要打印的行：在左边打勾后再点这个按钮（已打印的也可以勾上补打）。');
@@ -10910,6 +11403,32 @@ async function unlinkPhotosFromShipment(shipmentId) {
   return unlinked;
 }
 
+async function markDirectReceived(ids) {
+  const list = (Array.isArray(ids) ? ids : String(ids || '').split(',')).map((v) => String(v || '').trim()).filter(Boolean);
+  if (!list.length) return;
+  const ships = (snapshot?.shipments || []).filter((shipment) => list.includes(String(shipment.id)));
+  const total = ships.reduce((sum, shipment) => sum + Number(shipment.totalQuantity || 0), 0);
+  const lines = ships.flatMap((shipment) => (shipment.items || []).map((item) => String(item.material || '') + ' ' + fmt(item.quantity || 0) + ' 件'));
+  if (!window.confirm('确认以下货客户已经直接入库、不用我方开送货单吗？\n\n' + (lines.length ? lines.join('\n') : list.join('、')) + '\n\n标记后：合计 ' + fmt(total) + ' 件仍计入已交，未交不会恢复；只是不生成送货单。')) return;
+  const result = await callRpc('board_mark_direct_received', { p_code: getAccessCode(), p_shipment_ids: list, p_note: '客户已入库，免开送货单' });
+  if (!result.response.ok) { showToast(result.data?.message || '标记失败', 7000); return; }
+  auxiliaryLoadedAt = 0;
+  await loadState({ quiet: true });
+  renderAll();
+  showToast('客户已入库已登记：' + fmt(total) + ' 件已计入已交，未交已扣减，无需开送货单', 12000);
+}
+async function unmarkDirectReceived(ids) {
+  const list = (Array.isArray(ids) ? ids : String(ids || '').split(',')).map((v) => String(v || '').trim()).filter(Boolean);
+  if (!list.length) return;
+  if (!window.confirm('撤销“客户已入库”标记吗？撤销后会重新显示为未开单发货。')) return;
+  const result = await callRpc('board_unmark_direct_received', { p_code: getAccessCode(), p_shipment_ids: list });
+  if (!result.response.ok) { showToast(result.data?.message || '撤销失败', 7000); return; }
+  auxiliaryLoadedAt = 0;
+  await loadState({ quiet: true });
+  renderAll();
+  showToast('已撤销客户入库标记');
+}
+
 async function undoShipment(id) {
   const shipmentRow = snapshot && snapshot.shipments.find((row) => String(row.id) === String(id));
   if (isBilledShipment(id)) { showToast('这笔发货已经开送货单并上传云端，不能撤回'); return; }
@@ -11433,10 +11952,18 @@ const workTimeEditModalEl = document.getElementById('workTimeEditModal');
 if (workTimeEditModalEl) workTimeEditModalEl.addEventListener('click', (event) => { if (event.target === workTimeEditModalEl) closeWorkTimeEdit(); });
 if (els.desktopWorkReportStatus) els.desktopWorkReportStatus.addEventListener('change', (event) => { workReportStatus = event.target.value; loadWorkReport(); });
 if (els.mobileWorkReportStatus) els.mobileWorkReportStatus.addEventListener('change', (event) => { workReportStatus = event.target.value; loadWorkReport(); });
-if (els.desktopWorkReportSearch) els.desktopWorkReportSearch.addEventListener('input', (event) => { workReportQuery = event.target.value; loadWorkReport(); });
-if (els.mobileWorkReportSearch) els.mobileWorkReportSearch.addEventListener('input', (event) => { workReportQuery = event.target.value; loadWorkReport(); });
-if (els.desktopWorkReportRefresh) els.desktopWorkReportRefresh.addEventListener('click', loadWorkReportWorkspace);
-if (els.mobileWorkReportRefresh) els.mobileWorkReportRefresh.addEventListener('click', loadWorkReportWorkspace);
+if (els.desktopWorkReportSearch) els.desktopWorkReportSearch.addEventListener('input', (event) => {
+  workReportQuery = event.target.value;
+  clearTimeout(workReportSearchTimer);
+  workReportSearchTimer = setTimeout(() => loadWorkReport().catch(() => {}), 320);
+});
+if (els.mobileWorkReportSearch) els.mobileWorkReportSearch.addEventListener('input', (event) => {
+  workReportQuery = event.target.value;
+  clearTimeout(workReportSearchTimer);
+  workReportSearchTimer = setTimeout(() => loadWorkReport().catch(() => {}), 320);
+});
+if (els.desktopWorkReportRefresh) els.desktopWorkReportRefresh.addEventListener('click', () => loadWorkReportWorkspace(true));
+if (els.mobileWorkReportRefresh) els.mobileWorkReportRefresh.addEventListener('click', () => loadWorkReportWorkspace(true));
 [els.desktopWorkLiveBody, els.mobileWorkLiveList].forEach((list) => {
   if (!list) return;
   list.addEventListener('click', (event) => {
@@ -11471,6 +11998,7 @@ document.querySelectorAll('[data-mobile-work-tab]').forEach((button) => button.a
   if (!input) return;
   input.addEventListener('change', (event) => {
     workEditDate = event.target.value || todayShanghai();
+    workReportDate = workEditDate;
     syncWorkEditControls();
     loadWorkEdit(true).catch(() => {});
   });
@@ -11500,7 +12028,31 @@ if (workEditLogRefreshButton) workEditLogRefreshButton.addEventListener('click',
 document.addEventListener('click', (event) => {
   const target = event.target;
   if (!target || !target.closest) return;
-  const addButton = target.closest('[data-work-edit-add]');
+  const dailyRefresh = target.closest('[data-work-daily-refresh]');
+  if (dailyRefresh) { loadWorkDailyRecords(true).catch(() => {}); return; }
+  const dailyPick = target.closest('[data-work-daily-pick]');
+  if (dailyPick) {
+    workEditEmployeeId = dailyPick.dataset.workDailyPick || '';
+    workReportEmployeeId = workEditEmployeeId;
+    workEditDate = workDailyDate || workReportDate || todayShanghai();
+    workEditTimers = [];
+    workEditPieces = [];
+    workEditLogs = [];
+    workEditMonthClosed = false;
+    workEditHistory = null;
+    workEditHistoryEmployeeId = '';
+    workEditLoadedKey = '';
+    syncWorkEditControls();
+    if (document.body.dataset.view === 'mobile') {
+      mobileWorkTab = 'edit';
+      switchMobileModule('workReview');
+      switchMobileWorkTab('edit');
+    } else {
+      showDesktopView('workEdit');
+    }
+    loadWorkEdit(true).catch(() => {});
+    return;
+  }  const addButton = target.closest('[data-work-edit-add]');
   if (addButton) { openWorkEditEditor(addButton.dataset.workEditAdd); return; }
   const editTimer = target.closest('[data-work-edit-time]');
   if (editTimer) { openWorkEditEditor('time', editTimer.dataset.workEditTime); return; }
@@ -11537,8 +12089,8 @@ const workEntryEditMaterialInput = document.getElementById('workEntryEditMateria
 if (workEntryEditMaterialInput) workEntryEditMaterialInput.addEventListener('input', scheduleWorkEditProductSearch);
 if (els.desktopWorkReviewStatus) els.desktopWorkReviewStatus.addEventListener('change', (event) => loadWorkReviews(event.target.value));
 if (els.mobileWorkReviewStatus) els.mobileWorkReviewStatus.addEventListener('change', (event) => loadWorkReviews(event.target.value));
-if (els.desktopWorkReviewRefresh) els.desktopWorkReviewRefresh.addEventListener('click', () => loadWorkReviews(workReviewStatus));
-if (els.mobileWorkReviewRefresh) els.mobileWorkReviewRefresh.addEventListener('click', () => loadWorkReviews(workReviewStatus));
+if (els.desktopWorkReviewRefresh) els.desktopWorkReviewRefresh.addEventListener('click', () => loadWorkReviews(workReviewStatus, true));
+if (els.mobileWorkReviewRefresh) els.mobileWorkReviewRefresh.addEventListener('click', () => loadWorkReviews(workReviewStatus, true));
 [els.desktopWorkReviewList, els.mobileWorkReviewList].forEach((list) => {
   if (!list) return;
   list.addEventListener('click', (event) => {
@@ -11997,7 +12549,8 @@ if (els.labelPrintRows) {
 if (els.labelPrintSelectAll) {
   els.labelPrintSelectAll.addEventListener('change', (event) => {
     const checked = Boolean(event.target.checked);
-    labelRows.filter((row) => labelRowVisibleInMode(row)).forEach((row) => { row.selected = checked; });
+    visibleLabelEntries().forEach(({ row }) => { row.selected = checked; });
+    persistLabelDraftRows();
     renderLabelRows();
   });
 }
@@ -12010,14 +12563,17 @@ if (els.labelPrintModes) {
 }
 if (els.labelPrintShowPrinted) {
   els.labelPrintShowPrinted.addEventListener('change', () => {
-    labelRows = buildLabelRows();
+    renderLabelRows();
+  });
+}
+if (els.labelPrintShowRemoved) {
+  els.labelPrintShowRemoved.addEventListener('change', () => {
     renderLabelRows();
   });
 }
 if (els.labelPrintSearch) {
   els.labelPrintSearch.addEventListener('input', (event) => {
     labelPrintSearch = event.target.value;
-    labelRows = buildLabelRows();
     renderLabelRows();
   });
 }
@@ -12224,14 +12780,26 @@ function renderDrawingPreview(id) {
   const empty = document.getElementById('drawingPreviewEmpty');
   const title = document.getElementById('drawingPreviewTitle');
   const open = document.getElementById('drawingPreviewOpen');
-  const url = drawingPreviewUrl(drawing);
+  const thumb = drawingPreviewThumbUrl(drawing);
+  const full = drawingPreviewUrl(drawing);
+  const url = thumb || full;
   if (title) title.textContent = `${drawing.material || ''} · ${drawing.name || '图纸'}${drawing.spec ? ' · ' + drawing.spec : ''}`;
   if (open) open.disabled = false;
   if (!url || !image) { if (empty) empty.hidden = false; return; }
   image.hidden = false;
   if (empty) empty.hidden = true;
-  image.onerror = () => { image.hidden = true; if (empty) { empty.hidden = false; empty.textContent = '缩略图暂不可用，请点击“查看图纸”'; } };
+  image.dataset.fallback = '';
+  image.onerror = () => {
+    if (thumb && !image.dataset.fallback && full) { image.dataset.fallback = '1'; image.src = full; return; }
+    image.hidden = true; if (empty) { empty.hidden = false; empty.textContent = '缩略图暂不可用，请点击“查看图纸”'; }
+  };
   image.src = url;
+  // 万一分栏没有吸顶（老浏览器/窗口太矮），点预览时把预览面板带到视线内
+  const pane = document.getElementById('drawingPreviewPane');
+  if (pane) {
+    const rect = pane.getBoundingClientRect();
+    if (rect.bottom < 80 || rect.top > window.innerHeight - 80) pane.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 document.getElementById('drawingPreviewOpen')?.addEventListener('click', () => { if (previewDrawingId) openDrawing(previewDrawingId); });
 document.addEventListener('click', (event) => {
@@ -12779,6 +13347,12 @@ if (isMobileBoardView()) {
   if ('requestIdleCallback' in window) requestIdleCallback(warmDrawingPreview, { timeout: 2500 });
   else setTimeout(warmDrawingPreview, 1200);
 }
+document.addEventListener('click', (event) => {
+  const mark = event.target.closest('[data-direct-received]');
+  if (mark) { event.preventDefault(); void markDirectReceived(mark.dataset.directReceived); return; }
+  const undo = event.target.closest('[data-undo-direct]');
+  if (undo) { event.preventDefault(); void unmarkDirectReceived(undo.dataset.undoDirect); return; }
+});
 connectEvents();
 startVersionWatch();
 if (els.printHelperStatus) els.printHelperStatus.addEventListener('click', () => void checkPrintHelper(true));

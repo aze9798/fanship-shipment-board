@@ -18,6 +18,7 @@
   const DEFECTS = ['尺寸不对','焊缝缺陷','涂层不良','镀层不良','生锈','材质不对','来料变形','划伤','孔位偏差','数量不对'];
 
   const S = { tab: 'open', list: [], ov: null, loaded: false, err: '', q: '' };
+  const CACHE_KEY = 'shipmentBoardQualityCacheV1';
 
   const $ = (s) => document.querySelector(s);
   const num = (n) => Number(n || 0).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
@@ -53,12 +54,35 @@
     } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
   }
 
+  function previewFromDashboard() {
+    try {
+      const own = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+      if (own && own.tab === S.tab && Date.now() - Number(own.savedAt || 0) < 2 * 60 * 60 * 1000 && own.ov && Array.isArray(own.list)) {
+        S.ov = own.ov; S.list = own.list; S.loaded = true; S.err = '';
+        render();
+        return true;
+      }
+      const live = window.__tkData;
+      if (live && live.ql && Array.isArray(live.qlList)) {
+        const rows = live.qlList.filter((row) => S.tab === 'open' ? row.status === 'open' : S.tab === 'closed' ? row.status === 'closed' : true);
+        S.ov = live.ql; S.list = rows; S.loaded = true; S.err = '';
+        render();
+        return true;
+      }      const cached = JSON.parse(localStorage.getItem('shipmentBoardDashboardCacheV2') || 'null');
+      const d = cached && Date.now() - Number(cached.savedAt || 0) < 2 * 60 * 60 * 1000 ? cached.data : null;
+      if (!d || !d.ql || !Array.isArray(d.qlList)) return false;
+      const rows = d.qlList.filter((row) => S.tab === 'open' ? row.status === 'open' : S.tab === 'closed' ? row.status === 'closed' : true);
+      S.ov = d.ql; S.list = rows; S.loaded = true; S.err = '';
+      render();
+      return true;
+    } catch { return false; }
+  }
   function showMine() {
     document.querySelectorAll('.desktop-view').forEach((v) => { v.hidden = v.id !== 'desktopQualityView'; });
     document.querySelectorAll('[data-desktop-view]').forEach((l) =>
       l.classList.toggle('active', l.dataset.desktopView === VIEW));
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    if (!S.loaded) load(true);
+    if (!S.loaded) { previewFromDashboard(); load(true); }
   }
   function hideMine() { const v = document.getElementById('desktopQualityView'); if (v) v.hidden = true; }
 
@@ -78,7 +102,10 @@
         : (String(e.error).includes('本地模式') ? '本地演示模式读不到云端接口。质量模块要在云端管理端使用。'
           : ('读取失败：' + e.error));
       S.list = []; S.ov = null; S.loaded = false;
-    } else { S.err = ''; S.loaded = true; S.ov = ov.data; S.list = Array.isArray(list.data) ? list.data : []; }
+    } else {
+      S.err = ''; S.loaded = true; S.ov = ov.data; S.list = Array.isArray(list.data) ? list.data : [];
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ savedAt: Date.now(), tab: S.tab, ov: S.ov, list: S.list })); } catch { }
+    }
     render();
   }
 

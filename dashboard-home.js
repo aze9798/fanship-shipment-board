@@ -21,6 +21,43 @@
   let workErr = false, attErr = false, osErr = false;
   let lastFetch = 0, timer = 0, inflight = false, stateAt = 0, modulesTried = false;
   let duePicks = new Set();   // 未交明细小板块的交期多选（空 = 全部）
+  const DASH_CACHE_KEY = 'shipmentBoardDashboardCacheV2';
+  let dashboardCacheLoaded = false;
+  function readDashboardCache() {
+    try {
+      const cached = JSON.parse(localStorage.getItem(DASH_CACHE_KEY) || 'null');
+      if (!cached || !cached.data || Date.now() - Number(cached.savedAt || 0) > 2 * 60 * 60 * 1000) return null;
+      return cached;
+    } catch { return null; }
+  }
+  function saveDashboardCache() {
+    if (!isAdmin()) return;
+    try {
+      localStorage.setItem(DASH_CACHE_KEY, JSON.stringify({
+        savedAt: Date.now(),
+        data: { os, inv, pur, ql, osList, puList, qlList, work, att, workDate: String(state?.today || '').slice(0, 10) }
+      }));
+    } catch { }
+  }
+  function applyDashboardCache() {
+    if (dashboardCacheLoaded) return false;
+    dashboardCacheLoaded = true;
+    const cached = readDashboardCache();
+    if (!cached) return false;
+    const d = cached.data || {};
+    os = d.os || null; inv = d.inv || null; pur = d.pur || null; ql = d.ql || null;
+    osList = Array.isArray(d.osList) ? d.osList : [];
+    puList = Array.isArray(d.puList) ? d.puList : [];
+    qlList = Array.isArray(d.qlList) ? d.qlList : [];
+    work = d.work || null; att = d.att || null;
+    workErr = false; attErr = false; osErr = !os; modulesTried = true;
+    if (work) {
+      const workDate = String(d.workDate || '').slice(0, 10) || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' });
+      window.__tkWorkCache = { date: workDate, report: work.report || null, liveRows: work.live || null, at: cached.savedAt };
+    }
+    render();
+    return true;
+  }
 
   const $ = (s) => document.querySelector(s);
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) =>
@@ -480,7 +517,7 @@
     let workBlock = '';
     if (isAdmin()) {
       if (!w) {
-        workBlock = `<div class="tk-dash-sec">${secHead('今日报工（计时 / 计件）', workErr ? '读不到' : '读取中…', 'workReport')}<div class="tk-empty">${workErr ? '要连云端管理端才读得到报工数据（本地演示模式没有这个接口）。点右上角「查看」可打开报工情况页。' : '正在读取报工数据…'}</div></div>`;
+        workBlock = `<div class="tk-dash-sec tk-dash-work">${secHead('今日报工（计时 / 计件）', workErr ? '读不到' : '读取中…', 'workReport')}<div class="tk-empty">${workErr ? '要连云端管理端才读得到报工数据（本地演示模式没有这个接口）。点右上角「查看」可打开报工情况页。' : '正在读取报工数据…'}</div></div>`;
       } else {
         const entryRows = w.entries.length
           ? w.entries.slice(0, 6).map((e) => `<div class="tk-li is-static">
@@ -496,7 +533,7 @@
               <b class="hot">${hm(r.activeTimer.minutes)}</b>
             </div>`).join('')
           : '<div class="tk-empty">现在没有人正在计时</div>';
-        workBlock = `<div class="tk-dash-sec">
+        workBlock = `<div class="tk-dash-sec tk-dash-work">
           ${secHead('今日报工（计时 / 计件）', `${w.entriesCount} 笔 · ${num(w.quantity)} 件 · ¥${num(w.amount)}`, 'workReport')}
           <div class="tk-stats four" style="margin-bottom:12px">
             ${stat({ label: '报工笔数', value: w.entriesCount, unit: '笔' })}
@@ -516,7 +553,7 @@
     let attBlock = '';
     if (isAdmin()) {
       if (!a) {
-        attBlock = `<div class="tk-dash-sec">${secHead('今日考勤', attErr ? '读不到' : '读取中…', 'attendance')}<div class="tk-empty">${attErr ? '要连云端管理端才读得到考勤数据（本地演示模式没有这个接口）。点右上角「查看」可打开考勤管理页。' : '正在读取考勤数据…'}</div></div>`;
+        attBlock = `<div class="tk-dash-sec tk-dash-att">${secHead('今日考勤', attErr ? '读不到' : '读取中…', 'attendance')}<div class="tk-empty">${attErr ? '要连云端管理端才读得到考勤数据（本地演示模式没有这个接口）。点右上角「查看」可打开考勤管理页。' : '正在读取考勤数据…'}</div></div>`;
       } else {
         const badRows = a.bad.length
           ? a.bad.map((r) => `<div class="tk-li is-static">
@@ -529,7 +566,7 @@
               ].filter(Boolean).join(' · ')}</b>
             </div>`).join('')
           : '<div class="tk-empty">本月没有考勤异常</div>';
-        attBlock = `<div class="tk-dash-sec">
+        attBlock = `<div class="tk-dash-sec tk-dash-att">
           ${secHead('今日考勤', `在岗 ${w ? w.onDuty.length : '—'} 人 · 计时中 ${w ? w.counting.length : '—'} 人`, 'attendance')}
           <div class="tk-stats four" style="margin-bottom:12px">
             ${stat({ label: '在职员工', value: a.headcount, unit: '人' })}
@@ -576,7 +613,7 @@
     window.__tkData = {
       orders: c.open,
       shipments: (state && Array.isArray(state.shipments)) ? state.shipments : [],
-      osList, puList, qlList
+      os, inv, pur, ql, osList, puList, qlList
     };
 
     box.innerHTML = `
@@ -589,7 +626,7 @@
       </div>
 
       <div class="tk-dash-2col${(workBlock && attBlock) ? '' : ' is-single'}">
-        ${workBlock || (isAdmin() ? `<div class="tk-dash-sec">${secHead('未交总览', '口径：按订单项', 'remaining')}
+        ${workBlock || (isAdmin() ? `<div class="tk-dash-sec tk-dash-work">${secHead('未交总览', '口径：按订单项', 'remaining')}
           <div class="tk-stats four">
             ${stat({ label: '未交', value: num(c.open.length), unit: `行 · ${num(c.remainQty)} 件` })}
             ${stat({ label: '已发', value: num(c.shippedQty), unit: '件（累计）' })}
@@ -711,6 +748,7 @@
     if (!force && Date.now() - lastFetch < 5000) return;
     inflight = true; lastFetch = Date.now();
     try {
+      applyDashboardCache();
       /* 第 1 段：发货主数据
          ① 先用 app.js 写在本地的缓存**立刻**画一版（毫秒级，不占网络）
          ② 缓存超过 20 秒就走接口拿最新的，回来再覆盖一次 */
@@ -732,32 +770,33 @@
         return;
       }
 
-      render();   // 先把主体画出来（三个模块块这时显示「读取中」）
+      render();   // 先把主体画出来（模块、报工、考勤显示读取中占位）
 
-      /* 第 2 段：四个模块的汇总 + 列表 */
-      const [osRes, invRes, purRes, qlRes, osL, puL, qlL] = await Promise.all([
-        rpc('board_outsource_overview', {}),
-        rpc('board_inventory_overview', {}),
-        rpc('board_purchase_overview', {}),
-        rpc('board_quality_overview', {}),
-        rpc('board_outsource_list', { p_status: 'all' }),
-        rpc('board_purchase_list', { p_status: 'all' }),
-        rpc('board_quality_list', { p_status: 'all', p_days: 180 })
-      ]);
-      osList = (osL && osL.ok && Array.isArray(osL.data)) ? osL.data : [];
-      puList = (puL && puL.ok && Array.isArray(puL.data)) ? puL.data : [];
-      qlList = (qlL && qlL.ok && Array.isArray(qlL.data)) ? qlL.data : [];
-      pur = (purRes && purRes.ok) ? purRes.data : null;
-      ql = (qlRes && qlRes.ok) ? qlRes.data : null;
-      inv = (invRes && invRes.ok) ? invRes.data : null;
-      os = (osRes && osRes.ok) ? osRes.data : null;
-      osErr = !os;
-      modulesTried = true;
-      render();
-
-      /* 第 3 段：报工 / 考勤（只有管理员有权限） */
-      if (state) {
-        const today = String(state.today || '').slice(0, 10);
+      /* 第 2、3 段并发启动：先返回哪一组就先画哪一组，避免串行等待。 */
+      const today = String(state?.today || '').slice(0, 10) || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' });
+      const moduleTask = (async () => {
+        const [osRes, invRes, purRes, qlRes, osL, puL, qlL] = await Promise.all([
+          rpc('board_outsource_overview', {}),
+          rpc('board_inventory_overview', {}),
+          rpc('board_purchase_overview', {}),
+          rpc('board_quality_overview', {}),
+          rpc('board_outsource_list', { p_status: 'all' }),
+          rpc('board_purchase_list', { p_status: 'all' }),
+          rpc('board_quality_list', { p_status: 'all', p_days: 180 })
+        ]);
+        osList = (osL && osL.ok && Array.isArray(osL.data)) ? osL.data : [];
+        puList = (puL && puL.ok && Array.isArray(puL.data)) ? puL.data : [];
+        qlList = (qlL && qlL.ok && Array.isArray(qlL.data)) ? qlL.data : [];
+        pur = (purRes && purRes.ok) ? purRes.data : null;
+        ql = (qlRes && qlRes.ok) ? qlRes.data : null;
+        inv = (invRes && invRes.ok) ? invRes.data : null;
+        os = (osRes && osRes.ok) ? osRes.data : null;
+        osErr = !os;
+        modulesTried = true;
+        saveDashboardCache();
+        render();
+      })();
+      const workTask = (async () => {
         const { from, to } = monthBounds(today);
         const [rep, live, attRes] = await Promise.all([
           rpc('work_admin_report_list', { p_date: today, p_employee_id: null, p_status: 'all', p_query: '', p_limit: 500 }),
@@ -771,8 +810,16 @@
         att = (attRes && attRes.ok) ? attRes.data : null;
         workErr = !(hasRep && hasLive);
         attErr = !att;
+        saveDashboardCache();
+        window.__tkWorkCache = {
+          date: today,
+          report: hasRep ? rep.data : null,
+          liveRows: hasLive ? live.data.rows : null,
+          at: Date.now()
+        };
         render();
-      }
+      })();
+      await Promise.all([moduleTask, workTask]);
     } finally { inflight = false; }
   }
   function applyVisibility() {

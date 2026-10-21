@@ -15,6 +15,7 @@
   const VIEW = 'outsource';
   const S = { tab: 'open', list: [], ov: null, orders: [], loaded: false, err: '', busy: false };
   let poDocsCache = null;
+  const CACHE_KEY = 'shipmentBoardOutsourceCacheV1';
 
   const $ = (s) => document.querySelector(s);
   const num = (n) => Number(n || 0).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
@@ -52,6 +53,34 @@
     } catch (e) { return { ok: false, error: String(e.message || e) }; }
   }
 
+  function previewFromDashboard() {
+    try {
+      const own = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+      if (own && own.tab === S.tab && Date.now() - Number(own.savedAt || 0) < 2 * 60 * 60 * 1000 && own.ov && Array.isArray(own.list)) {
+        S.ov = own.ov; S.list = own.list; S.loaded = true; S.err = '';
+        render();
+        return true;
+      }
+      const live = window.__tkData;
+      if (live && live.os && Array.isArray(live.osList)) {
+        const rows = live.osList.filter((row) => S.tab === 'open'
+          ? row.status === 'issued' || row.status === 'partial'
+          : S.tab === 'closed' ? row.status === 'closed' || row.status === 'cancelled' : row.status === S.tab);
+        S.ov = live.os; S.list = rows; S.loaded = true; S.err = '';
+        render();
+        return true;
+      }      const cached = JSON.parse(localStorage.getItem('shipmentBoardDashboardCacheV2') || 'null');
+      const d = cached && Date.now() - Number(cached.savedAt || 0) < 2 * 60 * 60 * 1000 ? cached.data : null;
+      if (!d || !d.os || !Array.isArray(d.osList)) return false;
+      const rows = d.osList.filter((row) => S.tab === 'open'
+        ? row.status === 'issued' || row.status === 'partial'
+        : S.tab === 'closed' ? row.status === 'closed' || row.status === 'cancelled' : row.status === S.tab);
+      S.ov = d.os; S.list = rows; S.loaded = true; S.err = '';
+      render();
+      return true;
+    } catch { return false; }
+  }
+
   /* ---------------- 视图切换（自己管） ---------------- */
   function allViews() { return [...document.querySelectorAll('.desktop-view')]; }
   function showMine() {
@@ -59,7 +88,7 @@
     document.querySelectorAll('[data-desktop-view]').forEach((l) =>
       l.classList.toggle('active', l.dataset.desktopView === VIEW));
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    if (!S.loaded) load(true);
+    if (!S.loaded) { previewFromDashboard(); load(true); }
   }
   function hideMine() {
     const v = document.getElementById('desktopOutsourceView');
@@ -72,12 +101,13 @@
     const seq = ++loadSeq;   // 连点页签时，后发的请求为准，不再被吞
     S.busy = true;
     renderBanner('正在读取外协数据…');
-    const ov = await rpc('board_outsource_overview');
-    // 「已结单」页签要同时看已结单和已作废（SQL 里 all 排除了 cancelled，只能分开取再合并）
-    const lists = S.tab === 'closed'
-      ? await Promise.all([rpc('board_outsource_list', { p_status: 'closed' }),
-                           rpc('board_outsource_list', { p_status: 'cancelled' })])
-      : [await rpc('board_outsource_list', { p_status: S.tab === 'open' ? 'open' : S.tab })];
+    // 汇总和列表并发取，避免一个加载完再等另一个
+    const listsPromise = S.tab === 'closed'
+      ? Promise.all([rpc('board_outsource_list', { p_status: 'closed' }),
+                     rpc('board_outsource_list', { p_status: 'cancelled' })])
+      : rpc('board_outsource_list', { p_status: S.tab === 'open' ? 'open' : S.tab });
+    const [ov, listResult] = await Promise.all([rpc('board_outsource_overview'), listsPromise]);
+    const lists = Array.isArray(listResult) ? listResult : [listResult];
     if (seq !== loadSeq) return;   // 有更新的请求了，这次结果丢弃
     S.busy = false;
     const list = lists.every((x) => x.ok)
@@ -98,6 +128,7 @@
     }
     S.err = ''; S.loaded = true;
     S.ov = ov.data; S.list = Array.isArray(list.data) ? list.data : [];
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ savedAt: Date.now(), tab: S.tab, ov: S.ov, list: S.list })); } catch { }
     render();
   }
   async function loadOrders() {
