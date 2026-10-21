@@ -2925,9 +2925,11 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 #desktopRemainingView .label-print-button { white-space: nowrap; }
 .label-print-card {
   width: min(1080px, calc(100vw - 48px));
-  max-height: calc(100vh - 80px);
+  height: min(920px, calc(100dvh - 36px));
+  max-height: none;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .label-print-tip {
   margin: 0 0 12px;
@@ -2963,9 +2965,10 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .label-print-all { display: inline-flex; align-items: center; gap: 6px; color: #47636b; font-size: 12px; font-weight: 700; }
 .label-print-summary { color: #0f766e; font-size: 12px; font-weight: 800; }
 .label-print-table-wrap {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 1 1 0;
+  min-height: 120px;
   overflow: auto;
+  overscroll-behavior: contain;
   border: 1px solid #e2ecea;
   border-radius: 12px;
 }
@@ -3825,10 +3828,11 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 
 /* 标签弹窗底部操作区：始终固定可见，避免列表长时确认按钮被滚出视野 */
 .label-print-actions {
-  position: sticky;
-  bottom: 0;
+  position: relative;
   z-index: 5;
+  flex: 0 0 auto;
   flex-shrink: 0;
+  margin-top: 10px;
   padding: 10px 0 2px;
   border-top: 1px solid #e5efed;
   background: #fff;
