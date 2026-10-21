@@ -7699,13 +7699,14 @@ function orderMetaFor(orderId, fallback = {}, lookup = null) {
     material: String(order?.material || fallback.material || '').trim(),
     name: String(order?.name || fallback.name || '').trim(),
     spec: String(order?.spec || fallback.spec || '').trim(),
+    company: String(order?.customer || fallback.customer || '').trim(),
   };
 }
 
 function orderMetaSearchText(orderId, fallback = {}, lookup = null) {
   const meta = orderMetaFor(orderId, fallback, lookup);
   // 只匹配可见的编号/品名信息；字段用 | 分隔，避免跨字段拼出假匹配（如 0717+22 -> 1722）
-  return [meta.po, meta.seq, meta.material, meta.name, meta.spec].join('|').toLowerCase();
+  return [meta.po, meta.seq, meta.material, meta.name, meta.spec, meta.company].join('|').toLowerCase();
 }
 
 function normalizeSearchText(value) {
@@ -7961,6 +7962,26 @@ function mergedShipmentsByDate(shipments) {
   return [...map.values()].sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0));
 }
 
+function shipmentCompanyBreakdown(shipment, lookup = null) {
+  const source = lookup || orderLookupMap();
+  const totals = new Map();
+  for (const line of shipment?.items || []) {
+    const meta = orderMetaFor(line.orderId, line, source);
+    const code = String(meta.company || '').trim();
+    if (!['4074', '4137'].includes(code)) continue;
+    totals.set(code, (totals.get(code) || 0) + Number(line.quantity || 0));
+  }
+  return [...totals.entries()].map(([code, qty]) => `${code} ${fmt(qty)}件`).join(' · ');
+}
+
+function orderCompanyBadge(meta) {
+  const code = String(meta?.company || '').trim();
+  if (!code) return '';
+  const known = ['4074', '4137'].includes(code);
+  const cls = known ? `is-${code}` : 'is-unmarked';
+  return `<span class="history-company-badge ${cls}" title="${escapeHtml(companyName(code))}">${escapeHtml(code)}</span>`;
+}
+
 function renderHistoryCards(shipments) {
   if (!shipments.length) return '<div class="empty-state"><strong>没有符合条件的发货记录</strong><span>换个日期或清空搜索词再试。</span></div>';
   const orderLookup = orderLookupMap();
@@ -7981,18 +8002,20 @@ function renderHistoryCards(shipments) {
       return (!text || text === '未填写' || text === '-') ? fallbackLabel : text;
     };
     const vehicleLabel = label(shipment.vehicle);
+    const companyBreakdown = shipmentCompanyBreakdown(shipment, orderLookup);
     return `
     <article class="history-card">
       <div class="history-head">
         <strong>${escapeHtml(vehicleLabel)}</strong>
         <span>${escapeHtml(stamp)}</span>
       </div>
+      ${companyBreakdown ? `<div class="history-company-summary">公司归属：${escapeHtml(companyBreakdown)}</div>` : ''}
       <div class="history-lines">
         ${shown.map((line) => {
           const meta = orderMetaFor(line.orderId, line, orderLookup);
           return `<div class="history-line history-line-rich">
             <div class="history-line-main"><span><b>${escapeHtml(line.material)}</b> ${escapeHtml(line.name || '')}${line.spec ? ' · ' + escapeHtml(line.spec) : ''}</span><strong>本次 ${fmt(line.quantity)} 件</strong></div>
-            <div class="history-line-meta"><span>采购单号：${escapeHtml(meta.po || '无')}</span><span>项次：${escapeHtml(meta.seq || '无')}</span><span>订单量：${fmt(meta.orderQty)}</span><span>已发：${fmt(meta.shipped)}</span><span>未交：${fmt(meta.remaining)}</span></div>
+            <div class="history-line-meta">${orderCompanyBadge(meta)}<span>采购单号：${escapeHtml(meta.po || '无')}</span><span>项次：${escapeHtml(meta.seq || '无')}</span><span>订单量：${fmt(meta.orderQty)}</span><span>已发：${fmt(meta.shipped)}</span><span>未交：${fmt(meta.remaining)}</span></div>
           </div>`;
         }).join('')}
       </div>
