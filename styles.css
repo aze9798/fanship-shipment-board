@@ -3861,3 +3861,133 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 @media (max-width: 900px) {
   .work-daily-panel .section-head { align-items: stretch; flex-direction: column; }
 }
+
+/* 手机端装车卡片：操作框统一尺寸与基线 */
+@media (max-width: 900px) {
+  .mobile-order-list .order-card .card-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+  }
+  .mobile-order-list .order-card .card-actions > * {
+    flex: 1 1 0;
+    width: 0;
+    min-width: 0;
+    min-height: 42px;
+    height: auto;
+    margin: 0;
+    padding: 5px 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #b9dcd6;
+    border-radius: 9px;
+    background: #eefaf8;
+    color: #0f766e;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.3;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .mobile-order-list .order-card .card-actions .order-edit-link,
+  .mobile-order-list .order-card .card-actions .photo-open {
+    margin: 0;
+    width: 0;
+  }
+  .mobile-order-list .order-card .card-actions .material-total {
+    flex-wrap: wrap;
+    gap: 1px 4px;
+  }
+  .mobile-order-list .order-card .card-actions .material-total span {
+    min-width: 0;
+  }
+  .mobile-order-list .order-card .card-actions .material-total b {
+    white-space: nowrap;
+  }
+  .mobile-order-list .order-card .card-actions .photo-open.has-photo {
+    border-color: #a6d9a2;
+    background: #eff9eb;
+    color: #167044;
+  }
+}
+
+
+/* 手机端现场作业可读性与安全区统一 */
+@media (max-width: 900px) {
+  body[data-view="mobile"] .mobile-head {
+    padding-top: calc(14px + env(safe-area-inset-top, 0px));
+  }
+  body[data-view="mobile"] .mobile-view {
+    padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+  }
+  body[data-view="mobile"] .icon-button {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+  }
+  body[data-view="mobile"] .mobile-tab {
+    min-height: 44px;
+    font-size: 12px;
+    font-weight: 800;
+  }
+  body[data-view="mobile"] #mobileFilters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    overflow: visible;
+  }
+  body[data-view="mobile"] #mobileFilters .chip {
+    width: 100%;
+    min-height: 44px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+  body[data-view="mobile"] .order-title strong {
+    font-size: 15px;
+  }
+  body[data-view="mobile"] .order-title span {
+    color: #5b7379;
+    font-size: 11px;
+  }
+  body[data-view="mobile"] .due-badge {
+    min-height: 25px;
+    font-size: 11px;
+  }
+  body[data-view="mobile"] .order-number span {
+    color: #4e666c;
+    font-size: 12px;
+  }
+  body[data-view="mobile"] .order-number strong {
+    margin-top: 4px;
+    font-size: 19px;
+  }
+  body[data-view="mobile"] .order-card .card-actions > * {
+    min-height: 44px;
+    padding: 5px 5px;
+    font-size: 12px;
+  }
+  body[data-view="mobile"] .order-card .card-actions .material-total {
+    padding: 5px;
+  }
+  body[data-view="mobile"] .qty-stepper {
+    height: 44px;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+  }
+  body[data-view="mobile"] .fill-button {
+    height: 44px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+  body[data-view="mobile"] .selected-tag {
+    font-size: 10px;
+  }
+  body[data-view="mobile"] .mobile-cart-bar span {
+    color: #5c747a;
+    font-size: 11px;
+  }
+}

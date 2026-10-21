@@ -333,13 +333,22 @@ body[data-theme="ui"] ::-webkit-scrollbar-thumb:hover , body[data-theme="warm"] 
    既赢得下优先级，又把范围圈死在真正的输入控件上
    （不碰复选框、单选框、文件框、数量步进器）。 */
 body[data-theme="ui"] #app :is(
-  .search-box input, body[data-theme="warm"] #app :is(
-  .search-box input, .select-box select, .select-box input,
-  .toolbar input, .toolbar select,
+  .select-box select, .select-box input,
+  .toolbar input:not([type="search"]), .toolbar select,
   .history-tools input, .history-tools select,
-  .remaining-tools input, .desktop-remaining-tools input, .desktop-remaining-tools select,
+  .remaining-tools input:not(.search-box input):not(.mobile-search input), .desktop-remaining-tools input:not(.search-box input), .desktop-remaining-tools select,
   .loading-control input, .report-search-field input,
-  input[type="search"], input[type="date"].tk-date, input[type="month"]
+  input[type="search"]:not(.search-box input):not(.mobile-search input):not(.drawing-search input):not(#replacementSearch),
+  input[type="date"].tk-date, input[type="month"]
+),
+body[data-theme="warm"] #app :is(
+  .select-box select, .select-box input,
+  .toolbar input:not([type="search"]), .toolbar select,
+  .history-tools input, .history-tools select,
+  .remaining-tools input:not(.search-box input):not(.mobile-search input), .desktop-remaining-tools input:not(.search-box input), .desktop-remaining-tools select,
+  .loading-control input, .report-search-field input,
+  input[type="search"]:not(.search-box input):not(.mobile-search input):not(.drawing-search input):not(#replacementSearch),
+  input[type="date"].tk-date, input[type="month"]
 ) {
   background: #f5f5f5 !important;
   border: 1px solid transparent !important;
@@ -348,20 +357,40 @@ body[data-theme="ui"] #app :is(
   box-shadow: none !important;
 }
 body[data-theme="ui"] #app :is(
-  .search-box input, body[data-theme="warm"] #app :is(
-  .search-box input, .select-box select, .select-box input,
-  .toolbar input, .toolbar select, .history-tools input, .history-tools select,
-  .remaining-tools input, .desktop-remaining-tools input, .desktop-remaining-tools select,
+  .select-box select, .select-box input,
+  .toolbar input:not([type="search"]), .toolbar select,
+  .history-tools input, .history-tools select,
+  .remaining-tools input:not(.search-box input):not(.mobile-search input), .desktop-remaining-tools input:not(.search-box input), .desktop-remaining-tools select,
   .loading-control input, .report-search-field input,
-  input[type="search"], input[type="date"].tk-date, input[type="month"]
+  input[type="search"]:not(.search-box input):not(.mobile-search input):not(.drawing-search input):not(#replacementSearch),
+  input[type="date"].tk-date, input[type="month"]
+):hover,
+body[data-theme="warm"] #app :is(
+  .select-box select, .select-box input,
+  .toolbar input:not([type="search"]), .toolbar select,
+  .history-tools input, .history-tools select,
+  .remaining-tools input:not(.search-box input):not(.mobile-search input), .desktop-remaining-tools input:not(.search-box input), .desktop-remaining-tools select,
+  .loading-control input, .report-search-field input,
+  input[type="search"]:not(.search-box input):not(.mobile-search input):not(.drawing-search input):not(#replacementSearch),
+  input[type="date"].tk-date, input[type="month"]
 ):hover { background: #ececec !important; }
 body[data-theme="ui"] #app :is(
-  .search-box input, body[data-theme="warm"] #app :is(
-  .search-box input, .select-box select, .select-box input,
-  .toolbar input, .toolbar select, .history-tools input, .history-tools select,
-  .remaining-tools input, .desktop-remaining-tools input, .desktop-remaining-tools select,
+  .select-box select, .select-box input,
+  .toolbar input:not([type="search"]), .toolbar select,
+  .history-tools input, .history-tools select,
+  .remaining-tools input:not(.search-box input):not(.mobile-search input), .desktop-remaining-tools input:not(.search-box input), .desktop-remaining-tools select,
   .loading-control input, .report-search-field input,
-  input[type="search"], input[type="date"].tk-date, input[type="month"]
+  input[type="search"]:not(.search-box input):not(.mobile-search input):not(.drawing-search input):not(#replacementSearch),
+  input[type="date"].tk-date, input[type="month"]
+):focus,
+body[data-theme="warm"] #app :is(
+  .select-box select, .select-box input,
+  .toolbar input:not([type="search"]), .toolbar select,
+  .history-tools input, .history-tools select,
+  .remaining-tools input:not(.search-box input):not(.mobile-search input), .desktop-remaining-tools input:not(.search-box input), .desktop-remaining-tools select,
+  .loading-control input, .report-search-field input,
+  input[type="search"]:not(.search-box input):not(.mobile-search input):not(.drawing-search input):not(#replacementSearch),
+  input[type="date"].tk-date, input[type="month"]
 ):focus {
   background: #ffffff !important;
   border-color: var(--line) !important;
@@ -487,3 +516,45 @@ body[data-theme="dark"] .tk-acts .primary { color: #06201c; }
 body[data-theme="dark"] .os-modal,
 body[data-theme="dark"] .pt-modal,
 body[data-theme="dark"] .modal-card { background: var(--surface); color: var(--ink); }
+/* ============================================================
+   2026-10-21：搜索框只保留一层边框
+   search-box / mobile-search / drawing-search / select-box 外层负责边框和底色，
+   内部 input / select 必须完全透明；聚焦高亮也只作用在外层。
+   ============================================================ */
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .select-box) > :is(input, select),
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .select-box) > :is(input, select) {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .select-box) > :is(input, select):hover,
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .select-box) > :is(input, select):hover,
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .select-box) > :is(input, select):focus,
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .select-box) > :is(input, select):focus {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .select-box):focus-within,
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .select-box):focus-within {
+  border-color: #75bdb3 !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, .09) !important;
+}
+/* 补发区是表单容器，不再是“搜索大框”；搜索输入改成轻量底线。 */
+body[data-theme="ui"] #app .replacement-box > #replacementSearch,
+body[data-theme="warm"] #app .replacement-box > #replacementSearch,
+body[data-theme="ui"] #app .replacement-box > #replacementSearch:hover,
+body[data-theme="warm"] #app .replacement-box > #replacementSearch:hover,
+body[data-theme="ui"] #app .replacement-box > #replacementSearch:focus,
+body[data-theme="warm"] #app .replacement-box > #replacementSearch:focus {
+  border: 0 !important;
+  border-bottom: 1px solid #c7d9df !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding-left: 2px !important;
+  padding-right: 2px !important;
+}
