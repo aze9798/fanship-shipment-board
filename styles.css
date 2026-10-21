@@ -1532,7 +1532,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .drawings-panel {
   position: relative;
   padding: 18px 20px 20px;
-  overflow: hidden;
+  overflow: visible;
   border-color: #e2eceb;
   border-radius: 18px;
   background:
@@ -2120,7 +2120,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
   --radius-sm: 11px;
 }
 
-html { background: #edf2f1; }
+html { background: #edf2f1; scrollbar-gutter: stable; }
 body {
   background:
     radial-gradient(circle at 86% 8%, rgba(13, 113, 104, .075), transparent 26%),

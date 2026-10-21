@@ -4010,12 +4010,29 @@ function drawingFor(order) {
     || null;
 }
 
+// 图纸存储地址：优先直连 Supabase（更快，PDF 是 inline），腾讯中转只作兜底（会强制下载）
+const SUPABASE_STORAGE_ORIGIN = 'https://dkbeigqtiilgxthwkixg.supabase.co';
+
+function relayOrigin() {
+  return String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
+}
+
+function storageObjectUrl(origin, storagePath) {
+  const path = String(storagePath || '').trim();
+  if (!origin || !path) return '';
+  return `${String(origin).replace(/\/+$/, '')}/storage/v1/object/public/product-drawings/${path.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+function drawingDirectUrl(drawing) {
+  return storageObjectUrl(SUPABASE_STORAGE_ORIGIN, drawing?.storagePath);
+}
+
+function drawingRelayUrl(drawing) {
+  return storageObjectUrl(relayOrigin(), drawing?.storagePath);
+}
+
 function drawingPublicUrl(drawing) {
-  const storagePath = String(drawing?.storagePath || '').trim();
-  if (!storagePath) return '';
-  const origin = String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
-  if (!origin) return '';
-  return `${origin}/storage/v1/object/public/product-drawings/${storagePath.split('/').map(encodeURIComponent).join('/')}`;
+  return drawingDirectUrl(drawing) || drawingRelayUrl(drawing);
 }
 
 const DRAWING_CHUNK_BYTES = 1.5 * 1024 * 1024;
@@ -4152,35 +4169,51 @@ async function renderDrawingPdf(pdf) {
   status.textContent = `共 ${total} 页`;
 }
 
-function drawingPreviewUrl(drawing) {
+function previewStoragePath(drawing, suffix) {
   const storagePath = String(drawing?.storagePath || '').trim();
   if (!storagePath) return '';
-  const origin = String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
-  if (!origin) return '';
-  const previewPath = storagePath.replace(/\.pdf$/i, '') + '-p1.jpg';
-  return `${origin}/storage/v1/object/public/product-drawings/${previewPath.split('/').map(encodeURIComponent).join('/')}`;
+  return storagePath.replace(/\.pdf$/i, '') + suffix;
+}
+
+function previewUrlFor(drawing, suffix) {
+  const path = previewStoragePath(drawing, suffix);
+  return storageObjectUrl(SUPABASE_STORAGE_ORIGIN, path) || storageObjectUrl(relayOrigin(), path);
+}
+
+function drawingPreviewThumbUrl(drawing) {
+  return previewUrlFor(drawing, '-t1.jpg');
+}
+
+function drawingPreviewUrl(drawing) {
+  return previewUrlFor(drawing, '-p1.jpg');
 }
 
 let drawingPreviewManifestPromise = null;
 
 function drawingPreviewPageUrl(drawing, page) {
-  const storagePath = String(drawing?.storagePath || '').trim();
-  if (!storagePath) return '';
-  const origin = String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
-  if (!origin) return '';
-  const previewPath = storagePath.replace(/\.pdf$/i, '') + `-p${page}.jpg`;
-  return `${origin}/storage/v1/object/public/product-drawings/${previewPath.split('/').map(encodeURIComponent).join('/')}`;
+  return previewUrlFor(drawing, `-p${page}.jpg`);
 }
 
 async function loadDrawingPreviewManifest() {
   if (!drawingPreviewManifestPromise) {
-    const origin = String(window.SHIPMENT_RPC_BASE || '').replace(/\/rest\/v1\/rpc.*$/, '');
-    const url = `${origin}/storage/v1/object/public/product-drawings/_previews.json`;
-    drawingPreviewManifestPromise = fetch(url, { cache: 'no-store' })
+    const url = storageObjectUrl(SUPABASE_STORAGE_ORIGIN, '_previews.json') || storageObjectUrl(relayOrigin(), '_previews.json');
+    drawingPreviewManifestPromise = fetch(url, { cache: 'force-cache' })
       .then((response) => response.ok ? response.json() : {})
       .catch(() => ({}));
   }
   return drawingPreviewManifestPromise;
+}
+
+function setImageWithFallback(image, primary, fallback) {
+  if (!image) return;
+  image.dataset.fallback = '';
+  image.onerror = () => {
+    if (!image.dataset.fallback && fallback && fallback !== primary) {
+      image.dataset.fallback = '1';
+      image.src = fallback;
+    }
+  };
+  if (primary) image.src = primary;
 }
 
 async function renderDrawingImagePreview(drawing) {
@@ -4191,7 +4224,9 @@ async function renderDrawingImagePreview(drawing) {
   if (!modal || !pages || !status || !storagePath) return false;
   const manifest = await loadDrawingPreviewManifest();
   const pageCount = Math.max(1, Math.min(200, Number(manifest?.[storagePath] || 1)));
-  const firstUrl = drawingPreviewPageUrl(drawing, 1);
+  const directFirst = previewUrlFor(drawing, '-p1.jpg');
+  const relayFirst = storageObjectUrl(relayOrigin(), previewStoragePath(drawing, '-p1.jpg'));
+  const firstUrl = directFirst || relayFirst;
   if (!firstUrl) return false;
   const label = [drawing?.material, drawing?.name, drawing?.spec].filter(Boolean).join(' · ') || '图纸';
   const makeImage = (page, eager) => {
@@ -4199,20 +4234,27 @@ async function renderDrawingImagePreview(drawing) {
     image.alt = `${label} 第 ${page} 页`;
     image.decoding = 'async';
     image.loading = eager ? 'eager' : 'lazy';
+    if (eager && 'fetchPriority' in image) image.fetchPriority = 'high';
     return image;
   };
   pages.replaceChildren();
   status.hidden = false;
   status.textContent = '正在加载图纸预览...';
-  // 手机端先只取第 1 页，首屏出来后再放其余页；
-  // 这样不会为了 8 页图纸同时抢带宽，打开速度会明显快很多。
+  // 先只取第 1 页，首屏出来后再放其余页，避免一次抢带宽
   const first = makeImage(1, true);
   const firstLoaded = new Promise((resolve) => {
     let done = false;
     const finish = (ok) => { if (done) return; done = true; clearTimeout(timer); resolve(ok); };
-    const timer = setTimeout(() => finish(false), 6500);
+    const timer = setTimeout(() => finish(false), 8000);
     first.onload = () => finish(true);
-    first.onerror = () => finish(false);
+    first.onerror = () => {
+      if (directFirst && !first.dataset.fallback && relayFirst) {
+        first.dataset.fallback = '1';
+        first.src = relayFirst;
+        return;
+      }
+      finish(false);
+    };
   });
   first.src = firstUrl;
   pages.appendChild(first);
@@ -4220,9 +4262,18 @@ async function renderDrawingImagePreview(drawing) {
     pages.replaceChildren();
     return false;
   }
+  // 用第 1 页的宽高比给后续页占位，图片陆续加载时页面不再上下抖动
+  const ratio = first.naturalWidth && first.naturalHeight ? `${first.naturalWidth} / ${first.naturalHeight}` : '';
   for (let page = 2; page <= pageCount; page += 1) {
     const image = makeImage(page, false);
-    image.src = drawingPreviewPageUrl(drawing, page);
+    if (ratio) {
+      image.style.aspectRatio = ratio;
+      image.style.width = '100%';
+      image.style.height = 'auto';
+    }
+    const directPage = storageObjectUrl(SUPABASE_STORAGE_ORIGIN, previewStoragePath(drawing, `-p${page}.jpg`));
+    const relayPage = storageObjectUrl(relayOrigin(), previewStoragePath(drawing, `-p${page}.jpg`));
+    setImageWithFallback(image, directPage || relayPage, relayPage);
     pages.appendChild(image);
   }
   status.textContent = `图纸预览 · 共 ${pageCount} 页`;
@@ -4275,7 +4326,20 @@ async function openDrawingViewer(drawing, url, options = {}) {
 
 async function openDrawing(id) {
   const cached = (snapshot?.drawings || []).find((row) => String(row.id) === String(id));
-  const directUrl = drawingPublicUrl(cached);
+  const nativeUrl = drawingDirectUrl(cached);
+  // 电脑端：直接交给浏览器原生 PDF 阅读器（新标签页），首屏快、可缩放、不会抖
+  if (!isMobileBoardView() && nativeUrl) {
+    // 用临时 <a target=_blank rel=noopener> 打开，比 window.open 更稳，也不会被拦截
+    const link = document.createElement('a');
+    link.href = nativeUrl;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    return;
+  }
+  const directUrl = nativeUrl || drawingRelayUrl(cached);
   if (directUrl) {
     // 手机端先走预览图，不要一开始就分块下载整份 PDF。
     // 之前 8 页图纸要先下 3 段 PDF 才弹预览，手机上要等十几秒。
@@ -12312,14 +12376,26 @@ function renderDrawingPreview(id) {
   const empty = document.getElementById('drawingPreviewEmpty');
   const title = document.getElementById('drawingPreviewTitle');
   const open = document.getElementById('drawingPreviewOpen');
-  const url = drawingPreviewUrl(drawing);
+  const thumb = drawingPreviewThumbUrl(drawing);
+  const full = drawingPreviewUrl(drawing);
+  const url = thumb || full;
   if (title) title.textContent = `${drawing.material || ''} · ${drawing.name || '图纸'}${drawing.spec ? ' · ' + drawing.spec : ''}`;
   if (open) open.disabled = false;
   if (!url || !image) { if (empty) empty.hidden = false; return; }
   image.hidden = false;
   if (empty) empty.hidden = true;
-  image.onerror = () => { image.hidden = true; if (empty) { empty.hidden = false; empty.textContent = '缩略图暂不可用，请点击“查看图纸”'; } };
+  image.dataset.fallback = '';
+  image.onerror = () => {
+    if (thumb && !image.dataset.fallback && full) { image.dataset.fallback = '1'; image.src = full; return; }
+    image.hidden = true; if (empty) { empty.hidden = false; empty.textContent = '缩略图暂不可用，请点击“查看图纸”'; }
+  };
   image.src = url;
+  // 万一分栏没有吸顶（老浏览器/窗口太矮），点预览时把预览面板带到视线内
+  const pane = document.getElementById('drawingPreviewPane');
+  if (pane) {
+    const rect = pane.getBoundingClientRect();
+    if (rect.bottom < 80 || rect.top > window.innerHeight - 80) pane.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 document.getElementById('drawingPreviewOpen')?.addEventListener('click', () => { if (previewDrawingId) openDrawing(previewDrawingId); });
 document.addEventListener('click', (event) => {
