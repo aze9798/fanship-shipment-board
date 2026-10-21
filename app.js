@@ -2893,16 +2893,17 @@ function fetchAuxiliaryState() {
       () => loadReplacements(),        // 6
       () => (useDrawingsCache ? Promise.resolve(cached.drawings) : loadDrawings().then((rows) => { if (rows.length) drawingsFetchedAt = Date.now(); return rows; })),   // 7 图纸清单
       () => loadBilledStatus(),        // 8
+      () => loadDirectReceived(),      // 9
     ];
     const results = await mapLimit(tasks, 3, (task) => task());
-    const [amounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings] = results;
+    const [amounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings, directReceived] = results;
     // 首屏能拿到缓存就用缓存，避免为了金额/图纸多等好几秒
     const finalAmounts = amounts.length ? amounts : (cacheIsFresh && Array.isArray(cached.amounts) ? cached.amounts : amounts);
     const finalDrawings = drawings.length ? drawings : (cacheIsFresh && Array.isArray(cached.drawings) ? cached.drawings : drawings);
     if (amounts.length) writeSlowAuxCache({ amounts });
     if (drawings.length) writeSlowAuxCache({ drawings });
     auxiliaryLoadedAt = Date.now();
-    return { amounts: finalAmounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings: finalDrawings };
+    return { amounts: finalAmounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings: finalDrawings, directReceived };
   })();
   auxiliaryPromise = promise.finally(() => { auxiliaryPromise = null; });
   return auxiliaryPromise;
@@ -2929,6 +2930,7 @@ async function loadState({ quiet = false, fast = false } = {}) {
       nextSnapshot.shipmentUnits = previous?.shipmentUnits || [];
       nextSnapshot.replacements = previous?.replacements || [];
       nextSnapshot.drawings = previous?.drawings || [];
+      nextSnapshot.directReceived = previous?.directReceived || [];
     }
     const changed = !previous || nextSnapshot.revision !== previous.revision || (!fast && shouldRefreshAuxiliary);
     const stateChanged = !previous || nextSnapshot.revision !== previous.revision;
@@ -4325,6 +4327,16 @@ function isBilledShipment(id) {
 
 function isBilledExtra(id) {
   return billedExtraIds.has(String(id));
+}
+
+async function loadDirectReceived() {
+  if (!RPC_BASE) return [];
+  const accessCode = getAccessCode();
+  if (!accessCode) return [];
+  try {
+    const result = await callRpc('board_get_direct_received', { p_code: accessCode });
+    return result.response.ok && Array.isArray(result.data) ? result.data : [];
+  } catch { return []; }
 }
 
 async function loadBilledStatus() {
@@ -7554,7 +7566,10 @@ function openOrderEdit(orderId) {
   }
   if (els.orderEditQty) els.orderEditQty.value = String(Number(order.orderQty || order.openingRemaining || 0));
   if (els.orderEditShipped) els.orderEditShipped.value = String(Number(order.shipped || 0));
-  if (els.orderEditDue) els.orderEditDue.value = order.dueDate || '';
+  if (els.orderEditDue) {
+    els.orderEditDue.value = order.dueDate || '';
+    els.orderEditDue.disabled = Number(order.orderQty || order.openingRemaining || 0) === 0;
+  }
   if (els.orderEditType) {
     const t = String(order.orderType || '');
     els.orderEditType.value = ['trial', 'sample', 'tooling'].includes(t) ? t : 'normal';
@@ -8233,13 +8248,16 @@ function buildDeliveryGroups(shipments, queryText = '') {
       });
   }
   const map = new Map();
+  const directShipmentMap = new Map((snapshot?.directReceived || []).map((row) => [String(row.shipmentId || ''), row]));
   const ensureGroup = (key, options = {}) => {
     if (!map.has(key)) {
       map.set(key, {
         key,
         batch: deliveryBatchText(options.batch),
-        title: deliveryBatchText(options.batch) ? (/^\d+$/.test(deliveryBatchText(options.batch)) ? `送货单 ${deliveryBatchText(options.batch)}` : deliveryBatchText(options.batch)) : '未开单发货',
-        billed: Boolean(options.batch),
+        title: options.title || (deliveryBatchText(options.batch) ? (/^\d+$/.test(deliveryBatchText(options.batch)) ? `送货单 ${deliveryBatchText(options.batch)}` : deliveryBatchText(options.batch)) : '未开单发货'),
+        billed: Boolean(options.batch) || Boolean(options.directReceived),
+        directReceived: Boolean(options.directReceived),
+        directReceivedNote: String(options.directReceivedNote || ''),
         createdAt: options.createdAt || '',
         shipmentIds: [],
         items: [],
@@ -8255,10 +8273,12 @@ function buildDeliveryGroups(shipments, queryText = '') {
       itemsByCompany.get(company).push(line);
     }
     for (const [company, lines] of itemsByCompany) {
-      const batch = shipmentBatchForCompany(shipment, company);
-      const key = batch ? `batch:${batch}:${company}` : `shipment:${shipment.id}:${company}`;
-      const group = ensureGroup(key, { batch, createdAt: shipment.billedAt || shipment.createdAt });
-      group.billed = group.billed || Boolean(batch);
+      const direct = directShipmentMap.get(String(shipment.id));
+      const batch = direct ? '' : shipmentBatchForCompany(shipment, company);
+      const key = direct ? `direct:${shipment.id}:${company}` : (batch ? `batch:${batch}:${company}` : `shipment:${shipment.id}:${company}`);
+      const group = ensureGroup(key, { batch, title: direct ? '客户已入库（免开单）' : '', directReceived: Boolean(direct), directReceivedNote: direct?.note || '', createdAt: shipment.billedAt || shipment.createdAt });
+      group.billed = group.billed || Boolean(batch) || Boolean(direct);
+      group.directReceived = group.directReceived || Boolean(direct);
       group.shipmentIds.push(String(shipment.id));
       for (const line of lines) {
         const meta = orderMetaFor(line.orderId, line, orderLookup);
@@ -8280,7 +8300,7 @@ function buildDeliveryGroups(shipments, queryText = '') {
           orderDue: meta.order ? String(meta.order.dueDate || '') : '',
           hasOrder: Boolean(meta.po || meta.orderQty || meta.seq),
           remark: '',
-          billed: Boolean(batch) || isBilledShipment(shipment.id),
+          billed: Boolean(batch) || isBilledShipment(shipment.id) || Boolean(direct),
         });
       }
     }
@@ -8372,9 +8392,11 @@ function renderDeliveryGroups(groups) {
       ${unitHistoryHtml(group.shipmentIds)}
       <div class="history-foot">
         <span class="history-total">合计 ${fmt(group.total)} 件 · ${group.items.length} 项</span>
-        ${group.billed
-          ? '<span class="row-locked">已开单</span>'
-          : group.shipmentIds.length ? `<button class="row-revoke" type="button" data-undo="${escapeHtml(group.shipmentIds[0])}" title="撤销这笔发货">撤回</button>` : ''}
+        ${group.directReceived
+          ? `<span class="row-locked">客户已入库（免开单）</span><button class="row-revoke" type="button" data-undo-direct="${escapeHtml(group.shipmentIds.join(','))}">撤销入库标记</button>`
+          : group.billed
+            ? '<span class="row-locked">已开单</span>'
+            : group.shipmentIds.length ? `<button class="row-revoke" type="button" data-direct-received="${escapeHtml(group.shipmentIds.join(','))}" title="客户已直接入库，不生成送货单">客户已入库</button><button class="row-revoke" type="button" data-undo="${escapeHtml(group.shipmentIds[0])}" title="撤销这笔发货">撤回</button>` : ''}
       </div>
     </article>`;
   }).join('');
@@ -8410,7 +8432,7 @@ function renderMergedDeliveryRows(groups) {
   const unitHtml = unitHistoryHtml(groups.flatMap((group) => group.shipmentIds || []));
   const rows = [];
   for (const group of groups) {
-    for (const item of group.items) rows.push({ ...item, batch: group.batch || '', shippedAt: group.createdAt || '', billed: item.billed });
+    for (const item of group.items) rows.push({ ...item, batch: group.directReceived ? '客户已入库' : (group.batch || ''), shippedAt: group.createdAt || '', billed: item.billed });
   }
   if (!rows.length) return '<div class="empty-state"><strong>没有符合条件的发货记录</strong><span>可以搜索送货单号、采购单号、料件编号或品名。</span></div>';
   rows.sort((a, b) => String(b.shippedAt || '').localeCompare(String(a.shippedAt || '')));
@@ -8423,11 +8445,13 @@ function buildSearchDateGroups(groups) {
     for (const item of group.items) {
       const shippedAt = group.createdAt || '';
       const date = shipShanghaiDate(shippedAt) || String(shippedAt).slice(0, 10) || '未知日期';
-      const row = { ...item, batch: group.batch || '', shippedAt, shipmentId: item.shipmentId || group.shipmentIds?.[0] || '', billed: Boolean(item.billed || group.billed) };
-      if (!map.has(date)) map.set(date, { date, rows: [], total: 0, batches: new Set(), shipmentIds: new Set() });
+      const direct = Boolean(group.directReceived || item.directReceived);
+      const row = { ...item, batch: direct ? '客户已入库' : (group.batch || ''), directReceived: direct, shippedAt, shipmentId: item.shipmentId || group.shipmentIds?.[0] || '', billed: Boolean(item.billed || group.billed || direct) };
+      if (!map.has(date)) map.set(date, { date, rows: [], total: 0, batches: new Set(), shipmentIds: new Set(), directReceived: false });
       const bucket = map.get(date);
       bucket.rows.push(row);
       bucket.total += Number(row.quantity || 0);
+      bucket.directReceived = bucket.directReceived || direct;
       if (row.batch) bucket.batches.add(String(row.batch));
       if (row.shipmentId) bucket.shipmentIds.add(String(row.shipmentId));
     }
@@ -8585,6 +8609,15 @@ function addSearchExtrasToDateGroups(dateGroups, queryText, dateFilter = '') {
   dateGroups.sort((a, b) => String(b.date).localeCompare(String(a.date)));
 }
 
+function directReceivedActionsHtml(group) {
+  const directIds = [...new Set((group.rows || []).filter((row) => row.directReceived && row.shipmentId).map((row) => String(row.shipmentId)))];
+  const unbilledIds = [...new Set((group.rows || []).filter((row) => row.shipmentId && !row.billed && !row.directReceived).map((row) => String(row.shipmentId)))];
+  if (!directIds.length && !unbilledIds.length) return '';
+  return '<div class="search-date-actions">'
+    + (directIds.length ? '<span class="row-locked">客户已入库（免开单）</span><button class="row-revoke" type="button" data-undo-direct="' + escapeHtml(directIds.join(',')) + '">撤销入库标记</button>' : '')
+    + (!directIds.length && unbilledIds.length ? '<button class="row-revoke" type="button" data-direct-received="' + escapeHtml(unbilledIds.join(',')) + '">客户已入库</button>' : '')
+    + '</div>';
+}
 function renderSearchByDate(groups, queryText = '', dateFilter = '') {
   const dateGroups = buildSearchDateGroups(groups);
   addSearchExtrasToDateGroups(dateGroups, queryText, dateFilter);
@@ -8610,7 +8643,7 @@ function renderSearchByDate(groups, queryText = '', dateFilter = '') {
         </div>
         <span class="search-date-toggle">${expanded ? '收起明细' : '展开明细'}</span>
       </div>
-      ${expanded ? `<div class="search-date-detail">${mergedDeliveryTableHtml(rows)}</div>` : ''}
+      ${expanded ? `<div class="search-date-detail">${mergedDeliveryTableHtml(rows)}${directReceivedActionsHtml(group)}</div>` : ''}
     </article>`;
   }).join('');
 }
@@ -10910,6 +10943,29 @@ async function unlinkPhotosFromShipment(shipmentId) {
   return unlinked;
 }
 
+async function markDirectReceived(ids) {
+  const list = (Array.isArray(ids) ? ids : String(ids || '').split(',')).map((v) => String(v || '').trim()).filter(Boolean);
+  if (!list.length) return;
+  if (!window.confirm('确认这些货客户已经直接入库、无需我方开送货单吗？\n发货数量和未交数量不会变，只给这笔发货加“客户已入库”标记。')) return;
+  const result = await callRpc('board_mark_direct_received', { p_code: getAccessCode(), p_shipment_ids: list, p_note: '客户已入库，免开送货单' });
+  if (!result.response.ok) { showToast(result.data?.message || '标记失败', 7000); return; }
+  auxiliaryLoadedAt = 0;
+  await loadState({ quiet: true });
+  renderAll();
+  showToast('已标记为客户直接入库，无需开送货单');
+}
+async function unmarkDirectReceived(ids) {
+  const list = (Array.isArray(ids) ? ids : String(ids || '').split(',')).map((v) => String(v || '').trim()).filter(Boolean);
+  if (!list.length) return;
+  if (!window.confirm('撤销“客户已入库”标记吗？撤销后会重新显示为未开单发货。')) return;
+  const result = await callRpc('board_unmark_direct_received', { p_code: getAccessCode(), p_shipment_ids: list });
+  if (!result.response.ok) { showToast(result.data?.message || '撤销失败', 7000); return; }
+  auxiliaryLoadedAt = 0;
+  await loadState({ quiet: true });
+  renderAll();
+  showToast('已撤销客户入库标记');
+}
+
 async function undoShipment(id) {
   const shipmentRow = snapshot && snapshot.shipments.find((row) => String(row.id) === String(id));
   if (isBilledShipment(id)) { showToast('这笔发货已经开送货单并上传云端，不能撤回'); return; }
@@ -12779,6 +12835,12 @@ if (isMobileBoardView()) {
   if ('requestIdleCallback' in window) requestIdleCallback(warmDrawingPreview, { timeout: 2500 });
   else setTimeout(warmDrawingPreview, 1200);
 }
+document.addEventListener('click', (event) => {
+  const mark = event.target.closest('[data-direct-received]');
+  if (mark) { event.preventDefault(); void markDirectReceived(mark.dataset.directReceived); return; }
+  const undo = event.target.closest('[data-undo-direct]');
+  if (undo) { event.preventDefault(); void unmarkDirectReceived(undo.dataset.undoDirect); return; }
+});
 connectEvents();
 startVersionWatch();
 if (els.printHelperStatus) els.printHelperStatus.addEventListener('click', () => void checkPrintHelper(true));
