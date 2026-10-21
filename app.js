@@ -5181,7 +5181,7 @@ function renderOverOffsetList() {
   return `
     <section class="over-box offset-history">
       <div class="over-head"><strong>冲抵记录</strong><span>最近 ${rows.length} 笔</span></div>
-      ${visibleRows.map((row) => {
+      ${rows.map((row) => {
         const meta = orderMetaFor(row.orderId, row);
         const po = meta.po || '无';
         const seq = meta.seq || '无';
