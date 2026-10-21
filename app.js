@@ -81,6 +81,29 @@ let workReviewLoadedKey = '';
 let workReviewLoadedAt = 0;
 let workEditLoadedKey = '';
 let workEditLoadedAt = 0;
+const WORK_CACHE_KEY = 'shipmentBoardWorkCacheV1';
+function readWorkPrefetchCache() {
+  try {
+    const direct = JSON.parse(localStorage.getItem(WORK_CACHE_KEY) || 'null');
+    if (direct && Date.now() - Number(direct.savedAt || 0) < 30 * 60 * 1000) return { ...direct, at: direct.savedAt };
+  } catch { }
+  try {
+    const dashboard = JSON.parse(localStorage.getItem('shipmentBoardDashboardCacheV2') || 'null');
+    const work = dashboard?.data?.work;
+    if (work && Date.now() - Number(dashboard.savedAt || 0) < 2 * 60 * 60 * 1000) {
+      return { date: dashboard.data.workDate || '', report: work.report || null, liveRows: work.live || null, at: dashboard.savedAt };
+    }
+  } catch { }
+  return null;
+}
+function saveWorkPrefetchCache() {
+  if (workReportStatus !== 'all' || workReportEmployeeId || workReportQuery) return;
+  try {
+    localStorage.setItem(WORK_CACHE_KEY, JSON.stringify({
+      savedAt: Date.now(), date: workReportDate || todayShanghai(), report: workReportRows || null, liveRows: workLiveRows || []
+    }));
+  } catch { }
+}
 let remainingVisibleLimit = 20;
 let desktopRemainingVisibleLimit = 20;
 let mobileOrderVisibleLimit = 20;
@@ -5693,7 +5716,7 @@ async function loadWorkReportWorkspace(force = false) {
   ensureReportDate(null);
   const key = [workReportDate, workReportEmployeeId, workReportStatus, workReportQuery].join('|');
   if (!force && workReportLoadedKey === key && Date.now() - workReportLoadedAt < 30000) return;
-  const cached = window.__tkWorkCache;
+  const cached = window.__tkWorkCache || readWorkPrefetchCache();
   const canUseCache = !force && workReportStatus === 'all' && !workReportEmployeeId && !workReportQuery
     && cached && cached.date === workReportDate && cached.report && Date.now() - Number(cached.at || 0) < 30000;
   if (canUseCache) {
@@ -5717,6 +5740,8 @@ async function loadWorkReportWorkspace(force = false) {
   ]);
   workReportLoadedKey = key;
   workReportLoadedAt = Date.now();
+  window.__tkWorkCache = { date: workReportDate, report: workReportRows, liveRows: workLiveRows, at: Date.now() };
+  saveWorkPrefetchCache();
 }
 function workTimelineTime(value) {
   if (!value) return '--';

@@ -376,7 +376,7 @@
   build();
 
   document.addEventListener('click', (e) => {
-    if (e.target.closest('[data-work-view="workReport"]')) mode = 'live';
+
     if (e.target.closest('[data-tk-view="work"], [data-desktop-view="workReport"]')) setTimeout(build, 400);
   }, true);
   document.addEventListener('change', (e) => {
