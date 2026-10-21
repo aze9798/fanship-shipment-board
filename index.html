@@ -17,15 +17,15 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
   <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
-  <link rel="stylesheet" href="design-tokens.css?v=80d8fc0dc665">
-  <link rel="stylesheet" href="ui-polish.css?v=80d8fc0dc665">
-  <link rel="stylesheet" href="theme-ui.css?v=80d8fc0dc665">
-  <link rel="stylesheet" href="dashboard-home.css?v=80d8fc0dc665">
+  <link rel="stylesheet" href="design-tokens.css?v=5adec928a884">
+  <link rel="stylesheet" href="ui-polish.css?v=5adec928a884">
+  <link rel="stylesheet" href="theme-ui.css?v=5adec928a884">
+  <link rel="stylesheet" href="dashboard-home.css?v=5adec928a884">
   <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
-  <link rel="stylesheet" href="home-merge.css?v=80d8fc0dc665">
-  <link rel="stylesheet" href="global-search.css?v=80d8fc0dc665">
-  <link rel="stylesheet" href="partners.css?v=80d8fc0dc665">
-  <link rel="stylesheet" href="staff-v2.css?v=80d8fc0dc665">
+  <link rel="stylesheet" href="home-merge.css?v=5adec928a884">
+  <link rel="stylesheet" href="global-search.css?v=5adec928a884">
+  <link rel="stylesheet" href="partners.css?v=5adec928a884">
+  <link rel="stylesheet" href="staff-v2.css?v=5adec928a884">
   <!-- 图纸预览用的 PDF 引擎：首次打开图纸时按需加载。 -->
 <style>
 /* ===== 考勤管理 视觉 ===== */
@@ -676,6 +676,19 @@
         <section class="panel work-review-panel">
           <div id="desktopWorkReviewList" class="work-review-list"></div>
           <div id="desktopWorkReviewEmpty" class="empty-state" hidden><strong>没有符合条件的报工</strong><span>可以切换状态筛选。</span></div>
+        <section class="panel work-daily-panel">
+          <div class="section-head">
+            <div><h2>当天报工记录</h2><p id="desktopWorkReviewDailyHint">正在读取当天全部报工记录。</p></div>
+            <button class="button ghost" type="button" data-work-daily-refresh="1">刷新记录</button>
+          </div>
+          <div class="table-wrap">
+            <table class="orders-table work-report-table work-daily-table">
+              <thead><tr><th>时间</th><th>员工</th><th>品名 / 编号</th><th>工序 / 规格</th><th class="number">数量</th><th>状态</th><th>操作</th></tr></thead>
+              <tbody id="desktopWorkReviewDailyBody"></tbody>
+            </table>
+            <div id="desktopWorkReviewDailyEmpty" class="empty-state" hidden><strong>当天没有报工记录</strong><span>可以更换日期后再看。</span></div>
+          </div>
+        </section>
         </section>
       </section>
 
@@ -702,6 +715,19 @@
           <article><span>计时工时</span><strong id="desktopWorkEditTimerHours">0.0</strong></article>
           <article><span>计件笔数</span><strong id="desktopWorkEditPieceCount">0</strong></article>
           <article><span>计件金额</span><strong id="desktopWorkEditPieceAmount">0.00</strong></article>
+        </section>
+        <section class="panel work-daily-panel">
+          <div class="section-head">
+            <div><h2>当天报工记录</h2><p id="desktopWorkEditDailyHint">正在读取当天全部报工记录，点击右侧按钮把员工带入下方修改区。</p></div>
+            <button class="button ghost" type="button" data-work-daily-refresh="1">刷新记录</button>
+          </div>
+          <div class="table-wrap">
+            <table class="orders-table work-report-table work-daily-table">
+              <thead><tr><th>时间</th><th>员工</th><th>品名 / 编号</th><th>工序 / 规格</th><th class="number">数量</th><th>状态</th><th>操作</th></tr></thead>
+              <tbody id="desktopWorkEditDailyBody"></tbody>
+            </table>
+            <div id="desktopWorkEditDailyEmpty" class="empty-state" hidden><strong>当天没有报工记录</strong><span>可以更换日期后再看。</span></div>
+          </div>
         </section>
         <section class="panel">
           <div class="section-head">
@@ -1035,6 +1061,8 @@
               <button id="mobileWorkReviewRefresh" class="button primary" type="button">刷新</button>
             </div>
             <div id="mobileWorkReviewList" class="mobile-work-review-list"></div>
+            <div class="mobile-work-review-tools mobile-work-live-head"><strong>当天报工记录</strong><span id="mobileWorkReviewDailyHint"></span></div>
+            <div id="mobileWorkReviewDailyList" class="mobile-work-review-list"></div>
           </section>
         </section>
 
@@ -1050,6 +1078,8 @@
               <div><span>计件笔数</span><strong id="mobileWorkEditPieceCount">0</strong></div>
               <div><span>计件金额</span><strong id="mobileWorkEditPieceAmount">0.00</strong></div>
             </div>
+            <div class="mobile-work-review-tools mobile-work-live-head"><strong>当天报工记录</strong><span id="mobileWorkEditDailyHint"></span></div>
+            <div id="mobileWorkEditDailyList" class="mobile-work-review-list"></div>
             <div class="work-edit-actions">
               <button class="button ghost" type="button" data-work-edit-add="time">＋ 新增计时</button>
               <button class="button primary" type="button" data-work-edit-add="piece">＋ 新增计件</button>
@@ -1479,7 +1509,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "80d8fc0dc665";
+      const fallbackVersion = "5adec928a884";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
@@ -1514,21 +1544,21 @@
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=80d8fc0dc665" defer></script>
-  <script src="dashboard-home.js?v=80d8fc0dc665" defer></script>
+  <script src="ui-polish.js?v=5adec928a884" defer></script>
+  <script src="dashboard-home.js?v=5adec928a884" defer></script>
 
-  <script src="home-merge.js?v=80d8fc0dc665" defer></script>
-  <script src="global-search.js?v=80d8fc0dc665" defer></script>
-  <script src="work-rates.js?v=80d8fc0dc665" defer></script>
-  <script src="drawing-rotate.js?v=80d8fc0dc665" defer></script>
-  <script src="drawing-open.js?v=80d8fc0dc665" defer></script>
-  <script src="partners.js?v=80d8fc0dc665" defer></script>
-  <script src="staff-v2.js?v=80d8fc0dc665" defer></script>
-  <script src="po-print.js?v=80d8fc0dc665" defer></script>
-  <script src="col-resize-fix.js?v=80d8fc0dc665" defer></script>
-  <script src="work-split.js?v=80d8fc0dc665" defer></script>
-  <script src="hint-clean.js?v=80d8fc0dc665" defer></script>
-  <script src="sidebar-tidy.js?v=80d8fc0dc665" defer></script>
+  <script src="home-merge.js?v=5adec928a884" defer></script>
+  <script src="global-search.js?v=5adec928a884" defer></script>
+  <script src="work-rates.js?v=5adec928a884" defer></script>
+  <script src="drawing-rotate.js?v=5adec928a884" defer></script>
+  <script src="drawing-open.js?v=5adec928a884" defer></script>
+  <script src="partners.js?v=5adec928a884" defer></script>
+  <script src="staff-v2.js?v=5adec928a884" defer></script>
+  <script src="po-print.js?v=5adec928a884" defer></script>
+  <script src="col-resize-fix.js?v=5adec928a884" defer></script>
+  <script src="work-split.js?v=5adec928a884" defer></script>
+  <script src="hint-clean.js?v=5adec928a884" defer></script>
+  <script src="sidebar-tidy.js?v=5adec928a884" defer></script>
 </body>
 </html>
 

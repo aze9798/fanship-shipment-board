@@ -8,7 +8,7 @@
   let lastNo = '';
   let lastEmployeeId = '';
   let lastCells = [];
-  let mode = 'live'; // live | records
+  let mode = 'records'; // 默认先看到报工记录，避免主页面看起来没有数据
 
   const shanghaiToday = () => new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'
@@ -373,8 +373,7 @@
   }
 
   loadEntries();
-  setInterval(() => { if (!Array.isArray(window.__tkWorkEntries)) loadEntries(); }, 5000);
-  setInterval(build, 1200);
+  build();
 
   document.addEventListener('click', (e) => {
     if (e.target.closest('[data-work-view="workReport"]')) mode = 'live';

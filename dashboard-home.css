@@ -420,3 +420,46 @@
 .tk-dash .tk-md-head > * { text-align: center !important; }
 .tk-dash .tk-md-row > b.qty,
 .tk-dash .tk-md-row > i.due { text-align: center !important; }
+/* ============================================================
+   2026-10-21：固定仪表盘模块高度，避免加载完成或切换页签时上下跳动
+   ============================================================ */
+.tk-dash-2col,
+.tk-dash-3col { align-items: stretch; }
+.tk-dash-3col .tk-dash-sec {
+  min-height: 294px;
+  display: flex;
+  flex-direction: column;
+}
+.tk-dash-3col .tk-block-head { flex: 0 0 auto; }
+.tk-dash-3col .tk-block-pane {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+.tk-dash-3col .tk-block-pane .tk-md-list {
+  max-height: none;
+  height: 100%;
+  overflow: auto;
+}
+.tk-dash-2col .tk-dash-work,
+.tk-dash-2col .tk-dash-att {
+  height: clamp(480px, 58vh, 592px);
+  overflow: auto;
+}.tk-dash-2col > .tk-sec-due,
+.tk-dash-2col > .tk-sec-special {
+  height: clamp(390px, 46vh, 460px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.tk-dash-2col > .tk-sec-due .tk-md-list,
+.tk-dash-2col > .tk-sec-special .tk-md-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+.tk-dash-3col .tk-dash-sec {
+  height: 294px;
+  min-height: 294px;
+  overflow: hidden;
+}

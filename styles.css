@@ -3841,3 +3841,13 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
   .label-print-actions { padding-bottom: max(4px, env(safe-area-inset-bottom)); }
   .label-print-actions .button { flex: 1; }
 }
+/* 2026-10-21：报工审核 / 报工修改共用当天记录区 */
+.work-daily-panel .table-wrap { max-height: 380px; overflow: auto; }
+.work-daily-panel .work-report-table thead th { position: sticky; top: 0; z-index: 2; background: #f7fbfa; }
+.work-daily-panel .work-report-table tbody tr { cursor: pointer; }
+.work-daily-panel .work-report-table tbody tr:hover { background: #f5fbfa; }
+.work-daily-card .review-status { margin-right: 8px; }
+.work-edit-filters { position: sticky; top: 8px; z-index: 8; background: #fff; box-shadow: 0 8px 24px rgba(12,45,50,.08); }
+@media (max-width: 900px) {
+  .work-edit-filters { position: static; box-shadow: none; }
+}

@@ -387,6 +387,7 @@
       if (link) link.click();     // 让模块自己的逻辑跑（showMine + 拉数据）
       sec.hidden = false;
       hideBasePages();
+      window.dispatchEvent(new CustomEvent('tk-desktop-view', { detail: { view } }));
       return true;
     };
     if (open()) { window.scrollTo({ top: 0, behavior: 'smooth' }); return true; }
@@ -450,25 +451,27 @@
   }
 
   // 高亮跟随实际显示的页面（app.js 切页时不会通知我们，用轻量轮询）
+  function paintActiveView() {
+    const shown = [...document.querySelectorAll('.desktop-view')].find((s) => !s.hidden);
+    const view = shown ? (SECTION_TO_VIEW[shown.id] || '') : '';
+    if (view === lastActive) return;
+    lastActive = view;
+    paintWorkTabs(view);
+    const nav = document.getElementById('tkNav');
+    if (!nav) return;
+    nav.querySelectorAll('a[data-tk-view]').forEach((a) =>
+      a.classList.toggle('on', a.dataset.tkView === view));
+    // 命中的项在「更多」里时，自动展开，别让人找不到自己在哪
+    const hit = NAV_MORE.find((x) => x.view === view);
+    if (hit) {
+      const g = document.getElementById('tkMoreGroup');
+      const b = document.getElementById('tkMoreBtn');
+      if (g && g.hidden) { g.hidden = false; if (b) b.setAttribute('aria-expanded', 'true'); }
+    }
+  }
   function watchActive() {
-    setInterval(() => {
-      const shown = [...document.querySelectorAll('.desktop-view')].find((s) => !s.hidden);
-      const view = shown ? (SECTION_TO_VIEW[shown.id] || '') : '';
-      if (view === lastActive) return;
-      lastActive = view;
-      paintWorkTabs(view);
-      const nav = document.getElementById('tkNav');
-      if (!nav) return;
-      nav.querySelectorAll('a[data-tk-view]').forEach((a) =>
-        a.classList.toggle('on', a.dataset.tkView === view));
-      // 命中的项在「更多」里时，自动展开，别让人找不到自己在哪
-      const hit = NAV_MORE.find((x) => x.view === view);
-      if (hit) {
-        const g = document.getElementById('tkMoreGroup');
-        const b = document.getElementById('tkMoreBtn');
-        if (g && g.hidden) { g.hidden = false; if (b) b.setAttribute('aria-expanded', 'true'); }
-      }
-    }, 600);
+    paintActiveView();
+    window.addEventListener('tk-desktop-view', paintActiveView);
   }
 
   /* ---------------- 启动 ---------------- */
