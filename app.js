@@ -2453,6 +2453,7 @@ const els = {
   labelPrintModes: $('#labelPrintModes'),
   labelPrintTip: $('#labelPrintTip'),
   labelPrintShowPrinted: $('#labelPrintShowPrinted'),
+  labelPrintShowRemoved: $('#labelPrintShowRemoved'),
   labelPrintPrintedInfo: $('#labelPrintPrintedInfo'),
   labelPrintError: $('#labelPrintError'),
   labelPrintClose: $('#labelPrintClose'),
@@ -9197,6 +9198,8 @@ let labelDateFilter = new Set();       // 打印标签时选中的交期（空=�
 const LABEL_PRINTED_KEY = 'shipmentLabelPrinted';
 const LABEL_STATS_KEY = 'shipmentLabelStats';
 const LABEL_ASSIGN_KEY = 'shipmentLabelAssign';
+const LABEL_REMOVED_KEY = 'shipmentLabelRemoved';
+let labelRemovedRecords = {};
 
 // 固定一框数量的产品：编号里包含这些数字就按整框折算
 const LABEL_BOX_RULES = [
@@ -9253,6 +9256,15 @@ function readLabelAssign() {
 
 function writeLabelAssign(assign) {
   try { localStorage.setItem(LABEL_ASSIGN_KEY, JSON.stringify(assign)); } catch { }
+}
+function readLabelRemoved() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LABEL_REMOVED_KEY) || '{}');
+    return saved && typeof saved === 'object' ? saved : {};
+  } catch { return {}; }
+}
+function writeLabelRemoved(rows) {
+  try { localStorage.setItem(LABEL_REMOVED_KEY, JSON.stringify(rows)); } catch { }
 }
 
 // 这个料号归哪种标签打：手动转过优先 → 再按打印习惯 → 都没有的默认归大标签
@@ -9358,6 +9370,7 @@ function labelModeText(mode = labelPrintMode) {
 
 function labelPool(anyMode = false) {
   const onlyPrinted = Boolean(els.labelPrintShowPrinted && els.labelPrintShowPrinted.checked);
+  const showRemoved = Boolean(els.labelPrintShowRemoved && els.labelPrintShowRemoved.checked);
   const mode = labelPrintMode;
   const query = labelPrintSearch.trim().toLowerCase();
   // 只要在搜索，就把已打印的一起带出来，方便找出来补打
@@ -9366,10 +9379,11 @@ function labelPool(anyMode = false) {
   return mergeRemainingGroupsForPrint(remainingGroupsForDates([...labelDateFilter], desktopRemainingSearch))
     .map((group) => {
       const key = labelSourceKey(group);
-      return { group, key, record: labelPrintedRecords[key] || null };
+      return { group, key, record: labelPrintedRecords[key] || null, removed: labelRemovedRecords[key] || null };
     })
     // 归类：每个料号只出现在它归属的那一页
     .filter((item) => anyMode || labelAssignOf(item.group.material) === mode || (mode === 'small' && labelSmallRecovery))
+    .filter((item) => showRemoved ? Boolean(item.removed) : !item.removed)
     .filter((item) => (onlyPrinted ? Boolean(item.record) : (!item.record || keepPrinted)))
     .filter((item) => !query || [item.group.material, item.group.name, (item.group.specs || []).join(' ')]
       .some((value) => String(value || '').toLowerCase().includes(query)))
@@ -9428,9 +9442,11 @@ function buildLabelRows(allModes = false) {
       printedDay: record ? labelShortDay(record.day) : '',
       printedMode: record ? String(record.mode || '') : '',
       printedCount: record ? Number(record.count || 1) : 0,
+      removed: Boolean(item.removed),
+      removedAt: item.removed ? String(item.removed.at || '') : '',
       // 已打印的默认不勾（要补打自己勾上）；归到另一页的默认也不勾
       mode: labelAssignOf(material),
-      selected: !record && labelAssignOf(material) === labelPrintMode,
+      selected: !record && !item.removed && labelAssignOf(material) === labelPrintMode,
       material,
       name: String(item.group.name || ''),
       spec: (item.group.specs || []).join('、'),
@@ -9453,6 +9469,7 @@ function openLabelPrintModal(mode = 'big', dateFilter = null) {
   if (!snapshot) return;
   labelDateFilter = new Set((Array.isArray(dateFilter) ? dateFilter : []).map((d) => String(d || '').trim()).filter(Boolean));
   labelPrintedRecords = readPrintedRecords();
+  labelRemovedRecords = readLabelRemoved();
   labelPrintSearch = '';
   if (els.labelPrintSearch) els.labelPrintSearch.value = '';
   labelPrintMode = mode === 'small' ? 'small' : 'big';
@@ -9492,13 +9509,16 @@ function labelRowHtml(row, index) {
     <span class="label-remaining" data-label-remaining="${index}">${fmt(labelRowRemaining(row))}</span>
     <input class="label-print-input" type="date" data-label-field="date" value="${escapeHtml(row.date)}">
     <div class="label-print-row-actions">
+      ${row.removed ? '<span class="label-printed-tag">已删除</span>' : ''}
       ${printedTag}
       ${row.mergedFrom
 
         ? `<button type="button" class="label-row-btn" data-label-unmerge="${index}">取消合并</button>`
 
         : `<button type="button" class="label-row-btn${labelMergePending === index ? ' active' : ''}" data-label-merge="${index}" title="和另一项合并成一张标签（比如内外梁、导向板A/B）：先点这一行，再点另一行">${labelMergePending === index ? '合并中…' : '合并'}</button>`}      <button type="button" class="label-row-btn" data-label-copy="${index}">复制</button>
-      <button type="button" class="label-row-btn danger" data-label-remove="${index}">删除</button>
+      ${row.removed
+        ? `<button type="button" class="label-row-btn done" data-label-restore="${index}">恢复</button>`
+        : `<button type="button" class="label-row-btn danger" data-label-remove="${index}">删除</button>`}
       <button type="button" class="label-row-btn move" data-label-move="${index}" title="把这一项挪到${moveText.slice(1)}打印（只影响本次；以后按这个料号大/小标签的打印次数自动归）">${moveText}</button>
       <button type="button" class="label-row-btn done" data-label-mark="${index}" title="标记为已打印，从待打印列表里移走">已打印</button>
     </div>
@@ -9954,11 +9974,30 @@ function handleLabelPrintClick(event) {
     }
     return;
   }
+  const restoreButton = event.target.closest('[data-label-restore]');
+  if (restoreButton) {
+    const index = Number(restoreButton.dataset.labelRestore);
+    const row = labelRows[index];
+    if (row?.sourceKey) {
+      delete labelRemovedRecords[row.sourceKey];
+      writeLabelRemoved(labelRemovedRecords);
+    }
+    renderLabelRows();
+    showToast('已恢复这个标签');
+    return;
+  }
   const removeButton = event.target.closest('[data-label-remove]');
   if (removeButton) {
     const index = Number(removeButton.dataset.labelRemove);
+    const row = labelRows[index];
+    if (row?.sourceKey) {
+      labelRemovedRecords[row.sourceKey] = { at: labelNowStamp(), material: row.material, mode: labelPrintMode };
+      writeLabelRemoved(labelRemovedRecords);
+    }
     if (index >= 0 && index < labelRows.length) labelRows.splice(index, 1);
     renderLabelRows();
+    showToast('标签已删除，下次打开不会再出现；勾选“已删除”可以恢复');
+    return;
   }
 }
 
@@ -12168,6 +12207,12 @@ if (els.labelPrintModes) {
 }
 if (els.labelPrintShowPrinted) {
   els.labelPrintShowPrinted.addEventListener('change', () => {
+    labelRows = buildLabelRows();
+    renderLabelRows();
+  });
+}
+if (els.labelPrintShowRemoved) {
+  els.labelPrintShowRemoved.addEventListener('change', () => {
     labelRows = buildLabelRows();
     renderLabelRows();
   });

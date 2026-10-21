@@ -3822,3 +3822,18 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 
 .drawing-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px}
 .drawing-actions .button{min-height:32px;white-space:nowrap}
+
+/* 标签弹窗底部操作区：始终固定可见，避免列表长时确认按钮被滚出视野 */
+.label-print-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  flex-shrink: 0;
+  padding: 10px 0 2px;
+  border-top: 1px solid #e5efed;
+  background: #fff;
+}
+@media (max-width: 900px) {
+  .label-print-actions { padding-bottom: max(4px, env(safe-area-inset-bottom)); }
+  .label-print-actions .button { flex: 1; }
+}
