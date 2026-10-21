@@ -380,6 +380,7 @@ const sessionOver = new Map();
 // 本次装车里的补发（不良补货）：不扣未交，直接进送货单
 const REPLACEMENT_PLAN_MARK = '【补发计划待装车】';
 const PHOTO_FILE_KIND = 'SHIPMENT_PHOTO';
+const PHOTO_RETENTION_MONTHS = 1;
 const UNIT_FILE_KIND = 'SHIPMENT_UNIT';
 const sessionReplacements = [];
 const sessionPhotos = [];
@@ -727,8 +728,15 @@ function normalizePhotoRow(row) {
 function shipmentPhotos() {
   return Array.isArray(snapshot?.shipmentPhotos) ? snapshot.shipmentPhotos : [];
 }
+function photoRetentionCutoff() {
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - PHOTO_RETENTION_MONTHS);
+  return cutoff.getTime();
+}
+
 function photoArchiveRows() {
   const map = new Map();
+  const retentionCutoff = photoRetentionCutoff();
   const add = (row, local = false) => {
     // 只按同一条云端记录/同一张本机照片去重；不能按时间或物料合并，
     // 否则连续快速拍下的两张不同照片会被误当成重复照片隐藏。
@@ -738,7 +746,11 @@ function photoArchiveRows() {
   };
   // 本机刚拍的照片优先，能直接显示 dataUrl
   for (const photo of sessionPhotos) add(photo, true);
-  for (const row of shipmentPhotos()) add(row, false);
+  for (const row of shipmentPhotos()) {
+    const stamp = Date.parse(String(row.capturedAt || row.createdAt || ''));
+    if (Number.isFinite(stamp) && stamp < retentionCutoff) continue;
+    add(row, false);
+  }
   return [...map.values()].sort((left, right) => String(right.capturedAt || right.createdAt || '').localeCompare(String(left.capturedAt || left.createdAt || '')));
 }
 

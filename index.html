@@ -17,15 +17,15 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
   <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
-  <link rel="stylesheet" href="design-tokens.css?v=cb3fe4ee0349">
-  <link rel="stylesheet" href="ui-polish.css?v=cb3fe4ee0349">
-  <link rel="stylesheet" href="theme-ui.css?v=cb3fe4ee0349">
-  <link rel="stylesheet" href="dashboard-home.css?v=cb3fe4ee0349">
+  <link rel="stylesheet" href="design-tokens.css?v=d3c93b92e63d">
+  <link rel="stylesheet" href="ui-polish.css?v=d3c93b92e63d">
+  <link rel="stylesheet" href="theme-ui.css?v=d3c93b92e63d">
+  <link rel="stylesheet" href="dashboard-home.css?v=d3c93b92e63d">
   <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
-  <link rel="stylesheet" href="home-merge.css?v=cb3fe4ee0349">
-  <link rel="stylesheet" href="global-search.css?v=cb3fe4ee0349">
-  <link rel="stylesheet" href="partners.css?v=cb3fe4ee0349">
-  <link rel="stylesheet" href="staff-v2.css?v=cb3fe4ee0349">
+  <link rel="stylesheet" href="home-merge.css?v=d3c93b92e63d">
+  <link rel="stylesheet" href="global-search.css?v=d3c93b92e63d">
+  <link rel="stylesheet" href="partners.css?v=d3c93b92e63d">
+  <link rel="stylesheet" href="staff-v2.css?v=d3c93b92e63d">
   <!-- 图纸预览用的 PDF 引擎：首次打开图纸时按需加载。 -->
 <style>
 /* ===== 考勤管理 视觉 ===== */
@@ -1470,6 +1470,7 @@
         </div>
         <button id="photoCaptureClose" class="icon-button" type="button" aria-label="关闭">×</button>
       </div>
+      <div class="photo-retention-note">现场照片最多保留 1 个月，满期后自动清理；送货单、未交数据和图纸不受影响。</div>
       <input id="photoFile" type="file" accept="image/*" capture="environment" hidden>
       <div class="photo-capture-actions"><button id="photoChoose" class="button primary" type="button">拍照 / 选择照片</button><button id="photoChooseMore" class="button ghost" type="button" hidden>再拍一张</button><span id="photoPendingCount" class="photo-pending-count"></span></div>
       <div id="photoPreviewWrap" class="photo-preview-wrap" hidden><img id="photoPreview" alt="现场照片预览"></div>
@@ -1509,7 +1510,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "cb3fe4ee0349";
+      const fallbackVersion = "d3c93b92e63d";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
@@ -1544,21 +1545,21 @@
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=cb3fe4ee0349" defer></script>
-  <script src="dashboard-home.js?v=cb3fe4ee0349" defer></script>
+  <script src="ui-polish.js?v=d3c93b92e63d" defer></script>
+  <script src="dashboard-home.js?v=d3c93b92e63d" defer></script>
 
-  <script src="home-merge.js?v=cb3fe4ee0349" defer></script>
-  <script src="global-search.js?v=cb3fe4ee0349" defer></script>
-  <script src="work-rates.js?v=cb3fe4ee0349" defer></script>
-  <script src="drawing-rotate.js?v=cb3fe4ee0349" defer></script>
-  <script src="drawing-open.js?v=cb3fe4ee0349" defer></script>
-  <script src="partners.js?v=cb3fe4ee0349" defer></script>
-  <script src="staff-v2.js?v=cb3fe4ee0349" defer></script>
-  <script src="po-print.js?v=cb3fe4ee0349" defer></script>
-  <script src="col-resize-fix.js?v=cb3fe4ee0349" defer></script>
-  <script src="work-split.js?v=cb3fe4ee0349" defer></script>
-  <script src="hint-clean.js?v=cb3fe4ee0349" defer></script>
-  <script src="sidebar-tidy.js?v=cb3fe4ee0349" defer></script>
+  <script src="home-merge.js?v=d3c93b92e63d" defer></script>
+  <script src="global-search.js?v=d3c93b92e63d" defer></script>
+  <script src="work-rates.js?v=d3c93b92e63d" defer></script>
+  <script src="drawing-rotate.js?v=d3c93b92e63d" defer></script>
+  <script src="drawing-open.js?v=d3c93b92e63d" defer></script>
+  <script src="partners.js?v=d3c93b92e63d" defer></script>
+  <script src="staff-v2.js?v=d3c93b92e63d" defer></script>
+  <script src="po-print.js?v=d3c93b92e63d" defer></script>
+  <script src="col-resize-fix.js?v=d3c93b92e63d" defer></script>
+  <script src="work-split.js?v=d3c93b92e63d" defer></script>
+  <script src="hint-clean.js?v=d3c93b92e63d" defer></script>
+  <script src="sidebar-tidy.js?v=d3c93b92e63d" defer></script>
 </body>
 </html>
 

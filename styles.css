@@ -3991,3 +3991,17 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
     font-size: 11px;
   }
 }
+
+
+/* 照片留档保留期提示 */
+.photo-retention-note {
+  margin: 12px 0 2px;
+  padding: 9px 11px;
+  border: 1px solid #d7e7e4;
+  border-radius: 10px;
+  background: #f2f9f7;
+  color: #45666b;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.55;
+}
