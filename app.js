@@ -2896,7 +2896,7 @@ function fetchAuxiliaryState() {
       () => loadDirectReceived(),      // 9
     ];
     const results = await mapLimit(tasks, 3, (task) => task());
-    const [amounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings, directReceived] = results;
+    const [amounts, overDeliveries, overOffsets, deliveryFiles, shipmentPhotos, shipmentUnits, replacements, drawings, , directReceived] = results;
     // 首屏能拿到缓存就用缓存，避免为了金额/图纸多等好几秒
     const finalAmounts = amounts.length ? amounts : (cacheIsFresh && Array.isArray(cached.amounts) ? cached.amounts : amounts);
     const finalDrawings = drawings.length ? drawings : (cacheIsFresh && Array.isArray(cached.drawings) ? cached.drawings : drawings);
@@ -8173,6 +8173,7 @@ function buildDeliveryGroups(shipments, queryText = '') {
   const orderLookup = orderLookupMap();
   const selectedBatch = new Set((shipments || []).map((shipment) => shipmentDisplayBatch(shipment)).filter(Boolean));
   const selectedShipmentIds = new Set((shipments || []).map((shipment) => String(shipment.id)));
+  const directShipmentMap = new Map((snapshot?.directReceived || []).map((row) => [String(row.shipmentId || ''), row]));
   const allShipments = (snapshot?.shipments || []).filter((shipment) => {
     if (selectedShipmentIds.has(String(shipment.id))) return true;
     return shipmentItemBatches(shipment).some((batch) => selectedBatch.has(batch));
@@ -8212,17 +8213,20 @@ function buildDeliveryGroups(shipments, queryText = '') {
           remark: '',
         });
       }
+      const direct = directShipmentMap.get(String(shipment.id));
       for (const [company, items] of itemsByCompany) {
         if (!items.length) continue;
-        const displayBatch = shipmentBatchForCompany(shipment, company);
+        const displayBatch = direct ? '' : shipmentBatchForCompany(shipment, company);
         searchGroups.push({
           key: `search:${shipment.id}:${company}`,
-          batch: displayBatch,
-          title: displayBatch ? `送货单 ${displayBatch} · ${deliveryStamp(shipment.createdAt)}` : `发货记录 · ${deliveryStamp(shipment.createdAt)}`,
-          billed: Boolean(displayBatch),
+          batch: direct ? '客户已入库' : displayBatch,
+          title: direct ? `客户已入库（免开单） · ${deliveryStamp(shipment.createdAt)}` : (displayBatch ? `送货单 ${displayBatch} · ${deliveryStamp(shipment.createdAt)}` : `发货记录 · ${deliveryStamp(shipment.createdAt)}`),
+          billed: Boolean(displayBatch) || Boolean(direct),
+          directReceived: Boolean(direct),
+          directReceivedNote: direct?.note || '',
           createdAt: shipment.createdAt,
           shipmentIds: [String(shipment.id)],
-          items,
+          items: items.map((item) => ({ ...item, billed: Boolean(displayBatch) || Boolean(direct) })),
           searchMode: true,
         });
       }
@@ -8248,7 +8252,6 @@ function buildDeliveryGroups(shipments, queryText = '') {
       });
   }
   const map = new Map();
-  const directShipmentMap = new Map((snapshot?.directReceived || []).map((row) => [String(row.shipmentId || ''), row]));
   const ensureGroup = (key, options = {}) => {
     if (!map.has(key)) {
       map.set(key, {
@@ -8375,6 +8378,7 @@ function renderDeliveryGroups(groups) {
     return `<article class="history-card delivery-batch-card ${group.billed ? 'billed-card' : ''}">
       <div class="history-head">
         <strong>${escapeHtml(group.title)}</strong>
+        ${group.directReceived ? '<span class="due-badge done">客户已入库 · 免开单</span>' : ''}
       </div>
       <div class="delivery-lines grouped">
         <div class="delivery-lines-head">${groupedHeadHtml}</div>
@@ -8636,6 +8640,7 @@ function renderSearchByDate(groups, queryText = '', dateFilter = '') {
         <div class="search-date-main">
           <strong>${escapeHtml(formatDate(group.date))}</strong>
           <span>${escapeHtml(batchText)}</span>
+          ${group.directReceived ? '<span class="due-badge done">客户已入库 · 免开单</span>' : ''}
         </div>
         <div class="search-date-stats">
           <strong>${escapeHtml(fmt(group.total))} 件 · ${group.rows.length} 笔</strong>
@@ -10946,13 +10951,16 @@ async function unlinkPhotosFromShipment(shipmentId) {
 async function markDirectReceived(ids) {
   const list = (Array.isArray(ids) ? ids : String(ids || '').split(',')).map((v) => String(v || '').trim()).filter(Boolean);
   if (!list.length) return;
-  if (!window.confirm('确认这些货客户已经直接入库、无需我方开送货单吗？\n发货数量和未交数量不会变，只给这笔发货加“客户已入库”标记。')) return;
+  const ships = (snapshot?.shipments || []).filter((shipment) => list.includes(String(shipment.id)));
+  const total = ships.reduce((sum, shipment) => sum + Number(shipment.totalQuantity || 0), 0);
+  const lines = ships.flatMap((shipment) => (shipment.items || []).map((item) => String(item.material || '') + ' ' + fmt(item.quantity || 0) + ' 件'));
+  if (!window.confirm('确认以下货客户已经直接入库、不用我方开送货单吗？\n\n' + (lines.length ? lines.join('\n') : list.join('、')) + '\n\n标记后：合计 ' + fmt(total) + ' 件仍计入已交，未交不会恢复；只是不生成送货单。')) return;
   const result = await callRpc('board_mark_direct_received', { p_code: getAccessCode(), p_shipment_ids: list, p_note: '客户已入库，免开送货单' });
   if (!result.response.ok) { showToast(result.data?.message || '标记失败', 7000); return; }
   auxiliaryLoadedAt = 0;
   await loadState({ quiet: true });
   renderAll();
-  showToast('已标记为客户直接入库，无需开送货单');
+  showToast('客户已入库已登记：' + fmt(total) + ' 件已计入已交，未交已扣减，无需开送货单', 12000);
 }
 async function unmarkDirectReceived(ids) {
   const list = (Array.isArray(ids) ? ids : String(ids || '').split(',')).map((v) => String(v || '').trim()).filter(Boolean);
