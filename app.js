@@ -4377,8 +4377,8 @@ async function openDrawingViewer(drawing, url, options = {}) {
 async function openDrawing(id) {
   const cached = (snapshot?.drawings || []).find((row) => String(row.id) === String(id));
   const nativeUrl = drawingDirectUrl(cached);
-  // 电脑端：直接交给浏览器原生 PDF 阅读器（新标签页），首屏快、可缩放、不会抖
-  if (!isMobileBoardView() && nativeUrl) {
+  // 直接交给浏览器原生 PDF 阅读器（新标签页），首屏快、可缩放、不会抖
+  if (nativeUrl) {
     // 用临时 <a target=_blank rel=noopener> 打开，比 window.open 更稳，也不会被拦截
     const link = document.createElement('a');
     link.href = nativeUrl;
@@ -4795,7 +4795,7 @@ function renderDesktopDrawings() {
             <button type="button" class="button ghost drawing-preview-btn" data-preview-drawing-id="${escapeHtml(row.id)}">预览</button>
             <button type="button" class="file-download drawing-open" data-drawing-id="${escapeHtml(row.id)}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h8l4 4v16H6z"></path><path d="M14 2v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg>
-              <span>查看图纸</span>
+              <span>打开PDF</span>
             </button>
           </div>
         </div>`;
@@ -12809,7 +12809,7 @@ function renderDrawingPreview(id) {
   image.dataset.fallback = '';
   image.onerror = () => {
     if (thumb && !image.dataset.fallback && full) { image.dataset.fallback = '1'; image.src = full; return; }
-    image.hidden = true; if (empty) { empty.hidden = false; empty.textContent = '缩略图暂不可用，请点击“查看图纸”'; }
+    image.hidden = true; if (empty) { empty.hidden = false; empty.textContent = '缩略图暂不可用，请点击“打开PDF”'; }
   };
   image.src = url;
   // 万一分栏没有吸顶（老浏览器/窗口太矮），点预览时把预览面板带到视线内
