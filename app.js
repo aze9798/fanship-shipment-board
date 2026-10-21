@@ -69,6 +69,7 @@ let workLiveLoading = false;
 let workLiveLoadedAt = 0;
 let workDailyRows = [];
 let workDailyDate = '';
+let workDailyRowsDate = '';
 let workDailyLoadedAt = 0;
 let workDailyLoading = null;
 let workDailyRequestDate = '';
@@ -6151,10 +6152,13 @@ function renderWorkDailyRecords() {
   const pending = rows.filter((row) => row.status === 'submitted').length;
   const approved = rows.filter((row) => row.status === 'approved').length;
   const hint = workDailyError
-    ? `读取失败：${workDailyError}`
+    ? (rows.length ? `刷新失败，显示上次数据（${rows.length} 笔）：${workDailyError}` : `读取失败：${workDailyError}`)
     : `${date} · 共 ${rows.length} 笔 · 待审 ${pending} 笔 · 已通过 ${approved} 笔`;
   [document.getElementById('desktopWorkReviewDailyHint'), document.getElementById('desktopWorkEditDailyHint')].forEach((el) => { if (el) el.textContent = hint; });
-  [document.getElementById('mobileWorkReviewDailyHint'), document.getElementById('mobileWorkEditDailyHint')].forEach((el) => { if (el) el.textContent = `${rows.length} 笔 · 待审 ${pending}`; });
+  const mobileHint = workDailyError
+    ? `刷新失败，显示上次 ${rows.length} 笔`
+    : `${rows.length} 笔 · 待审 ${pending}`;
+  [document.getElementById('mobileWorkReviewDailyHint'), document.getElementById('mobileWorkEditDailyHint')].forEach((el) => { if (el) el.textContent = mobileHint; });
   const desktopRows = rows.map((row) => {
     const employeeId = String(row.employeeId || row.employee_id || (workEmployeesCache || []).find((employee) => String(employee.employeeNo) === String(row.employeeNo))?.id || '');
     return `<tr><td>${escapeHtml(String(row.createdAt || '').slice(11, 16))}<small>${escapeHtml(row.workDate || date)}</small></td><td><strong>${escapeHtml(row.employeeName || '')}</strong><small>${escapeHtml(row.employeeNo || '')}</small></td><td>${escapeHtml(row.name || '')}<small>${escapeHtml(row.material || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</small></td><td>${escapeHtml(row.process || '')}<small>${escapeHtml(row.variantLabel || '')}</small></td><td class="number">${fmt(row.quantity)}</td><td><span class="review-status ${escapeHtml(row.status || '')}">${escapeHtml(workReviewStatusText(row.status))}</span></td><td>${employeeId ? `<button class="work-report-action" type="button" data-work-daily-pick="${escapeHtml(employeeId)}">带入修改</button>` : '--'}</td></tr>`;
@@ -6185,10 +6189,13 @@ async function loadWorkDailyRecords(force = false) {
       });
       if (!result.response.ok) throw new Error(result.data?.error || result.data?.message || '当天报工记录加载失败');
       workDailyRows = Array.isArray(result.data?.rows) ? result.data.rows : [];
+      workDailyRowsDate = day;
       workDailyLoadedAt = Date.now();
     } catch (error) {
-      workDailyRows = [];
+      // 网络抖动时不要把已有列表清空（用户看到的就是"报工记录消失"）
+      if (!(workDailyRowsDate === day && Array.isArray(workDailyRows) && workDailyRows.length)) workDailyRows = [];
       workDailyError = String(error.message || error);
+      workDailyLoadedAt = 0; // 失败结果不缓存，下次进入自动重试
     } finally {
       renderWorkDailyRecords();
       if (workDailyLoading === request) workDailyLoading = null;

@@ -8,7 +8,7 @@
   let lastNo = '';
   let lastEmployeeId = '';
   let lastCells = [];
-  let mode = 'records'; // 默认先看到报工记录，避免主页面看起来没有数据
+  let mode = 'live'; // 默认进"员工实况"；报工记录要主动点页签才看
 
   const shanghaiToday = () => new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'
@@ -329,32 +329,44 @@
     v.querySelectorAll('[data-tk-work-mode="records"]').forEach((b) => b.classList.toggle('on', mode === 'records'));
   }
 
-  function ensureRecordTab(v) {
-    const bar = v.querySelector('.tk-work-tabs');
-    if (!bar) return;
-    if (!bar.querySelector('[data-tk-work-mode="records"]')) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.dataset.tkWorkMode = 'records';
-      b.textContent = '报工记录';
-      bar.appendChild(b);
-    }
-    if (!bar.dataset.tkModeBound) {
+  const WORK_TAB_VIEWS = ['desktopWorkReportView', 'desktopWorkReviewView', 'desktopWorkEditView'];
+  function ensureRecordTabs() {
+    // 关键：三个视图（报工情况 / 待审核 / 报工修改）的页签条都要有"报工记录"，
+    // 否则切到待审核或报工修改时，第 4 个页签就"消失"了
+    WORK_TAB_VIEWS.forEach((id) => {
+      const v = document.getElementById(id);
+      if (!v) return;
+      const bar = v.querySelector('.tk-work-tabs');
+      if (!bar) return;
+      if (!bar.querySelector('[data-tk-work-mode="records"]')) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.dataset.tkWorkMode = 'records';
+        b.textContent = '报工记录';
+        bar.appendChild(b);
+      }
+      if (bar.dataset.tkModeBound) return;
       bar.dataset.tkModeBound = '1';
       bar.addEventListener('click', (e) => {
         const b = e.target.closest('button');
         if (!b) return;
+        const reportView = document.getElementById(VIEW);
         if (b.dataset.tkWorkMode === 'records') {
           e.preventDefault();
           e.stopPropagation();
+          // 从任意视图点"报工记录"：切回报工情况，再显示记录表
+          const link = document.querySelector('.side-link[data-desktop-view="workReport"]');
+          if (link && !reportView) return;
+          if (link) link.click();
           mode = 'records';
-          paint(v);
+          if (reportView) paint(reportView);
+          ensureRecordTabs();
         } else if (b.dataset.workView === 'workReport') {
           mode = 'live';
-          paint(v);
+          if (reportView) paint(reportView);
         }
       }, true);
-    }
+    });
   }
 
   function build() {
@@ -365,7 +377,7 @@
     const table = findLiveTable(panel);
     if (!table) return;
     ensureSplit(panel, table);
-    ensureRecordTab(v);
+    ensureRecordTabs();
     paint(v);
     // 原生重复详情区不再用大范围 textContent 隐藏（旧版就是这样把整个实况面板误藏的）
     const native = panel.querySelector('.work-live-split');
