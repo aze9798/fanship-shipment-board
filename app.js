@@ -8982,7 +8982,7 @@ function replacementPlanCard(plan, selected = false, legacyIndex = null) {
         ${order.orderType === 'sample' ? `<button type="button" class="sample-approval-open" data-sample-approval="${escapeHtml(order.id)}">样品承认书</button>` : ''}
         ${boardRole === 'admin' ? `<button type="button" class="order-edit-link mobile" data-edit-order="${escapeHtml(order.id)}">变更数量 / 交期</button>` : ''}
         ${(() => { const info = materialSummary(order); return info.count > 1
-          ? `<div class="material-total">同料号共 ${info.count} 单 · 未交合计 <b>${fmt(info.total)}</b></div>` : ''; })()}
+          ? `<div class="material-total"><span>同料号共 ${info.count} 单 · 未交合计</span><b>${fmt(info.total)}</b></div>` : ''; })()}
         <button type="button" class="photo-open${hasPhoto ? ' has-photo' : ''}" data-photo-order="${escapeHtml(order.id)}">${hasPhoto ? '已留档' : '拍照留档'}</button>
       </div>
       ${overDeliveryFor(order.material).length ? `<div class="material-total over">该料号已有无订单发货 <b>${fmt(overDeliveryFor(order.material).reduce((sum, row) => sum + Number(row.remaining || 0), 0))}</b> 件待冲抵</div>` : ''}
