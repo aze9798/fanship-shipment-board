@@ -8010,6 +8010,7 @@ function renderHistoryCards(shipments) {
         <span>${escapeHtml(stamp)}</span>
       </div>
       ${companyBreakdown ? `<div class="history-company-summary">公司归属：${escapeHtml(companyBreakdown)}</div>` : ''}
+      ${shipment.note ? `<div class="history-shipment-note">备注：${escapeHtml(shipment.note)}</div>` : ''}
       <div class="history-lines">
         ${shown.map((line) => {
           const meta = orderMetaFor(line.orderId, line, orderLookup);
