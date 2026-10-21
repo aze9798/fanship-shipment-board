@@ -7,6 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="帆顺工作台">
+  <link rel="icon" href="data:,">
   <link rel="manifest" href="work-manifest.webmanifest">
   <title>帆顺科技工作台</title>
   <style>
@@ -86,7 +87,7 @@
     #timePanel .list-title strong{font-size:20px;font-weight:900}
     .record{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;border-top:1px solid #edf2f2}.record:first-child{border-top:0}.record small{display:block;color:var(--muted);font-size:10px;margin-top:3px}.record strong{font-size:13px}.empty{padding:24px 10px;text-align:center;color:var(--muted);font-size:12px}
     .search-wrap{position:relative}.search-wrap input{width:100%;height:46px;border:1px solid var(--line);border-radius:12px;padding:0 48px 0 40px;background:#fbfdfd;outline:none}.search-wrap input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}.search-wrap::before{content:"⌕";position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#6c908b;font-size:20px;font-weight:800}.search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:34px;height:34px;border:0;border-radius:50%;background:#e7f2f0;color:#3f656b;font-size:22px;line-height:1;display:grid;place-items:center;padding:0;z-index:2}.search-clear:hover{background:#d8ebe7;color:var(--primary)}
-    .suggest{margin-top:7px;border:1px solid #cddedb;border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 8px 20px rgba(18,78,75,.06)}.suggest button{position:relative;display:block;width:100%;padding:15px 14px 15px 19px;border:0;border-top:1px solid #e5eeec;background:#fff;text-align:left;transition:background .16s ease}.suggest button:first-child{border-top:0}.suggest button::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:4px;border-radius:0 5px 5px 0;background:var(--primary);opacity:.78}.suggest button:hover,.suggest button:focus{background:#edf8f5}.suggest button:active{background:#e2f3ef}.suggest strong{display:block;font-size:16px;line-height:1.45;font-weight:900;color:var(--ink);word-break:break-word}.suggest span{display:block;color:#5f777d;font-size:13px;line-height:1.45;margin-top:4px;font-weight:700;word-break:break-word}
+    .suggest{margin-top:7px;border:1px solid #cddedb;border-radius:14px;overflow:auto;max-height:320px;background:#fff;box-shadow:0 8px 20px rgba(18,78,75,.06)}.suggest button{position:relative;display:block;width:100%;padding:15px 14px 15px 19px;border:0;border-top:1px solid #e5eeec;background:#fff;text-align:left;transition:background .16s ease}.suggest button:first-child{border-top:0}.suggest button::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:4px;border-radius:0 5px 5px 0;background:var(--primary);opacity:.78}.suggest button:hover,.suggest button:focus{background:#edf8f5}.suggest button:active{background:#e2f3ef}.suggest strong{display:block;font-size:16px;line-height:1.45;font-weight:900;color:var(--ink);word-break:break-word}.suggest span{display:block;color:#5f777d;font-size:13px;line-height:1.45;margin-top:4px;font-weight:700;word-break:break-word}
     .picked{padding:12px;border-radius:12px;background:#eef8f6;margin-top:10px}.picked strong{display:block;font-size:13px}.picked span{display:block;color:var(--muted);font-size:10px;margin-top:3px}
     .process-grid{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.process{border:1px solid var(--line);border-radius:10px;background:#fff;padding:8px 11px;color:#536b72}.process.active{border-color:var(--primary);background:var(--primary);color:#fff}
     .piece-form{display:grid;gap:11px;margin-top:12px}.piece-form .row{display:grid;grid-template-columns:1fr;gap:9px;min-width:0}.piece-form .row>*{min-width:0}.piece-form input{width:100%;min-width:0;height:46px;border:1px solid var(--line);border-radius:11px;padding:0 11px;background:#fbfdfd;outline:none}.variant-box{margin-top:12px;padding:14px;border-radius:12px;background:#f7fbfa;border:1px solid #e2edeb;scroll-margin-top:18px}.variant-box.variant-attention{border-color:#0f766e;box-shadow:0 0 0 4px rgba(15,118,110,.12);transform:scale(1.01);transition:.25s}.variant-label{margin-bottom:8px;color:#587178;font-size:12px;font-weight:700}.variant-options{display:flex;flex-wrap:wrap;gap:7px}.variant-options button{min-height:36px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#536b72}.variant-options button.active{border-color:var(--primary);background:var(--primary);color:#fff}.variant-box input{width:100%;height:40px;border:1px solid var(--line);border-radius:10px;padding:0 11px;background:#fff;outline:none}
@@ -256,6 +257,7 @@
       #payrollPanel{position:absolute;left:0;top:0;width:100%;box-shadow:none}
       #payrollPanel .ghost,#payrollRangeSwitch,.month-nav,#payrollRefresh,#payrollPrint{display:none!important}
     }
+  #pieceEntries{max-height:420px;overflow:auto;padding-right:2px}
   </style>
 </head><body>
 <div class="page">
@@ -445,17 +447,17 @@
     <p id="requestSubtitle">请填写完整信息，提交后等待管理员审核。</p>
     <div id="requestProductSummary" class="request-product hidden"></div>
     <div class="request-fields">
-      <label id="requestNameWrap" class="field"><span>品名</span><input id="requestName" type="text" placeholder="请填写产品品名"></label>
-      <label id="requestMaterialWrap" class="field"><span>料件编号</span><input id="requestMaterial" type="text" autocomplete="off" placeholder="请询问现场管理人员物料编号后填写"><small id="requestMaterialHint" class="request-tip" hidden></small></label>
+      <label id="requestNameWrap" class="field"><span>品名 *</span><input id="requestName" type="text" placeholder="请填写产品品名"></label>
+      <label id="requestMaterialWrap" class="field"><span>料件编号 *</span><input id="requestMaterial" type="text" autocomplete="off" placeholder="请询问现场管理人员物料编号后填写"><small id="requestMaterialHint" class="request-tip" hidden></small></label>
       <div id="requestMaterialMatches" class="suggest hidden"></div>
       <!-- 规格 / 图号字段按需求移除 -->
-      <label id="requestProcessWrap" class="field"><span>工序</span><input id="requestProcess" type="text" list="requestProcessList" autocomplete="off" placeholder="输入或选择工序；没有就自填"><datalist id="requestProcessList"></datalist></label>
+      <label id="requestProcessWrap" class="field"><span>工序 *</span><input id="requestProcess" type="text" list="requestProcessList" autocomplete="off" placeholder="输入或选择工序；没有就自填"><datalist id="requestProcessList"></datalist></label>
       <label id="requestOtherProcessWrap" class="field hidden"><span>手工工序名称</span><input id="requestOtherProcess" type="text" placeholder="例如：激光切割"></label>
       <label id="requestVariantWrap" class="field hidden"><span id="requestVariantLabel">规格</span><select id="requestVariantValue"></select></label>
           <label id="requestVariantCustomWrap" class="field hidden"><span id="requestVariantCustomLabel">自己填写</span><input id="requestVariantCustom" type="number" min="1" step="1" inputmode="numeric" placeholder=""></label>
-      <label class="field"><span>数量</span><input id="requestQty" type="number" min="1" step="1" inputmode="numeric" placeholder=""></label>
-      <label class="field"><span>单价</span><input id="requestPrice" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder=""></label>
-      <label class="field"><span>选填</span><input id="requestNote" type="text" placeholder="选填"></label>
+      <label class="field"><span>数量 *</span><input id="requestQty" type="number" min="1" step="1" inputmode="numeric" placeholder=""></label>
+      <label class="field"><span>单价 *</span><input id="requestPrice" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder=""></label>
+      <label class="field"><span>备注（选填）</span><input id="requestNote" type="text" placeholder="可填写备注"></label>
     </div>
     <div id="requestError" class="request-error hidden"></div>
     <div class="request-tip">提交后显示“待审核”，管理员确认前不计入工资。</div>

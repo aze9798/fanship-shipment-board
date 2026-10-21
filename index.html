@@ -17,18 +17,16 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
   <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
-  <link rel="stylesheet" href="design-tokens.css?v=ad32877a43cb">
-  <link rel="stylesheet" href="ui-polish.css?v=ad32877a43cb">
-  <link rel="stylesheet" href="theme-ui.css?v=ad32877a43cb">
-  <link rel="stylesheet" href="dashboard-home.css?v=ad32877a43cb">
+  <link rel="stylesheet" href="design-tokens.css?v=cba96750f517">
+  <link rel="stylesheet" href="ui-polish.css?v=cba96750f517">
+  <link rel="stylesheet" href="theme-ui.css?v=cba96750f517">
+  <link rel="stylesheet" href="dashboard-home.css?v=cba96750f517">
   <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
-  <link rel="stylesheet" href="home-merge.css?v=ad32877a43cb">
-  <link rel="stylesheet" href="global-search.css?v=ad32877a43cb">
-  <link rel="stylesheet" href="partners.css?v=ad32877a43cb">
-  <link rel="stylesheet" href="staff-v2.css?v=ad32877a43cb">
-  <!-- 图纸预览用的 PDF 引擎：首屏空闲时后台预取，别等点开图纸才开始下（2026-10-17） -->
-  <link rel="prefetch" href="vendor/pdf.min.mjs">
-  <link rel="prefetch" href="vendor/pdf.worker.min.mjs">
+  <link rel="stylesheet" href="home-merge.css?v=cba96750f517">
+  <link rel="stylesheet" href="global-search.css?v=cba96750f517">
+  <link rel="stylesheet" href="partners.css?v=cba96750f517">
+  <link rel="stylesheet" href="staff-v2.css?v=cba96750f517">
+  <!-- 图纸预览用的 PDF 引擎：首次打开图纸时按需加载。 -->
 <style>
 /* ===== 考勤管理 视觉 ===== */
 .att-tabs{display:flex;gap:6px;padding:5px;background:#e3eeec;border-radius:14px;margin-bottom:12px;overflow-x:auto}
@@ -202,7 +200,7 @@
         </a>
         <a class="side-link" href="#query" data-desktop-view="shipments" data-module="shipment">
           <span class="nav-dot"></span>
-          查询
+          发货记录
         </a>
         <a class="side-link" href="#drawings" data-desktop-view="drawings" data-module="shipment">
           <span class="nav-dot"></span>
@@ -412,7 +410,7 @@
 <section id="desktopShipmentsView" class="desktop-view desktop-only" hidden>
         <header class="topbar">
           <div>
-            <h1>查询</h1>
+            <h1>发货记录</h1>
           </div>
           <div class="topbar-actions">
             <button id="generateDeliveryNote" class="button primary" type="button">生成送货单</button>
@@ -464,7 +462,7 @@
       <section id="desktopDrawingsView" class="desktop-view desktop-only" hidden>
         <header class="topbar drawings-topbar">
           <div>
-            <h1>图纸</h1>
+            <h1>图纸库</h1>
           </div>
         </header>
         <section class="panel drawings-panel">
@@ -486,7 +484,17 @@
               </div>
             </div>
           </div>
-          <div id="drawingList" class="drawing-list"></div>
+          <div class="drawing-library-layout">
+            <div id="drawingList" class="drawing-list"></div>
+            <aside id="drawingPreviewPane" class="drawing-preview-pane">
+              <div id="drawingPreviewEmpty" class="drawing-preview-empty">选择左侧图纸，这里显示第一页预览</div>
+              <img id="drawingPreviewImage" alt="图纸预览" hidden>
+              <div class="drawing-preview-foot">
+                <strong id="drawingPreviewTitle">图纸预览</strong>
+                <button id="drawingPreviewOpen" class="button primary" type="button" disabled>打开完整图纸</button>
+              </div>
+            </aside>
+          </div>
         </section>
       </section>
 
@@ -683,7 +691,7 @@
           <label><span>日期（可选任意一天）</span><input id="desktopWorkEditDate" type="date"></label>
           <label><span>员工</span><select id="desktopWorkEditEmployee"><option value="">请选择员工</option></select></label>
           <label><span>工资封账</span><div id="desktopWorkEditLock" class="work-edit-lock">先选员工</div></label>
-          <label><span>&nbsp;</span><button id="desktopWorkEditRefresh" class="button primary" type="button">刷新</button></label>
+          <label><span>&nbsp;</span><button id="desktopWorkEditRefresh" class="button ghost" type="button">刷新</button></label>
         </section>
         <section class="work-review-stats work-edit-stats">
           <article><span>计时段数</span><strong id="desktopWorkEditTimerCount">0</strong></article>
@@ -849,9 +857,9 @@
 
 
         <nav class="mobile-tabs" aria-label="手机功能">
-          <button class="mobile-tab active" data-tab="entry" type="button">装车录入</button>
+          <button class="mobile-tab active" data-tab="entry" type="button">装车登记</button>
           <button class="mobile-tab" data-tab="remaining" type="button">未交清单</button>
-          <button class="mobile-tab" data-tab="records" type="button">查询</button>
+          <button class="mobile-tab" data-tab="records" type="button">发货记录</button>
           <button class="mobile-tab" data-tab="files" type="button">云端送货单</button>
         </nav>
 
@@ -1466,7 +1474,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "ad32877a43cb";
+      const fallbackVersion = "cba96750f517";
       const stylesheet = document.querySelector('link[href*="styles.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
@@ -1501,21 +1509,21 @@
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=ad32877a43cb" defer></script>
-  <script src="dashboard-home.js?v=ad32877a43cb" defer></script>
+  <script src="ui-polish.js?v=cba96750f517" defer></script>
+  <script src="dashboard-home.js?v=cba96750f517" defer></script>
 
-  <script src="home-merge.js?v=ad32877a43cb" defer></script>
-  <script src="global-search.js?v=ad32877a43cb" defer></script>
-  <script src="work-rates.js?v=ad32877a43cb" defer></script>
-  <script src="drawing-rotate.js?v=ad32877a43cb" defer></script>
-  <script src="drawing-open.js?v=ad32877a43cb" defer></script>
-  <script src="partners.js?v=ad32877a43cb" defer></script>
-  <script src="staff-v2.js?v=ad32877a43cb" defer></script>
-  <script src="po-print.js?v=ad32877a43cb" defer></script>
-  <script src="col-resize-fix.js?v=ad32877a43cb" defer></script>
-  <script src="work-split.js?v=ad32877a43cb" defer></script>
-  <script src="hint-clean.js?v=ad32877a43cb" defer></script>
-  <script src="sidebar-tidy.js?v=ad32877a43cb" defer></script>
+  <script src="home-merge.js?v=cba96750f517" defer></script>
+  <script src="global-search.js?v=cba96750f517" defer></script>
+  <script src="work-rates.js?v=cba96750f517" defer></script>
+  <script src="drawing-rotate.js?v=cba96750f517" defer></script>
+  <script src="drawing-open.js?v=cba96750f517" defer></script>
+  <script src="partners.js?v=cba96750f517" defer></script>
+  <script src="staff-v2.js?v=cba96750f517" defer></script>
+  <script src="po-print.js?v=cba96750f517" defer></script>
+  <script src="col-resize-fix.js?v=cba96750f517" defer></script>
+  <script src="work-split.js?v=cba96750f517" defer></script>
+  <script src="hint-clean.js?v=cba96750f517" defer></script>
+  <script src="sidebar-tidy.js?v=cba96750f517" defer></script>
 </body>
 </html>
 

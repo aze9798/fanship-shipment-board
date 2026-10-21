@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const VIEW = 'workRates';
-  const S = { mounted: false, loaded: false, rows: [], query: '' };
+  const S = { mounted: false, loaded: false, rows: [], query: '', visibleLimit: 40 };
   const $ = (s) => document.querySelector(s);
   function readCode() {
     const mode = new URLSearchParams(location.search).get('mode');
@@ -66,8 +66,8 @@
       if (link.dataset.desktopView === VIEW) { e.preventDefault(); showMine(); } else hideMine();
     }, true);
     $('#workRatesRefresh')?.addEventListener('click', () => load());
-    $('#workRatesSearch')?.addEventListener('input', (e) => { S.query = e.target.value; clearTimeout(S.timer); S.timer = setTimeout(() => load(), 220); });
-    $('#workRatesBody')?.addEventListener('click', (e) => { const b = e.target.closest('[data-rate-edit]'); if (!b) return; const row = S.rows.find((x) => String(x.rateId) === String(b.dataset.rateEdit)); if (row) openEditor(row); });
+    $('#workRatesSearch')?.addEventListener('input', (e) => { S.query = e.target.value; S.visibleLimit = 40; clearTimeout(S.timer); S.timer = setTimeout(() => load(), 220); });
+    $('#workRatesBody')?.addEventListener('click', (e) => { if (e.target.closest('[data-rate-more]')) { S.visibleLimit += 40; render(); return; } const b = e.target.closest('[data-rate-edit]'); if (!b) return; const row = S.rows.find((x) => String(x.rateId) === String(b.dataset.rateEdit)); if (row) openEditor(row); });
   }
   async function load() {
     const res = await rpc('work_admin_price_list', { p_query: S.query || '' });
@@ -76,9 +76,10 @@
     render();
   }
   function render() {
+    const visibleRows = S.rows.slice(0, S.visibleLimit);
     $('#workRatesCount').textContent = S.rows.length + ' 条单价';
     $('#workRatesEmpty').hidden = S.rows.length > 0;
-    $('#workRatesBody').innerHTML = S.rows.map((r) => `<tr>
+    $('#workRatesBody').innerHTML = visibleRows.map((r) => `<tr>
       <td class="mono">${esc(r.material || '—')}</td>
       <td>${esc(r.name || '')}${r.spec ? ' · ' + esc(r.spec) : ''}</td>
       <td>${esc(r.processName || '')}</td>
@@ -86,7 +87,7 @@
       <td class="number"><strong>${price(r.unitPrice)}</strong></td>
       <td>${esc(String(r.effectiveFrom || '').slice(0, 10))}</td>
       <td><button class="button ghost" type="button" data-rate-edit="${esc(r.rateId)}">改价</button></td>
-    </tr>`).join('');
+    </tr>`).join('') + (S.rows.length > visibleRows.length ? `<tr><td colspan="7"><div class="load-more-row"><span>已显示 ${visibleRows.length} / ${S.rows.length} 条</span><button class="button ghost" type="button" data-rate-more>再显示 40 条</button></div></td></tr>` : '');
   }
   function openEditor(row) {
     const mask = document.createElement('div'); mask.id = 'workRateMask'; mask.style.cssText = 'position:fixed;inset:0;background:rgba(8,30,35,.38);z-index:9400;display:grid;place-items:center;padding:20px;';

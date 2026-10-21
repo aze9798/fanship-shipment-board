@@ -67,8 +67,14 @@ let workLiveRows = [];
 let workEmployeeRates = null;
 let workLiveLoading = false;
 let workLiveLoadedAt = 0;
-let remainingVisibleLimit = 60;
-let desktopRemainingVisibleLimit = 120;
+let remainingVisibleLimit = 20;
+let desktopRemainingVisibleLimit = 20;
+let mobileOrderVisibleLimit = 20;
+let desktopMainVisibleLimit = 20;
+let desktopLoadingVisibleLimit = 30;
+let mobileRecordsVisibleLimit = 5;
+let desktopHistoryVisibleLimit = 15;
+let drawingVisibleLimit = 40;
 let formBaseRevision = null;
 let orderEditBaseRevision = null;
 let boardRoleReady = false;
@@ -3253,12 +3259,15 @@ function drawingTargetsFor(fileName) {
 async function handlePdfFiles(fileList) {
   const files = [...(fileList || [])].filter(Boolean);
   if (!files.length) return;
-  try {
-    await loadPdfJs();
-  } catch {
-    showToast('PDF 识别组件加载失败，请检查网络后重试');
-    if (els.pdfFileInput) els.pdfFileInput.value = '';
-    return;
+  const hasPdf = files.some((file) => !/\.(xlsx|xls)$/i.test(String(file.name || '')));
+  if (hasPdf) {
+    try {
+      await loadPdfJs();
+    } catch {
+      showToast('PDF 识别组件加载失败，请检查网络后重试');
+      if (els.pdfFileInput) els.pdfFileInput.value = '';
+      return;
+    }
   }
   showToast(`正在识别 ${files.length} 个文件（采购订单 PDF / 试制 Excel）...`);
   beginTask('正在识别订单文件...');
@@ -4642,9 +4651,10 @@ function renderDesktopDrawings() {
       || String(a.spec || '').localeCompare(String(b.spec || ''), 'zh-CN');
   });
   if (els.drawingCount) els.drawingCount.textContent = `${rows.length} 份图纸`;
+  const visibleRows = rows.slice(0, drawingVisibleLimit);
   els.drawingList.innerHTML = rows.length ? `
     <div class="drawing-list-head" aria-hidden="true"><span>料号</span><span>图纸名称 / 规格</span><span>操作</span></div>
-    ${rows.map((row) => {
+    ${visibleRows.map((row) => {
       const category = String(row.category || 'formal');
       const label = drawingCategoryLabel(category);
       const fileName = String(row.fileName || '');
@@ -4655,12 +4665,16 @@ function renderDesktopDrawings() {
             <span class="drawing-type-icon" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${drawingCategoryIcon(category)}</span>
             <span class="drawing-name">${escapeHtml(row.name || '未命名图纸')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</span>
           </div>
-          <button type="button" class="file-download drawing-open" data-drawing-id="${escapeHtml(row.id)}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h8l4 4v16H6z"></path><path d="M14 2v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg>
-            <span>查看图纸</span>
-          </button>
+          <div class="drawing-actions">
+            <button type="button" class="button ghost drawing-preview-btn" data-preview-drawing-id="${escapeHtml(row.id)}">预览</button>
+            <button type="button" class="file-download drawing-open" data-drawing-id="${escapeHtml(row.id)}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h8l4 4v16H6z"></path><path d="M14 2v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg>
+              <span>查看图纸</span>
+            </button>
+          </div>
         </div>`;
     }).join('')}
+    ${rows.length > visibleRows.length ? `<div class="load-more-row"><span>已显示 ${visibleRows.length} / ${rows.length} 份</span><button class="button ghost" type="button" data-drawing-more>再显示 40 份</button></div>` : ''}
   ` : '<div class="empty-state"><strong>没有匹配的图纸</strong><span>试试输入料号、品名、图号或文件名。</span></div>';
 }
 
@@ -5167,7 +5181,7 @@ function renderOverOffsetList() {
   return `
     <section class="over-box offset-history">
       <div class="over-head"><strong>冲抵记录</strong><span>最近 ${rows.length} 笔</span></div>
-      ${rows.map((row) => {
+      ${visibleRows.map((row) => {
         const meta = orderMetaFor(row.orderId, row);
         const po = meta.po || '无';
         const seq = meta.seq || '无';
@@ -5297,6 +5311,49 @@ function renderDesktopLoadingSummary() {
   if (els.desktopLoadingSelectedItems) els.desktopLoadingSelectedItems.textContent = `${totalItems} 项物料`;
   if (els.desktopLoadingRemainingQty) els.desktopLoadingRemainingQty.textContent = fmt(snapshot?.summary?.remainingQuantity || 0);
 }
+function desktopLoadingTableRow(item) {
+  if (item.kind === 'replacement') {
+    const plan = item.item;
+    const selected = item.selected;
+    const action = selected
+      ? `<button type="button" class="button ghost" data-unselect-replacement-plan="${escapeHtml(plan.id || plan.planId || '')}">取消装车</button>`
+      : `<button type="button" class="button primary" data-select-replacement-plan="${escapeHtml(plan.id || plan.planId || '')}">装车</button>`;
+    return `<tr>
+      <td><span class="due-badge">补发</span><div class="mono">${escapeHtml(formatDate(plan.deliveryDate || plan.dueDate || ''))}</div></td>
+      <td><strong class="mono">${escapeHtml(plan.material || '')}</strong><div>${escapeHtml(plan.name || '补发物料')}${plan.spec ? ' · ' + escapeHtml(plan.spec) : ''}</div></td>
+      <td class="number">补发 ${escapeHtml(fmt(plan.quantity))}</td>
+      <td class="number">${selected ? '已加入' : '—'}</td>
+      <td>${action}</td>
+    </tr>`;
+  }
+  if (item.kind === 'unit') {
+    const unit = item.unit;
+    const groups = unitMaterialGroups(unit);
+    const materialSummary = groups.slice(0, 4).map((group) => group.material).filter(Boolean).join('、') || '未填写物料';
+    const status = unit.status || 'ready';
+    const loadAction = status === 'needs_rephoto'
+      ? `<button type="button" class="button primary" data-unit-retake="${escapeHtml(unit.unitId)}">重新拍照</button>`
+      : `<button type="button" class="button primary" data-unit-load="${escapeHtml(unit.unitId)}">${status === 'loaded' ? '更新装车数量' : '整组装车'}</button>`;
+    return `<tr>
+      <td><span class="due-badge">装车单元</span><div class="mono">${escapeHtml(formatDate(unitDisplayDate(unit)))}</div></td>
+      <td><strong class="mono">${escapeHtml(materialSummary)}${groups.length > 4 ? ' 等' : ''}</strong><div>${escapeHtml(unitStatusText(unit))}</div></td>
+      <td class="number">${escapeHtml(fmt(groups.length))} 项 · ${escapeHtml(fmt(unitMemberRowCount(unit)))} 笔 · ${escapeHtml(fmt(unitTotalQuantity(unit)))} 件</td>
+      <td class="number">—</td>
+      <td>${loadAction}${unitPhoto(unit) ? `<button type="button" class="button ghost" data-unit-view-photo="${escapeHtml(unit.unitId)}">照片</button>` : ''}</td>
+    </tr>`;
+  }
+  const order = item.order;
+  const badge = dueBadge(order);
+  const selectedQty = Number(selected.get(order.id) || 0);
+  return `<tr>
+    <td><span class="due-badge ${badge.className}">${escapeHtml(badge.text)}</span><div class="mono">${escapeHtml(formatDate(order.dueDate))}</div></td>
+    <td><div><strong class="mono">${escapeHtml(order.material)}</strong> ${orderTypeTagHtml(order.orderType)}</div><div>${escapeHtml(order.name)}</div><small class="mono">${escapeHtml(order.spec || '—')} · ${escapeHtml(orderPoLabel(order))} · 项次 ${escapeHtml(order.seq)}</small></td>
+    <td class="number">${escapeHtml(fmt(order.openingRemaining))} / ${escapeHtml(fmt(order.shipped))} / <strong>${escapeHtml(fmt(order.remaining))}</strong></td>
+    <td><div class="qty-stepper desktop-table-qty"><button type="button" data-action="minus" data-id="${escapeHtml(order.id)}" aria-label="减少数量">−</button><input type="number" min="0" max="${order.remaining}" step="1" inputmode="decimal" value="${selectedQty || ''}" placeholder="本次数量" data-action="input" data-id="${escapeHtml(order.id)}" aria-label="${escapeHtml(order.name)} 本次数量"><button type="button" data-action="plus" data-id="${escapeHtml(order.id)}" aria-label="增加数量">＋</button></div></td>
+    <td><button class="button primary" type="button" data-action="fill" data-id="${escapeHtml(order.id)}">装完 ${escapeHtml(fmt(order.remaining))}</button><button type="button" class="button ghost" data-edit-order="${escapeHtml(order.id)}">变更</button><button type="button" class="photo-open${materialHasPhoto(order) ? ' has-photo' : ''}" data-photo-order="${escapeHtml(order.id)}">${materialHasPhoto(order) ? '已留档' : '拍照'}</button></td>
+  </tr>`;
+}
+
 function renderDesktopLoading() {
   if (!els.desktopLoadingCardList) return;
   syncDesktopLoadingDueOptions();
@@ -5305,16 +5362,12 @@ function renderDesktopLoading() {
     includeReplacements: desktopLoadingDue === 'all' && desktopLoadingCompany === 'all',
     planQuery: desktopLoadingSearch,
   });
-  const limit = 120;
+  const limit = desktopLoadingVisibleLimit;
   const shown = items.slice(0, limit);
   if (els.desktopLoadingSummary) els.desktopLoadingSummary.textContent = fmt(items.length);
   els.desktopLoadingEmpty.hidden = items.length > 0;
-  els.desktopLoadingCardList.innerHTML = shown.map((item) => item.kind === 'replacement'
-    ? replacementPlanCard(item.item, item.selected, item.legacyIndex)
-    : item.kind === 'unit'
-      ? unitCardHtml(item.unit, item.index)
-      : orderCard(item.order)).join('')
-    + (items.length > limit ? `<div class="empty-state desktop-loading-more"><strong>还有 ${fmt(items.length - limit)} 项未显示</strong><span>请用搜索快速定位物料。</span></div>` : '');
+  els.desktopLoadingCardList.classList.add('table-mode');
+  els.desktopLoadingCardList.innerHTML = `<div class="table-wrap"><table class="orders-table desktop-loading-table"><thead><tr><th>状态 / 交期</th><th>编号 / 品名</th><th class="number">订单 / 已发 / 剩余</th><th>本次数量</th><th>操作</th></tr></thead><tbody>${shown.map(desktopLoadingTableRow).join('')}${items.length > limit ? `<tr><td colspan="5"><div class="load-more-row desktop-loading-more"><span>已显示 ${shown.length} / ${items.length} 项</span><button class="button ghost" type="button" data-desktop-loading-more>再显示 30 项</button></div></td></tr>` : ''}</tbody></table></div>`;
   renderDesktopLoadingSummary();
   renderDesktopLoadingCart();
   renderDesktopLoadingRecords();
@@ -7061,7 +7114,8 @@ function renderMobileModule() {
   const title = document.getElementById('mobileBrandTitle');
   if (title) title.textContent = `帆顺科技${isAdmin ? '（管理员）' : ''}`;
   const moduleLabel = document.getElementById('mobileBrandModule');
-  if (moduleLabel) moduleLabel.textContent = attendanceMode ? '考勤管理' : staffInfoMode ? '员工信息' : payrollMode ? '工资' : (workMode ? '报工审核' : '装车登记');
+  const entryModuleLabel = { entry: '装车登记', remaining: '未交清单', records: '发货记录', files: '云端送货单' }[mobileTab] || '装车登记';
+  if (moduleLabel) moduleLabel.textContent = attendanceMode ? '考勤管理' : staffInfoMode ? '员工信息' : payrollMode ? '工资' : (workMode ? (WORK_EDIT_TAB_LABEL[mobileWorkTab] || '报工情况') : entryModuleLabel);
   const summary = document.querySelector('.mobile-summary');
   const tabs = document.querySelector('.mobile-tabs');
   if (summary) summary.hidden = workMode || attendanceMode || staffMode;
@@ -7447,7 +7501,8 @@ function setupDeliveryColumnResize() {
 
 function renderDesktopTable() {
   const rows = desktopRows();
-  els.desktopTableBody.innerHTML = rows.map((order) => {
+  const visibleRows = rows.slice(0, desktopMainVisibleLimit);
+  els.desktopTableBody.innerHTML = visibleRows.map((order) => {
     const badge = dueBadge(order);
     const orderQty = Number(order.orderQty ?? order.openingRemaining ?? 0);
     const amount = amountFor(order.id);
@@ -7468,9 +7523,15 @@ function renderDesktopTable() {
         <td><span class="due-date">${escapeHtml(formatDate(order.dueDate))}</span><span class="due-badge ${badge.className}">${escapeHtml(dueStatus(order).text)}</span></td>
         <td class="col-spacer" aria-hidden="true"></td>
       </tr>`;
-  }).join('');
+  }).join('') + (rows.length > visibleRows.length ? `<tr><td colspan="12"><div class="load-more-row"><span>已显示 ${visibleRows.length} / ${rows.length} 条</span><button class="button ghost" type="button" data-desktop-main-more>再显示 20 条</button></div></td></tr>` : '');
   els.desktopEmpty.hidden = rows.length > 0;
-}function currentEditingOrder() {
+}
+if (els.desktopTableBody) els.desktopTableBody.addEventListener('click', (event) => {
+  if (event.target.closest('[data-desktop-main-more]')) {
+    desktopMainVisibleLimit += 20;
+    renderDesktopTable();
+  }
+});function currentEditingOrder() {
   return (snapshot?.orders || []).find((order) => String(order.id) === String(editingOrderId));
 }
 
@@ -7946,7 +8007,7 @@ function applyQueryTab() {
 }
 
 document.querySelectorAll('[data-query-tab]').forEach((button) => {
-  button.addEventListener('click', () => { queryTab = button.dataset.queryTab; applyQueryTab(); if (button.closest('#mobileRecordsPanel')) renderMobileRecords(); });
+  button.addEventListener('click', () => { queryTab = button.dataset.queryTab; desktopHistoryVisibleLimit = 15; mobileRecordsVisibleLimit = 5; applyQueryTab(); if (button.closest('#mobileRecordsPanel')) renderMobileRecords(); });
 });
 
 function syncQueryInputs() {
@@ -8570,7 +8631,12 @@ function renderShipmentSection(shipments, queryText = '', dateFilter = '') {
       ? `共 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`
       : `筛选出 ${rows.length} 笔 · 合计 ${fmt(quantity)} 件`;
   }
-  renderQueryPanes(els.shipmentHistory, els.offsetHistory, els.overHistory, renderShipmentSection(rows, historyQuery, historyDate), els.replacementHistory);
+  const visibleRows = rows.slice(0, desktopHistoryVisibleLimit);
+  renderQueryPanes(els.shipmentHistory, els.offsetHistory, els.overHistory, renderShipmentSection(visibleRows, historyQuery, historyDate), els.replacementHistory);
+  if (rows.length > visibleRows.length) {
+    els.shipmentHistory.insertAdjacentHTML('beforeend', `<div class="load-more-row"><span>已显示 ${visibleRows.length} / ${rows.length} 笔</span><button class="button ghost" type="button" data-desktop-history-more>再显示 15 笔</button></div>`);
+    els.shipmentHistory.querySelector('[data-desktop-history-more]')?.addEventListener('click', () => { desktopHistoryVisibleLimit += 15; renderDesktopHistory(); });
+  }
   void renderCloudFiles();
   requestAnimationFrame(() => { applyDeliveryColumnWidths('grouped'); applyDeliveryColumnWidths('merged'); });
 window.addEventListener('resize', () => { applyDeliveryColumnWidths('grouped'); applyDeliveryColumnWidths('merged'); });
@@ -8656,7 +8722,7 @@ function renderMobileList() {
     includeReplacements: mobileFilter === 'active',
     planQuery: mobileSearch,
   });
-  const limit = 80;
+  const limit = mobileOrderVisibleLimit;
   const shown = items.slice(0, limit);
   els.mobileOrderList.innerHTML = shown.map((item) => item.kind === 'replacement'
     ? replacementPlanCard(item.item, item.selected, item.legacyIndex)
@@ -8664,7 +8730,7 @@ function renderMobileList() {
       ? unitCardHtml(item.unit, item.index)
       : orderCard(item.order)).join('');
   if (items.length > limit) {
-    els.mobileOrderList.insertAdjacentHTML('beforeend', `<div class="empty-state mobile-empty"><strong>还有 ${items.length - limit} 项未显示</strong><span>请用搜索快速定位物料。</span></div>`);
+    els.mobileOrderList.insertAdjacentHTML('beforeend', `<div class="load-more-row mobile-empty"><span>已显示 ${shown.length} / ${items.length} 项</span><button class="button ghost" type="button" data-mobile-entry-more>再显示 20 项</button></div>`);
   }
   els.mobileEmpty.hidden = items.length > 0;
   els.mobileEmpty.innerHTML = '<strong>没有符合条件的数据</strong><span>换个筛选条件或清空搜索词。</span>';
@@ -9942,22 +10008,17 @@ async function loadXlsx() {
   if (!xlsxPromise) {
     xlsxPromise = new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+      script.src = './vendor/xlsx.full.min.js';
       script.async = true;
       script.dataset.xlsxLoader = '1';
       script.onload = () => window.XLSX ? resolve(window.XLSX) : reject(new Error('Excel 导出组件初始化失败'));
-      script.onerror = () => reject(new Error('Excel 导出组件加载失败，请检查网络后重试'));
+      script.onerror = () => reject(new Error('Excel 导出组件加载失败，请刷新后重试'));
       document.head.appendChild(script);
     });
   }
   return xlsxPromise.catch((error) => { xlsxPromise = null; throw error; });
 }
 
-function warmOptionalLibraries() {
-  const warm = () => { loadXlsx().catch(() => {}); };
-  if ('requestIdleCallback' in window) requestIdleCallback(warm, { timeout: 4000 });
-  else setTimeout(warm, 1800);
-}
 async function exportRemainingList(groups = remainingGroups()) {
   if (!groups.length) {
     showToast('没有可导出的未交数据');
@@ -10047,7 +10108,13 @@ function renderMobileRecords() {
     if (recordsDate && shipShanghaiDate(shipment.createdAt) !== recordsDate) return false;
     return shipmentMatches(shipment, query, lookup);
   });
-  renderQueryPanes(els.recordsList, els.recordsOffsetList, els.recordsOverList, renderShipmentSection(rows, recordsSearch, recordsDate), els.recordsReplacementList);
+  const totalRows = rows.length;
+  const visibleRows = rows.slice(0, mobileRecordsVisibleLimit);
+  renderQueryPanes(els.recordsList, els.recordsOffsetList, els.recordsOverList, renderShipmentSection(visibleRows, recordsSearch, recordsDate), els.recordsReplacementList);
+  if (totalRows > visibleRows.length) {
+    els.recordsList.insertAdjacentHTML('beforeend', `<div class="load-more-row"><span>已显示 ${visibleRows.length} / ${totalRows} 笔</span><button class="button ghost" type="button" data-mobile-records-more>再显示 5 笔</button></div>`);
+    els.recordsList.querySelector('[data-mobile-records-more]')?.addEventListener('click', () => { mobileRecordsVisibleLimit += 5; renderMobileRecords(); });
+  }
   void renderCloudFiles();
   requestAnimationFrame(() => { applyDeliveryColumnWidths('grouped'); applyDeliveryColumnWidths('merged'); });
   els.recordsList.querySelectorAll('[data-expand]').forEach((button) => button.addEventListener('click', () => {
@@ -11043,6 +11110,10 @@ async function confirmImportOrders() {
 function switchMobileTab(tab) {
   mobileTab = tab;
   mobileModule = 'entry';
+  mobileOrderVisibleLimit = 20;
+  const tabLabels = { entry: '装车登记', remaining: '未交清单', records: '发货记录', files: '云端送货单' };
+  const mobileBrandModule = document.getElementById('mobileBrandModule');
+  if (mobileBrandModule) mobileBrandModule.textContent = tabLabels[tab] || '装车登记';
   const summary = document.querySelector('.mobile-summary');
   const tabs = document.querySelector('.mobile-tabs');
   if (summary) summary.hidden = false;
@@ -11057,6 +11128,8 @@ function switchMobileTab(tab) {
   if (tab === 'files') renderCloudFiles();
   renderCart();
   renderMobileModule();
+  const finalLabel = document.getElementById('mobileBrandModule');
+  if (finalLabel) finalLabel.textContent = tabLabels[tab] || '装车登记';
 }
 
 // 点搜索框任意位置都能直接输入
@@ -11069,7 +11142,7 @@ function switchMobileTab(tab) {
   });
 });
 
-els.desktopSearch.addEventListener('input', (event) => { desktopSearch = event.target.value; desktopPicked.clear(); renderDesktopTable(); renderSuggestFor(els.desktopSearch, els.desktopSuggest, desktopDueRows()); });
+els.desktopSearch.addEventListener('input', (event) => { desktopSearch = event.target.value; desktopMainVisibleLimit = 20; desktopPicked.clear(); renderDesktopTable(); renderSuggestFor(els.desktopSearch, els.desktopSuggest, desktopDueRows()); });
 els.desktopSearch.addEventListener('focus', () => renderSuggestFor(els.desktopSearch, els.desktopSuggest, desktopDueRows()));
 if (els.desktopSuggest) {
   els.desktopSuggest.addEventListener('click', (event) => {
@@ -11081,10 +11154,11 @@ if (els.desktopSuggest) {
     renderDesktopTable();
   });
 }
-els.desktopCompanyFilter.addEventListener('change', (event) => { desktopCompany = event.target.value; renderDesktopTable(); });
-if (els.desktopOrderTypeFilter) els.desktopOrderTypeFilter.addEventListener('change', (event) => { desktopOrderType = event.target.value; renderDesktopTable(); });
+els.desktopCompanyFilter.addEventListener('change', (event) => { desktopCompany = event.target.value; desktopMainVisibleLimit = 20; renderDesktopTable(); });
+if (els.desktopOrderTypeFilter) els.desktopOrderTypeFilter.addEventListener('change', (event) => { desktopOrderType = event.target.value; desktopMainVisibleLimit = 20; renderDesktopTable(); });
 if (els.desktopDueSelect) els.desktopDueSelect.addEventListener('change', (event) => {
   desktopDueFilter = event.target.value;
+  desktopMainVisibleLimit = 20;
   if (desktopDueFilter !== 'custom') desktopDueDate = '';
   if (els.desktopDueRow) els.desktopDueRow.hidden = desktopDueFilter !== 'custom';
   else if (els.desktopDueDate) els.desktopDueDate.hidden = desktopDueFilter !== 'custom';
@@ -11092,15 +11166,17 @@ if (els.desktopDueSelect) els.desktopDueSelect.addEventListener('change', (event
 });
 if (els.desktopDueDate) els.desktopDueDate.addEventListener('change', (event) => {
   desktopDueDate = event.target.value;
+  desktopMainVisibleLimit = 20;
   renderDesktopTable();
 });
-els.mobileSearch.addEventListener('input', (event) => { mobileSearch = event.target.value; renderMobileList(); renderSuggestions(); });
+els.mobileSearch.addEventListener('input', (event) => { mobileSearch = event.target.value; mobileOrderVisibleLimit = 20; renderMobileList(); renderSuggestions(); });
 els.mobileSearch.addEventListener('focus', () => { renderSuggestions(); });
 if (els.mobileSuggest) {
   els.mobileSuggest.addEventListener('click', (event) => {
     const button = event.target.closest('[data-suggest]');
     if (!button) return;
     mobileSearch = button.dataset.suggest;
+    mobileOrderVisibleLimit = 20;
     if (els.mobileSearch) els.mobileSearch.value = mobileSearch;
     els.mobileSuggest.hidden = true;
     renderMobileList();
@@ -11115,15 +11191,17 @@ document.addEventListener('click', (event) => {
 });
 document.querySelectorAll('.mobile-tab').forEach((button) => button.addEventListener('click', () => switchMobileTab(button.dataset.tab)));
 
-if (els.desktopLoadingSearch) els.desktopLoadingSearch.addEventListener('input', (event) => { desktopLoadingSearch = event.target.value; renderDesktopLoading(); });
+if (els.desktopLoadingSearch) els.desktopLoadingSearch.addEventListener('input', (event) => { desktopLoadingSearch = event.target.value; desktopLoadingVisibleLimit = 30; renderDesktopLoading(); });
 if (els.desktopLoadingDue) els.desktopLoadingDue.addEventListener('change', (event) => {
   desktopLoadingDue = event.target.value;
+  desktopLoadingVisibleLimit = 30;
   renderDesktopLoading();
 });
-if (els.desktopLoadingCompany) els.desktopLoadingCompany.addEventListener('change', (event) => { desktopLoadingCompany = event.target.value; renderDesktopLoading(); });
+if (els.desktopLoadingCompany) els.desktopLoadingCompany.addEventListener('change', (event) => { desktopLoadingCompany = event.target.value; desktopLoadingVisibleLimit = 30; renderDesktopLoading(); });
 if (els.desktopLoadingRefresh) els.desktopLoadingRefresh.addEventListener('click', async () => { await loadState({ quiet:false }); renderAll(); renderDesktopLoading(); showToast('未交订单已刷新'); });
 if (els.desktopLoadingCardList) {
   els.desktopLoadingCardList.addEventListener('click', (event) => {
+    if (event.target.closest('[data-desktop-loading-more]')) { desktopLoadingVisibleLimit += 30; renderDesktopLoading(); return; }
     const unitLoad = event.target.closest('[data-unit-load]');
     if (unitLoad) { loadUnitToCart(unitLoad.dataset.unitLoad); return; }
     const unitAdd = event.target.closest('[data-unit-add]');
@@ -11537,6 +11615,7 @@ els.mobileFilters.addEventListener('click', (event) => {
   const button = event.target.closest('[data-filter]');
   if (!button) return;
   mobileFilter = button.dataset.filter;
+  mobileOrderVisibleLimit = 20;
   document.querySelectorAll('#mobileFilters .chip').forEach((chip) => chip.classList.toggle('active', chip === button));
   renderMobileList();
 });
@@ -11833,8 +11912,8 @@ if (els.mobileAllocNotice) els.mobileAllocNotice.addEventListener('click', (even
 
 function handleRemainingLoadMore(event) {
   if (!event.target.closest('[data-remaining-load-more]')) return;
-  remainingVisibleLimit += 60;
-  desktopRemainingVisibleLimit += 120;
+  remainingVisibleLimit += 20;
+  desktopRemainingVisibleLimit += 20;
   renderMobileRemaining();
   renderDesktopRemaining();
 }
@@ -11846,15 +11925,15 @@ function handleRemainingFilterClick(event) {
     if (!dueDate) remainingDates.clear();
     else if (remainingDates.has(dueDate)) remainingDates.delete(dueDate);
     else remainingDates.add(dueDate);
-    remainingVisibleLimit = 60;
-    desktopRemainingVisibleLimit = 120;
+    remainingVisibleLimit = 20;
+    desktopRemainingVisibleLimit = 20;
     refreshRemainingViews();
     return;
   }
   if (event.target.id === 'remainingDateClear' || event.target.id === 'desktopRemainingDateClear') {
     remainingDates.clear();
-    remainingVisibleLimit = 60;
-    desktopRemainingVisibleLimit = 120;
+    remainingVisibleLimit = 20;
+    desktopRemainingVisibleLimit = 20;
     refreshRemainingViews();
     return;
   }
@@ -11886,8 +11965,8 @@ if (els.mobileRemainingPanel) {
   els.mobileRemainingPanel.addEventListener('input', (event) => {
     if (event.target.id !== 'remainingSearch') return;
     remainingSearch = event.target.value;
-    remainingVisibleLimit = 60;
-    desktopRemainingVisibleLimit = 120;
+    remainingVisibleLimit = 20;
+    desktopRemainingVisibleLimit = 20;
     refreshRemainingViews();
   });
   els.mobileRemainingPanel.addEventListener('click', handleRemainingFilterClick);
@@ -11896,8 +11975,8 @@ if (els.mobileRemainingPanel) {
 if (els.desktopRemainingSearch) {
   els.desktopRemainingSearch.addEventListener('input', (event) => {
     desktopRemainingSearch = event.target.value;
-    remainingVisibleLimit = 60;
-    desktopRemainingVisibleLimit = 120;
+    remainingVisibleLimit = 20;
+    desktopRemainingVisibleLimit = 20;
     renderDesktopRemaining();
   });
 }
@@ -11953,17 +12032,20 @@ if (els.mobileRecordsPanel) {
   els.mobileRecordsPanel.addEventListener('input', (event) => {
     if (event.target.id !== 'recordsSearch') return;
     recordsSearch = event.target.value;
+    mobileRecordsVisibleLimit = 5;
     renderMobileRecords();
   });
   els.mobileRecordsPanel.addEventListener('change', (event) => {
     if (event.target.id !== 'recordsDate') return;
     recordsDate = event.target.value;
+    mobileRecordsVisibleLimit = 5;
     renderMobileRecords();
   });
   els.mobileRecordsPanel.addEventListener('click', (event) => {
     if (event.target.id !== 'recordsClear') return;
     recordsDate = '';
     if (els.recordsDate) els.recordsDate.value = '';
+    mobileRecordsVisibleLimit = 5;
     renderMobileRecords();
   });
 }
@@ -11977,12 +12059,13 @@ document.querySelectorAll('[data-desktop-view]').forEach((link) => {
 });
 
 if (els.filesSearch) els.filesSearch.addEventListener('input', (event) => { filesQuery = event.target.value; renderCloudFiles(); });
-  if (els.drawingSearch) els.drawingSearch.addEventListener('input', (event) => { drawingQuery = event.target.value; renderDesktopDrawings(); });
+  if (els.drawingSearch) els.drawingSearch.addEventListener('input', (event) => { drawingQuery = event.target.value; drawingVisibleLimit = 40; renderDesktopDrawings(); });
 if (els.priceSearch) els.priceSearch.addEventListener('input', (event) => { priceQuery = event.target.value; renderDesktopPrices(); });
 if (els.drawingCategoryTabs) els.drawingCategoryTabs.addEventListener('click', (event) => {
   const button = event.target.closest('[data-drawing-category]');
   if (!button) return;
   drawingCategory = button.dataset.drawingCategory;
+  drawingVisibleLimit = 40;
   els.drawingCategoryTabs.querySelectorAll('[data-drawing-category]').forEach((x) => x.classList.toggle('active', x === button));
   renderDesktopDrawings();
 });
@@ -12037,7 +12120,7 @@ function refreshQueryViews() {
   if (el) el.addEventListener('click', () => { replacementDate = ''; refreshQueryViews(); });
 });
 
-if (els.historySearch) els.historySearch.addEventListener('input', (event) => { historyQuery = event.target.value; renderDesktopHistory(); });
+if (els.historySearch) els.historySearch.addEventListener('input', (event) => { historyQuery = event.target.value; desktopHistoryVisibleLimit = 15; renderDesktopHistory(); });
 function syncHistoryTodayButton() {
   if (!els.historyToday) return;
   const today = String(snapshot?.today || TODAY || '').slice(0, 10);
@@ -12045,12 +12128,14 @@ function syncHistoryTodayButton() {
 }
 if (els.historyDate) els.historyDate.addEventListener('change', (event) => {
   historyDate = event.target.value;
+  desktopHistoryVisibleLimit = 15;
   syncHistoryTodayButton();
   renderDesktopHistory();
 });
 if (els.historyClear) els.historyClear.addEventListener('click', () => {
   historyDate = '';
   if (els.historyDate) els.historyDate.value = '';
+  desktopHistoryVisibleLimit = 15;
   syncHistoryTodayButton();
   renderDesktopHistory();
 });
@@ -12059,6 +12144,7 @@ if (els.historyToday) els.historyToday.addEventListener('click', () => {
   if (!today) { showToast('还没取到服务器日期'); return; }
   historyDate = historyDate === today ? '' : today;
   if (els.historyDate) els.historyDate.value = historyDate;
+  desktopHistoryVisibleLimit = 15;
   syncHistoryTodayButton();
   renderDesktopHistory();
   showToast(historyDate ? ('只显示 ' + formatDate(today) + ' 的发货记录') : '已显示全部发货日期');
@@ -12129,7 +12215,29 @@ function handleCloudFileClick(event) {
 }
 if (els.cloudFileList) els.cloudFileList.addEventListener('click', handleCloudFileClick);
 if (els.mobileCloudFileList) els.mobileCloudFileList.addEventListener('click', handleCloudFileClick);
+let previewDrawingId = '';
+function renderDrawingPreview(id) {
+  const drawing = (snapshot?.drawings || []).find((row) => String(row.id) === String(id));
+  if (!drawing) return;
+  previewDrawingId = String(id);
+  const image = document.getElementById('drawingPreviewImage');
+  const empty = document.getElementById('drawingPreviewEmpty');
+  const title = document.getElementById('drawingPreviewTitle');
+  const open = document.getElementById('drawingPreviewOpen');
+  const url = drawingPreviewUrl(drawing);
+  if (title) title.textContent = `${drawing.material || ''} · ${drawing.name || '图纸'}${drawing.spec ? ' · ' + drawing.spec : ''}`;
+  if (open) open.disabled = false;
+  if (!url || !image) { if (empty) empty.hidden = false; return; }
+  image.hidden = false;
+  if (empty) empty.hidden = true;
+  image.onerror = () => { image.hidden = true; if (empty) { empty.hidden = false; empty.textContent = '缩略图暂不可用，请点击“查看图纸”'; } };
+  image.src = url;
+}
+document.getElementById('drawingPreviewOpen')?.addEventListener('click', () => { if (previewDrawingId) openDrawing(previewDrawingId); });
 document.addEventListener('click', (event) => {
+  if (event.target.closest('[data-drawing-more]')) { drawingVisibleLimit += 40; renderDesktopDrawings(); return; }
+  const previewButton = event.target.closest('[data-preview-drawing-id]');
+  if (previewButton) { event.preventDefault(); renderDrawingPreview(previewButton.dataset.previewDrawingId); return; }
   const drawingButton = event.target.closest('[data-drawing-id]');
   if (drawingButton) {
     event.preventDefault();
@@ -12148,6 +12256,7 @@ document.addEventListener('keydown', (event) => {
 });
 
 els.mobileOrderList.addEventListener('click', (event) => {
+  if (event.target.closest('[data-mobile-entry-more]')) { mobileOrderVisibleLimit += 20; renderMobileList(); return; }
   const unitLoad = event.target.closest('[data-unit-load]');
   if (unitLoad) { loadUnitToCart(unitLoad.dataset.unitLoad); return; }
     const unitAdd = event.target.closest('[data-unit-add]');
@@ -12672,7 +12781,6 @@ if (isMobileBoardView()) {
 }
 connectEvents();
 startVersionWatch();
-warmOptionalLibraries();
 if (els.printHelperStatus) els.printHelperStatus.addEventListener('click', () => void checkPrintHelper(true));
 if (els.mobilePrintHelperStatus) els.mobilePrintHelperStatus.addEventListener('click', () => void checkPrintHelper(true));
 if (els.taskStatusClose) els.taskStatusClose.addEventListener('click', clearTaskStatus);

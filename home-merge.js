@@ -18,23 +18,34 @@
   const NAV_MAIN = [
     { view: 'overview',  label: '实时总览' },
     { view: 'remaining', label: '未交清单' },
-    { view: 'shipments', label: '查询' },
+    { view: 'loading',   label: '装车登记' },
+    { view: 'shipments', label: '发货记录' },
     { view: 'drawings',  label: '图纸库' },
     { view: 'files',     label: '云端送货单' }
   ];
-  const NAV_MORE = [
-    { view: 'loading',    label: '装车登记（电脑端备用）' },
-    { view: 'staffInfo', label: '员工信息', admin: true },
-    { view: 'payroll', label: '工资', admin: true },
-    { view: 'partners',   label: '客商信息', admin: true },
-    { view: 'outsource',  label: '外协管理', admin: true },
-    { view: 'inventory',  label: '库存', admin: true },
-    { view: 'purchase',   label: '采购 / 来料', admin: true },
-    { view: 'quality',    label: '质量 / 不良', admin: true },
-    { view: 'prices',     label: '单价查询', admin: true },
-    { view: 'work',       label: '报工', admin: true },
-    { view: 'attendance', label: '考勤管理', admin: true }
+  const NAV_MORE_GROUPS = [
+    {
+      label: '生产与人事',
+      items: [
+        { view: 'work',       label: '报工情况', admin: true },
+        { view: 'attendance', label: '考勤管理', admin: true },
+        { view: 'staffInfo',  label: '员工信息', admin: true },
+        { view: 'payroll',    label: '工资', admin: true },
+        { view: 'prices',     label: '单价查询', admin: true }
+      ]
+    },
+    {
+      label: '供应链',
+      items: [
+        { view: 'partners',  label: '客商信息', admin: true },
+        { view: 'outsource', label: '外协管理', admin: true },
+        { view: 'inventory', label: '库存', admin: true },
+        { view: 'purchase',  label: '采购 / 来料', admin: true },
+        { view: 'quality',   label: '质量 / 不良', admin: true }
+      ]
+    }
   ];
+  const NAV_MORE = NAV_MORE_GROUPS.flatMap((group) => group.items);
   const SECTION_TO_VIEW = {
     desktopView: 'overview',
     desktopRemainingView: 'remaining',
@@ -223,8 +234,12 @@
       NAV_MAIN.map(itemHtml).join('') +
       '<div class="sep"></div>' +
       '<button type="button" class="tk-more-btn" id="tkMoreBtn" aria-expanded="false">' +
-        '<span class="dot"></span>更多<span class="caret">▾</span></button>' +
-      '<div class="tk-more-group" id="tkMoreGroup" hidden>' + NAV_MORE.map(itemHtml).join('') + '</div>';
+        '<span class="dot"></span>全部功能<span class="caret">▾</span></button>' +
+      '<div class="tk-more-group" id="tkMoreGroup" hidden>' +
+        NAV_MORE_GROUPS.map((group) =>
+          '<div class="tk-more-label">' + group.label + '</div>' + group.items.map(itemHtml).join('')
+        ).join('') +
+      '</div>';
 
     nav.insertAdjacentElement('afterend', el);
 
@@ -286,6 +301,15 @@
     const nav = document.getElementById('tkNav');
     const admin = isAdmin();
     if (nav) nav.querySelectorAll('a[data-admin="1"]').forEach((a) => a.classList.toggle('tk-off', !admin));
+    if (nav) nav.querySelectorAll('.tk-more-label').forEach((label) => {
+      let visible = false;
+      let node = label.nextElementSibling;
+      while (node && !node.classList.contains('tk-more-label')) {
+        if (node.matches('a') && !node.classList.contains('tk-off') && !node.hidden && getComputedStyle(node).display !== 'none') visible = true;
+        node = node.nextElementSibling;
+      }
+      label.hidden = !visible;
+    });
     // 普通端只保留以前的功能：新模块的页面 + 它们自己建的侧栏链接都藏起来（双保险）
     mountMergeForRole();
     if (admin) return;
@@ -319,8 +343,10 @@
   }
   /* 这四个模块的 css/js 不在 index.html 里了，打开对应页面时才加载（首屏少 8 个请求） */
   const MODULE_ASSETS = {
-    outsource: ['outsource.css', 'outsource.js'], inventory: ['inventory.css', 'inventory.js'],
-    purchase: ['purchase.css', 'purchase.js'],   quality: ['quality.css', 'quality.js']
+    outsource: ['outsource.css', 'outsource.js'],
+    inventory: ['outsource.css', 'inventory.css', 'inventory.js'],
+    purchase: ['outsource.css', 'purchase.css', 'purchase.js'],
+    quality: ['outsource.css', 'quality.css', 'quality.js']
   };
   const moduleLoaded = {};
   function assetVersionQuery() {
@@ -336,13 +362,15 @@
     moduleLoaded[view] = true;
     const v = assetVersionQuery();
     list.forEach((f) => {
+      const marker = 'module-asset-' + f.replace(/[^a-z0-9_-]/gi, '-');
+      if (document.querySelector('[data-module-asset="' + marker + '"]')) return;
       if (f.endsWith('.css')) {
         const l = document.createElement('link');
-        l.rel = 'stylesheet'; l.href = f + v;
+        l.rel = 'stylesheet'; l.href = f + v; l.dataset.moduleAsset = marker;
         document.head.appendChild(l);
       } else {
         const s = document.createElement('script');
-        s.src = f + v; s.defer = true;
+        s.src = f + v; s.defer = true; s.dataset.moduleAsset = marker;
         document.head.appendChild(s);
       }
     });

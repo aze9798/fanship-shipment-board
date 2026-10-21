@@ -3697,3 +3697,86 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 .staff-module-frame{display:block;width:100%;height:100%;border:0;background:transparent}
 .mobile-staff-frame{display:block;width:100%;height:calc(100vh - 120px);border:0;background:transparent}
 @media(max-width:760px){.staff-module-panel{height:calc(100vh - 120px);min-height:420px}}
+
+/* ===== 2026-10-21 页面设计审计：分批改进 ===== */
+.load-more-row{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:14px 16px;border-top:1px solid var(--line);
+  color:var(--muted);font-size:12px;
+}
+.load-more-row .button{white-space:nowrap}
+.desktop-loading-more{grid-column:1/-1}
+
+/* 考勤汇总：姓名和操作列不再被挤成竖排 */
+.att-table th:nth-child(2),.att-table td:nth-child(2){min-width:96px;white-space:nowrap}
+.att-table th:last-child,.att-table td:last-child{min-width:68px;white-space:nowrap}
+.att-table td:last-child .button{white-space:nowrap;min-width:62px}
+
+/* 宽屏下装车登记使用更紧凑的四列卡片 */
+@media (min-width:1600px){
+  .desktop-loading-card-list{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .desktop-loading-card-list .order-card{padding:12px 13px}
+  .desktop-loading-card-list .order-numbers{gap:6px}
+  .desktop-loading-card-list .order-number{padding:7px 8px}
+}
+
+/* 报工修改 KPI 在桌面宽屏保持四列 */
+@media (min-width:1200px){
+  .work-edit-stats{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+
+/* 手机端关键操作目标统一抬高 */
+@media (max-width:900px){
+  .mobile-panel .chip,
+  .mobile-tab,
+  .mobile-work-tabs button,
+  .remaining-date-chips button,
+  .order-card .card-actions button,
+  .order-card .entry-row button,
+  .order-card .qty-stepper button,
+  .mobile-live-card button,
+  .mobile-review-card button,
+  .att-tabs button,
+  .work-report-filters button,
+  .load-more-row .button{
+    min-height:40px;
+  }
+  .mobile-panel input,
+  .mobile-panel select,
+  .mobile-tools input,
+  .mobile-tools select{min-height:40px}
+  .empty-state{min-height:140px;padding:20px 16px}
+  .load-more-row{flex-direction:column;align-items:stretch;text-align:center}
+}
+
+/* 查询筛选一行展示：搜索、日期、今天、全部日期 */
+.shipments-page .history-tools-row{grid-template-columns:minmax(220px,1fr) minmax(150px,200px) auto auto}
+#desktopWorkRatesView .work-report-table{width:100%}
+@media (max-width:900px){
+  .shipments-page .history-tools-row{grid-template-columns:1fr 1fr}
+  .shipments-page .history-tools-row input[type="search"]{grid-column:1/-1}
+}
+
+/* 桌面装车登记：紧凑表格模式 */
+.desktop-loading-card-list.table-mode{display:block}
+.desktop-loading-table{width:100%;table-layout:auto}
+.desktop-loading-table th:nth-child(2),.desktop-loading-table td:nth-child(2){min-width:320px}
+.desktop-loading-table td:nth-child(2) small{display:block;color:var(--muted);margin-top:3px}
+.desktop-loading-table td:last-child{white-space:nowrap}
+.desktop-loading-table td:last-child .button,.desktop-loading-table td:last-child .photo-open{margin:2px;min-height:32px}
+.desktop-table-qty{min-width:220px}
+.desktop-table-qty input{width:100px}
+
+/* 图纸库：左侧列表 + 右侧首图预览 */
+.drawing-library-layout{display:grid;grid-template-columns:minmax(520px,1.25fr) minmax(420px,.9fr);gap:16px;align-items:start}
+.drawing-preview-pane{position:sticky;top:14px;min-height:540px;max-height:calc(100vh - 120px);overflow:hidden;display:grid;grid-template-rows:1fr auto;border:1px solid var(--line);border-radius:14px;background:#fff}
+.drawing-preview-empty{display:grid;place-items:center;padding:24px;color:var(--muted);font-size:13px;text-align:center}
+#drawingPreviewImage{width:100%;height:100%;max-height:calc(100vh - 190px);object-fit:contain;background:#f7f9f9}
+.drawing-preview-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-top:1px solid var(--line)}
+.drawing-preview-foot strong{font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drawing-preview-foot .button{white-space:nowrap}
+.drawing-preview-btn{margin-right:4px}
+@media (max-width:1200px){.drawing-library-layout{grid-template-columns:1fr}.drawing-preview-pane{display:none}}
+
+.drawing-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.drawing-actions .button{min-height:32px;white-space:nowrap}
