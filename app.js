@@ -9199,6 +9199,7 @@ const LABEL_PRINTED_KEY = 'shipmentLabelPrinted';
 const LABEL_STATS_KEY = 'shipmentLabelStats';
 const LABEL_ASSIGN_KEY = 'shipmentLabelAssign';
 const LABEL_REMOVED_KEY = 'shipmentLabelRemoved';
+const LABEL_DRAFT_KEY = 'shipmentLabelDraft';
 let labelRemovedRecords = {};
 
 // 固定一框数量的产品：编号里包含这些数字就按整框折算
@@ -9265,6 +9266,89 @@ function readLabelRemoved() {
 }
 function writeLabelRemoved(rows) {
   try { localStorage.setItem(LABEL_REMOVED_KEY, JSON.stringify(rows)); } catch { }
+}
+
+function labelDraftDateKey(dates = labelDateFilter) {
+  return [...dates].map((value) => String(value || '').trim()).filter(Boolean).sort().join(',') || '*';
+}
+
+function readLabelDrafts() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LABEL_DRAFT_KEY) || '{}');
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+  } catch { return {}; }
+}
+
+function writeLabelDrafts(drafts) {
+  try { localStorage.setItem(LABEL_DRAFT_KEY, JSON.stringify(drafts)); } catch { }
+}
+
+function snapshotLabelRow(row) {
+  const copy = {};
+  [
+    'sourceKey', 'printed', 'printedAt', 'printedDay', 'printedMode', 'printedCount',
+    'removed', 'removedAt', 'mode', 'selected', 'material', 'name', 'spec',
+    'quantity', 'remaining', 'perBox', 'date', 'overAccepted', 'boxMixed',
+    'copiedFrom', 'mergedFrom'
+  ].forEach((field) => {
+    if (row[field] !== undefined) copy[field] = row[field];
+  });
+  return JSON.parse(JSON.stringify(copy));
+}
+
+function labelRowSourceKeys(row) {
+  const merged = Array.isArray(row?.mergedFrom)
+    ? row.mergedFrom.map((part) => String(part?.sourceKey || '')).filter(Boolean)
+    : [];
+  return [...new Set((merged.length ? merged : [String(row?.sourceKey || '')]).filter(Boolean))];
+}
+
+function persistLabelDraftRows() {
+  if (!Array.isArray(labelRows)) return;
+  const drafts = readLabelDrafts();
+  drafts[labelDraftDateKey()] = {
+    at: labelNowStamp(),
+    dates: [...labelDateFilter].sort(),
+    rows: labelRows.map(snapshotLabelRow),
+  };
+  writeLabelDrafts(drafts);
+}
+
+function restoreLabelDraftRows(baseRows) {
+  const saved = readLabelDrafts()[labelDraftDateKey()];
+  if (!saved || !Array.isArray(saved.rows) || !saved.rows.length) return baseRows;
+  const baseByKey = new Map(baseRows.map((row) => [row.sourceKey, row]));
+  const restored = [];
+  for (const raw of saved.rows) {
+    const refs = labelRowSourceKeys(raw);
+    if (!refs.length || !refs.every((key) => baseByKey.has(key))) continue;
+    const primary = baseByKey.get(String(raw.sourceKey || refs[0])) || baseByKey.get(refs[0]) || {};
+    // 保存过逐行状态时以逐行为准：同一料号复制成两张后，只打印其中一张，
+    // 重新打开时不能把未打印的那一张也误标成已打印。旧数据没有该字段时才回退到料号记录。
+    const hasSavedPrintState = Object.prototype.hasOwnProperty.call(raw, 'printed');
+    const printed = hasSavedPrintState ? Boolean(raw.printed) : refs.some((key) => Boolean(labelPrintedRecords[key]));
+    const removed = Boolean(raw.removed || refs.some((key) => Boolean(labelRemovedRecords[key])));
+    const latestRecord = printed ? (refs.map((key) => labelPrintedRecords[key]).filter(Boolean)
+      .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')))[0] || null) : null;
+    const remaining = refs.reduce((sum, key) => sum + Number(baseByKey.get(key)?.remaining || 0), 0);
+    restored.push({
+      ...primary,
+      ...raw,
+      id: nextLabelRowId(),
+      sourceKey: String(raw.sourceKey || refs[0]),
+      printed,
+      printedAt: printed ? String(raw.printedAt || latestRecord?.at || '') : '',
+      printedDay: printed ? String(raw.printedDay || (latestRecord ? labelShortDay(latestRecord.day) : '')) : '',
+      printedMode: printed ? String(raw.printedMode || latestRecord?.mode || '') : '',
+      printedCount: printed ? Number(raw.printedCount || latestRecord?.count || 1) : 0,
+      removed,
+      selected: !printed && !removed && Boolean(raw.selected),
+      remaining: raw.mergedFrom ? remaining : (primary.remaining ?? raw.remaining ?? remaining),
+    });
+  }
+  const referenced = new Set(restored.flatMap(labelRowSourceKeys));
+  const added = baseRows.filter((row) => !referenced.has(row.sourceKey));
+  return [...restored, ...added];
 }
 
 // 这个料号归哪种标签打：手动转过优先 → 再按打印习惯 → 都没有的默认归大标签
@@ -9368,7 +9452,7 @@ function labelModeText(mode = labelPrintMode) {
   return mode === 'small' ? '小标签' : '大标签';
 }
 
-function labelPool(anyMode = false) {
+function labelPool(anyMode = false, includeAllStatus = false) {
   const onlyPrinted = Boolean(els.labelPrintShowPrinted && els.labelPrintShowPrinted.checked);
   const showRemoved = Boolean(els.labelPrintShowRemoved && els.labelPrintShowRemoved.checked);
   const mode = labelPrintMode;
@@ -9376,13 +9460,19 @@ function labelPool(anyMode = false) {
   // 只要在搜索，就把已打印的一起带出来，方便找出来补打
   const keepPrinted = Boolean(query) || Boolean(String(desktopRemainingSearch || '').trim());
   // 同一个料号（同图号）的多个交期合并成一个标签，数量相加
-  return mergeRemainingGroupsForPrint(remainingGroupsForDates([...labelDateFilter], desktopRemainingSearch))
+  const items = mergeRemainingGroupsForPrint(remainingGroupsForDates([...labelDateFilter], desktopRemainingSearch))
     .map((group) => {
       const key = labelSourceKey(group);
       return { group, key, record: labelPrintedRecords[key] || null, removed: labelRemovedRecords[key] || null };
     })
-    // 归类：每个料号只出现在它归属的那一页
-    .filter((item) => anyMode || labelAssignOf(item.group.material) === mode || (mode === 'small' && labelSmallRecovery))
+    // 打开弹窗时一次装入全部状态，后续搜索/筛选只改显示，避免把刚改的数量、复制和合并清掉。
+    .filter((item) => anyMode || labelAssignOf(item.group.material) === mode || (mode === 'small' && labelSmallRecovery));
+  if (includeAllStatus) {
+    return items.sort((a, b) => compareMaterialOrder(a.group.material, b.group.material)
+      || (labelMaterialCount(b.group.material, mode) - labelMaterialCount(a.group.material, mode))
+      || String(a.group.name || '').localeCompare(String(b.group.name || ''), 'zh-CN'));
+  }
+  return items
     .filter((item) => showRemoved ? Boolean(item.removed) : !item.removed)
     .filter((item) => (onlyPrinted ? Boolean(item.record) : (!item.record || keepPrinted)))
     .filter((item) => !query || [item.group.material, item.group.name, (item.group.specs || []).join(' ')]
@@ -9427,9 +9517,9 @@ function labelRemainingAllDates() {
   return map;
 }
 
-function buildLabelRows(allModes = false) {
+function buildLabelRows(allModes = false, includeAllStatus = false) {
   const remainingAll = labelRemainingAllDates();
-  return labelPool(allModes).map((item) => {
+  return labelPool(allModes, includeAllStatus).map((item) => {
     const material = String(item.group.material || '');
     const record = item.record;
     const habit = labelHabit(material);
@@ -9472,17 +9562,20 @@ function openLabelPrintModal(mode = 'big', dateFilter = null) {
   labelRemovedRecords = readLabelRemoved();
   labelPrintSearch = '';
   if (els.labelPrintSearch) els.labelPrintSearch.value = '';
+  if (els.labelPrintShowPrinted) els.labelPrintShowPrinted.checked = false;
+  if (els.labelPrintShowRemoved) els.labelPrintShowRemoved.checked = false;
   labelPrintMode = mode === 'small' ? 'small' : 'big';
   labelSmallRecovery = false;
   labelMergePending = null;
-  // 一次把所有料号都建出来（两个页签共用同一份），切页签/转小标签不会丢掉合并、改数量、删除
-  labelRows = buildLabelRows(true);
+  // 一次把所有料号和状态都建出来，并恢复本机上次的改数量、复制、合并、删除操作。
+  labelRows = restoreLabelDraftRows(buildLabelRows(true, true));
   renderLabelRows();
   if (els.labelPrintError) els.labelPrintError.hidden = true;
   if (els.labelPrintModal) els.labelPrintModal.hidden = false;
 }
 
 function closeLabelPrintModal() {
+  persistLabelDraftRows();
   if (els.labelPrintModal) els.labelPrintModal.hidden = true;
 }
 
@@ -9494,8 +9587,9 @@ function switchLabelPrintMode(mode) {
 }
 
 function labelRowHtml(row, index) {
-  // 已打印状态只用于「已打印」过滤，不在行里显示字样，免得挡内容
-  const printedTag = '';
+  const printedTag = row.printed
+    ? '<span class="label-printed-tag" title="本机打印记录">' + escapeHtml(row.printedAt ? row.printedAt.slice(5) : '已打印') + '</span>'
+    : '';
   const moveTarget = labelPrintMode === 'big' ? 'small' : 'big';
   const moveText = moveTarget === 'small' ? '转小标签' : '转大标签';
   return `<div class="label-print-row${row.printed ? ' printed' : ''}" data-label-row="${index}">
@@ -9526,9 +9620,33 @@ function labelRowHtml(row, index) {
   </div>`;
 }
 
+function labelRowMatchesUi(row) {
+  if (!labelRowVisibleInMode(row)) return false;
+  const onlyPrinted = Boolean(els.labelPrintShowPrinted && els.labelPrintShowPrinted.checked);
+  const showRemoved = Boolean(els.labelPrintShowRemoved && els.labelPrintShowRemoved.checked);
+  const query = labelPrintSearch.trim().toLowerCase();
+  if (showRemoved) {
+    if (!row.removed) return false;
+  } else {
+    if (row.removed) return false;
+    if (onlyPrinted) {
+      if (!row.printed) return false;
+    } else if (row.printed && !query) {
+      return false;
+    }
+  }
+  if (query && ![row.material, row.name, row.spec, row.quantity]
+    .some((value) => String(value || '').toLowerCase().includes(query))) return false;
+  return true;
+}
+
+function visibleLabelEntries() {
+  return labelRows.map((row, index) => ({ row, index })).filter(({ row }) => labelRowMatchesUi(row));
+}
+
 function renderLabelRows() {
   if (!els.labelPrintRows) return;
-  const visible = labelRows.map((row, index) => ({ row, index })).filter(({ row }) => labelRowVisibleInMode(row));
+  const visible = visibleLabelEntries();
   els.labelPrintRows.innerHTML = visible.length
     ? visible.map(({ row, index }) => labelRowHtml(row, index)).join('')
     : (labelPrintMode === 'small'
@@ -9559,6 +9677,7 @@ function labelMaterialFilled(material) {
   if (!key) return 0;
   return labelRows
     .filter((row) => String(row.material || '').trim() === key)
+    .filter((row) => !row.removed && !row.printed && (row.mode || 'big') === labelPrintMode)
     .reduce((sum, row) => sum + labelRowQuantity(row), 0);
 }
 
@@ -9600,13 +9719,13 @@ function refreshLabelRemaining() {
 function updateLabelSummary() {
   refreshLabelRemaining();
   if (!els.labelPrintSummary) return;
-  const valid = labelRows.filter((row) => labelRowVisibleInMode(row) && labelRowIsValid(row));
+  const visible = labelRows.filter(labelRowMatchesUi);
+  const valid = visible.filter(labelRowIsValid);
   const picked = valid.filter((row) => row.selected);
   const reprinted = picked.filter((row) => row.printed).length;
   const total = picked.reduce((sum, row) => sum + labelRowQuantity(row), 0);
   const blank = picked.filter((row) => labelRowQuantity(row) === 0).length;
-  const overMaterials = [...new Set(labelRows
-    .filter((row) => labelRowVisibleInMode(row))
+  const overMaterials = [...new Set(visible
     .filter((row) => {
       const remaining = labelRowRemaining(row);
       if (remaining <= 0) return false;
@@ -9742,10 +9861,11 @@ function mergeLabelRowsAt(firstIndex, secondIndex) {
   labelRows.splice(secondIndex, 1);
 
   labelMergePending = null;
+  persistLabelDraftRows();
 
   renderLabelRows();
 
-  showToast('已合并：' + merged.material + ' · ' + merged.quantity + '（点「取消合并」可拆回）');
+  showToast('已合并：' + merged.material + ' · ' + merged.quantity + '（已记住，点「取消合并」可拆回）');
 
 }
 
@@ -9760,6 +9880,7 @@ function unmergeLabelRow(index) {
   labelRows.splice(index, 1, ...parts);
 
   labelMergePending = null;
+  persistLabelDraftRows();
 
   renderLabelRows();
 
@@ -9846,6 +9967,7 @@ function handleLabelPrintInput(event) {
     const rule = labelBoxRule(row.material, row.name);
     row.perBox = rule ? rule.perBox : 0;
   }
+  persistLabelDraftRows();
   updateLabelSummary();
 }
 
@@ -9864,6 +9986,7 @@ function handleLabelPrintChange(event) {
   row.quantity = event.target.value;
   row.overAccepted = false;
   row.boxMixed = false;
+  persistLabelDraftRows();
   updateLabelSummary();
 }
 
@@ -9917,8 +10040,17 @@ function handleLabelPrintClick(event) {
     const index = Number(copyButton.dataset.labelCopy);
     const source = labelRows[index];
     if (!source) return;
-    labelRows.splice(index + 1, 0, { ...source, id: nextLabelRowId(), printed: false });
+    labelRows.splice(index + 1, 0, {
+      ...source,
+      id: nextLabelRowId(),
+      printed: false,
+      printedAt: '',
+      selected: true,
+      copiedFrom: source.id,
+    });
+    persistLabelDraftRows();
     renderLabelRows();
+    showToast(source.material + ' 已复制，复制出来的数量和内容会一起记住');
     return;
   }
   const fixButton = event.target.closest('[data-label-box-fix]');
@@ -9931,6 +10063,7 @@ function handleLabelPrintClick(event) {
         row.quantity = labelBoxFitText(box.remaining, box.perBox);
         row.overAccepted = false;
         row.boxMixed = true;
+        persistLabelDraftRows();
         renderLabelRows();
         showToast(`已改为 ${row.quantity}`);
       }
@@ -9943,6 +10076,7 @@ function handleLabelPrintClick(event) {
     const row = labelRows[index];
     if (row) {
       row.overAccepted = true;
+      persistLabelDraftRows();
       refreshLabelRemaining();
       updateLabelSummary();
       showToast(`按 ${labelBoxState(row).rounded} 发，超出部分走无订单发货`);
@@ -9957,6 +10091,7 @@ function handleLabelPrintClick(event) {
       const target = labelPrintMode === 'big' ? 'small' : 'big';
       row.mode = target;
       setLabelAssign(row.material, target);
+      persistLabelDraftRows();
       showToast(`${row.material} 已固定到${labelModeText(target)}，下次会自动归到这里`);
       renderLabelRows();
     }
@@ -9967,10 +10102,14 @@ function handleLabelPrintClick(event) {
     const index = Number(markButton.dataset.labelMark);
     const row = labelRows[index];
     if (row) {
-      if (row.sourceKey) markLabelPrinted([row.sourceKey], labelPrintMode);
-      labelRows.splice(index, 1);
+      const sourceKeys = labelRowSourceKeys(row);
+      markLabelPrinted(sourceKeys, labelPrintMode);
+      row.printed = true;
+      row.printedAt = labelNowStamp();
+      row.selected = false;
+      persistLabelDraftRows();
       renderLabelRows();
-      showToast(`${row.material} 已标记为已打印`);
+      showToast(row.material + ' 已标记为已打印，勾选“已打印”可以查看和补打');
     }
     return;
   }
@@ -9978,9 +10117,12 @@ function handleLabelPrintClick(event) {
   if (restoreButton) {
     const index = Number(restoreButton.dataset.labelRestore);
     const row = labelRows[index];
-    if (row?.sourceKey) {
-      delete labelRemovedRecords[row.sourceKey];
+    if (row) {
+      labelRowSourceKeys(row).forEach((key) => { delete labelRemovedRecords[key]; });
       writeLabelRemoved(labelRemovedRecords);
+      row.removed = false;
+      row.selected = !row.printed;
+      persistLabelDraftRows();
     }
     renderLabelRows();
     showToast('已恢复这个标签');
@@ -9990,13 +10132,18 @@ function handleLabelPrintClick(event) {
   if (removeButton) {
     const index = Number(removeButton.dataset.labelRemove);
     const row = labelRows[index];
-    if (row?.sourceKey) {
-      labelRemovedRecords[row.sourceKey] = { at: labelNowStamp(), material: row.material, mode: labelPrintMode };
-      writeLabelRemoved(labelRemovedRecords);
+    if (row) {
+      // 原始行删除后整项不再出现；复制行/合并行只删当前这一张，避免把同料号其他标签一起删掉。
+      if (!row.copiedFrom && !row.mergedFrom && row.sourceKey) {
+        labelRemovedRecords[row.sourceKey] = { at: labelNowStamp(), material: row.material, mode: labelPrintMode };
+        writeLabelRemoved(labelRemovedRecords);
+      }
+      row.removed = true;
+      row.selected = false;
+      persistLabelDraftRows();
     }
-    if (index >= 0 && index < labelRows.length) labelRows.splice(index, 1);
     renderLabelRows();
-    showToast('标签已删除，下次打开不会再出现；勾选“已删除”可以恢复');
+    showToast('标签已删除并记住；勾选“已删除”可以恢复');
     return;
   }
 }
@@ -10022,6 +10169,13 @@ function labelPayload(rows) {
 
 function finishLabelPrint(mode, sourceKeys, picked, result, manual) {
   markLabelPrinted(sourceKeys, mode);
+  const printedAt = labelNowStamp();
+  picked.forEach((row) => {
+    row.printed = true;
+    row.printedAt = printedAt;
+    row.selected = false;
+  });
+  persistLabelDraftRows();
   // 合并标签不计次数（按用户要求：合并不算）
   bumpLabelStats(picked.filter((row) => !row.mergedFrom).map((row) => row.material), mode);
 
@@ -10047,7 +10201,7 @@ async function closeLabelAppAfterManualPrint() {
 
 async function confirmLabelPrint() {
   const mode = labelPrintMode;
-  const valid = labelRows.filter((row) => labelRowVisibleInMode(row) && labelRowIsValid(row));
+  const valid = labelRows.filter((row) => labelRowMatchesUi(row) && labelRowIsValid(row));
   const picked = valid.filter((row) => row.selected);
   if (!picked.length) {
     showLabelPrintError('还没有勾选要打印的行：在左边打勾后再点这个按钮（已打印的也可以勾上补打）。');
@@ -12194,7 +12348,8 @@ if (els.labelPrintRows) {
 if (els.labelPrintSelectAll) {
   els.labelPrintSelectAll.addEventListener('change', (event) => {
     const checked = Boolean(event.target.checked);
-    labelRows.filter((row) => labelRowVisibleInMode(row)).forEach((row) => { row.selected = checked; });
+    visibleLabelEntries().forEach(({ row }) => { row.selected = checked; });
+    persistLabelDraftRows();
     renderLabelRows();
   });
 }
@@ -12207,20 +12362,17 @@ if (els.labelPrintModes) {
 }
 if (els.labelPrintShowPrinted) {
   els.labelPrintShowPrinted.addEventListener('change', () => {
-    labelRows = buildLabelRows();
     renderLabelRows();
   });
 }
 if (els.labelPrintShowRemoved) {
   els.labelPrintShowRemoved.addEventListener('change', () => {
-    labelRows = buildLabelRows();
     renderLabelRows();
   });
 }
 if (els.labelPrintSearch) {
   els.labelPrintSearch.addEventListener('input', (event) => {
     labelPrintSearch = event.target.value;
-    labelRows = buildLabelRows();
     renderLabelRows();
   });
 }
