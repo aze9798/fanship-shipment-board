@@ -14,19 +14,11 @@
     window.SHIPMENT_DIRECT_RPC_BASE = "https://dkbeigqtiilgxthwkixg.supabase.co/rest/v1/rpc";
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
+  <link rel="stylesheet" href="./app.css?v=f9c53e0f62a1">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=ac9bf7e5eece">
-  <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
-  <link rel="stylesheet" href="design-tokens.css?v=ac9bf7e5eece">
-  <link rel="stylesheet" href="ui-polish.css?v=ac9bf7e5eece">
-  <link rel="stylesheet" href="theme-ui.css?v=ac9bf7e5eece">
-  <link rel="stylesheet" href="dashboard-home.css?v=ac9bf7e5eece">
-  <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
-  <link rel="stylesheet" href="home-merge.css?v=ac9bf7e5eece">
-  <link rel="stylesheet" href="global-search.css?v=ac9bf7e5eece">
-  <link rel="stylesheet" href="partners.css?v=ac9bf7e5eece">
-  <link rel="stylesheet" href="staff-v2.css?v=ac9bf7e5eece">
-  <!-- 图纸预览用的 PDF 引擎：首次打开图纸时按需加载。 -->
+<!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
+<!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
+<!-- 图纸预览用的 PDF 引擎：首次打开图纸时按需加载。 -->
 <style>
 /* ===== 考勤管理 视觉 ===== */
 .att-tabs{display:flex;gap:6px;padding:5px;background:#e3eeec;border-radius:14px;margin-bottom:12px;overflow-x:auto}
@@ -1510,11 +1502,11 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "ac9bf7e5eece";
-      const stylesheet = document.querySelector('link[href*="styles.css?v=ac9bf7e5eece"]');
+      const fallbackVersion = "f9c53e0f62a1";
+      const stylesheet = document.querySelector('link[href*="app.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
-        if (stylesheet) stylesheet.href = './styles.css?v=' + safeVersion;
+        if (stylesheet) stylesheet.href = './app.css?v=' + safeVersion;
         const script = document.createElement('script');
         script.type = 'module';
         script.src = './app.js?v=' + safeVersion;
@@ -1543,21 +1535,21 @@
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=ac9bf7e5eece" defer></script>
-  <script src="dashboard-home.js?v=ac9bf7e5eece" defer></script>
+  <script src="ui-polish.js?v=f9c53e0f62a1" defer></script>
+  <script src="dashboard-home.js?v=f9c53e0f62a1" defer></script>
 
-  <script src="home-merge.js?v=ac9bf7e5eece" defer></script>
-  <script src="global-search.js?v=ac9bf7e5eece" defer></script>
-  <script src="work-rates.js?v=ac9bf7e5eece" defer></script>
-  <script src="drawing-rotate.js?v=ac9bf7e5eece" defer></script>
-  <script src="drawing-open.js?v=ac9bf7e5eece" defer></script>
-  <script src="partners.js?v=ac9bf7e5eece" defer></script>
-  <script src="staff-v2.js?v=ac9bf7e5eece" defer></script>
-  <script src="po-print.js?v=ac9bf7e5eece" defer></script>
-  <script src="col-resize-fix.js?v=ac9bf7e5eece" defer></script>
-  <script src="work-split.js?v=ac9bf7e5eece" defer></script>
-  <script src="hint-clean.js?v=ac9bf7e5eece" defer></script>
-  <script src="sidebar-tidy.js?v=ac9bf7e5eece" defer></script>
+  <script src="home-merge.js?v=f9c53e0f62a1" defer></script>
+  <script src="global-search.js?v=f9c53e0f62a1" defer></script>
+  <script src="work-rates.js?v=f9c53e0f62a1" defer></script>
+  <script src="drawing-rotate.js?v=f9c53e0f62a1" defer></script>
+  <script src="drawing-open.js?v=f9c53e0f62a1" defer></script>
+  <script src="partners.js?v=f9c53e0f62a1" defer></script>
+  <script src="staff-v2.js?v=f9c53e0f62a1" defer></script>
+  <script src="po-print.js?v=f9c53e0f62a1" defer></script>
+  <script src="col-resize-fix.js?v=f9c53e0f62a1" defer></script>
+  <script src="work-split.js?v=f9c53e0f62a1" defer></script>
+  <script src="hint-clean.js?v=f9c53e0f62a1" defer></script>
+  <script src="sidebar-tidy.js?v=f9c53e0f62a1" defer></script>
 </body>
 </html>
 

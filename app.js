@@ -1,3 +1,4 @@
+/* Generated from public/app-src; edit the source fragments instead. */
 let TODAY = '2026-09-22';
 const view = /\/mobile\/?$/.test(location.pathname) || new URLSearchParams(location.search).get('view') === 'mobile' ? 'mobile' : 'desktop';
 const functionMarker = '/functions/v1/';
@@ -1029,6 +1030,7 @@ function currentPhotoMaterials(target) {
   if (!selected.size && target) selected.set(photoMaterialKey(target), target);
   return selected;
 }
+
 // ===== 照片查看器：支持多张左右切换（滑动 / 箭头 / 键盘）=====
 let photoViewerRows = [];
 let photoViewerIndex = 0;
@@ -5512,6 +5514,7 @@ function fillEmployeeOptions(rows) {
   const options = '<option value="">全部员工</option>' + workbenchRows.map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.employeeNo || '')} · ${escapeHtml(row.name || '')}</option>`).join('');
   [els.desktopWorkReportEmployee, els.mobileWorkReportEmployee].forEach((select) => { if (select) select.innerHTML = options; });
 }
+
 async function loadWorkEmployees() {
   if (workEmployeesCache) { fillEmployeeOptions(workEmployeesCache); return workEmployeesCache; }
   const result = await callRpc('work_admin_list_employees', { p_code:getAccessCode() });
@@ -6242,6 +6245,7 @@ function openReportReview(id) {
   workReviewRows = [{ ...row, submittedName:row.submittedName || row.name || '', submittedMaterial:row.submittedMaterial || row.material || '', submittedSpec:row.submittedSpec || row.spec || '', submittedProcessName:row.submittedProcessName || row.process || '' }];
   openWorkReviewEditor(id);
 }
+
 // ===== 员工月度报工 =====
 let staffMonthRows = null;
 let staffMonthEmployeeId = '';
@@ -7066,6 +7070,7 @@ async function submitWorkReview(action) {
 const ATTENDANCE_STATUS_TEXT = { normal:'正常', late:'迟到', early_leave:'早退', missing_once:'漏刷1次', missing_overdue:'漏刷未补', absent:'没上班', manual:'人工判定', leave:'请假', reissued:'已补卡', working:'进行中' };
 const ATT_EDIT_STATUSES = ['normal','late','early_leave','missing_once','missing_overdue','absent','leave','reissued','manual'];
 const ATTENDANCE_TYPE_TEXT = { hourly_piece:'计时计件', daily:'固定日薪', monthly:'固定月薪', management:'管理' };
+
 function attendancePrevMonth() { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function attendanceCurrentMonth() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function attendanceBounds(m) { const [y, mm] = String(m).split('-').map(Number); const last = new Date(y, mm, 0).getDate(); return { from: `${m}-01`, to: `${m}-${String(last).padStart(2,'0')}` }; }
@@ -13390,6 +13395,7 @@ setInterval(() => { if (document.visibilityState === 'visible') void checkPrintH
 }
 syncMobileStickyOffsets();
 window.addEventListener('resize', syncMobileStickyOffsets);
+
 
 
 
