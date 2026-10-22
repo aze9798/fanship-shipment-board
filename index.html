@@ -15,17 +15,17 @@
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=ac9bf7e5eece">
   <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
-  <link rel="stylesheet" href="design-tokens.css?v=379ca60c2b01">
-  <link rel="stylesheet" href="ui-polish.css?v=379ca60c2b01">
-  <link rel="stylesheet" href="theme-ui.css?v=379ca60c2b01">
-  <link rel="stylesheet" href="dashboard-home.css?v=379ca60c2b01">
+  <link rel="stylesheet" href="design-tokens.css?v=ac9bf7e5eece">
+  <link rel="stylesheet" href="ui-polish.css?v=ac9bf7e5eece">
+  <link rel="stylesheet" href="theme-ui.css?v=ac9bf7e5eece">
+  <link rel="stylesheet" href="dashboard-home.css?v=ac9bf7e5eece">
   <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
-  <link rel="stylesheet" href="home-merge.css?v=379ca60c2b01">
-  <link rel="stylesheet" href="global-search.css?v=379ca60c2b01">
-  <link rel="stylesheet" href="partners.css?v=379ca60c2b01">
-  <link rel="stylesheet" href="staff-v2.css?v=379ca60c2b01">
+  <link rel="stylesheet" href="home-merge.css?v=ac9bf7e5eece">
+  <link rel="stylesheet" href="global-search.css?v=ac9bf7e5eece">
+  <link rel="stylesheet" href="partners.css?v=ac9bf7e5eece">
+  <link rel="stylesheet" href="staff-v2.css?v=ac9bf7e5eece">
   <!-- 图纸预览用的 PDF 引擎：首次打开图纸时按需加载。 -->
 <style>
 /* ===== 考勤管理 视觉 ===== */
@@ -1510,8 +1510,8 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "379ca60c2b01";
-      const stylesheet = document.querySelector('link[href*="styles.css"]');
+      const fallbackVersion = "ac9bf7e5eece";
+      const stylesheet = document.querySelector('link[href*="styles.css?v=ac9bf7e5eece"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
         if (stylesheet) stylesheet.href = './styles.css?v=' + safeVersion;
@@ -1524,8 +1524,6 @@
         .then((response) => response.ok ? response.json() : Promise.reject(new Error('version unavailable')))
         .then((data) => {
           const remote = data && data.version;
-          // 2026-10-17：线上发了新版本、但浏览器/CDN 里这份 index.html 还是旧的壳子 →
-          // 用带参数的新地址重载一次（同一个版本只重载一次，避免死循环）
           if (remote && remote !== fallbackVersion) {
             let key = 'tkShell_' + remote;
             let done = true;
@@ -1545,21 +1543,21 @@
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=379ca60c2b01" defer></script>
-  <script src="dashboard-home.js?v=379ca60c2b01" defer></script>
+  <script src="ui-polish.js?v=ac9bf7e5eece" defer></script>
+  <script src="dashboard-home.js?v=ac9bf7e5eece" defer></script>
 
-  <script src="home-merge.js?v=379ca60c2b01" defer></script>
-  <script src="global-search.js?v=379ca60c2b01" defer></script>
-  <script src="work-rates.js?v=379ca60c2b01" defer></script>
-  <script src="drawing-rotate.js?v=379ca60c2b01" defer></script>
-  <script src="drawing-open.js?v=379ca60c2b01" defer></script>
-  <script src="partners.js?v=379ca60c2b01" defer></script>
-  <script src="staff-v2.js?v=379ca60c2b01" defer></script>
-  <script src="po-print.js?v=379ca60c2b01" defer></script>
-  <script src="col-resize-fix.js?v=379ca60c2b01" defer></script>
-  <script src="work-split.js?v=379ca60c2b01" defer></script>
-  <script src="hint-clean.js?v=379ca60c2b01" defer></script>
-  <script src="sidebar-tidy.js?v=379ca60c2b01" defer></script>
+  <script src="home-merge.js?v=ac9bf7e5eece" defer></script>
+  <script src="global-search.js?v=ac9bf7e5eece" defer></script>
+  <script src="work-rates.js?v=ac9bf7e5eece" defer></script>
+  <script src="drawing-rotate.js?v=ac9bf7e5eece" defer></script>
+  <script src="drawing-open.js?v=ac9bf7e5eece" defer></script>
+  <script src="partners.js?v=ac9bf7e5eece" defer></script>
+  <script src="staff-v2.js?v=ac9bf7e5eece" defer></script>
+  <script src="po-print.js?v=ac9bf7e5eece" defer></script>
+  <script src="col-resize-fix.js?v=ac9bf7e5eece" defer></script>
+  <script src="work-split.js?v=ac9bf7e5eece" defer></script>
+  <script src="hint-clean.js?v=ac9bf7e5eece" defer></script>
+  <script src="sidebar-tidy.js?v=ac9bf7e5eece" defer></script>
 </body>
 </html>
 
