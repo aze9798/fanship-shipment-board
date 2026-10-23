@@ -2861,6 +2861,8 @@ function writeSlowAuxCache(patch) {
 }
 
 let slowAuxRefreshing = null;
+let stateRevision = '';
+let revisionFetchPromise = null;
 let amountsFetchedAt = 0;
 let drawingsFetchedAt = 0;
 // 后台刷新金额 + 图纸清单（不阻塞界面）
@@ -2962,10 +2964,38 @@ function fetchAuxiliaryState() {
   return auxiliaryPromise;
 }
 
-async function loadState({ quiet = false, fast = false } = {}) {
+async function readStateRevision() {
+  if (!RPC_BASE && !API_BASE) return '';
+  if (revisionFetchPromise) return revisionFetchPromise;
+  revisionFetchPromise = (async () => {
+    const accessCode = getAccessCode();
+    if (!accessCode) return '';
+    const result = await callRpc('board_get_state_revision', { p_code: accessCode }, 15000);
+    if (!result.response.ok || !result.data) return '';
+    return String(result.data.revision || '');
+  })().catch(() => '').finally(() => { revisionFetchPromise = null; });
+  return revisionFetchPromise;
+}
+
+async function checkForStateChanges() {
+  if (!snapshot) return loadState({ quiet: true, fast: true });
+  const revision = await readStateRevision();
+  if (!revision) return loadState({ quiet: true, fast: true });
+  if (revision === stateRevision) {
+    setLiveStatus('online');
+    return false;
+  }
+  const loaded = await loadState({ quiet: true, fast: true, knownRevision: revision });
+  if (loaded) stateRevision = revision;
+  return loaded;
+}
+
+async function loadState({ quiet = false, fast = false, knownRevision = '' } = {}) {
   if (refreshing) return;
   refreshing = true;
+  let loaded = false;
   try {
+    const revisionBefore = knownRevision || await readStateRevision();
     const response = await requestWithAccessCode(apiUrl('/api/state'), { cache: 'no-store' });
     if (!response.ok) throw new Error('数据加载失败');
     const nextSnapshot = await response.json();
@@ -3002,6 +3032,8 @@ async function loadState({ quiet = false, fast = false } = {}) {
     if (snapshot.today) TODAY = snapshot.today;
     reconcileSelection();
     if (!quiet || changed) renderAll();
+    if (revisionBefore) stateRevision = revisionBefore;
+    loaded = true;
     if (fast && shouldRefreshAuxiliary) {
       const revision = nextSnapshot.revision;
       void fetchAuxiliaryState().then((auxiliary) => {
@@ -3023,6 +3055,7 @@ async function loadState({ quiet = false, fast = false } = {}) {
   }
   // 数据到位后，护栏/护脚栏类的前期多送自动冲抵
   setTimeout(() => { autoOffsetReadyDeliveries(); }, 0);
+  return loaded;
 }
 
 // ================= 采购订单 PDF 识别导入 =================
@@ -13072,14 +13105,14 @@ function connectEvents() {
     clearInterval(connectEvents.pollTimer);
     const poll = () => {
       if (document.visibilityState !== 'visible') return;
-      void loadState({ quiet: true, fast: true });
+      void checkForStateChanges();
       if (boardRole !== 'admin') return;
       // 报工情况 / 报工审核页不再自动刷新（页面上有"刷新报工"按钮，避免打断管理员查看）
     };
-    // 后台标签页完全停止轮询；前台 30 秒同步一次。\n    // 2026-10-19 流量压降：board_get_state 单次约 418KB，10 秒轮询是 Egress 的最大来源。
+    // 后台标签页完全停止轮询；前台每 30 秒只查询轻量 revision，版本变化才拉完整状态。
     connectEvents.pollTimer = setInterval(poll, 30000);
     if (connectEvents.visibilityHandler) document.removeEventListener('visibilitychange', connectEvents.visibilityHandler);
-    connectEvents.visibilityHandler = () => { if (document.visibilityState === 'visible') void loadState({ quiet: true, fast: true }); };
+    connectEvents.visibilityHandler = () => { if (document.visibilityState === 'visible') void checkForStateChanges(); };
     document.addEventListener('visibilitychange', connectEvents.visibilityHandler);
     return;
   }
