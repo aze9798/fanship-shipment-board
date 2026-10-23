@@ -275,7 +275,7 @@ async function requestRpc(url, options = {}) {
       .map((order) => [order.po, order.seq, order.material, order.name, order.spec, order.openingRemaining, order.shipped, order.remaining, order.dueDate]);
     const csv = '\ufeff' + [header, ...rows]
       .map((row) => row.map((cell) => '"' + String(cell ?? '').replaceAll('"', '""') + '"').join(','))
-      .join('\r\n');
+      .join('\n');
     return new Response(csv, { status: 200, headers: { 'Content-Type': 'text/csv; charset=utf-8' } });
   }
 
