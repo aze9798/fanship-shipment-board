@@ -99,6 +99,26 @@
     } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
   }
   async function fetchState() {
+    const shared = (() => {
+      const snapshot = window.__tkBoardStateSnapshot;
+      const at = Number(window.__tkBoardStateAt || 0);
+      return snapshot && Date.now() - at < 5 * 60 * 1000 ? snapshot : null;
+    })();
+    if (shared) return shared;
+    const arrived = await new Promise((resolve) => {
+      let timer = 0;
+      const onState = (event) => {
+        clearTimeout(timer);
+        window.removeEventListener('fanshun-board-state', onState);
+        resolve(event.detail && event.detail.snapshot ? event.detail.snapshot : null);
+      };
+      window.addEventListener('fanshun-board-state', onState, { once: true });
+      timer = setTimeout(() => {
+        window.removeEventListener('fanshun-board-state', onState);
+        resolve(null);
+      }, 10000);
+    });
+    if (arrived) return arrived;
     const code = readCode();
     const base = window.SHIPMENT_RPC_BASE || '';
     try {
@@ -851,3 +871,4 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(init, 0));
   else setTimeout(init, 0);
 })();
+

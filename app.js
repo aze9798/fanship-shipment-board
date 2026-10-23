@@ -3018,6 +3018,9 @@ async function loadState({ quiet = false, fast = false, knownRevision = '' } = {
     const changed = !previous || nextSnapshot.revision !== previous.revision || (!fast && shouldRefreshAuxiliary);
     const stateChanged = !previous || nextSnapshot.revision !== previous.revision;
     snapshot = nextSnapshot;
+    window.__tkBoardStateSnapshot = nextSnapshot;
+    window.__tkBoardStateAt = Date.now();
+    window.dispatchEvent(new CustomEvent('fanshun-board-state', { detail: { snapshot: nextSnapshot, at: Date.now() } }));
     photoMaterialIndexCache = null;
     photoMaterialIndexKey = '';
     if (!fast && shouldRefreshAuxiliary) { void cleanupInvalidShipmentUnits(); setTimeout(() => { void cleanupOrphanLoadedUnits(); }, 0); }
