@@ -14,7 +14,7 @@
     window.SHIPMENT_DIRECT_RPC_BASE = "https://dkbeigqtiilgxthwkixg.supabase.co/rest/v1/rpc";
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
-  <link rel="stylesheet" href="./app.css?v=931bff2f62d4">
+  <link rel="stylesheet" href="./app.css?v=5a016a985cd1">
   <link rel="manifest" href="manifest.webmanifest">
 <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
 <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
@@ -263,6 +263,7 @@
           </div>
           <div class="topbar-actions">
             <button id="pdfImportButton" class="button primary" type="button">订单导入</button>
+            <button id="orderArchiveButton" class="button ghost" type="button" hidden>订单档案</button>
 
             <button id="resetButton" class="button ghost danger-text" type="button">清空演示记录</button>
           </div>
@@ -1275,6 +1276,33 @@
       </div>
     </section>
   </div>
+  <div id="orderArchiveModal" class="modal-backdrop" hidden>
+    <section class="modal-card order-archive-card" role="dialog" aria-modal="true" aria-labelledby="orderArchiveTitle">
+      <div class="modal-head">
+        <div><p class="eyebrow">采购订单导入留档</p><h2 id="orderArchiveTitle">订单档案</h2></div>
+        <button id="orderArchiveClose" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <div class="order-archive-tools">
+        <label class="order-archive-search"><input id="orderArchiveSearch" type="search" placeholder="搜索采购单号 / 料件编号 / 品名 / 规格" autocomplete="off"></label>
+        <select id="orderArchiveType" aria-label="订单类型">
+          <option value="all" selected>全部类型</option>
+          <option value="normal">普通订单</option>
+          <option value="special">试制 / 承样</option>
+          <option value="trial">只看试制</option>
+          <option value="sample">只看承样</option>
+          <option value="tooling">工装订单</option>
+          <option value="adjust">数量调整</option>
+        </select>
+        <button id="orderArchiveRefresh" class="button ghost" type="button">刷新</button>
+      </div>
+      <div id="orderArchiveSummary" class="order-archive-summary"></div>
+      <div class="order-archive-layout">
+        <div id="orderArchiveList" class="order-archive-list"><div class="order-archive-empty">正在读取导入档案…</div></div>
+        <div id="orderArchiveDetail" class="order-archive-detail"><div class="order-archive-empty">选择左侧的导入批次查看明细</div></div>
+      </div>
+      <div class="modal-actions"><button id="orderArchiveBottomClose" class="button ghost" type="button">关闭</button></div>
+    </section>
+  </div>
   <div id="offsetReminderModal" class="modal-backdrop" hidden>
     <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="offsetReminderTitle">
       <div class="modal-head">
@@ -1502,7 +1530,7 @@
   <div id="toast" class="toast" hidden></div>
     <script>
     (() => {
-      const fallbackVersion = "931bff2f62d4";
+      const fallbackVersion = "5a016a985cd1";
       const stylesheet = document.querySelector('link[href*="app.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
@@ -1535,21 +1563,21 @@
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=931bff2f62d4" defer></script>
-  <script src="dashboard-home.js?v=931bff2f62d4" defer></script>
+  <script src="ui-polish.js?v=5a016a985cd1" defer></script>
+  <script src="dashboard-home.js?v=5a016a985cd1" defer></script>
 
-  <script src="home-merge.js?v=931bff2f62d4" defer></script>
-  <script src="global-search.js?v=931bff2f62d4" defer></script>
-  <script src="work-rates.js?v=931bff2f62d4" defer></script>
-  <script src="drawing-rotate.js?v=931bff2f62d4" defer></script>
-  <script src="drawing-open.js?v=931bff2f62d4" defer></script>
-  <script src="partners.js?v=931bff2f62d4" defer></script>
-  <script src="staff-v2.js?v=931bff2f62d4" defer></script>
-  <script src="po-print.js?v=931bff2f62d4" defer></script>
-  <script src="col-resize-fix.js?v=931bff2f62d4" defer></script>
-  <script src="work-split.js?v=931bff2f62d4" defer></script>
-  <script src="hint-clean.js?v=931bff2f62d4" defer></script>
-  <script src="sidebar-tidy.js?v=931bff2f62d4" defer></script>
+  <script src="home-merge.js?v=5a016a985cd1" defer></script>
+  <script src="global-search.js?v=5a016a985cd1" defer></script>
+  <script src="work-rates.js?v=5a016a985cd1" defer></script>
+  <script src="drawing-rotate.js?v=5a016a985cd1" defer></script>
+  <script src="drawing-open.js?v=5a016a985cd1" defer></script>
+  <script src="partners.js?v=5a016a985cd1" defer></script>
+  <script src="staff-v2.js?v=5a016a985cd1" defer></script>
+  <script src="po-print.js?v=5a016a985cd1" defer></script>
+  <script src="col-resize-fix.js?v=5a016a985cd1" defer></script>
+  <script src="work-split.js?v=5a016a985cd1" defer></script>
+  <script src="hint-clean.js?v=5a016a985cd1" defer></script>
+  <script src="sidebar-tidy.js?v=5a016a985cd1" defer></script>
 </body>
 </html>
 

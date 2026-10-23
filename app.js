@@ -3840,6 +3840,9 @@ async function confirmPdfImport() {
   }
   els.confirmPdf.disabled = true;
   beginTask('正在导入采购订单...');
+  const archiveClientBatchId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2)).replace(/-/g, '');
+  let archivedBatchNo = '';
+  let archiveError = '';
   try {
     const result = await callRpc('board_add_orders', { p_code: getAccessCode(), p_orders: pendingPdfRows });
     if (!result.response.ok) throw new Error(result.data?.message || '导入失败');
@@ -3874,6 +3877,24 @@ async function confirmPdfImport() {
       }
       if (typedOk) showToast(`已把 ${typedOk} 条标记为${{ trial: '试制', sample: '承样', tooling: '工装' }[typedRows[0].orderType] || '特殊'}订单`);
       else showToast('订单类型没能写入，请在「订单变更」里手动设置', 6000);
+    }
+    const archiveSourceFiles = [...new Set((pendingPdfDocs || []).map((doc) => String((doc && doc.file) || '').trim()).filter(Boolean))];
+    const archiveRows = pendingPdfRows.map((row, index) => ({
+      ...row,
+      importSeq: index + 1,
+      sourceFile: String(pendingPdfDocs?.[row.pdfDocIndex]?.file || '').trim(),
+      amount: Math.round(Number(row.orderQty || row.openingRemaining || 0) * Number(row.unitPrice || 0) * 100) / 100,
+    }));
+    try {
+      const archived = await archiveOrderImportAudit(archiveRows, {
+        clientBatchId: archiveClientBatchId,
+        sourceFiles: archiveSourceFiles,
+        sourceLabel: archiveSourceFiles.length ? archiveSourceFiles.join('、') : '采购订单导入',
+        affectedCount: count,
+      });
+      archivedBatchNo = String(archived?.batchNo || '');
+    } catch (error) {
+      archiveError = String(error.message || error || '订单档案写入失败');
     }
     // 把 PDF 里的含税单价写进云端（管理码专属），并刷新订单总额
     if (boardRole === 'admin') {
@@ -3992,7 +4013,7 @@ async function confirmPdfImport() {
       }
     }
 
-    showToast(`已导入 ${count} 行新订单（未交已更新）`);
+    showToast(`已导入 ${count} 行新订单（未交已更新）${archivedBatchNo ? ' · 第 ' + archivedBatchNo + ' 批已留档' : ''}${archiveError ? '；但订单档案留档失败：' + archiveError : ''}`, archiveError ? 12000 : undefined);
     // 图纸/金额是单独的慢数据缓存；刚同步进来的图纸和新单价必须立即生效
     await refreshAuxiliaryNow();
     await loadState({ quiet: true });
@@ -4060,6 +4081,8 @@ function applyRoleUI() {
   const badge = document.getElementById('modeBadge');
   if (badge) badge.textContent = isAdmin ? '管理员模式' : '普通模式';
   if (els.desktopPricesLink) els.desktopPricesLink.hidden = !isAdmin;
+  const orderArchiveButton = document.getElementById('orderArchiveButton');
+  if (orderArchiveButton) orderArchiveButton.hidden = !isAdmin;
 }
 
 function rebuildAmountMap() {
@@ -4679,6 +4702,225 @@ function drawingCategoryIcon(category) {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`;
 }
 
+const ORDER_ARCHIVE_TYPE_LABELS = {
+  normal: '普通',
+  trial: '试制',
+  sample: '承样',
+  tooling: '工装',
+  adjust: '数量调整',
+};
+const ORDER_ARCHIVE_TYPE_ORDER = ['normal', 'trial', 'sample', 'tooling', 'adjust'];
+const ORDER_ARCHIVE_NUMBER_FORMAT = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 4 });
+function orderArchiveNumber(value, digits = 2) { const number = Number(value || 0); return number.toLocaleString('zh-CN', { minimumFractionDigits: digits, maximumFractionDigits: Math.max(digits, 4) }); }
+let orderArchiveBatches = [];
+let orderArchiveSelectedBatchId = '';
+let orderArchiveRequestSeq = 0;
+let orderArchiveSearchTimer = 0;
+
+function orderArchiveErrorMessage(error) {
+  const raw = String(error?.message || error || '订单档案加载失败');
+  if (/Could not find the function|PGRST202|board_get_order_import|board_archive_order_import/i.test(raw)) {
+    return '订单档案数据库还没安装：请先在 Supabase SQL Editor 执行订单导入档案 SQL。';
+  }
+  return raw;
+}
+
+function orderArchiveTypeLabel(type) {
+  return ORDER_ARCHIVE_TYPE_LABELS[String(type || '').trim()] || String(type || '普通');
+}
+
+function orderArchiveTypeTags(counts) {
+  const source = counts && typeof counts === 'object' ? counts : {};
+  const types = ORDER_ARCHIVE_TYPE_ORDER.filter((type) => Number(source[type] || 0) > 0);
+  return types.map((type) => `<span class="order-archive-type type-${escapeHtml(type)}">${escapeHtml(orderArchiveTypeLabel(type))} ${fmt(source[type])}</span>`).join('');
+}
+
+function orderArchiveFilesText(files) {
+  const list = Array.isArray(files) ? files.map((value) => String(value || '').trim()).filter(Boolean) : [];
+  if (!list.length) return '来源文件：历史数据回填';
+  return '来源：' + list.join('、');
+}
+
+function orderArchiveTimeText(value) {
+  const date = new Date(String(value || ''));
+  if (Number.isNaN(date.getTime())) return String(value || '');
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'Asia/Shanghai',
+  }).replaceAll('/', '-');
+}
+
+function orderArchiveQuery() {
+  return String(document.getElementById('orderArchiveSearch')?.value || '').trim();
+}
+
+function orderArchiveType() {
+  return String(document.getElementById('orderArchiveType')?.value || 'all');
+}
+
+function setOrderArchiveMessage(text, type = '') {
+  const box = document.getElementById('orderArchiveDetail');
+  if (!box) return;
+  box.innerHTML = `<div class="order-archive-empty ${type}">${escapeHtml(text)}</div>`;
+}
+
+function renderOrderArchiveBatches() {
+  const list = document.getElementById('orderArchiveList');
+  const summary = document.getElementById('orderArchiveSummary');
+  if (!list) return;
+  if (summary) {
+    const totalMatched = orderArchiveBatches.reduce((sum, batch) => sum + Number(batch.matchedItemCount || 0), 0);
+    summary.textContent = orderArchiveBatches.length
+      ? `${fmt(orderArchiveBatches.length)} 个批次 · 当前筛选 ${fmt(totalMatched)} 行`
+      : '没有匹配的导入批次';
+  }
+  if (!orderArchiveBatches.length) {
+    list.innerHTML = '<div class="order-archive-empty">没有匹配的订单档案。<br>可以换关键字或订单类型再查。</div>';
+    setOrderArchiveMessage('选择左侧的导入批次查看明细');
+    return;
+  }
+  list.innerHTML = orderArchiveBatches.map((batch) => `<button type="button" class="order-archive-batch${String(batch.id) === orderArchiveSelectedBatchId ? ' active' : ''}" data-order-archive-batch="${escapeHtml(String(batch.id || ''))}">
+    <span class="order-archive-batch-head"><b>第 ${escapeHtml(String(batch.batchNo || ''))} 批</b><em>${escapeHtml(orderArchiveTimeText(batch.importedAt))}</em></span>
+    <strong>${escapeHtml(batch.sourceLabel || '采购订单导入')}</strong>
+    <span class="order-archive-types">${orderArchiveTypeTags(batch.orderTypeCounts)}</span>
+    <span class="order-archive-batch-meta">本次 ${fmt(batch.matchedItemCount)} 行 · ${fmt(batch.matchedQuantity)} 件${boardCanSeeAmount ? ' · ' + orderArchiveNumber(batch.matchedAmount, 2) + ' 元' : ''}</span>
+    <small>${escapeHtml(orderArchiveFilesText(batch.sourceFiles))}</small>
+  </button>`).join('');
+}
+
+function renderOrderArchiveDetail(data) {
+  const box = document.getElementById('orderArchiveDetail');
+  if (!box) return;
+  const batch = data?.batch || {};
+  const items = Array.isArray(data?.items) ? data.items : [];
+  if (!items.length) {
+    box.innerHTML = `<div class="order-archive-detail-head"><div><strong>第 ${escapeHtml(String(batch.batchNo || ''))} 批</strong><span>${escapeHtml(orderArchiveTimeText(batch.importedAt))} · ${escapeHtml(batch.sourceLabel || '')}</span></div></div><div class="order-archive-empty">这一批没有符合当前筛选的订单。</div>`;
+    return;
+  }
+  const rows = items.map((item) => `<tr>
+    <td>${escapeHtml(String(item.importSeq || ''))}</td>
+    <td class="mono">${escapeHtml(item.po || '')}</td>
+    <td>${escapeHtml(String(item.seq || ''))}</td>
+    <td class="mono">${escapeHtml(item.material || '')}</td>
+    <td>${escapeHtml(item.name || '')}</td>
+    <td class="mono">${escapeHtml(item.spec || '')}</td>
+    <td class="number">${fmt(item.orderQty)}</td>
+    ${boardCanSeeAmount ? `<td class="number">${item.unitPrice == null ? '--' : orderArchiveNumber(item.unitPrice, 2)}</td><td class="number">${orderArchiveNumber(item.amount, 2)}</td>` : ''}
+    <td>${item.dueDate ? escapeHtml(formatDate(item.dueDate)) : '--'}</td>
+    <td><span class="order-archive-type type-${escapeHtml(item.orderType || 'normal')}">${escapeHtml(orderArchiveTypeLabel(item.orderType))}</span></td>
+  </tr>`).join('');
+  box.innerHTML = `<div class="order-archive-detail-head">
+      <div><strong>第 ${escapeHtml(String(batch.batchNo || ''))} 批</strong><span>${escapeHtml(orderArchiveTimeText(batch.importedAt))} · ${escapeHtml(batch.sourceLabel || '')} · 当前显示 ${fmt(items.length)} 行</span></div>
+      <small>${escapeHtml(orderArchiveFilesText(batch.sourceFiles))}</small>
+    </div>
+    <div class="order-archive-table-wrap"><table class="order-archive-table">
+      <thead><tr><th>导入顺序</th><th>采购单号</th><th>项次</th><th>料件编号</th><th>品名</th><th>规格/图号</th><th>订单量</th>${boardCanSeeAmount ? '<th>单价</th><th>金额</th>' : ''}<th>交期</th><th>类型</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
+async function loadOrderArchiveDetail(batchId) {
+  if (!batchId) {
+    setOrderArchiveMessage('选择左侧的导入批次查看明细');
+    return;
+  }
+  setOrderArchiveMessage('正在加载这批订单…');
+  try {
+    const result = await callRpc('board_get_order_import_batch', {
+      p_code: getAccessCode(),
+      p_batch_id: batchId,
+      p_type: orderArchiveType(),
+      p_query: orderArchiveQuery(),
+    });
+    if (!result.response.ok) throw new Error(result.data?.message || '订单档案加载失败');
+    renderOrderArchiveDetail(result.data);
+  } catch (error) {
+    setOrderArchiveMessage(orderArchiveErrorMessage(error), 'error');
+  }
+}
+
+async function loadOrderArchiveBatches(preferredBatchId = '') {
+  const requestId = ++orderArchiveRequestSeq;
+  const list = document.getElementById('orderArchiveList');
+  if (list) list.innerHTML = '<div class="order-archive-empty">正在读取导入档案…</div>';
+  setOrderArchiveMessage('正在读取导入档案…');
+  try {
+    const result = await callRpc('board_get_order_import_batches', {
+      p_code: getAccessCode(),
+      p_type: orderArchiveType(),
+      p_query: orderArchiveQuery(),
+      p_limit: 200,
+    });
+    if (requestId !== orderArchiveRequestSeq) return;
+    if (!result.response.ok) throw new Error(result.data?.message || '订单档案加载失败');
+    orderArchiveBatches = Array.isArray(result.data) ? result.data : [];
+    const ids = new Set(orderArchiveBatches.map((batch) => String(batch.id || '')));
+    const preferred = String(preferredBatchId || orderArchiveSelectedBatchId || '');
+    orderArchiveSelectedBatchId = ids.has(preferred) ? preferred : String(orderArchiveBatches[0]?.id || '');
+    renderOrderArchiveBatches();
+    if (orderArchiveSelectedBatchId) await loadOrderArchiveDetail(orderArchiveSelectedBatchId);
+  } catch (error) {
+    if (requestId !== orderArchiveRequestSeq) return;
+    orderArchiveBatches = [];
+    if (list) list.innerHTML = `<div class="order-archive-empty error">${escapeHtml(orderArchiveErrorMessage(error))}</div>`;
+    setOrderArchiveMessage(orderArchiveErrorMessage(error), 'error');
+  }
+}
+
+function openOrderArchive() {
+  if (boardRole !== 'admin') {
+    showToast('订单档案需要管理员权限');
+    return;
+  }
+  orderArchiveSelectedBatchId = '';
+  const modal = document.getElementById('orderArchiveModal');
+  if (!modal) return;
+  modal.hidden = false;
+  loadOrderArchiveBatches();
+}
+
+function closeOrderArchive() {
+  const modal = document.getElementById('orderArchiveModal');
+  if (modal) modal.hidden = true;
+  orderArchiveRequestSeq += 1;
+}
+
+async function archiveOrderImportAudit(rows, meta = {}) {
+  try {
+    const response = await callRpc('board_archive_order_import', {
+      p_code: getAccessCode(),
+      p_rows: Array.isArray(rows) ? rows : [],
+      p_meta: meta,
+    }, 30000);
+    if (!response.response.ok) {
+      throw new Error(response.data?.message || response.data?.error || '订单档案写入失败');
+    }
+    return response.data;
+  } catch (error) {
+    throw new Error(orderArchiveErrorMessage(error));
+  }
+}
+
+document.getElementById('orderArchiveButton')?.addEventListener('click', openOrderArchive);
+document.getElementById('orderArchiveClose')?.addEventListener('click', closeOrderArchive);
+document.getElementById('orderArchiveBottomClose')?.addEventListener('click', closeOrderArchive);
+document.getElementById('orderArchiveModal')?.addEventListener('click', (event) => {
+  if (event.target === event.currentTarget) closeOrderArchive();
+});
+document.getElementById('orderArchiveRefresh')?.addEventListener('click', () => loadOrderArchiveBatches());
+document.getElementById('orderArchiveType')?.addEventListener('change', () => loadOrderArchiveBatches());
+document.getElementById('orderArchiveSearch')?.addEventListener('input', () => {
+  clearTimeout(orderArchiveSearchTimer);
+  orderArchiveSearchTimer = setTimeout(() => loadOrderArchiveBatches(), 250);
+});
+document.getElementById('orderArchiveList')?.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-order-archive-batch]');
+  if (!button) return;
+  orderArchiveSelectedBatchId = String(button.dataset.orderArchiveBatch || '');
+  renderOrderArchiveBatches();
+  loadOrderArchiveDetail(orderArchiveSelectedBatchId);
+});
 // ===== 单价查询（只电脑管理端）：搜编号/品名/图号 -> 产品基本信息 + 当前单价 + 单价变动 =====
 let priceQuery = '';
 

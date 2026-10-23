@@ -4005,3 +4005,48 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
   font-weight: 700;
   line-height: 1.55;
 }
+
+
+/* ===== 采购订单导入档案 ===== */
+.order-archive-card { width: min(1180px, calc(100vw - 40px)); height: min(900px, calc(100dvh - 40px)); max-height: none; display: flex; flex-direction: column; overflow: hidden; }
+.order-archive-tools { display: grid; grid-template-columns: minmax(240px, 1fr) 170px auto; gap: 8px; align-items: center; margin-top: 8px; }
+.order-archive-tools input, .order-archive-tools select { height: 40px; border: 1px solid #d7e4e2; border-radius: 10px; background: #fff; color: var(--ink); padding: 0 11px; font: inherit; font-size: 12px; }
+.order-archive-search input { width: 100%; }
+.order-archive-summary { margin: 10px 0 8px; color: #5f777d; font-size: 12px; font-weight: 700; }
+.order-archive-layout { flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: 310px minmax(0, 1fr); gap: 12px; }
+.order-archive-list { min-height: 0; overflow: auto; display: grid; align-content: start; gap: 8px; padding-right: 4px; }
+.order-archive-batch { width: 100%; display: grid; gap: 5px; padding: 11px 12px; border: 1px solid #dce8e5; border-radius: 12px; background: #fff; color: #294a51; text-align: left; cursor: pointer; box-shadow: 0 4px 12px rgba(17,54,58,.04); }
+.order-archive-batch:hover { border-color: #9dcec5; background: #f7fcfb; }
+.order-archive-batch.active { border-color: #0f766e; box-shadow: 0 0 0 2px rgba(15,118,110,.1); background: #f1faf7; }
+.order-archive-batch-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.order-archive-batch-head b { color: #0f766e; font-size: 13px; }
+.order-archive-batch-head em { color: #72868a; font-size: 10px; font-style: normal; white-space: nowrap; }
+.order-archive-batch > strong { font-size: 13px; }
+.order-archive-batch small { color: #72868a; font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+.order-archive-types { display: flex; flex-wrap: wrap; gap: 4px; }
+.order-archive-batch-meta { color: #49656b; font-size: 11px; font-weight: 700; }
+.order-archive-type { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 999px; background: #eef7f6; color: #0f766e; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.order-archive-type.type-trial { background: #fff4df; color: #a45b05; }
+.order-archive-type.type-sample { background: #fff0e7; color: #b34e15; }
+.order-archive-type.type-tooling { background: #eef0ff; color: #4e5ab7; }
+.order-archive-type.type-adjust { background: #f2eefb; color: #7650a8; }
+.order-archive-detail { min-width: 0; min-height: 0; overflow: auto; border: 1px solid #e1ebe9; border-radius: 13px; background: #fbfdfd; }
+.order-archive-detail-head { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 11px 13px; border-bottom: 1px solid #e5eeec; background: rgba(255,255,255,.96); }
+.order-archive-detail-head div { display: grid; gap: 3px; }
+.order-archive-detail-head strong { color: #173b42; font-size: 14px; }
+.order-archive-detail-head span, .order-archive-detail-head small { color: #60777d; font-size: 11px; }
+.order-archive-table-wrap { overflow: auto; }
+.order-archive-table { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 11.5px; }
+.order-archive-table th { position: sticky; top: 0; z-index: 1; padding: 9px 8px; border-bottom: 1px solid #dfe9e7; background: #f2f8f7; color: #49656b; text-align: left; white-space: nowrap; }
+.order-archive-table td { padding: 8px; border-bottom: 1px solid #edf3f2; color: #284a51; vertical-align: top; }
+.order-archive-table tr:nth-child(even) td { background: #fafdfc; }
+.order-archive-table .number { text-align: right; font-variant-numeric: tabular-nums; }
+.order-archive-empty { padding: 38px 16px; color: #71878c; text-align: center; font-size: 12px; line-height: 1.7; }
+.order-archive-empty.error { color: #a92b22; background: #fff5f4; }
+@media (max-width: 900px) {
+  .order-archive-card { width: calc(100vw - 20px); height: calc(100dvh - 20px); }
+  .order-archive-tools { grid-template-columns: 1fr; }
+  .order-archive-layout { grid-template-columns: 1fr; overflow: auto; }
+  .order-archive-list { max-height: 230px; }
+  .order-archive-detail { min-height: 360px; overflow: visible; }
+}
