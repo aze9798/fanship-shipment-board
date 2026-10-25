@@ -6566,6 +6566,13 @@ body[data-view="desktop"] #moduleSwitchButton { display: none !important; }
 
 .tk-merge-view[hidden] { display: none; }
 .tk-merge-view > .panel { margin: 0; }
+/* 未交清单详情：只调整搬入 tkMerge 的订单面板工具栏，
+   上方留 10px 与标题分层，下方收紧 10px 贴近表头。
+   这是桌面独立页的结构性间距，不影响手机端或其他 toolbar。 */
+#tkMerge .tk-merge-view[data-mv="orders"] > .orders-panel > .toolbar {
+  margin-top: 10px !important;
+  margin-bottom: -10px !important;
+}
 /* 搬过来的两个面板，原来靠父容器给外边距，这里补回来 */
 .tk-merge-view > .dashboard-grid > .panel { margin: 0; }
 
@@ -6857,10 +6864,10 @@ body:not([data-board-role="admin"]) #desktopReconciliationLink { display: none !
 .heng-bogo-order strong { display: block; font-size: 12px; }
 .heng-bogo-order small { display: block; margin-top: 3px; color: var(--tk-muted); font-size: 10px; }
 .heng-bogo-order b { color: var(--tk-primary); font-size: 10px; white-space: nowrap; }
-.heng-bogo-form { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(0,.75fr) minmax(0,.75fr) auto; gap: 7px; padding: 10px 14px 0; align-items: center; }
+.heng-bogo-form { display: grid; grid-template-columns: minmax(0,1.25fr) repeat(3,minmax(0,.58fr)) auto; gap: 7px; padding: 10px 14px 0; align-items: center; }
 .heng-bogo-form input { min-width: 0; min-height: 36px; border: 1px solid var(--tk-line); border-radius: 9px; background: var(--tk-surface); color: var(--tk-ink); padding: 0 9px; font-size: 12px; }
 .heng-bogo-form button { min-height: 36px; }
-.heng-bogo-totals { grid-template-columns: 1fr 1fr; padding-top: 8px; }
+.heng-bogo-totals { grid-template-columns: repeat(3, minmax(0, 1fr)); padding-top: 8px; }
 .heng-bogo-totals label { display: grid; gap: 4px; color: var(--tk-muted); font-size: 10px; }
 .heng-bogo-totals input { width: 100%; }
 #hengBuildBogo { margin: 9px 14px 0; width: calc(100% - 28px); }
@@ -6871,7 +6878,7 @@ body:not([data-board-role="admin"]) #desktopReconciliationLink { display: none !
 .heng-bogo-error { padding: 10px 11px; border-radius: 9px; background: #fff1f0; color: var(--tk-danger); font-size: 11px; font-weight: 700; }
 @media (max-width: 560px) {
   .heng-bogo-form { grid-template-columns: 1fr 1fr; }
-  .heng-bogo-form input#hengBogoOrderNo { grid-column: 1 / -1; }
+  .heng-bogo-form input#hengBogoOrderNo, .heng-bogo-form #hengSaveBogoOrder { grid-column: 1 / -1; }
 }
 
 .heng-pack-editor { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--tk-hair); }

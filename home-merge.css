@@ -57,6 +57,13 @@ body[data-view="desktop"] #moduleSwitchButton { display: none !important; }
 
 .tk-merge-view[hidden] { display: none; }
 .tk-merge-view > .panel { margin: 0; }
+/* 未交清单详情：只调整搬入 tkMerge 的订单面板工具栏，
+   上方留 10px 与标题分层，下方收紧 10px 贴近表头。
+   这是桌面独立页的结构性间距，不影响手机端或其他 toolbar。 */
+#tkMerge .tk-merge-view[data-mv="orders"] > .orders-panel > .toolbar {
+  margin-top: 10px !important;
+  margin-bottom: -10px !important;
+}
 /* 搬过来的两个面板，原来靠父容器给外边距，这里补回来 */
 .tk-merge-view > .dashboard-grid > .panel { margin: 0; }
 

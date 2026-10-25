@@ -2982,7 +2982,7 @@ const hengUiState = {
   error: '',
   materials: [],
   bogoOrders: [],
-  bogoTotals: { quantity01: 0, quantity02: 0 },
+  bogoTotals: { quantity07: 0, quantity01: 0, quantity02: 0 },
   bogoError: '',
   nextNumbers: { ssjBh: 132, bogo: '0085' },
   customer: 'ssj',
@@ -3117,20 +3117,21 @@ function renderHengSelectedItems() {
 
 function hengBogoOrderCardsHtml() {
   const orders = [...hengUiState.bogoOrders].sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
-  if (!orders.length) return `<div class="heng-inline-note">还没有博戈订单。先在下方录入订单号和 01、02 锁剩余数量。</div>`;
+  if (!orders.length) return `<div class="heng-inline-note">还没有博戈订单。请先录入订单号和 07、01、02 锁剩余数量。</div>`;
   return `<div class="heng-bogo-orders">${orders.map((order, index) => `
     <button type="button" class="heng-bogo-order" data-heng-bogo-edit="${index}">
-      <span><strong>${escapeHtml(order.orderNo)}</strong><small>01 ${escapeHtml(order.remaining01)} 把 · 02 ${escapeHtml(order.remaining02)} 把</small></span>
+      <span><strong>${escapeHtml(order.orderNo)}</strong><small>07 ${escapeHtml(order.remaining07)} 把 · 01 ${escapeHtml(order.remaining01)} 把 · 02 ${escapeHtml(order.remaining02)} 把</small></span>
       <b>编辑</b>
     </button>`).join('')}</div>`;
 }
 
-function buildBogoDraft(quantity01, quantity02) {
+function buildBogoDraft(quantity07, quantity01, quantity02) {
   const orders = [...hengUiState.bogoOrders].sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
-  const allocated = window.HengCore.allocateBogo({ quantity01, quantity02 }, orders);
+  const allocated = window.HengCore.allocateBogo({ quantity07, quantity01, quantity02 }, orders);
   hengUiState.bogoError = allocated.error || '';
   if (allocated.error) return [];
   const products = {
+    '07': { name: '后悬液压锁', spec: 'TX52019005-07', unit: '把' },
     '01': { name: '华菱右', spec: 'TX52019050-01', unit: '把' },
     '02': { name: '华菱左', spec: 'TX52019050-02', unit: '把' },
   };
@@ -3159,8 +3160,9 @@ function buildBogoDraft(quantity01, quantity02) {
 function hengBogoAllocationHtml() {
   if (hengUiState.bogoError) return `<div class="heng-bogo-error" role="alert">${escapeHtml(hengUiState.bogoError)}</div>`;
   const rows = hengUiState.notes.flatMap((note) => note.items || []);
-  if (!rows.length) return `<div class="heng-inline-note">填写本次 01、02 数量后，系统会按订单顺序自动分配。</div>`;
-  return `<div class="heng-bogo-allocation-list">${rows.map((row) => `<div><span>${escapeHtml(row.orderNo)} · ${row.allocationProduct === '01' ? '华菱右 01' : '华菱左 02'}</span><b>${escapeHtml(row.quantity)} 把</b></div>`).join('')}</div>`;
+  if (!rows.length) return `<div class="heng-inline-note">填写本次 07、01、02 数量后，系统会按订单顺序自动分配。</div>`;
+  const productNames = { '07': '后悬液压锁 07', '01': '华菱右 01', '02': '华菱左 02' };
+  return `<div class="heng-bogo-allocation-list">${rows.map((row) => `<div><span>${escapeHtml(row.orderNo)} · ${escapeHtml(productNames[row.allocationProduct] || row.allocationProduct)}</span><b>${escapeHtml(row.quantity)} 把</b></div>`).join('')}</div>`;
 }
 
 function renderHengBogoWorkspace() {
@@ -3169,11 +3171,14 @@ function renderHengBogoWorkspace() {
     ${hengBogoOrderCardsHtml()}
     <div class="heng-bogo-form">
       <input id="hengBogoOrderNo" type="text" inputmode="numeric" placeholder="订单号" aria-label="博戈订单号">
+      <input id="hengBogoRemaining07" type="number" min="0" step="1" inputmode="numeric" placeholder="07 剩余" aria-label="07 锁剩余数量">
       <input id="hengBogoRemaining01" type="number" min="0" step="1" inputmode="numeric" placeholder="01 剩余" aria-label="01 锁剩余数量">
       <input id="hengBogoRemaining02" type="number" min="0" step="1" inputmode="numeric" placeholder="02 锁剩余数量" aria-label="02 锁剩余数量">
       <button id="hengSaveBogoOrder" type="button" class="button ghost">保存订单</button>
     </div>
+    <div class="heng-inline-note">本次发货数量：07 后悬液压锁、01、02 锁分别填写；系统按订单顺序自动分配。博戈常用包装为托盘、纸箱，每页单独确认。</div>
     <div class="heng-bogo-form heng-bogo-totals">
+      <label><span>07 后悬液压锁</span><input id="hengBogoTotal07" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(hengUiState.bogoTotals.quantity07)}"></label>
       <label><span>01 华菱右</span><input id="hengBogoTotal01" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(hengUiState.bogoTotals.quantity01)}"></label>
       <label><span>02 华菱左</span><input id="hengBogoTotal02" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(hengUiState.bogoTotals.quantity02)}"></label>
     </div>
@@ -3208,7 +3213,7 @@ function buildSsjBhDraft() {
 
 function rebuildHengDraft() {
   hengUiState.notes = hengUiState.customer === 'bogo'
-    ? buildBogoDraft(Number(hengUiState.bogoTotals.quantity01 || 0), Number(hengUiState.bogoTotals.quantity02 || 0))
+    ? buildBogoDraft(Number(hengUiState.bogoTotals.quantity07 || 0), Number(hengUiState.bogoTotals.quantity01 || 0), Number(hengUiState.bogoTotals.quantity02 || 0))
     : buildSsjBhDraft();
 }
 
@@ -3397,7 +3402,7 @@ async function confirmHengLoading() {
     hengUiState.items = [];
     hengUiState.notes = [];
     hengUiState.packagingByPage = {};
-    hengUiState.bogoTotals = { quantity01: 0, quantity02: 0 };
+    hengUiState.bogoTotals = { quantity07: 0, quantity01: 0, quantity02: 0 };
     renderHengMobile();
     loadHengPendingRuns().catch(() => {});
     if (hadBogoItems) loadHengBootstrap(true).catch(() => {});
@@ -3766,11 +3771,12 @@ async function saveHengMaterialCustomers(materialId, customers) {
   renderHengMaterialAdmin();
 }
 
-async function saveBogoOrder(orderNo, remaining01, remaining02, sortOrder) {
+async function saveBogoOrder(orderNo, remaining07, remaining01, remaining02, sortOrder) {
   const result = await callRpc('board_heng_save_bogo_order', {
     p_code: getAccessCode(),
     p_payload: {
       orderNo: String(orderNo || '').trim(),
+      remaining07: Number(remaining07 || 0),
       remaining01: Number(remaining01 || 0),
       remaining02: Number(remaining02 || 0),
       sortOrder: Number(sortOrder || 0),
@@ -4347,6 +4353,7 @@ function initHengDelivery() {
       const order = orders[Number(editBogo.dataset.hengBogoEdit)];
       if (order) {
         document.getElementById('hengBogoOrderNo').value = order.orderNo;
+        document.getElementById('hengBogoRemaining07').value = order.remaining07;
         document.getElementById('hengBogoRemaining01').value = order.remaining01;
         document.getElementById('hengBogoRemaining02').value = order.remaining02;
       }
@@ -4354,10 +4361,12 @@ function initHengDelivery() {
     }
     if (event.target.closest('#hengSaveBogoOrder')) {
       const orderNo = document.getElementById('hengBogoOrderNo')?.value;
+      const remaining07 = document.getElementById('hengBogoRemaining07')?.value;
       const remaining01 = document.getElementById('hengBogoRemaining01')?.value;
       const remaining02 = document.getElementById('hengBogoRemaining02')?.value;
       const existingIndex = hengUiState.bogoOrders.findIndex((row) => String(row.orderNo) === String(orderNo || '').trim());
-      saveBogoOrder(orderNo, remaining01, remaining02, existingIndex >= 0 ? hengUiState.bogoOrders[existingIndex].sortOrder : hengUiState.bogoOrders.length)
+      const nextSortOrder = hengUiState.bogoOrders.reduce((max, row) => Math.max(max, Number(row.sortOrder || 0)), 0) + 10;
+      saveBogoOrder(orderNo, remaining07, remaining01, remaining02, existingIndex >= 0 ? hengUiState.bogoOrders[existingIndex].sortOrder : nextSortOrder)
         .then(() => showToast('博戈订单已保存'))
         .catch((error) => showToast(error.message || '博戈订单保存失败', 5000));
       return;
@@ -4398,7 +4407,8 @@ function initHengDelivery() {
     if (qty) rememberHengQuantityEdit(Number(qty.dataset.hengQty));
   });
   document.getElementById('mobileHengContent')?.addEventListener('input', (event) => {
-    if (event.target.id === 'hengBogoTotal01' || event.target.id === 'hengBogoTotal02') {
+    if (event.target.id === 'hengBogoTotal07' || event.target.id === 'hengBogoTotal01' || event.target.id === 'hengBogoTotal02') {
+      hengUiState.bogoTotals.quantity07 = Number(document.getElementById('hengBogoTotal07')?.value || 0);
       hengUiState.bogoTotals.quantity01 = Number(document.getElementById('hengBogoTotal01')?.value || 0);
       hengUiState.bogoTotals.quantity02 = Number(document.getElementById('hengBogoTotal02')?.value || 0);
       refreshHengBogoAllocation();

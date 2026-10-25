@@ -31,30 +31,33 @@
   }
 
   function allocateBogo(totals, orders) {
-    const quantity01 = toNumber(totals && totals.quantity01, NaN);
-    const quantity02 = toNumber(totals && totals.quantity02, NaN);
-    if (!Number.isFinite(quantity01) || quantity01 < 0) {
-      return { rows: [], error: '01 锁数量不能小于 0' };
-    }
-    if (!Number.isFinite(quantity02) || quantity02 < 0) {
-      return { rows: [], error: '02 锁数量不能小于 0' };
+    const quantities = {
+      '07': toNumber(totals && totals.quantity07, 0),
+      '01': toNumber(totals && totals.quantity01, 0),
+      '02': toNumber(totals && totals.quantity02, 0),
+    };
+    for (const productCode of ['07', '01', '02']) {
+      if (!Number.isFinite(quantities[productCode]) || quantities[productCode] < 0) {
+        return { rows: [], error: `${productCode} 锁数量不能小于 0` };
+      }
     }
 
     const remaining = (Array.isArray(orders) ? orders : []).map((order, index) => ({
       orderNo: String(order && order.orderNo || '').trim(),
       sortOrder: toNumber(order && order.sortOrder, index),
+      remaining07: Math.max(0, toNumber(order && order.remaining07, 0)),
       remaining01: Math.max(0, toNumber(order && order.remaining01, 0)),
       remaining02: Math.max(0, toNumber(order && order.remaining02, 0)),
     })).filter((order) => order.orderNo).sort((a, b) => a.sortOrder - b.sortOrder);
 
-    if (!remaining.length && (quantity01 > 0 || quantity02 > 0)) {
+    if (!remaining.length && Object.values(quantities).some((quantity) => quantity > 0)) {
       return { rows: [], error: '没有可分配的博戈订单' };
     }
 
     const rows = [];
-    for (const productCode of ['01', '02']) {
-      const total = productCode === '01' ? quantity01 : quantity02;
-      const field = productCode === '01' ? 'remaining01' : 'remaining02';
+    for (const productCode of ['07', '01', '02']) {
+      const total = quantities[productCode];
+      const field = `remaining${productCode}`;
       let pending = total;
       for (const order of remaining) {
         if (pending <= 0) break;
