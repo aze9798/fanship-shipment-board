@@ -863,12 +863,15 @@ function renderPiece() {
   }
   function applyProfileTabs() {
     const isPiece = !profile || profile.salaryType === 'hourly_piece';
-    document.querySelectorAll('[data-piece-tab]').forEach((el) => el.classList.toggle('hidden', !isPiece));
+    let portalProfile = {};
+    try { portalProfile = JSON.parse(localStorage.getItem('fanshunPortalProfile') || '{}'); } catch { }
+    const isGeneralEmployee = portalProfile.defaultRoom === 'general_employee';
+    document.querySelectorAll('[data-piece-tab]').forEach((el) => el.classList.toggle('hidden', isGeneralEmployee || !isPiece));
     const monthInput = $('attendanceMonth');
     if (monthInput && !monthInput.value) monthInput.value = currentMonth();
     const payrollInput = $('payrollMonth');
     if (payrollInput && !payrollInput.value) payrollInput.value = currentMonth();
-    if (!isPiece) {
+    if (isGeneralEmployee || !isPiece) {
       const att = document.querySelector('.tabs button[data-tab="attendance"]');
       if (att && !att.classList.contains('active')) att.click();
     }

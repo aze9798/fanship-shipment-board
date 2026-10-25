@@ -537,7 +537,19 @@ h1 { margin-bottom: 8px; font-size: clamp(25px, 2.2vw, 34px); line-height: 1.15;
   cursor: pointer;
 }
 
+.file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.file-actions .file-download { min-height: 32px; }
+.file-download.secondary { background: #f4fbf9; }
 .file-download:hover { border-color: #0f766e; }
+.file-download:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; }
+@media (max-width: 760px) {
+  .file-actions .file-download { min-height: 44px; padding: 8px 12px; }
+}
 .file-download:disabled { opacity: .6; cursor: default; }
 
 /* 查询页的子项（发货记录 / 冲抵记录 / 无订单发货记录） */
@@ -1307,6 +1319,41 @@ body[data-view="mobile"] { background: #dfe7e9; }
   line-height: 1.6;
 }
 
+/* ===== 无订单提前发货 ===== */
+.no-order-open { margin-top: 8px; width: 100%; }
+.no-order-card { width: min(760px, 94vw); }
+.no-order-search { display: grid; gap: 6px; margin-top: 8px; }
+.no-order-search > span,
+.no-order-manual label > span,
+.no-order-form label > span { color: #526b71; font-size: 12px; font-weight: 800; }
+.no-order-search input,
+.no-order-manual input,
+.no-order-form input {
+  width: 100%; height: 44px; box-sizing: border-box; padding: 0 12px;
+  border: 1px solid #d7e1e3; border-radius: 10px; background: #fff;
+  color: #17333b; font: inherit; font-size: 14px;
+}
+.no-order-suggest { max-height: 230px; margin-top: 8px; position: static; }
+.no-order-picked {
+  margin-top: 10px; padding: 10px 12px; border-radius: 10px;
+  color: #17584f; background: #e9f5f2; font-size: 13px; line-height: 1.6;
+}
+.no-order-manual { display: grid; grid-template-columns: minmax(150px, .9fr) minmax(200px, 1.2fr) minmax(170px, 1fr); gap: 10px; margin-top: 12px; }
+.no-order-manual label,
+.no-order-form label { display: grid; gap: 6px; }
+.no-order-form { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(240px, 1.2fr); gap: 10px; margin-top: 12px; }
+.no-order-hint { margin-top: 10px; color: #6c7f84; font-size: 12px; line-height: 1.5; }
+.no-order-empty { padding: 12px; color: #6c7f84; font-size: 13px; text-align: center; }
+.label-no-order-tag { display:inline-flex; align-items:center; padding:2px 7px; border-radius:999px; background:#fff3d8; color:#9a5205; font-size:11px; font-weight:800; white-space:nowrap; }
+.no-order-card .modal-actions { flex-wrap: wrap; }
+.no-order-card .modal-actions .button { min-height: 44px; }
+@media (max-width: 620px) {
+  .no-order-manual { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .no-order-manual label:nth-child(1) { grid-column: 1; grid-row: 2; }
+  .no-order-manual label:nth-child(2) { grid-column: 1 / -1; grid-row: 1; }
+  .no-order-manual label:nth-child(3) { grid-column: 2; grid-row: 2; }
+  .no-order-form { grid-template-columns: 130px minmax(0, 1fr); }
+}
 /* ===== 补发（不良补货） ===== */
 .replacement-open { margin-top: 3px; width: 100%; }
 .replacement-box {
@@ -1563,15 +1610,15 @@ body[data-view="mobile"] { background: #dfe7e9; }
   padding: 0 14px 0 7px !important;
   border: 1px solid #dbe9e7 !important;
   border-radius: 14px !important;
-  background: #f7fbfa !important;
-  box-shadow: 0 4px 14px rgba(31, 79, 75, .05);
+  background: var(--surface) !important;
+  box-shadow: none;
   cursor: text;
   transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
 }
 .drawing-search:focus-within {
-  border-color: #7fc4bb !important;
+  border-color: var(--primary) !important;
   background: #fff !important;
-  box-shadow: 0 0 0 4px rgba(15,118,110,.08), 0 6px 18px rgba(31,79,75,.07);
+  box-shadow: 0 0 0 3px rgba(13,113,104,.12);
 }
 .drawing-search .tool-icon {
   position: static !important;
@@ -1580,14 +1627,14 @@ body[data-view="mobile"] { background: #dfe7e9; }
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  flex: 0 0 34px;
-  width: 34px !important;
-  height: 34px !important;
+  flex: 0 0 18px;
+  width: 18px !important;
+  height: 18px !important;
   margin: 0 !important;
-  border-radius: 11px;
-  background: #e3f4f1;
-  color: #0f766e !important;
-  font-size: 21px !important;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted) !important;
+  font-size: 18px !important;
   line-height: 1 !important;
   transform: none !important;
   pointer-events: none;
@@ -1606,8 +1653,8 @@ body[data-view="mobile"] { background: #dfe7e9; }
   color: #17333b !important;
   font-size: 13px !important;
 }
-.drawing-search input::placeholder { color: #97a9ad; text-align: center; }
-.drawing-search input::-webkit-input-placeholder { text-align: center; }
+.drawing-search input::placeholder { color: var(--muted); text-align: left; }
+.drawing-search input::-webkit-input-placeholder { text-align: left; }
 .drawing-toolbar-right {
   display: flex;
   flex: 1 1 auto;
@@ -1659,7 +1706,7 @@ body[data-view="mobile"] { background: #dfe7e9; }
 .drawing-list-head,
 .drawing-row {
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr) 118px;
+  grid-template-columns: 150px minmax(0, 1fr) 205px;
   align-items: center;
   gap: 16px;
 }
@@ -3827,6 +3874,8 @@ body:not([data-board-role="admin"]) #desktopOrdersColgroup col:nth-child(10) {
 
 .drawing-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px}
 .drawing-actions .button{min-height:32px;white-space:nowrap}
+.drawing-replace{color:#9a5205!important;border-color:#f0d8aa!important;background:#fff8eb!important}
+.drawing-replace:hover{color:#7a3e00!important;border-color:#dfaa5a!important;background:#fff1d6!important}
 
 /* 标签弹窗底部操作区：始终固定可见，避免列表长时确认按钮被滚出视野 */
 .label-print-actions {
@@ -5264,7 +5313,7 @@ body[data-theme="ui"] .row-locked , body[data-theme="warm"] .row-locked { opacit
    every surface is a solid tone." 所以这里必须整块换掉。
    （html 是 body 的父节点，只能靠 :has() 选到它） */
 html:has(body[data-theme="ui"]) { background: #f5f5f5; }
-body[data-theme="ui"], body[data-theme="warm"]) { background: #f5f5f5; }
+body[data-theme="ui"], body[data-theme="warm"] { background: #f5f5f5; }
 body[data-theme="ui"], body[data-theme="warm"] { background: #f5f5f5 !important; }
 body[data-theme="ui"] ::selection , body[data-theme="warm"] ::selection { color: #fafafa; background: #171717; }
 body[data-theme="ui"] ::-webkit-scrollbar-track , body[data-theme="warm"] ::-webkit-scrollbar-track { background: #f0f0f0; }
@@ -5277,68 +5326,69 @@ body[data-theme="ui"] ::-webkit-scrollbar-thumb:hover , body[data-theme="warm"] 
    既赢得下优先级，又把范围圈死在真正的输入控件上
    （不碰复选框、单选框、文件框、数量步进器）。 */
 body[data-theme="ui"] #app :is(
-  .select-box select, .select-box input,
-  .toolbar input:not([type="search"]), .toolbar select,
+  .toolbar label:not(.select-box) input:not([type="search"]),
+  .toolbar label:not(.select-box) select,
   .history-tools input, .history-tools select,
   .remaining-tools input:not(.search-box input):not(.mobile-search input), .desktop-remaining-tools input:not(.search-box input), .desktop-remaining-tools select,
   .loading-control input, .report-search-field input,
-  input[type="search"]:not(.search-box input):not(.mobile-search input):not(.drawing-search input):not(#replacementSearch),
+  input[type="search"]:not(:where(.search-box input, .mobile-search input, .drawing-search input, #replacementSearch, .heng-search input, .select-box input)),
   input[type="date"].tk-date, input[type="month"]
 ),
 body[data-theme="warm"] #app :is(
-  .select-box select, .select-box input,
-  .toolbar input:not([type="search"]), .toolbar select,
+  .toolbar label:not(.select-box) input:not([type="search"]),
+  .toolbar label:not(.select-box) select,
   .history-tools input, .history-tools select,
   .remaining-tools input:not(.search-box input):not(.mobile-search input), .desktop-remaining-tools input:not(.search-box input), .desktop-remaining-tools select,
   .loading-control input, .report-search-field input,
-  input[type="search"]:not(.search-box input):not(.mobile-search input):not(.drawing-search input):not(#replacementSearch),
+  input[type="search"]:not(:where(.search-box input, .mobile-search input, .drawing-search input, #replacementSearch, .heng-search input, .select-box input)),
   input[type="date"].tk-date, input[type="month"]
 ) {
-  background: #f5f5f5 !important;
-  border: 1px solid transparent !important;
-  border-radius: 18px !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 10px !important;
   color: var(--ink) !important;
   box-shadow: none !important;
+  box-sizing: border-box;
 }
 body[data-theme="ui"] #app :is(
-  .select-box select, .select-box input,
-  .toolbar input:not([type="search"]), .toolbar select,
+  .toolbar label:not(.select-box) input:not([type="search"]),
+  .toolbar label:not(.select-box) select,
   .history-tools input, .history-tools select,
   .remaining-tools input:not(.search-box input):not(.mobile-search input), .desktop-remaining-tools input:not(.search-box input), .desktop-remaining-tools select,
   .loading-control input, .report-search-field input,
-  input[type="search"]:not(.search-box input):not(.mobile-search input):not(.drawing-search input):not(#replacementSearch),
+  input[type="search"]:not(:where(.search-box input, .mobile-search input, .drawing-search input, #replacementSearch, .heng-search input, .select-box input)),
   input[type="date"].tk-date, input[type="month"]
 ):hover,
 body[data-theme="warm"] #app :is(
-  .select-box select, .select-box input,
-  .toolbar input:not([type="search"]), .toolbar select,
+  .toolbar label:not(.select-box) input:not([type="search"]),
+  .toolbar label:not(.select-box) select,
   .history-tools input, .history-tools select,
   .remaining-tools input:not(.search-box input):not(.mobile-search input), .desktop-remaining-tools input:not(.search-box input), .desktop-remaining-tools select,
   .loading-control input, .report-search-field input,
-  input[type="search"]:not(.search-box input):not(.mobile-search input):not(.drawing-search input):not(#replacementSearch),
+  input[type="search"]:not(:where(.search-box input, .mobile-search input, .drawing-search input, #replacementSearch, .heng-search input, .select-box input)),
   input[type="date"].tk-date, input[type="month"]
-):hover { background: #ececec !important; }
+):hover { background: var(--surface-soft) !important; border-color: #c9d7d5 !important; }
 body[data-theme="ui"] #app :is(
-  .select-box select, .select-box input,
-  .toolbar input:not([type="search"]), .toolbar select,
+  .toolbar label:not(.select-box) input:not([type="search"]),
+  .toolbar label:not(.select-box) select,
   .history-tools input, .history-tools select,
   .remaining-tools input:not(.search-box input):not(.mobile-search input), .desktop-remaining-tools input:not(.search-box input), .desktop-remaining-tools select,
   .loading-control input, .report-search-field input,
-  input[type="search"]:not(.search-box input):not(.mobile-search input):not(.drawing-search input):not(#replacementSearch),
+  input[type="search"]:not(:where(.search-box input, .mobile-search input, .drawing-search input, #replacementSearch, .heng-search input, .select-box input)),
   input[type="date"].tk-date, input[type="month"]
 ):focus,
 body[data-theme="warm"] #app :is(
-  .select-box select, .select-box input,
-  .toolbar input:not([type="search"]), .toolbar select,
+  .toolbar label:not(.select-box) input:not([type="search"]),
+  .toolbar label:not(.select-box) select,
   .history-tools input, .history-tools select,
   .remaining-tools input:not(.search-box input):not(.mobile-search input), .desktop-remaining-tools input:not(.search-box input), .desktop-remaining-tools select,
   .loading-control input, .report-search-field input,
-  input[type="search"]:not(.search-box input):not(.mobile-search input):not(.drawing-search input):not(#replacementSearch),
+  input[type="search"]:not(:where(.search-box input, .mobile-search input, .drawing-search input, #replacementSearch, .heng-search input, .select-box input)),
   input[type="date"].tk-date, input[type="month"]
 ):focus {
-  background: #ffffff !important;
-  border-color: var(--line) !important;
-  box-shadow: 0 0 0 1px var(--line) !important;
+  background: var(--surface) !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(13, 113, 104, .12) !important;
 }
 body[data-theme="ui"] #app input::placeholder , body[data-theme="warm"] #app input::placeholder { color: var(--muted) !important; }
 /* 9.3 表头灰度
@@ -5465,24 +5515,24 @@ body[data-theme="dark"] .modal-card { background: var(--surface); color: var(--i
    search-box / mobile-search / drawing-search / select-box 外层负责边框和底色，
    内部 input / select 必须完全透明；聚焦高亮也只作用在外层。
    ============================================================ */
-body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .select-box) > :is(input, select),
-body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .select-box) > :is(input, select) {
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > :is(input, select),
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > :is(input, select) {
   background: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
 }
-body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .select-box) > :is(input, select):hover,
-body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .select-box) > :is(input, select):hover,
-body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .select-box) > :is(input, select):focus,
-body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .select-box) > :is(input, select):focus {
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > :is(input, select):hover,
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > :is(input, select):hover,
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > :is(input, select):focus,
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > :is(input, select):focus {
   background: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
 }
-body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .select-box):focus-within,
-body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .select-box):focus-within {
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box):focus-within,
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box):focus-within {
   border-color: #75bdb3 !important;
   background: #fff !important;
   box-shadow: 0 0 0 3px rgba(15, 118, 110, .09) !important;
@@ -5501,6 +5551,494 @@ body[data-theme="warm"] #app .replacement-box > #replacementSearch:focus {
   box-shadow: none !important;
   padding-left: 2px !important;
   padding-right: 2px !important;
+}
+/* ============================================================
+   2026-10-25：全站控件与排版收口
+   1) 搜索 / 下拉 / 文本筛选统一为单层白底细边框
+   2) 外层负责边框，内部控件透明
+   3) 过小文字与点击区域统一到可读、可点尺寸
+   ============================================================ */
+body[data-theme="ui"] #app :is(input[type="search"]:not(.search-box > input):not(.mobile-search > input):not(.drawing-search > input):not(.heng-search > input):not(.select-box > input), input[type="text"]:not(.search-box > input):not(.mobile-search > input):not(.drawing-search > input):not(.heng-search > input):not(.select-box > input), select:not(.select-box > select)),
+body[data-theme="warm"] #app :is(input[type="search"]:not(.search-box > input):not(.mobile-search > input):not(.drawing-search > input):not(.heng-search > input):not(.select-box > input), input[type="text"]:not(.search-box > input):not(.mobile-search > input):not(.drawing-search > input):not(.heng-search > input):not(.select-box > input), select:not(.select-box > select)) {
+  height: 40px !important;
+  min-height: 40px !important;
+  box-sizing: border-box;
+  padding: 0 12px !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 10px !important;
+  color: var(--ink) !important;
+  box-shadow: none !important;
+}
+body[data-theme="ui"] #app :is(input[type="search"]:not(.search-box > input):not(.mobile-search > input):not(.drawing-search > input):not(.heng-search > input):not(.select-box > input), input[type="text"]:not(.search-box > input):not(.mobile-search > input):not(.drawing-search > input):not(.heng-search > input):not(.select-box > input), select:not(.select-box > select)):hover,
+body[data-theme="warm"] #app :is(input[type="search"]:not(.search-box > input):not(.mobile-search > input):not(.drawing-search > input):not(.heng-search > input):not(.select-box > input), input[type="text"]:not(.search-box > input):not(.mobile-search > input):not(.drawing-search > input):not(.heng-search > input):not(.select-box > input), select:not(.select-box > select)):hover {
+  border-color: #c5d5d3 !important;
+  background: var(--surface) !important;
+}
+body[data-theme="ui"] #app :is(input[type="search"]:not(.search-box > input):not(.mobile-search > input):not(.drawing-search > input):not(.heng-search > input):not(.select-box > input), input[type="text"]:not(.search-box > input):not(.mobile-search > input):not(.drawing-search > input):not(.heng-search > input):not(.select-box > input), select:not(.select-box > select)):focus,
+body[data-theme="warm"] #app :is(input[type="search"]:not(.search-box > input):not(.mobile-search > input):not(.drawing-search > input):not(.heng-search > input):not(.select-box > input), input[type="text"]:not(.search-box > input):not(.mobile-search > input):not(.drawing-search > input):not(.heng-search > input):not(.select-box > input), select:not(.select-box > select)):focus {
+  border-color: var(--primary) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 0 0 3px rgba(13, 113, 104, .12) !important;
+  outline: none !important;
+}
+
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box),
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) {
+  height: 40px !important;
+  min-height: 40px !important;
+  box-sizing: border-box;
+  padding: 0 12px !important;
+  gap: 8px !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > input,
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > input {
+  height: 100% !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > select,
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > select {
+  height: 100% !important;
+  min-height: 0 !important;
+  padding: 0 24px 0 4px !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box):focus-within,
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box):focus-within {
+  border-color: var(--primary) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 0 0 3px rgba(13, 113, 104, .12) !important;
+}
+
+/* 可读性：次要说明、表头、表格元信息不再低于 12px */
+body[data-theme="ui"] #app :is(.subhead, .eyebrow, .panel-head p, .section-head p),
+body[data-theme="warm"] #app :is(.subhead, .eyebrow, .panel-head p, .section-head p) {
+  font-size: 12px !important;
+  line-height: 1.55 !important;
+}
+body[data-theme="ui"] #app .tk-nav a,
+body[data-theme="warm"] #app .tk-nav a,
+body[data-theme="ui"] #app .side-link,
+body[data-theme="warm"] #app .side-link {
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+}
+body[data-theme="ui"] #app small,
+body[data-theme="warm"] #app small {
+  font-size: 11.5px !important;
+  line-height: 1.45 !important;
+}
+body[data-theme="ui"] #app :is(.orders-table, .grouped-remaining-table) thead th,
+body[data-theme="warm"] #app :is(.orders-table, .grouped-remaining-table) thead th {
+  font-size: 12px !important;
+}
+body[data-theme="ui"] #app :is(.orders-table, .grouped-remaining-table) tbody td,
+body[data-theme="warm"] #app :is(.orders-table, .grouped-remaining-table) tbody td {
+  font-size: 13px !important;
+}
+body[data-theme="ui"] #app :is(.chip, .record-filter-button, .tk-more),
+body[data-theme="warm"] #app :is(.chip, .record-filter-button, .tk-more) {
+  font-size: 12px !important;
+  min-height: 32px;
+}
+body[data-theme="ui"] #app .sidebar :is(.button, .sidebar-switch),
+body[data-theme="warm"] #app .sidebar :is(.button, .sidebar-switch) {
+  min-height: 34px !important;
+  font-size: 12px !important;
+}
+body[data-theme="ui"] #app #mobileModuleClose,
+body[data-theme="warm"] #app #mobileModuleClose {
+  min-width: 40px !important;
+  min-height: 40px !important;
+  font-size: 12px !important;
+}
+body[data-theme="ui"] #app :is(.heng-mobile-subhead, .heng-material-result small, .heng-selected-row small, .heng-inline-note, .heng-packaging-placeholder span:not(.heng-step-badge), .heng-mobile-actions > span, .heng-mobile-record-time, .heng-mobile-record-head span:not(.heng-step-badge), .heng-mobile-record-foot > span, .heng-mobile-ledger-head span, .heng-mobile-ledger-meta, .heng-mobile-ledger-pack, .heng-preview-summary span, .heng-file-archive-head span, .heng-file-card-main > div, .heng-file-card-main small),
+body[data-theme="warm"] #app :is(.heng-mobile-subhead, .heng-material-result small, .heng-selected-row small, .heng-inline-note, .heng-packaging-placeholder span:not(.heng-step-badge), .heng-mobile-actions > span, .heng-mobile-record-time, .heng-mobile-record-head span:not(.heng-step-badge), .heng-mobile-record-foot > span, .heng-mobile-ledger-head span, .heng-mobile-ledger-meta, .heng-mobile-ledger-pack, .heng-preview-summary span, .heng-file-archive-head span, .heng-file-card-main > div, .heng-file-card-main small) {
+  font-size: 11.5px !important;
+  line-height: 1.45 !important;
+}
+
+@media (max-width: 900px) {
+  body[data-theme="ui"] #app :is(input[type="search"]:not(.search-box > input):not(.mobile-search > input):not(.drawing-search > input):not(.heng-search > input):not(.select-box > input), input[type="text"]:not(.search-box > input):not(.mobile-search > input):not(.drawing-search > input):not(.heng-search > input):not(.select-box > input), select:not(.select-box > select)),
+  body[data-theme="warm"] #app :is(input[type="search"]:not(.search-box > input):not(.mobile-search > input):not(.drawing-search > input):not(.heng-search > input):not(.select-box > input), input[type="text"]:not(.search-box > input):not(.mobile-search > input):not(.drawing-search > input):not(.heng-search > input):not(.select-box > input), select:not(.select-box > select)) {
+    height: 44px !important;
+    min-height: 44px !important;
+    font-size: 16px !important;
+  }
+  body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box),
+  body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) {
+    height: 44px !important;
+    min-height: 44px !important;
+    border-radius: 10px !important;
+  }
+  body[data-theme="ui"] #app :is(.mobile-tab, .chip, .record-filter-button, .tk-date-quick),
+  body[data-theme="warm"] #app :is(.mobile-tab, .chip, .record-filter-button, .tk-date-quick) {
+    min-height: 40px !important;
+    font-size: 12px !important;
+  }
+  body[data-theme="ui"] #app .mobile-panel label > span,
+  body[data-theme="warm"] #app .mobile-panel label > span {
+    font-size: 12px !important;
+  }
+}
+/* ============================================================
+   2026-10-25 最终收口：单一控件边框 + 统一字号层级
+   外层 search/select 只保留一层边框；内部控件透明。
+   本段放在文件末尾，作为全站最终级联。
+   ============================================================ */
+body[data-theme="ui"], body[data-theme="warm"] {
+  --control-height: 40px;
+  --control-radius: 10px;
+  --control-font-size: 13.5px;
+}
+
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box),
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) {
+  height: var(--control-height) !important;
+  min-height: var(--control-height) !important;
+  box-sizing: border-box !important;
+  padding: 0 12px !important;
+  gap: 8px !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--control-radius) !important;
+  box-shadow: none !important;
+}
+
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > :is(input, select),
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > :is(input, select),
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > :is(input, select):hover,
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > :is(input, select):hover,
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > :is(input, select):focus,
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > :is(input, select):focus {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  font-size: var(--control-font-size) !important;
+  line-height: 1.35 !important;
+}
+
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > select,
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > select {
+  padding-right: 18px !important;
+  cursor: pointer;
+}
+
+body[data-theme="ui"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box):focus-within,
+body[data-theme="warm"] #app :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box):focus-within {
+  border-color: var(--primary) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 0 0 3px rgba(13, 113, 104, .12) !important;
+}
+
+/* 独立搜索 / 下拉：保留清晰单框，不再套第二层背景 */
+body[data-theme="ui"] #app :is(.remaining-tools > input, .remaining-tools > select, .history-tools-row > input, .history-tools-row > select, .loading-control > input, .loading-control > select, .report-search-field > input),
+body[data-theme="warm"] #app :is(.remaining-tools > input, .remaining-tools > select, .history-tools-row > input, .history-tools-row > select, .loading-control > input, .loading-control > select, .report-search-field > input) {
+  height: var(--control-height) !important;
+  min-height: var(--control-height) !important;
+  box-sizing: border-box !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--control-radius) !important;
+  color: var(--ink) !important;
+  box-shadow: none !important;
+  font-size: var(--control-font-size) !important;
+}
+
+@media (min-width: 901px) {
+  body[data-theme="ui"] #app .topbar h1,
+  body[data-theme="warm"] #app .topbar h1,
+  body[data-theme="ui"] #app #desktopFilesView .files-topbar h1,
+  body[data-theme="warm"] #app #desktopFilesView .files-topbar h1 {
+    font-size: 28px !important;
+    line-height: 1.2 !important;
+    letter-spacing: -.025em !important;
+  }
+}
+
+body[data-theme="ui"] #app :is(.panel-head h2, .section-head h2),
+body[data-theme="warm"] #app :is(.panel-head h2, .section-head h2) {
+  font-size: 17px !important;
+  line-height: 1.35 !important;
+}
+
+body[data-theme="ui"] #app :is(.subhead, .panel-head p, .section-head p),
+body[data-theme="warm"] #app :is(.subhead, .panel-head p, .section-head p) {
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+}
+
+body[data-theme="ui"] #app :is(.orders-table, .grouped-remaining-table, .work-report-table, .attendance-table, .staff-table, .payroll-table) thead th,
+body[data-theme="warm"] #app :is(.orders-table, .grouped-remaining-table, .work-report-table, .attendance-table, .staff-table, .payroll-table) thead th {
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+}
+
+body[data-theme="ui"] #app :is(.orders-table, .grouped-remaining-table, .work-report-table, .attendance-table, .staff-table, .payroll-table) tbody td,
+body[data-theme="warm"] #app :is(.orders-table, .grouped-remaining-table, .work-report-table, .attendance-table, .staff-table, .payroll-table) tbody td {
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+}
+
+body[data-theme="ui"] #app small,
+body[data-theme="warm"] #app small {
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+}
+
+body[data-theme="ui"] #app :is(.history-foot, .history-total, .history-expand, .file-download, .price-card-meta, .price-change-note, .price-card-foot, .pdf-note, .empty-state, .os-empty, .drawing-preview-empty, .mobile-live-latest, .work-live-stale),
+body[data-theme="warm"] #app :is(.history-foot, .history-total, .history-expand, .file-download, .price-card-meta, .price-change-note, .price-card-foot, .pdf-note, .empty-state, .os-empty, .drawing-preview-empty, .mobile-live-latest, .work-live-stale) {
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+}
+
+@media (max-width: 900px) {
+  body[data-theme="ui"], body[data-theme="warm"] {
+    --control-height: 44px;
+    --control-font-size: 16px;
+  }
+  body[data-theme="ui"] #app .topbar h1,
+  body[data-theme="warm"] #app .topbar h1 {
+    font-size: 24px !important;
+    line-height: 1.2 !important;
+  }
+  body[data-theme="ui"] #app :is(.mobile-tab, .att-tabs button, .mobile-work-tabs button),
+  body[data-theme="warm"] #app :is(.mobile-tab, .att-tabs button, .mobile-work-tabs button) {
+    font-size: 12.5px !important;
+  }
+}
+/* 高优先级兜底：桌面工具条的历史 !important 规则优先于通用层，这里显式保证内部控件无边框。 */
+body[data-theme="ui"] #app .desktop-view :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > :is(input, select),
+body[data-theme="warm"] #app .desktop-view :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > :is(input, select) {
+  height: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  font-size: var(--control-font-size) !important;
+}
+body[data-theme="ui"] #app .desktop-view :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > :is(input, select):is(:hover, :focus, :focus-visible),
+body[data-theme="warm"] #app .desktop-view :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > :is(input, select):is(:hover, :focus, :focus-visible) {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+body[data-theme="ui"] #app .desktop-view :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > select,
+body[data-theme="warm"] #app .desktop-view :is(.search-box, .mobile-search, .drawing-search, .heng-search, .select-box) > select {
+  padding-right: 18px !important;
+}
+
+/* 日期、月份控件与搜索框同一套单框外观。 */
+body[data-theme="ui"] #app :is(input[type="date"], input[type="month"]),
+body[data-theme="warm"] #app :is(input[type="date"], input[type="month"]) {
+  height: var(--control-height) !important;
+  min-height: var(--control-height) !important;
+  box-sizing: border-box !important;
+  padding: 0 10px !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--control-radius) !important;
+  color: var(--ink) !important;
+  box-shadow: none !important;
+  font-size: var(--control-font-size) !important;
+  color-scheme: light;
+}
+body[data-theme="ui"] #app :is(input[type="date"], input[type="month"]):focus,
+body[data-theme="warm"] #app :is(input[type="date"], input[type="month"]):focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(13, 113, 104, .12) !important;
+  outline: 0 !important;
+}
+
+body[data-theme="ui"] #app :is(.print-helper-status, .tk-fold),
+body[data-theme="warm"] #app :is(.print-helper-status, .tk-fold),
+body[data-theme="ui"] #app :is(.pt-tabs button, .sv2-btn.small),
+body[data-theme="warm"] #app :is(.pt-tabs button, .sv2-btn.small) {
+  min-height: 32px !important;
+  font-size: 12px !important;
+}
+body[data-theme="ui"] #app .caret,
+body[data-theme="warm"] #app .caret {
+  font-size: 12px !important;
+}
+body[data-theme="ui"] #app .tk-business-dock,
+body[data-theme="warm"] #app .tk-business-dock {
+  font-size: 12px !important;
+}
+
+@media (max-width: 900px) {
+  body[data-theme="ui"] #app :is(.mobile-panel, .mobile-work-module) .button,
+  body[data-theme="warm"] #app :is(.mobile-panel, .mobile-work-module) .button,
+  body[data-theme="ui"] #app #mobileModuleClose,
+  body[data-theme="warm"] #app #mobileModuleClose,
+  body[data-theme="ui"] #app .remaining-date-clear,
+  body[data-theme="warm"] #app .remaining-date-clear {
+    min-height: 44px !important;
+  }
+  body[data-theme="ui"] #app :is(input[type="date"], input[type="month"]),
+  body[data-theme="warm"] #app :is(input[type="date"], input[type="month"]) {
+    height: 44px !important;
+    min-height: 44px !important;
+    font-size: 16px !important;
+  }
+  body[data-theme="ui"] #app #mobileAttendanceModule .mobile-work-tabs,
+  body[data-theme="warm"] #app #mobileAttendanceModule .mobile-work-tabs {
+    display: flex !important;
+    gap: 4px !important;
+    padding: 4px !important;
+    overflow: hidden !important;
+  }
+  body[data-theme="ui"] #app #mobileAttendanceModule .mobile-work-tabs button,
+  body[data-theme="warm"] #app #mobileAttendanceModule .mobile-work-tabs button {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    padding: 0 6px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+  }
+}
+/* 信息密度较高，但正文、表头、表单标签保持最低可读字号。 */
+body[data-theme="ui"] #app table thead th,
+body[data-theme="warm"] #app table thead th {
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+}
+body[data-theme="ui"] #app table tbody td,
+body[data-theme="warm"] #app table tbody td {
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+}
+body[data-theme="ui"] #app .desktop-view label,
+body[data-theme="warm"] #app .desktop-view label,
+body[data-theme="ui"] #app :is(.business-line-label, .reconciliation-field, .mobile-module-section-title),
+body[data-theme="warm"] #app :is(.business-line-label, .reconciliation-field, .mobile-module-section-title) {
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+}
+body[data-theme="ui"] #app .mobile-work-module :is(label > span, .mobile-work-review-tools span, .mobile-report-tools span, .mobile-report-summary span),
+body[data-theme="warm"] #app .mobile-work-module :is(label > span, .mobile-work-review-tools span, .mobile-report-tools span, .mobile-report-summary span) {
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+}
+body[data-theme="ui"] #app #mobileLiveLabel,
+body[data-theme="warm"] #app #mobileLiveLabel {
+  font-size: 12px !important;
+}
+@media (max-width: 900px) {
+  body[data-theme="ui"] #app .mobile-work-module button,
+  body[data-theme="warm"] #app .mobile-work-module button {
+    min-height: 40px !important;
+  }
+}
+/* 空状态、业务统计标签和移动报工字段标签的字号补齐。 */
+body[data-theme="ui"] #app :is(.empty-state, .os-empty, .drawing-preview-empty) :is(span, p, em),
+body[data-theme="warm"] #app :is(.empty-state, .os-empty, .drawing-preview-empty) :is(span, p, em),
+body[data-theme="ui"] #app .reconciliation-summary-grid span,
+body[data-theme="warm"] #app .reconciliation-summary-grid span,
+body[data-theme="ui"] #app :is(.reconciliation-table-head p, .reconciliation-summary-text),
+body[data-theme="warm"] #app :is(.reconciliation-table-head p, .reconciliation-summary-text),
+body[data-theme="ui"] #app .sv2-field > span,
+body[data-theme="warm"] #app .sv2-field > span,
+body[data-theme="ui"] #app .remaining-date-clear,
+body[data-theme="warm"] #app .remaining-date-clear {
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+}
+body[data-theme="ui"] #app .mobile-work-module label,
+body[data-theme="warm"] #app .mobile-work-module label,
+body[data-theme="ui"] #app .mobile-work-module .mobile-report-summary > div > span,
+body[data-theme="warm"] #app .mobile-work-module .mobile-report-summary > div > span,
+body[data-theme="ui"] #app .mobile-work-module .mobile-work-review-tools > span,
+body[data-theme="warm"] #app .mobile-work-module .mobile-work-review-tools > span,
+body[data-theme="ui"] #app .mobile-work-module [id$="Hint"],
+body[data-theme="warm"] #app .mobile-work-module [id$="Hint"] {
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+}
+/* 手机报工页签：四项同排，避免 2×2 占掉首屏高度。 */
+@media (max-width: 900px) {
+  body[data-theme="ui"] #app #mobileWorkEditPanel label,
+  body[data-theme="warm"] #app #mobileWorkEditPanel label,
+  body[data-theme="ui"] #app #mobileWorkEditPanel .mobile-work-review-tools label,
+  body[data-theme="warm"] #app #mobileWorkEditPanel .mobile-work-review-tools label,
+  body[data-theme="ui"] #app #mobileWorkEditPanel .mobile-report-summary span,
+  body[data-theme="warm"] #app #mobileWorkEditPanel .mobile-report-summary span,
+  body[data-theme="ui"] #app #mobileWorkEditPanel [id$="Hint"],
+  body[data-theme="warm"] #app #mobileWorkEditPanel [id$="Hint"] {
+    font-size: 12px !important;
+    line-height: 1.5 !important;
+  }
+  body[data-theme="ui"] #app #mobileWorkModule .mobile-work-tabs,
+  body[data-theme="warm"] #app #mobileWorkModule .mobile-work-tabs {
+    display: flex !important;
+    gap: 4px !important;
+    padding: 4px !important;
+    overflow: hidden !important;
+  }
+  body[data-theme="ui"] #app #mobileWorkModule .mobile-work-tabs button,
+  body[data-theme="warm"] #app #mobileWorkModule .mobile-work-tabs button {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    min-height: 40px !important;
+    padding: 0 6px !important;
+    font-size: 12.5px !important;
+    white-space: nowrap !important;
+  }
+}
+@media (max-width: 900px) {
+  body[data-theme="ui"] #app .mobile-work-module .mobile-report-tools,
+  body[data-theme="warm"] #app .mobile-work-module .mobile-report-tools {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    width: auto !important;
+    max-width: 100% !important;
+  }
+  body[data-theme="ui"] #app .mobile-work-module .mobile-report-tools > label,
+  body[data-theme="warm"] #app .mobile-work-module .mobile-report-tools > label {
+    min-width: 0 !important;
+  }
+  body[data-theme="ui"] #app .mobile-work-module .mobile-report-tools :is(input, select),
+  body[data-theme="warm"] #app .mobile-work-module .mobile-report-tools :is(input, select) {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  body[data-theme="ui"] #app .mobile-work-module .mobile-report-tools > button,
+  body[data-theme="warm"] #app .mobile-work-module .mobile-report-tools > button {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  body[data-theme="ui"] #app #mobileEntryPanel .mobile-tools .button.ghost,
+  body[data-theme="warm"] #app #mobileEntryPanel .mobile-tools .button.ghost {
+    min-height: 44px !important;
+    border: 1px solid var(--line) !important;
+    background: var(--surface) !important;
+    color: var(--ink) !important;
+    box-shadow: none !important;
+  }
 }
 /* dashboard-home.css */
 /* ============================================================
@@ -6112,6 +6650,448 @@ body[data-view="desktop"] #moduleSwitchButton { display: none !important; }
 .pt-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .pt-foot button { height: 34px; padding: 0 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font: inherit; font-size: 13px; cursor: pointer; }
 .pt-foot button.pri { background: var(--primary); border-color: var(--primary); color: var(--surface); font-weight: 600; }
+/* reconciliation.css */
+/* 月度对账：只读汇总，已对账默认开票 */
+.reconciliation-topbar { align-items: flex-end; }
+.reconciliation-tools { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 9px; }
+.reconciliation-field { display: grid; gap: 5px; color: #667c80; font-size: 11px; font-weight: 700; }
+.reconciliation-field input, .reconciliation-field select { height: 38px; min-width: 150px; border: 1px solid #cfe0de; border-radius: 10px; background: #fff; color: #173b42; padding: 0 10px; font: inherit; }
+.reconciliation-field input:focus, .reconciliation-field select:focus { outline: none; border-color: #74c2b7; box-shadow: 0 0 0 3px rgba(15,118,110,.1); }
+.reconciliation-panel { display: grid; gap: 14px; }
+.reconciliation-closed-note { display: flex; align-items: baseline; gap: 10px; padding: 11px 14px; border: 1px solid #cfe4df; border-radius: 11px; background: #f2faf7; color: #456b65; font-size: 12px; }
+.reconciliation-closed-note strong { color: #0f766e; white-space: nowrap; }
+.reconciliation-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.reconciliation-summary-grid article { min-width: 0; padding: 14px 15px; border: 1px solid #dce8e6; border-left: 4px solid #789b98; border-radius: 13px; background: #fff; box-shadow: 0 6px 18px rgba(17,54,58,.04); }
+.reconciliation-summary-grid article.is-done { border-left-color: #0f766e; }
+.reconciliation-summary-grid article.is-pending { border-left-color: #b54708; }
+.reconciliation-summary-grid article.is-total { border-left-color: #b42318; background: #fffaf9; }
+.reconciliation-summary-grid span { display: block; color: #70858a; font-size: 11px; font-weight: 700; }
+.reconciliation-summary-grid strong { display: block; margin-top: 5px; color: #173b42; font-size: 24px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.reconciliation-summary-grid small { display: block; margin-top: 4px; color: #829398; font-size: 10px; }
+.reconciliation-price-warning { padding: 9px 12px; border: 1px solid #f0d6a8; border-radius: 10px; background: #fff8e8; color: #8a5b13; font-size: 11px; line-height: 1.55; }
+.reconciliation-table-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.reconciliation-table-head h2 { margin: 0; color: #173b42; font-size: 16px; }
+.reconciliation-table-head p { margin: 4px 0 0; color: #7b8d92; font-size: 11px; }
+.reconciliation-summary-text { color: #4c686e; font-size: 11px; font-weight: 700; text-align: right; }
+.reconciliation-table-wrap { overflow: auto; border: 1px solid #dfe9e7; border-radius: 12px; background: #fff; }
+.reconciliation-table { width: 100%; min-width: 1100px; border-collapse: collapse; font-size: 12px; }
+.reconciliation-table th { padding: 10px 9px; border-bottom: 1px solid #dfe9e7; background: #f2f8f7; color: #4e686e; text-align: left; white-space: nowrap; font-size: 11px; }
+.reconciliation-table td { padding: 10px 9px; border-bottom: 1px solid #edf3f2; color: #294b52; vertical-align: middle; }
+.reconciliation-table tbody tr:hover td { background: #f8fcfb; }
+.reconciliation-table .number { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.reconciliation-table .money-pending { color: #b54708; font-weight: 800; }
+.reconciliation-status { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.reconciliation-status.pending { background: #fff4e5; color: #b54708; }
+.reconciliation-status.partial { background: #fff8e1; color: #8a6b22; }
+.reconciliation-status.done { background: #e8f6f3; color: #0f766e; }
+.reconciliation-material-code { font-weight: 800; color: #21484e; }
+.reconciliation-company-tag { display: inline-block; margin-left: 5px; padding: 1px 5px; border-radius: 5px; background: #edf3f3; color: #60777d; font-size: 9px; font-weight: 800; }
+.reconciliation-empty { padding: 36px 16px; }
+@media (max-width: 1100px) {
+  .reconciliation-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .reconciliation-tools { width: 100%; }
+}
+@media (max-width: 700px) {
+  .reconciliation-summary-grid { grid-template-columns: 1fr; }
+  .reconciliation-table-head { align-items: flex-start; flex-direction: column; }
+  .reconciliation-summary-text { text-align: left; }
+}
+body:not([data-board-role="admin"]) #desktopReconciliationLink { display: none !important; }
+
+/* heng-delivery.css */
+/* 恒怡独立发货模块 */
+.heng-entry-button {
+  border-color: var(--tk-warn) !important;
+  background: var(--tk-warn-soft) !important;
+  color: #8a4a12 !important;
+  font-weight: 700 !important;
+}
+.heng-entry-button:hover { background: #ffe6cc !important; }
+.heng-side-link { position: relative; }
+.heng-side-link .nav-dot { background: var(--tk-warn); }
+.heng-side-link.active { color: #8a4a12; background: var(--tk-warn-soft); }
+.mobile-tabs.has-heng-tabs { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+.mobile-tabs.has-heng-tabs .mobile-tab { font-size: 10.5px; }
+.mobile-tabs.has-heng-tabs .mobile-tab[data-tab="heng"].active { color: #9a4f12; }
+.heng-topbar { align-items: flex-start; }
+.heng-module-head {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  padding: 16px 14px 10px; flex-wrap: wrap;
+}
+.heng-module-head h1 { margin: 2px 0 0; font-size: 26px; letter-spacing: -.03em; }
+.heng-isolated-badge, .heng-step-badge, .heng-draft-badge {
+  display: inline-flex; align-items: center; min-height: 24px; padding: 0 9px;
+  border-radius: 999px; background: var(--tk-warn-soft); color: #8a4a12;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.heng-customer-tabs { display: flex; gap: 8px; padding: 4px 14px 12px; overflow-x: auto; }
+.heng-customer-tab {
+  min-height: 38px; padding: 0 14px; border: 1px solid var(--tk-line); border-radius: 999px;
+  background: var(--tk-surface); color: var(--tk-muted); font-size: 13px; font-weight: 700; white-space: nowrap;
+}
+.heng-customer-tab.active { border-color: #d6a066; background: var(--tk-warn-soft); color: #7b3e0e; }
+.heng-mobile-subhead {
+  margin: 0 14px 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  color: var(--tk-muted); font-size: 12px; flex-wrap: wrap;
+}
+.heng-mobile-subhead strong { color: var(--tk-ink); font-size: 13px; }
+.heng-search-wrap { margin: 0 14px; }
+.heng-search {
+  min-height: 42px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+  border: 1px solid var(--tk-line); border-radius: 11px; background: var(--tk-surface);
+}
+.heng-search > span { flex: 0 0 auto; display: inline-grid; place-items: center; width: 20px; height: 20px; background: transparent; color: var(--tk-muted); font-size: 18px; }
+.heng-search input { border: 0; outline: 0; width: 100%; min-height: 40px; padding: 0; background: transparent !important; color: var(--tk-ink); font-size: 14px; box-shadow: none !important; }
+.heng-search:focus-within { border-color: #75bdb3; background: #fff; box-shadow: 0 0 0 3px rgba(15,118,110,.09); }
+.heng-material-results, .heng-selected-items { display: grid; gap: 8px; padding: 9px 14px 0; }
+.heng-material-result {
+  width: 100%; min-height: 52px; display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  text-align: left; padding: 9px 11px; border: 1px solid var(--tk-line); border-radius: 11px;
+  background: var(--tk-surface); color: var(--tk-ink);
+}
+.heng-material-result:hover { border-color: var(--tk-primary); background: var(--tk-primary-soft); }
+.heng-material-result span { min-width: 0; }
+.heng-material-result strong { display: block; font-size: 13px; overflow-wrap: anywhere; }
+.heng-material-result small, .heng-selected-row small { display: block; color: var(--tk-muted); font-size: 11px; margin-top: 3px; overflow-wrap: anywhere; }
+.heng-material-result b { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; background: var(--tk-primary-soft); color: var(--tk-primary); font-size: 20px; flex: 0 0 auto; }
+.heng-inline-note { padding: 12px; border-radius: 10px; background: var(--tk-surface-2); color: var(--tk-muted); font-size: 12px; line-height: 1.55; }
+.heng-subsection-title { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 16px 14px 0; }
+.heng-subsection-title strong { font-size: 14px; }
+.heng-subsection-title button { border: 0; background: transparent; color: var(--tk-muted); font-size: 12px; font-weight: 700; }
+.heng-selected-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) 96px 28px; gap: 8px; align-items: center;
+  padding: 10px; border: 1px solid var(--tk-line); border-radius: 11px; background: var(--tk-surface);
+}
+.heng-selected-row strong { display: block; font-size: 13px; overflow-wrap: anywhere; }
+.heng-selected-row label { display: flex; align-items: center; gap: 4px; }
+.heng-selected-row input { width: 58px; min-height: 34px; text-align: right; border: 1px solid var(--tk-line); border-radius: 8px; background: var(--tk-surface); color: var(--tk-ink); padding: 0 7px; font-size: 15px; font-weight: 700; }
+.heng-selected-row em { color: var(--tk-muted); font-style: normal; font-size: 11px; white-space: nowrap; }
+.heng-row-remove { width: 28px; height: 28px; border: 0; border-radius: 8px; background: transparent; color: var(--tk-muted); font-size: 19px; }
+.heng-row-remove:hover { background: #fff0ee; color: var(--tk-danger); }
+.heng-packaging-placeholder {
+  margin: 14px; padding: 12px; border-radius: 11px; background: var(--tk-surface-2);
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+}
+.heng-packaging-placeholder strong { display: block; font-size: 13px; }
+.heng-packaging-placeholder span:not(.heng-step-badge) { display: block; color: var(--tk-muted); font-size: 11px; margin-top: 3px; line-height: 1.5; }
+.heng-mobile-actions {
+  margin: 6px 14px 24px; padding: 12px; border: 1px solid var(--tk-line); border-radius: 12px;
+  background: var(--tk-surface); display: grid; gap: 8px;
+}
+.heng-mobile-actions > span { color: var(--tk-muted); font-size: 11px; text-align: center; }
+.heng-action-primary { min-height: 44px; border-radius: 10px; border: 0; background: var(--tk-primary); color: #fff; font-weight: 700; }
+.heng-action-primary:disabled { opacity: .48; }
+.heng-empty, .heng-loading { padding: 28px 14px; text-align: center; color: var(--tk-muted); }
+.heng-empty strong { display: block; color: var(--tk-ink); margin-bottom: 4px; }
+.heng-loading { display: flex; justify-content: center; align-items: center; gap: 8px; }
+.heng-spinner { width: 16px; height: 16px; border: 2px solid var(--tk-line); border-top-color: var(--tk-primary); border-radius: 50%; animation: hengSpin .8s linear infinite; }
+@keyframes hengSpin { to { transform: rotate(360deg); } }
+
+.heng-desktop-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.heng-desktop-summary article { background: var(--tk-surface); border: 1px solid var(--tk-line); border-left: 4px solid var(--tk-warn); border-radius: 12px; padding: 13px 15px; }
+.heng-desktop-summary span { display: block; color: var(--tk-muted); font-size: 11px; }
+.heng-desktop-summary strong { display: block; margin-top: 5px; font-size: 20px; }
+.heng-pending-panel { padding: 0 16px 16px; }
+.heng-pending-list { display: grid; gap: 10px; }
+.heng-pending-card { border: 1px solid var(--tk-line); border-radius: 12px; padding: 13px 14px; background: var(--tk-surface); }
+.heng-pending-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.heng-pending-head strong { font-size: 15px; }
+.heng-pending-head span:not(.heng-step-badge) { display: block; color: var(--tk-muted); font-size: 11px; margin-top: 3px; }
+.heng-pending-meta { display: flex; gap: 14px; flex-wrap: wrap; color: var(--tk-muted); font-size: 11px; margin-top: 9px; }
+.heng-pending-lines { display: grid; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--tk-hair); }
+.heng-pending-lines div { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; }
+.heng-pending-lines span { color: var(--tk-muted); }
+.heng-pending-dates { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 12px; }
+.heng-pending-dates button { min-height: 32px; padding: 0 12px; border: 1px solid var(--tk-line); border-radius: 999px; background: var(--tk-surface); color: var(--tk-muted); font-size: 11px; font-weight: 800; cursor: pointer; }
+.heng-pending-dates button.active { border-color: #d6a066; background: var(--tk-warn-soft); color: #7b3e0e; }
+.heng-pending-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--tk-hair); }
+.heng-row-action { min-height: 30px; padding: 0 10px; border: 1px solid var(--tk-line); border-radius: 8px; background: #fff; color: var(--tk-muted); font-size: 10px; font-weight: 800; cursor: pointer; }
+.heng-row-action.primary { border-color: #c88a49; background: #fff8ef; color: #8a4a12; }
+.heng-row-action.danger { border-color: #efcbc6; color: #a33b2e; }
+.heng-row-action:active { transform: translateY(1px); }
+.heng-open-panel { margin-top: 14px; }
+.heng-open-error { display: grid; justify-items: start; gap: 6px; padding: 14px; border: 1px solid #efcbc6; border-radius: 11px; background: #fff7f5; }
+.heng-open-error strong { color: #8f3024; font-size: 13px; }
+.heng-open-error span { color: #7a4a42; font-size: 11px; }
+.heng-open-error small { color: #7c8d91; font-size: 10px; }
+.heng-open-card { border: 1px solid #ead7c1; border-radius: 12px; padding: 13px 14px; background: #fffdf9; }
+.heng-step-badge.warning { background: #fff0dc; color: #8a4a12; }
+.heng-record-title span { display: block; margin-top: 3px; }
+.heng-material-admin-card { width: min(860px, 96vw); max-height: 88vh; display: flex; flex-direction: column; }
+.heng-modal-note { color: var(--tk-muted); font-size: 12px; line-height: 1.6; margin: 0 0 12px; }
+.heng-modal-search { width: 100%; min-height: 40px; border: 1px solid var(--tk-line); border-radius: 10px; padding: 0 11px; font-size: 13px; }
+.heng-material-admin-list { margin-top: 10px; overflow: auto; display: grid; gap: 7px; min-height: 120px; }
+.heng-material-admin-row { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 10px 11px; border: 1px solid var(--tk-hair); border-radius: 10px; }
+.heng-material-admin-row strong { display: block; font-size: 12px; }
+.heng-material-admin-row span { display: block; color: var(--tk-muted); font-size: 10px; margin-top: 2px; }
+.heng-customer-checks { display: flex; gap: 10px; flex-wrap: wrap; }
+.heng-customer-checks label { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; white-space: nowrap; }
+@media (max-width: 900px) {
+  .heng-desktop-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .heng-desktop-summary { grid-template-columns: 1fr; }
+  .heng-material-admin-row { align-items: flex-start; flex-direction: column; }
+  .mobile-tabs.has-heng-tabs .mobile-tab { font-size: 9.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .heng-spinner { animation: none; }
+}
+
+.heng-draft-summary { color: var(--tk-muted); font-size: 11px; font-weight: 700; }
+.heng-draft-preview { display: grid; gap: 8px; padding: 9px 14px 0; }
+.heng-draft-page { border: 1px solid var(--tk-line); border-radius: 11px; background: var(--tk-surface); padding: 10px 11px; }
+.heng-draft-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.heng-draft-head strong { display: block; font-size: 12px; }
+.heng-draft-head span:not(.heng-draft-badge) { display: block; color: var(--tk-muted); font-size: 10px; margin-top: 2px; }
+.heng-draft-badge { border-radius: 999px; background: var(--tk-primary-soft); color: var(--tk-primary); padding: 3px 8px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.heng-draft-lines { display: grid; gap: 5px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--tk-hair); }
+.heng-draft-lines div { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; }
+.heng-draft-lines span { min-width: 0; overflow-wrap: anywhere; }
+.heng-draft-lines b { color: var(--tk-primary); white-space: nowrap; }
+
+.heng-bogo-workspace { padding-top: 2px; }
+.heng-bogo-orders { display: grid; gap: 7px; padding: 8px 14px 0; }
+.heng-bogo-order { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; text-align: left; padding: 9px 10px; border: 1px solid var(--tk-line); border-radius: 10px; background: var(--tk-surface); color: var(--tk-ink); }
+.heng-bogo-order span { min-width: 0; }
+.heng-bogo-order strong { display: block; font-size: 12px; }
+.heng-bogo-order small { display: block; margin-top: 3px; color: var(--tk-muted); font-size: 10px; }
+.heng-bogo-order b { color: var(--tk-primary); font-size: 10px; white-space: nowrap; }
+.heng-bogo-form { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(0,.75fr) minmax(0,.75fr) auto; gap: 7px; padding: 10px 14px 0; align-items: center; }
+.heng-bogo-form input { min-width: 0; min-height: 36px; border: 1px solid var(--tk-line); border-radius: 9px; background: var(--tk-surface); color: var(--tk-ink); padding: 0 9px; font-size: 12px; }
+.heng-bogo-form button { min-height: 36px; }
+.heng-bogo-totals { grid-template-columns: 1fr 1fr; padding-top: 8px; }
+.heng-bogo-totals label { display: grid; gap: 4px; color: var(--tk-muted); font-size: 10px; }
+.heng-bogo-totals input { width: 100%; }
+#hengBuildBogo { margin: 9px 14px 0; width: calc(100% - 28px); }
+.heng-bogo-allocation { padding: 9px 14px 0; }
+.heng-bogo-allocation-list { display: grid; gap: 5px; padding: 9px 10px; border: 1px solid var(--tk-line); border-radius: 10px; background: var(--tk-surface); }
+.heng-bogo-allocation-list div { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; }
+.heng-bogo-allocation-list b { color: var(--tk-primary); white-space: nowrap; }
+.heng-bogo-error { padding: 10px 11px; border-radius: 9px; background: #fff1f0; color: var(--tk-danger); font-size: 11px; font-weight: 700; }
+@media (max-width: 560px) {
+  .heng-bogo-form { grid-template-columns: 1fr 1fr; }
+  .heng-bogo-form input#hengBogoOrderNo { grid-column: 1 / -1; }
+}
+
+.heng-pack-editor { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--tk-hair); }
+.heng-pack-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 11px; }
+.heng-pack-head span { color: var(--tk-warn); font-weight: 700; }
+.heng-pack-head span.confirmed { color: var(--tk-primary); }
+.heng-pack-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 7px; }
+.heng-pack-choice { display: grid; grid-template-columns: 16px minmax(32px, auto) minmax(44px, 1fr); align-items: center; gap: 4px; min-height: 34px; padding: 4px 6px; border: 1px solid var(--tk-line); border-radius: 8px; background: var(--tk-surface-2); font-size: 10px; }
+.heng-pack-choice input[type="number"], .heng-pack-other input { width: 100%; min-width: 0; min-height: 26px; border: 1px solid var(--tk-line); border-radius: 6px; background: var(--tk-surface); color: var(--tk-ink); padding: 0 5px; font-size: 11px; }
+.heng-pack-other { display: grid; grid-template-columns: 58px minmax(0,1fr) 72px; align-items: center; gap: 5px; margin-top: 6px; font-size: 10px; color: var(--tk-muted); }
+.heng-pack-none { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 10px; color: var(--tk-muted); }
+.heng-pack-total { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 7px; padding: 7px 8px; border-radius: 8px; background: var(--tk-primary-soft); color: var(--tk-primary); font-size: 10px; font-weight: 700; }
+.heng-pack-total button { flex: 0 0 auto; min-height: 28px; border: 0; border-radius: 7px; background: var(--tk-primary); color: #fff; padding: 0 8px; font-size: 10px; font-weight: 700; }
+@media (max-width: 380px) {
+  .heng-pack-grid { grid-template-columns: 1fr; }
+}
+
+.heng-desktop-tabs { display: inline-flex; gap: 6px; padding: 5px; margin-bottom: 12px; border-radius: 11px; background: var(--tk-surface-2); }
+.heng-desktop-tabs button { min-height: 34px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: var(--tk-muted); font-size: 12px; font-weight: 700; }
+.heng-desktop-tabs button.active { background: var(--tk-surface); color: var(--tk-ink); box-shadow: 0 3px 10px rgba(20, 55, 60, .08); }
+.heng-ledger-panel { padding: 0 16px 16px; }
+.heng-ledger-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 10px 0 12px; }
+.heng-ledger-filters label { display: grid; gap: 4px; color: var(--tk-muted); font-size: 10px; }
+.heng-ledger-filters input, .heng-ledger-filters select { min-height: 36px; border: 1px solid var(--tk-line); border-radius: 9px; background: var(--tk-surface); color: var(--tk-ink); padding: 0 9px; font-size: 12px; }
+.heng-ledger-search { flex: 1 1 260px; }
+.heng-ledger-search input { width: 100%; }
+.heng-ledger-table-wrap { overflow: auto; border: 1px solid var(--tk-line); border-radius: 11px; }
+.heng-ledger-table { width: 100%; border-collapse: collapse; font-size: 11px; white-space: nowrap; }
+.heng-ledger-table th { position: sticky; top: 0; z-index: 1; padding: 9px 10px; text-align: left; background: var(--tk-surface-2); color: var(--tk-muted); }
+.heng-ledger-table td { padding: 9px 10px; border-top: 1px solid var(--tk-hair); }
+.heng-ledger-table .number { text-align: right; }
+.heng-ledger-empty { padding: 24px !important; text-align: center; color: var(--tk-muted); }
+
+.heng-label-select-card { width: min(760px, 96vw); max-height: 88vh; display: flex; flex-direction: column; }
+.heng-label-selection-list { overflow: auto; display: grid; gap: 7px; min-height: 120px; }
+.heng-label-selection-row { display: grid; grid-template-columns: 20px minmax(0,1fr) 72px; gap: 9px; align-items: center; padding: 9px 10px; border: 1px solid var(--tk-hair); border-radius: 9px; }
+.heng-label-selection-row strong { display: block; font-size: 12px; }
+.heng-label-selection-row small { display: block; color: var(--tk-muted); font-size: 10px; margin-top: 2px; overflow-wrap: anywhere; }
+.heng-label-selection-row input[type="number"] { min-height: 32px; border: 1px solid var(--tk-line); border-radius: 7px; padding: 0 7px; text-align: right; font-size: 12px; }
+
+.tk-business-dock {
+  width: max-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 13px;
+  padding: 3px 4px 3px 11px;
+  border: 1px solid #dbe6e3;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 5px 16px rgba(17, 54, 53, .06);
+}
+.tk-business-dock .business-line-label { color: #72858a; font-size: 10px; font-weight: 800; letter-spacing: .08em; white-space: nowrap; }
+.business-line-segment { display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; background: #edf2f0; }
+.business-line-segment button { min-height: 30px; padding: 0 13px; border: 0; border-radius: 999px; background: transparent; color: #61757a; font-size: 12px; font-weight: 800; cursor: pointer; transition: background .16s ease, color .16s ease, box-shadow .16s ease; }
+body[data-business-line="awoyite"] .business-line-segment button.active { background: #fff; color: #0f766e; box-shadow: 0 2px 7px rgba(20, 74, 72, .12); }
+body[data-business-line="heng"] .business-line-segment button.active { background: #f4e1c9; color: #7b3e0e; box-shadow: 0 2px 7px rgba(123, 62, 14, .1); }
+.mobile-heng-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+
+.mobile-fab-slot { flex: 0 0 48px; width: 48px; height: 48px; }
+.mobile-line-trigger {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(255, 255, 255, .1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1);
+  cursor: pointer;
+  transition: background .16s ease, transform .16s ease;
+}
+.mobile-line-trigger:hover, .mobile-line-trigger.is-open { background: rgba(255, 255, 255, .17); }
+.mobile-line-trigger:active { transform: scale(.96); }
+.mobile-line-trigger svg { width: 21px; height: 21px; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.mobile-head-actions .icon-button svg { width: 20px; height: 20px; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.mobile-module-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(5, 29, 31, .38);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
+}
+.mobile-module-sheet {
+  position: fixed;
+  left: 50%;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  z-index: 81;
+  width: min(430px, calc(100vw - 20px));
+  max-height: calc(100dvh - 32px);
+  padding: 9px 16px 16px;
+  border: 1px solid rgba(255, 255, 255, .72);
+  border-radius: 24px;
+  background: #f7faf9;
+  color: #16353d;
+  box-shadow: 0 26px 70px rgba(4, 30, 32, .3);
+  opacity: 0;
+  pointer-events: none;
+  overflow: auto;
+  transform: translate(-50%, 18px) scale(.985);
+  transition: opacity .2s ease, transform .24s cubic-bezier(.2, .8, .2, 1);
+}
+body.module-sheet-open { overflow: hidden; }
+body.module-sheet-open .mobile-module-backdrop { opacity: 1; pointer-events: auto; }
+body.module-sheet-open .mobile-module-sheet { opacity: 1; pointer-events: auto; transform: translate(-50%, 0) scale(1); }
+.mobile-sheet-grip { display: block; width: 36px; height: 4px; margin: 0 auto 13px; border-radius: 999px; background: #d7e1df; }
+.mobile-module-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 2px 12px; }
+.mobile-module-sheet-head small { display: block; color: #7b8e92; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
+.mobile-module-sheet-head h2 { margin: 2px 0 0; font-size: 21px; line-height: 1.2; letter-spacing: -.035em; }
+.mobile-module-sheet-head > button { min-height: 32px; padding: 0 12px; border: 0; border-radius: 999px; background: #e9efed; color: #61777b; font-size: 11px; font-weight: 800; cursor: pointer; }
+.mobile-line-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.mobile-line-options button {
+  min-height: 68px;
+  padding: 10px 11px;
+  border: 1px solid #dfe8e6;
+  border-radius: 15px;
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+  background: #fff;
+  color: #17373e;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(24, 58, 58, .035);
+  transition: border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+.mobile-line-options button.active { border-color: #d79a58; background: #fffaf3; box-shadow: 0 7px 18px rgba(122, 74, 24, .09); }
+.mobile-line-mark { width: 8px; height: 8px; border-radius: 50%; background: #9fb1ae; }
+.mobile-line-options button[data-mobile-business="awoyite"] .mobile-line-mark { background: #0f8b7f; }
+.mobile-line-options button[data-mobile-business="heng"] .mobile-line-mark { background: #c57b32; }
+.mobile-line-copy { min-width: 0; display: grid; gap: 2px; }
+.mobile-line-copy b { font-size: 14px; font-weight: 850; }
+.mobile-line-copy small { color: #7b8e92; font-size: 10px; }
+.mobile-line-check { opacity: 0; color: #b76b25; font-size: 15px; font-weight: 900; }
+.mobile-line-options button.active .mobile-line-check { opacity: 1; }
+.mobile-admin-module-section { margin-top: 15px; padding-top: 13px; border-top: 1px solid #e6eeec; }
+.mobile-module-section-title { margin: 0 2px 8px; color: #7b8e92; font-size: 10px; font-weight: 800; letter-spacing: .1em; }
+.mobile-admin-module-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.mobile-admin-module-grid button { min-height: 55px; padding: 7px 5px; border: 1px solid #e1e9e7; border-radius: 12px; display: grid; place-content: center; gap: 2px; background: #fff; color: #17373e; text-align: center; cursor: pointer; }
+.mobile-admin-module-grid button b { font-size: 12px; font-weight: 850; }
+.mobile-admin-module-grid button small { color: #86979a; font-size: 9px; }
+.mobile-admin-module-grid button:active { background: #f2f7f5; }
+@media (max-width: 360px) {
+  .mobile-admin-module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.heng-page-subtitle { display: block; color: var(--tk-muted); font-size: 11px; margin-top: 4px; }
+.heng-mobile-status-list, .heng-mobile-ledger-list { display: grid; gap: 9px; padding: 10px 14px 24px; }
+.heng-mobile-status-card, .heng-mobile-ledger-card { border: 1px solid var(--tk-line); border-radius: 11px; background: var(--tk-surface); padding: 11px 12px; }
+.heng-mobile-status-card > div:first-child { display: inline-flex; flex-direction: column; gap: 3px; }
+.heng-mobile-status-card > div:first-child strong { font-size: 14px; }
+.heng-mobile-status-card > div:first-child span { color: var(--tk-muted); font-size: 10px; }
+.heng-mobile-status-card > .heng-step-badge { float: right; }
+.heng-mobile-status-line { display: flex; justify-content: space-between; gap: 10px; margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--tk-hair); font-size: 10px; }
+.heng-mobile-status-line span { color: var(--tk-muted); }
+.heng-mobile-record-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.heng-mobile-record-head > div { min-width: 0; display: grid; gap: 3px; }
+.heng-mobile-record-head strong { font-size: 14px; }
+.heng-mobile-record-head span:not(.heng-step-badge) { color: var(--tk-muted); font-size: 10px; }
+.heng-mobile-record-head .heng-step-badge { float: none; flex: 0 0 auto; }
+.heng-mobile-record-time { margin-top: 7px; color: var(--tk-muted); font-size: 10px; }
+.heng-mobile-record-lines { margin-top: 9px; }
+.heng-mobile-record-foot { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--tk-hair); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.heng-mobile-record-foot > span { color: var(--tk-muted); font-size: 10px; }
+.heng-mobile-ledger-head { display: flex; justify-content: space-between; gap: 10px; }
+.heng-mobile-ledger-head strong { font-size: 14px; }
+.heng-mobile-ledger-head span { color: var(--tk-muted); font-size: 10px; }
+.heng-mobile-ledger-name { margin-top: 8px; font-size: 12px; font-weight: 700; }
+.heng-mobile-ledger-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 5px; color: var(--tk-muted); font-size: 10px; }
+.heng-mobile-ledger-meta b { color: var(--tk-primary); }
+.heng-mobile-ledger-pack { margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--tk-hair); color: var(--tk-muted); font-size: 10px; }
+
+
+.tk-heng-nav { display: grid; gap: 4px; }
+body[data-business-line="heng"] .brand-mark-fs { background: var(--tk-warn); }
+
+/* 恒怡送货单核对后上传 */
+.heng-delivery-preview-card { width:min(760px, calc(100vw - 32px)); max-height:88vh; overflow:auto; }
+.heng-preview-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin:12px 0; }
+.heng-preview-summary > div { padding:11px 12px; border:1px solid var(--tk-line); border-radius:10px; background:var(--tk-surface-2); }
+.heng-preview-summary span { display:block; color:var(--tk-muted); font-size:10px; }
+.heng-preview-summary strong { display:block; margin-top:3px; color:var(--tk-ink); font-size:13px; }
+.heng-preview-downloads { display:grid; gap:7px; padding:12px; border:1px solid #d8e8e4; border-radius:11px; background:#f7fbfa; }
+.heng-preview-downloads > span { color:var(--tk-muted); font-size:11px; }
+.heng-preview-downloads a { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:38px; padding:0 12px; border:1px solid #b9ddd7; border-radius:9px; background:#fff; color:var(--tk-primary); font-size:12px; font-weight:800; text-decoration:none; }
+.heng-preview-downloads a::after { content:'下载'; color:var(--tk-muted); font-size:10px; }
+.heng-preview-downloads a:hover { border-color:var(--tk-primary); }
+.heng-preview-confirm { display:flex; align-items:center; gap:8px; margin:13px 0 0; padding:11px 12px; border-radius:10px; background:#fff7ea; color:#875214; font-size:12px; font-weight:700; }
+.heng-preview-confirm input { width:17px; height:17px; }
+.heng-preview-status { margin:10px 0 0; padding:10px 12px; border-radius:9px; background:#eef6f4; color:var(--tk-primary); font-size:11px; }
+.heng-preview-status.error { background:#fff0ee; color:var(--tk-danger); }
+.heng-preview-status.success { background:#eaf7f2; color:#16724f; }
+
+/* 恒怡发货清单里的云端单据 */
+.heng-file-archive { margin:10px 0 12px; padding:12px; border:1px solid #dce8e5; border-radius:12px; background:#f7fbfa; }
+.heng-file-archive-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.heng-file-archive-head > div { display:grid; gap:3px; }
+.heng-file-archive-head strong { color:var(--tk-ink); font-size:13px; }
+.heng-file-archive-head span { color:var(--tk-muted); font-size:10px; }
+.heng-file-refresh { color:var(--tk-primary); font-size:10px; font-weight:800; text-decoration:none; white-space:nowrap; }
+.heng-file-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:9px; }
+.heng-file-card { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px; border:1px solid var(--tk-line); border-radius:10px; background:#fff; }
+.heng-file-card-main { min-width:0; display:grid; gap:2px; }
+.heng-file-card-main > div { display:flex; align-items:center; gap:7px; color:var(--tk-muted); font-size:10px; }
+.heng-file-card-main > div b { padding:2px 7px; border-radius:999px; background:#eef6f4; color:var(--tk-primary); font-size:11px; }
+.heng-file-card-main strong { font-size:12px; }
+.heng-file-card-main small { color:var(--tk-muted); font-size:10px; }
+.heng-file-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
+.heng-file-actions .button { min-height:32px; padding:0 10px; font-size:10px; }
+.heng-file-empty { grid-column:1/-1; padding:16px; color:var(--tk-muted); text-align:center; font-size:11px; }
+.heng-file-error { margin:8px 0 0; padding:8px 10px; border-radius:8px; background:#fff0ee; color:var(--tk-danger); font-size:10px; }
+@media (max-width:900px) {
+  .heng-file-list { grid-template-columns:1fr; }
+  .heng-preview-summary { grid-template-columns:1fr; }
+}
 /* staff-v2.css */
 /* 员工信息 / 工资 v2：主管理端内嵌，不再 iframe 二次登录 */
 .sv2-mount{width:100%;min-width:0}

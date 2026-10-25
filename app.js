@@ -111,9 +111,10 @@ let desktopRemainingVisibleLimit = 20;
 let mobileOrderVisibleLimit = 20;
 let desktopMainVisibleLimit = 20;
 let desktopLoadingVisibleLimit = 30;
-let mobileRecordsVisibleLimit = 5;
+let mobileRecordsVisibleLimit = 20;
 let desktopHistoryVisibleLimit = 15;
 let drawingVisibleLimit = 40;
+let pendingDrawingReplaceId = '';
 let formBaseRevision = null;
 let orderEditBaseRevision = null;
 let boardRoleReady = false;
@@ -227,12 +228,12 @@ function rpcHeaders() {
   };
 }
 
-async function callRpc(name, body, timeoutMs = 0, forceDirect = false) {
+async function callRpc(name, body, timeoutMs = 0, forceDirect = false, forceProxy = false) {
   const controller = timeoutMs > 0 ? new AbortController() : null;
   const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
   try {
     const payloadText = JSON.stringify(body);
-    const useDirect = Boolean(DIRECT_RPC_BASE) && (forceDirect || payloadText.length > LARGE_RPC_LIMIT || LARGE_RPC_RESPONSE_NAMES.has(name));
+    const useDirect = Boolean(DIRECT_RPC_BASE) && !forceProxy && (forceDirect || payloadText.length > LARGE_RPC_LIMIT || LARGE_RPC_RESPONSE_NAMES.has(name));
     const rpcBase = useDirect ? DIRECT_RPC_BASE : RPC_BASE;
     const response = await fetch(`${rpcBase}/${name}`, {
       method: 'POST',
@@ -390,6 +391,9 @@ const sessionUnitIds = new Set();
 const photoDataUrlCache = new Map();
 const photoDataLoadPromises = new Map();
 let replacementPick = null;
+let noOrderPick = null;
+let noOrderCandidates = [];
+let noOrderManualMode = false;
 let photoCaptureTarget = null;
 let photoPendingDataUrl = '';
 let photoPendingQueue = [];
@@ -2077,6 +2081,107 @@ function renderReplacementPicked() {
     + `${replacementPick.customer ? '（' + escapeHtml(replacementPick.customer) + '）' : ''}`;
 }
 
+function noOrderInputValues() {
+  return {
+    material: String(els.noOrderMaterial?.value || '').trim(),
+    name: String(els.noOrderName?.value || '').trim(),
+    spec: String(els.noOrderSpec?.value || '').trim(),
+    quantity: Number(els.noOrderQty?.value || 0),
+    remark: String(els.noOrderRemark?.value || '').trim(),
+  };
+}
+
+function syncNoOrderAddState() {
+  if (!els.noOrderAdd) return;
+  const row = noOrderInputValues();
+  els.noOrderAdd.disabled = !row.material || !Number.isFinite(row.quantity) || row.quantity <= 0;
+}
+
+function renderNoOrderSuggest() {
+  if (!els.noOrderSuggest || !els.noOrderSearch) return;
+  noOrderCandidates = replacementProducts(els.noOrderSearch.value);
+  if (!noOrderCandidates.length) {
+    els.noOrderSuggest.innerHTML = '<div class="no-order-empty">没有找到历史产品，可以点下面“手工填写”。</div>';
+    els.noOrderSuggest.hidden = false;
+    return;
+  }
+  els.noOrderSuggest.innerHTML = noOrderCandidates.map((row, index) => `<button type="button" class="suggest-row" data-no-order-pick="${index}">
+      <span class="mono">${escapeHtml(row.material)}</span>
+      <span>${escapeHtml(row.name || '')}${row.spec ? ' · ' + escapeHtml(row.spec) : ''}</span>
+      <em>${row.customer ? escapeHtml(row.customer) + ' · ' : ''}点击带出产品信息</em>
+    </button>`).join('');
+  els.noOrderSuggest.hidden = false;
+}
+
+function renderNoOrderPicked() {
+  if (!els.noOrderPicked) return;
+  if (!noOrderPick) {
+    els.noOrderPicked.hidden = true;
+    els.noOrderPicked.innerHTML = '';
+    return;
+  }
+  els.noOrderPicked.hidden = false;
+  els.noOrderPicked.innerHTML = `已选：<b>${escapeHtml(noOrderPick.material)}</b> ${escapeHtml(noOrderPick.name || '')}`
+    + `${noOrderPick.spec ? ' · ' + escapeHtml(noOrderPick.spec) : ''}`
+    + (noOrderPick.customer ? `（${escapeHtml(noOrderPick.customer)}）` : '');
+}
+
+function setNoOrderManualMode(enabled, focus = false) {
+  noOrderManualMode = Boolean(enabled);
+  if (els.noOrderManual) els.noOrderManual.hidden = !noOrderManualMode;
+  if (!noOrderManualMode) return;
+  if (!els.noOrderMaterial?.value && noOrderPick?.material) els.noOrderMaterial.value = noOrderPick.material;
+  if (!els.noOrderName?.value && noOrderPick?.name) els.noOrderName.value = noOrderPick.name;
+  if (!els.noOrderSpec?.value && noOrderPick?.spec) els.noOrderSpec.value = noOrderPick.spec;
+  if (focus) (els.noOrderMaterial || els.noOrderQty)?.focus();
+}
+
+function openNoOrderModal() {
+  noOrderPick = null;
+  noOrderCandidates = [];
+  noOrderManualMode = false;
+  if (els.noOrderSearch) els.noOrderSearch.value = '';
+  if (els.noOrderMaterial) els.noOrderMaterial.value = '';
+  if (els.noOrderName) els.noOrderName.value = '';
+  if (els.noOrderSpec) els.noOrderSpec.value = '';
+  if (els.noOrderQty) els.noOrderQty.value = '';
+  if (els.noOrderRemark) els.noOrderRemark.value = '';
+  if (els.noOrderManual) els.noOrderManual.hidden = true;
+  if (els.noOrderHint) els.noOrderHint.textContent = '先搜索并选择产品；找不到的历史产品可以手工填写。本次只登记无订单发货，不会直接扣减现有订单。';
+  renderNoOrderPicked();
+  syncNoOrderAddState();
+  renderNoOrderSuggest();
+  if (els.noOrderModal) els.noOrderModal.hidden = false;
+  requestAnimationFrame(() => els.noOrderSearch?.focus());
+}
+
+function closeNoOrderModal() {
+  if (els.noOrderModal) els.noOrderModal.hidden = true;
+}
+
+function addNoOrderToCart() {
+  setNoOrderManualMode(true);
+  const row = noOrderInputValues();
+  if (!row.material) { showToast('请填写料件编号'); els.noOrderMaterial?.focus(); return; }
+  if (!Number.isFinite(row.quantity) || row.quantity <= 0) { showToast('请填写本次送货数量'); els.noOrderQty?.focus(); return; }
+  const customer = String(noOrderPick?.customer || '4137').trim() || '4137';
+  const note = ['无订单提前发货', row.remark].filter(Boolean).join('；');
+  sessionOver.set(row.material, {
+    id: '',
+    pending: true,
+    quantity: Math.round(row.quantity),
+    name: row.name,
+    spec: row.spec,
+    customer,
+    note,
+  });
+  renderMobileSummary();
+  renderMobileList();
+  renderDesktopLoading();
+  renderCart();
+  closeNoOrderModal();
+  showToast(`已加入本次装车：${row.material} ${fmt(row.quantity)} 件；提交时装车记录会保存为无订单发货`);
+}
 async function addReplacement() {
   if (!replacementPick) { showToast('请先搜索并选择要补发的产品'); return; }
   const quantity = Number(els.replacementQty?.value || 0);
@@ -2385,6 +2490,7 @@ const els = {
   desktopLoadingDue: $('#desktopLoadingDue'),
   desktopLoadingCompany: $('#desktopLoadingCompany'),
   desktopLoadingRefresh: $('#desktopLoadingRefresh'),
+  desktopNoOrderOpen: $('#desktopNoOrderOpen'),
   desktopLoadingSummary: $('#desktopLoadingSummary'),
   desktopLoadingSelectedQty: $('#desktopLoadingSelectedQty'),
   desktopLoadingSelectedItems: $('#desktopLoadingSelectedItems'),
@@ -2439,6 +2545,22 @@ const els = {
   replacementDueDate: $('#replacementDueDate'),
   replacementRemark: $('#replacementRemark'),
   replacementAdd: $('#replacementAdd'),
+  noOrderModal: $('#noOrderModal'),
+  mobileNoOrderOpen: $('#mobileNoOrderOpen'),
+  noOrderClose: $('#noOrderClose'),
+  noOrderCancel: $('#noOrderCancel'),
+  noOrderSearch: $('#noOrderSearch'),
+  noOrderSuggest: $('#noOrderSuggest'),
+  noOrderPicked: $('#noOrderPicked'),
+  noOrderManual: $('#noOrderManual'),
+  noOrderMaterial: $('#noOrderMaterial'),
+  noOrderName: $('#noOrderName'),
+  noOrderSpec: $('#noOrderSpec'),
+  noOrderQty: $('#noOrderQty'),
+  noOrderRemark: $('#noOrderRemark'),
+  noOrderHint: $('#noOrderHint'),
+  noOrderManualOpen: $('#noOrderManualOpen'),
+  noOrderAdd: $('#noOrderAdd'),
   photoArchiveOpen: $('#photoArchiveOpen'),
   photoArchiveCount: $('#photoArchiveCount'),
   photoCaptureModal: $('#photoCaptureModal'),
@@ -2577,8 +2699,10 @@ const els = {
   priceEmpty: $('#priceEmpty'),
   priceHint: $('#priceHint'),
   drawingCategoryTabs: $('#drawingCategoryTabs'),
+  drawingSearch: $('#drawingSearch'),
   drawingList: $('#drawingList'),
   drawingCount: $('#drawingCount'),
+  drawingReplaceFile: $('#drawingReplaceFile'),
 };
 
 const escapeHtml = (value) => String(value ?? '')
@@ -2768,11 +2892,11 @@ function mobileRows() {
 function syncMobileStickyOffsets() {
   if (document.body.dataset.view !== 'mobile') return;
   const head = document.querySelector('.mobile-head');
-  const tabs = document.querySelector('.mobile-tabs');
-  if (!head || !tabs) return;
+  const tabs = [...document.querySelectorAll('.mobile-tabs')].find((item) => !item.hidden);
+  if (!head) return;
   requestAnimationFrame(() => {
     const headHeight = Math.ceil(head.getBoundingClientRect().height || 0);
-    const tabsHeight = Math.ceil(tabs.getBoundingClientRect().height || 0);
+    const tabsHeight = tabs ? Math.ceil(tabs.getBoundingClientRect().height || 0) : 0;
     document.documentElement.style.setProperty('--mobile-head-height', headHeight + 'px');
     document.documentElement.style.setProperty('--mobile-tabs-bottom', (headHeight + tabsHeight) + 'px');
   });
@@ -2800,9 +2924,7 @@ function coreSnapshotForCache(state) {
     storage: state.storage || {},
     revision: state.revision,
     today: state.today,
-    overDeliveries: Array.isArray(state.overDeliveries) ? state.overDeliveries : [],
-    overOffsets: Array.isArray(state.overOffsets) ? state.overOffsets : [],
-    replacements: Array.isArray(state.replacements) ? state.replacements : [],
+    // 冲抵相关数据必须每次向云端重新取，不能从本机旧缓存恢复，否则已处理完的 8020D 会反复弹“待冲抵”
     amounts: Array.isArray(state.amounts) ? state.amounts : [],
   };
 }
@@ -2822,7 +2944,13 @@ function restoreCachedState() {
     const cached = JSON.parse(localStorage.getItem(STATE_CACHE_KEY) || 'null');
     if (!cached || cached.code !== code || !cached.snapshot) return false;
     if (Date.now() - Number(cached.savedAt || 0) > 24 * 60 * 60 * 1000) return false;
-    const cachedSnapshot = cached.snapshot;
+    const cachedSnapshot = {
+      ...cached.snapshot,
+      // 兼容旧版本留在本机的缓存：仍忽略其中的冲抵数据，等这次云端刷新后再显示
+      overDeliveries: [],
+      overOffsets: [],
+      replacements: [],
+    };
     if (!Array.isArray(cachedSnapshot.orders) || !Array.isArray(cachedSnapshot.shipments) || !cachedSnapshot.summary) return false;
     snapshot = cachedSnapshot;
     if (snapshot.today) TODAY = snapshot.today;
@@ -2840,8 +2968,1479 @@ async function waitForStateIdle(maxMs = 5000) {
   }
 }
 
+// 恒怡独立发货模块：独立入口、物料客户归属和待开单工作台。
+const HENG_CUSTOMERS = {
+  ssj: { code: 'ssj', short: '圣世杰', name: '江阴圣世杰机械制造有限公司', capacity: 5 },
+  bh: { code: 'bh', short: '宝海', name: '扬州宝海机械制造有限公司', capacity: 5 },
+  bogo: { code: 'bogo', short: '博戈橡胶', name: '博戈橡胶塑料（株洲）有限公司', capacity: 11 },
+};
+
+let hengItemSeq = 0;
+const hengUiState = {
+  initialized: false,
+  loading: false,
+  error: '',
+  materials: [],
+  bogoOrders: [],
+  bogoTotals: { quantity01: 0, quantity02: 0 },
+  bogoError: '',
+  nextNumbers: { ssjBh: 132, bogo: '0085' },
+  customer: 'ssj',
+  mobileHengTab: 'loading',
+  materialQuery: '',
+  items: [],
+  notes: [],
+  packagingByPage: {},
+  pendingRuns: [],
+  pendingDate: '',
+  openBatches: [],
+  openBatchesLoading: false,
+  openBatchesError: '',
+  generating: false,
+  preview: null,
+  previewUploading: false,
+  deliveryFiles: [],
+  deliveryFilesLoading: false,
+  deliveryFilesLoaded: false,
+  deliveryFilesError: '',
+  desktopTab: 'pending',
+  ledgerRows: [],
+  ledgerLoading: false,
+  ledgerLoaded: false,
+  ledgerError: '',
+  ledgerDateFrom: '',
+  ledgerDateTo: '',
+  ledgerCustomer: '',
+  ledgerQuery: '',
+  pendingLoading: false,
+  adminQuery: '',
+};
+const hengQuantityEdits = new Map();
+const hengExpandedRuns = new Set();
+
+function hengCustomer(code = hengUiState.customer) {
+  return HENG_CUSTOMERS[code] || HENG_CUSTOMERS.ssj;
+}
+
+function hengMaterialMatches(row, query) {
+  const text = String(query || '').trim().toLowerCase();
+  if (!text) return true;
+  return [row.materialCode, row.name, row.spec].some((value) => String(value || '').toLowerCase().includes(text));
+}
+
+function hengMaterialsForCustomer(customerCode = hengUiState.customer) {
+  return hengUiState.materials.filter((row) => Array.isArray(row.customerTags) && row.customerTags.includes(customerCode));
+}
+
+function hengRunNoteCount(run) {
+  return (run.notes || []).length;
+}
+
+function hengRunItemCount(run) {
+  return (run.notes || []).reduce((sum, note) => sum + (note.items || []).length, 0);
+}
+
+function hengPendingDates() {
+  return [...new Set((hengUiState.pendingRuns || []).map((run) => String(run.deliveryDate || '')).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function hengSelectedPendingRuns() {
+  const dates = hengPendingDates();
+  if (!dates.length) return [];
+  if (!dates.includes(hengUiState.pendingDate)) hengUiState.pendingDate = dates[0];
+  return (hengUiState.pendingRuns || []).filter((run) => String(run.deliveryDate || '') === hengUiState.pendingDate);
+}
+
+function syncHengGenerateButton() {
+  const button = document.getElementById('hengGenerateDelivery');
+  if (!button) return;
+  const runs = hengSelectedPendingRuns();
+  button.disabled = hengUiState.generating || !runs.length;
+  button.textContent = hengUiState.generating
+    ? '正在生成…'
+    : (hengUiState.pendingDate ? `生成 ${hengUiState.pendingDate} 送货单` : '生成送货单');
+}
+
+function hengEmptyHtml(icon, title, detail) {
+  return `<div class="heng-empty"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span></div>`;
+}
+
+function renderHengLoading(target, message = '正在读取恒怡数据...') {
+  if (target) target.innerHTML = `<div class="heng-loading"><span class="heng-spinner" aria-hidden="true"></span>${escapeHtml(message)}</div>`;
+}
+
+function renderHengCustomerTabs() {
+  return `<div class="heng-customer-tabs" aria-label="收货客户">
+    ${Object.values(HENG_CUSTOMERS).map((customer) => `<button type="button" class="heng-customer-tab${customer.code === hengUiState.customer ? ' active' : ''}" data-heng-customer="${customer.code}">${escapeHtml(customer.short)}</button>`).join('')}
+  </div>`;
+}
+
+function renderHengMaterialResults() {
+  const target = document.getElementById('hengMaterialResults');
+  if (!target) return;
+  if (hengUiState.customer === 'bogo') {
+    target.innerHTML = `<div class="heng-inline-note">博戈只发 01 华菱右、02 华菱左，订单分配入口在本模块内单独处理。</div>`;
+    return;
+  }
+  const query = String(hengUiState.materialQuery || '').trim();
+  if (!query) {
+    target.innerHTML = hengEmptyHtml('', '输入物料信息开始搜索', '搜索物料编号、名称或图号后，这里再显示匹配结果。');
+    return;
+  }
+  const rows = hengMaterialsForCustomer().filter((row) => hengMaterialMatches(row, query));
+  if (!rows.length) {
+    target.innerHTML = hengEmptyHtml('', '没有匹配物料', hengUiState.materials.length ? '请检查物料归属或换一个关键词。' : '物料表尚未导入或数据库未初始化。');
+    return;
+  }
+  target.innerHTML = rows.slice(0, 50).map((row) => `
+    <button type="button" class="heng-material-result" data-heng-add-material="${escapeHtml(row.id)}">
+      <span><strong>${escapeHtml(row.materialCode)} · ${escapeHtml(row.name)}</strong><small>${escapeHtml(row.spec || '无图号')} · ${escapeHtml(row.unit)}</small></span>
+      <b>+</b>
+    </button>`).join('');
+}
+
+function renderHengSelectedItems() {
+  const target = document.getElementById('hengSelectedItems');
+  if (!target) return;
+  if (!hengUiState.items.length) {
+    target.innerHTML = `<div class="heng-inline-note">还没有选择物料。搜索物料后点“+”加入本次装车。</div>`;
+    return;
+  }
+  target.innerHTML = hengUiState.items.map((item, index) => `
+    <div class="heng-selected-row" data-heng-item="${index}">
+      <div><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(hengCustomer(item.customer).short)} · ${escapeHtml(item.materialCode)} · ${escapeHtml(item.spec || '无图号')}</small></div>
+      <label><input type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(item.quantity)}" data-heng-qty="${index}" aria-label="送货数量"><em>${escapeHtml(item.unit)}</em></label>
+      <button type="button" class="heng-row-remove" data-heng-remove="${index}" aria-label="移除物料">×</button>
+    </div>`).join('');
+}
+
+function hengBogoOrderCardsHtml() {
+  const orders = [...hengUiState.bogoOrders].sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+  if (!orders.length) return `<div class="heng-inline-note">还没有博戈订单。先在下方录入订单号和 01、02 锁剩余数量。</div>`;
+  return `<div class="heng-bogo-orders">${orders.map((order, index) => `
+    <button type="button" class="heng-bogo-order" data-heng-bogo-edit="${index}">
+      <span><strong>${escapeHtml(order.orderNo)}</strong><small>01 ${escapeHtml(order.remaining01)} 把 · 02 ${escapeHtml(order.remaining02)} 把</small></span>
+      <b>编辑</b>
+    </button>`).join('')}</div>`;
+}
+
+function buildBogoDraft(quantity01, quantity02) {
+  const orders = [...hengUiState.bogoOrders].sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+  const allocated = window.HengCore.allocateBogo({ quantity01, quantity02 }, orders);
+  hengUiState.bogoError = allocated.error || '';
+  if (allocated.error) return [];
+  const products = {
+    '01': { name: '华菱右', spec: 'TX52019050-01', unit: '把' },
+    '02': { name: '华菱左', spec: 'TX52019050-02', unit: '把' },
+  };
+  const items = allocated.rows.map((row) => ({
+    id: `heng-item-${++hengItemSeq}`,
+    orderNo: row.orderNo,
+    materialCode: row.orderNo,
+    allocationProduct: row.productCode,
+    name: products[row.productCode].name,
+    spec: products[row.productCode].spec,
+    unit: products[row.productCode].unit,
+    quantity: row.quantity,
+  }));
+  return window.HengCore.splitNotes(items, 11).map((pageItems, index) => ({
+    customerCode: 'bogo',
+    consignee: hengCustomer('bogo').name,
+    pageNo: index + 1,
+    orderNumbers: [...new Set(pageItems.map((item) => item.orderNo))].join('/'),
+    items: pageItems,
+    packaging: {},
+    packagingText: '',
+    packagingConfirmed: false,
+  }));
+}
+
+function hengBogoAllocationHtml() {
+  if (hengUiState.bogoError) return `<div class="heng-bogo-error" role="alert">${escapeHtml(hengUiState.bogoError)}</div>`;
+  const rows = hengUiState.notes.flatMap((note) => note.items || []);
+  if (!rows.length) return `<div class="heng-inline-note">填写本次 01、02 数量后，系统会按订单顺序自动分配。</div>`;
+  return `<div class="heng-bogo-allocation-list">${rows.map((row) => `<div><span>${escapeHtml(row.orderNo)} · ${row.allocationProduct === '01' ? '华菱右 01' : '华菱左 02'}</span><b>${escapeHtml(row.quantity)} 把</b></div>`).join('')}</div>`;
+}
+
+function renderHengBogoWorkspace() {
+  return `<div class="heng-bogo-workspace">
+    <div class="heng-subsection-title"><strong>博戈订单队列</strong><span class="heng-draft-summary">按顺序分配</span></div>
+    ${hengBogoOrderCardsHtml()}
+    <div class="heng-bogo-form">
+      <input id="hengBogoOrderNo" type="text" inputmode="numeric" placeholder="订单号" aria-label="博戈订单号">
+      <input id="hengBogoRemaining01" type="number" min="0" step="1" inputmode="numeric" placeholder="01 剩余" aria-label="01 锁剩余数量">
+      <input id="hengBogoRemaining02" type="number" min="0" step="1" inputmode="numeric" placeholder="02 锁剩余数量" aria-label="02 锁剩余数量">
+      <button id="hengSaveBogoOrder" type="button" class="button ghost">保存订单</button>
+    </div>
+    <div class="heng-bogo-form heng-bogo-totals">
+      <label><span>01 华菱右</span><input id="hengBogoTotal01" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(hengUiState.bogoTotals.quantity01)}"></label>
+      <label><span>02 华菱左</span><input id="hengBogoTotal02" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(hengUiState.bogoTotals.quantity02)}"></label>
+    </div>
+    <button id="hengBuildBogo" type="button" class="button heng-action-primary">按订单顺序分配</button>
+    <div id="hengBogoAllocation" class="heng-bogo-allocation">${hengBogoAllocationHtml()}</div>
+  </div>`;
+}
+
+function refreshHengBogoAllocation() {
+  rebuildHengDraft();
+  const allocation = document.getElementById('hengBogoAllocation');
+  if (allocation) allocation.innerHTML = hengBogoAllocationHtml();
+  refreshHengDraftPreview();
+}
+
+function buildSsjBhDraft() {
+  return ['ssj', 'bh'].flatMap((customerCode) => {
+    const customer = hengCustomer(customerCode);
+    const items = hengUiState.items.filter((item) => item.customer === customerCode);
+    return window.HengCore.splitNotes(items, 5).map((pageItems, index) => ({
+      customerCode,
+      consignee: customer.name,
+      orderNumbers: 'P0RD00',
+      pageNo: index + 1,
+      items: pageItems,
+      packaging: {},
+      packagingText: '',
+      packagingConfirmed: false,
+    }));
+  });
+}
+
+function rebuildHengDraft() {
+  hengUiState.notes = hengUiState.customer === 'bogo'
+    ? buildBogoDraft(Number(hengUiState.bogoTotals.quantity01 || 0), Number(hengUiState.bogoTotals.quantity02 || 0))
+    : buildSsjBhDraft();
+}
+
+function hengDraftHtml() {
+  if (!hengUiState.notes.length) {
+    return `<div class="heng-inline-note">加入物料后，系统会按客户分组，每页最多 5 行自动拆单。</div>`;
+  }
+  return hengUiState.notes.map((note, index) => `
+    <article class="heng-draft-page" data-draft-note="${index}" data-draft-customer="${escapeHtml(note.customerCode)}">
+      <div class="heng-draft-head"><div><strong>${escapeHtml(hengCustomer(note.customerCode).short)} · 第 ${note.pageNo} 页</strong><span>${escapeHtml(note.orderNumbers)}</span></div><span class="heng-draft-badge">${note.items.length} / ${note.customerCode === 'bogo' ? 11 : 5} 行</span></div>
+      <div class="heng-draft-lines">
+        ${note.items.map((item) => `<div data-draft-item-id="${escapeHtml(item.id)}"><span>${escapeHtml(item.materialCode)} · ${escapeHtml(item.name)}</span><b data-draft-qty>${escapeHtml(item.quantity)} ${escapeHtml(item.unit)}</b></div>`).join('')}
+      </div>
+      ${renderHengPackagingSection(note, index)}
+    </article>`).join('');
+}
+
+function refreshHengDraftPreview() {
+  rebuildHengDraft();
+  const target = document.getElementById('hengDraftPreview');
+  if (target) target.innerHTML = hengDraftHtml();
+  updateHengConfirmButton();
+}
+
+function hengPageKey(note) {
+  return `${note.customerCode}:${note.pageNo}`;
+}
+
+function ensureHengPackaging(note) {
+  const key = hengPageKey(note);
+  const signature = window.HengCore.packagingSignature([note]);
+  let state = hengUiState.packagingByPage[key];
+  if (!state) {
+    state = { packaging: { noPackaging: false, order: [] }, text: '', confirmed: false, signature };
+    hengUiState.packagingByPage[key] = state;
+  } else if (state.signature !== signature) {
+    state.signature = signature;
+    state.confirmed = false;
+  }
+  return state;
+}
+
+function hengPackChecked(state, key) {
+  return Boolean(state.packaging && Number(state.packaging[key] || 0) > 0);
+}
+
+function renderHengPackagingSection(note, index) {
+  const state = ensureHengPackaging(note);
+  const packaging = state.packaging || {};
+  const text = state.text || window.HengCore.formatPackaging(packaging);
+  const checks = window.HengCore.PACKAGE_FIELDS.map(([key, label]) => `
+    <label class="heng-pack-choice">
+      <input type="checkbox" data-heng-pack-note="${index}" data-heng-pack-key="${key}" ${hengPackChecked(state, key) ? 'checked' : ''}>
+      <span>${label}</span>
+      <input type="number" min="0" step="1" inputmode="numeric" data-heng-pack-qty-note="${index}" data-heng-pack-qty-key="${key}" value="${hengPackChecked(state, key) ? escapeHtml(packaging[key]) : ''}" aria-label="${label}数量">
+    </label>`).join('');
+  return `<div class="heng-pack-editor" data-heng-pack-editor="${index}">
+    <div class="heng-pack-head"><strong>包装总数</strong><span class="${state.confirmed ? 'confirmed' : ''}">${state.confirmed ? '已确认' : '待确认'}</span></div>
+    <div class="heng-pack-grid">${checks}</div>
+    <label class="heng-pack-other"><span>其他包装</span><input type="text" data-heng-pack-other-name="${index}" value="${escapeHtml(packaging.otherName || '')}" placeholder="如：大架"><input type="number" min="0" step="1" inputmode="numeric" data-heng-pack-other-qty="${index}" value="${escapeHtml(packaging.otherQuantity || '')}" aria-label="其他包装数量"></label>
+    <label class="heng-pack-none"><input type="checkbox" data-heng-pack-none="${index}" ${packaging.noPackaging ? 'checked' : ''}><span>本页无包装</span></label>
+    <div class="heng-pack-total"><span>${escapeHtml(text || '尚未选择包装')}</span><button type="button" data-heng-confirm-pack="${index}">${state.confirmed ? '重新确认' : '确认包装'}</button></div>
+  </div>`;
+}
+
+function readHengPackagingFromDom(index) {
+  const note = hengUiState.notes[index];
+  if (!note) return null;
+  const state = ensureHengPackaging(note);
+  const packaging = { order: [] };
+  for (const [key] of window.HengCore.PACKAGE_FIELDS) {
+    const checkbox = document.querySelector(`[data-heng-pack-note="${index}"][data-heng-pack-key="${key}"]`);
+    const quantity = document.querySelector(`[data-heng-pack-qty-note="${index}"][data-heng-pack-qty-key="${key}"]`);
+    if (checkbox?.checked) {
+      packaging.order.push(key);
+      packaging[key] = Number(quantity?.value || 0);
+    } else {
+      packaging[key] = 0;
+    }
+  }
+  const otherName = document.querySelector(`[data-heng-pack-other-name="${index}"]`);
+  const otherQuantity = document.querySelector(`[data-heng-pack-other-qty="${index}"]`);
+  const noPackaging = document.querySelector(`[data-heng-pack-none="${index}"]`);
+  packaging.otherName = String(otherName?.value || '').trim();
+  packaging.otherQuantity = Number(otherQuantity?.value || 0);
+  packaging.noPackaging = Boolean(noPackaging?.checked);
+  state.packaging = packaging;
+  state.text = window.HengCore.formatPackaging(packaging);
+  state.confirmed = false;
+  note.packaging = packaging;
+  note.packagingText = state.text;
+  return state;
+}
+
+function refreshHengPackagingUi(index) {
+  const state = readHengPackagingFromDom(index);
+  if (!state) return;
+  const editor = document.querySelector(`[data-heng-pack-editor="${index}"]`);
+  if (editor) {
+    const total = editor.querySelector('.heng-pack-total span');
+    if (total) total.textContent = state.text || '尚未选择包装';
+    const badge = editor.querySelector('.heng-pack-head span');
+    if (badge) { badge.textContent = '待确认'; badge.classList.remove('confirmed'); }
+  }
+  updateHengConfirmButton();
+}
+
+function confirmHengPackaging(index) {
+  const state = readHengPackagingFromDom(index);
+  if (!state) return;
+  const validation = window.HengCore.validatePackaging(state.packaging);
+  if (!validation.valid) {
+    showToast(validation.error, 5000);
+    return;
+  }
+  state.text = validation.text;
+  state.confirmed = true;
+  const note = hengUiState.notes[index];
+  note.packaging = state.packaging;
+  note.packagingText = validation.text;
+  note.packagingConfirmed = true;
+  renderHengMobile();
+}
+
+function updateHengConfirmButton() {
+  const button = document.getElementById('hengConfirmLoading');
+  if (!button) return;
+  const ready = hengUiState.notes.length > 0 && hengUiState.notes.every((note) => ensureHengPackaging(note).confirmed);
+  button.disabled = !ready || Boolean(hengUiState.bogoError);
+}
+
+function openHengPackagingReviewModal() {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('hengPackagingReviewModal');
+    const finish = (answer) => {
+      modal.hidden = true;
+      document.getElementById('hengModifyPackaging').onclick = null;
+      document.getElementById('hengKeepPackaging').onclick = null;
+      document.getElementById('hengCancelPackaging').onclick = null;
+      resolve(answer);
+    };
+    document.getElementById('hengModifyPackaging').onclick = () => finish('modify');
+    document.getElementById('hengKeepPackaging').onclick = () => finish('keep');
+    document.getElementById('hengCancelPackaging').onclick = () => finish('cancel');
+    modal.hidden = false;
+  });
+}
+
+async function confirmHengLoading() {
+  if (!hengUiState.notes.length) return;
+  if (!hengUiState.notes.every((note) => ensureHengPackaging(note).confirmed)) {
+    showToast('请先确认每一页包装', 5000);
+    return;
+  }
+  const button = document.getElementById('hengConfirmLoading');
+  if (button) button.disabled = true;
+  try {
+    const payload = {
+      clientToken: crypto.randomUUID(),
+      deliveryDate: todayShanghai(),
+      notes: hengUiState.notes.map((note) => {
+        const state = ensureHengPackaging(note);
+        return {
+          customerCode: note.customerCode,
+          consignee: note.consignee,
+          pageNo: note.pageNo,
+          orderNumbers: note.orderNumbers,
+          packaging: state.packaging,
+          packagingText: state.text,
+          noPackaging: Boolean(state.packaging.noPackaging),
+          items: note.items.map((item) => ({
+            orderNo: item.orderNo || (note.customerCode === 'bogo' ? '' : 'P0RD00'),
+            materialCode: item.materialCode,
+            name: item.name,
+            spec: item.spec || '',
+            unit: item.unit,
+            quantity: Number(item.quantity),
+            allocationProduct: item.allocationProduct || null,
+          })),
+        };
+      }),
+    };
+    const result = await callRpc('board_heng_confirm_run', { p_code: getAccessCode(), p_payload: payload });
+    if (!result.response.ok) throw new Error(result.data?.message || '确认装车失败');
+    const hadBogoItems = payload.notes.some((note) => note.customerCode === 'bogo');
+    hengUiState.items = [];
+    hengUiState.notes = [];
+    hengUiState.packagingByPage = {};
+    hengUiState.bogoTotals = { quantity01: 0, quantity02: 0 };
+    renderHengMobile();
+    loadHengPendingRuns().catch(() => {});
+    if (hadBogoItems) loadHengBootstrap(true).catch(() => {});
+    showToast('已确认完成装车，等待电脑端生成送货单', 6000);
+  } catch (error) {
+    showToast(error.message || '确认装车失败', 6000);
+    updateHengConfirmButton();
+  }
+}
+
+function hengMobileModuleHead(title, subtitle, badge) {
+  return `<div class="heng-module-head">
+    <div><p class="eyebrow">恒怡独立业务线</p><h1>${escapeHtml(title)}</h1><span class="heng-page-subtitle">${escapeHtml(subtitle)}</span></div>
+    <span class="heng-isolated-badge">${escapeHtml(badge)}</span>
+  </div>`;
+}
+
+function renderHengMobilePendingHtml() {
+  const runs = hengUiState.pendingRuns || [];
+  return hengMobileModuleHead('待开单', '核对物料与包装；送货单和撤回在电脑端完成', '恒怡') + `
+    <div class="heng-mobile-status-list">
+      ${runs.length ? runs.map((run) => {
+        const notes = run.notes || [];
+        const customers = [...new Set(notes.map((note) => hengCustomer(note.customerCode).short))].join(' / ');
+        const allItems = notes.flatMap((note) => (note.items || []).map((item) => ({ ...item, note })));
+        const expanded = hengExpandedRuns.has(String(run.id));
+        const shownItems = expanded ? allItems : allItems.slice(0, 3);
+        const hiddenItems = allItems.length - shownItems.length;
+        const stamp = run.createdAt
+          ? new Date(run.createdAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' })
+          : '';
+        return `<article class="heng-mobile-status-card heng-mobile-record-card" data-heng-run="${escapeHtml(run.id)}">
+          <div class="heng-mobile-record-head"><div><strong>${escapeHtml(run.deliveryDate)} 装车记录</strong><span>${escapeHtml(customers)} · ${notes.length} 页 · ${allItems.length} 项</span></div><span class="heng-step-badge">待开单</span></div>
+          <div class="heng-mobile-record-time">装车时间：${escapeHtml(stamp || run.createdAt || '—')}</div>
+          ${notes.map((note) => `<div class="heng-mobile-status-line"><span>${escapeHtml(hengCustomer(note.customerCode).short)} · 第 ${note.pageNo} 页 · ${escapeHtml(note.orderNumbers || '')}</span><b>${escapeHtml(note.packagingText || '包装待核对')}</b></div>`).join('')}
+          <div class="history-lines heng-mobile-record-lines">
+            ${shownItems.map((item) => `<div class="history-line history-line-rich">
+              <div class="history-line-main"><span><b>${escapeHtml(item.materialCode || item.orderNo || '')}</b> ${escapeHtml(item.name || '')}${item.spec ? ' · ' + escapeHtml(item.spec) : ''}</span><strong>${fmt(item.quantity)} ${escapeHtml(item.unit || '')}</strong></div>
+              <div class="history-line-meta"><span>${escapeHtml(hengCustomer(item.note.customerCode).short)} · 第 ${item.note.pageNo} 页</span><span>订单号：${escapeHtml(item.orderNo || item.note.orderNumbers || 'P0RD00')}</span></div>
+            </div>`).join('')}
+          </div>
+          ${allItems.length > 3 ? `<button class="history-expand" type="button" data-heng-expand-run="${escapeHtml(run.id)}">${expanded ? '收起明细' : `展开全部 ${allItems.length} 项（还有 ${hiddenItems} 项）`}</button>` : ''}
+          <div class="heng-mobile-record-foot">
+            <span>${boardRole === 'admin' ? '送货单请在电脑端生成' : '撤回需要管理员权限'}</span>
+            ${boardRole === 'admin' ? `<button class="row-revoke" type="button" data-heng-void-run="${escapeHtml(run.id)}">撤回</button>` : ''}
+          </div>
+        </article>`;
+      }).join('') : hengEmptyHtml('', '暂无待开单记录', '先在“装车确认”中提交本次发货。')}
+    </div>`;
+}
+
+function renderHengMobileLedgerHtml() {
+  const rows = hengUiState.ledgerRows || [];
+  return hengMobileModuleHead('发货清单', '只显示恒怡已开单记录，与艾沃意特分开', '已开单') + `
+    <div class="heng-mobile-ledger-list">
+      ${rows.length ? rows.map((row) => `<article class="heng-mobile-ledger-card">
+        <div class="heng-mobile-ledger-head"><strong>${escapeHtml(row.noteNumber)}</strong><span>${escapeHtml(row.customerName)} · ${escapeHtml(row.deliveryDate)}</span></div>
+        <div class="heng-mobile-ledger-name">${escapeHtml(row.materialCode)} · ${escapeHtml(row.name)}</div>
+        <div class="heng-mobile-ledger-meta"><span>${escapeHtml(row.spec || '无规格')}</span><b>${fmt(row.quantity)} ${escapeHtml(row.unit)}</b></div>
+        <div class="heng-mobile-ledger-pack">包装：${escapeHtml(row.packagingText || '—')}</div>
+      </article>`).join('') : hengEmptyHtml('', '暂无恒怡发货记录', hengUiState.ledgerLoading ? '正在加载...' : '电脑端开单后会出现在这里。')}
+    </div>`;
+}
+
+function setMobileHengTab(tab) {
+  hengUiState.mobileHengTab = ['loading', 'pending', 'ledger'].includes(tab) ? tab : 'loading';
+  document.querySelectorAll('[data-heng-mobile-tab]').forEach((button) => button.classList.toggle('active', button.dataset.hengMobileTab === hengUiState.mobileHengTab));
+  renderHengMobile();
+  if (hengUiState.mobileHengTab === 'pending') loadHengPendingRuns().catch(() => {});
+  if (hengUiState.mobileHengTab === 'ledger' && typeof loadHengLedger === 'function') loadHengLedger().catch(() => {});
+}
+
+function switchMobileBusinessLine(line) {
+  const selected = line === 'heng' ? 'heng' : 'awoyite';
+  mobileModule = 'entry';
+  try { localStorage.setItem('shipmentBoardMobileBusinessLine', selected); } catch { }
+  document.body.dataset.businessLine = selected;
+  const brandModule = document.getElementById('mobileBrandModule');
+  if (brandModule) brandModule.textContent = selected === 'heng' ? '恒怡发货' : '艾沃意特 · 装车登记';
+  document.querySelectorAll('[data-mobile-business]').forEach((button) => {
+    const active = button.dataset.mobileBusiness === selected;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  const normalTabs = document.getElementById('mobileMainTabs');
+  const hengTabs = document.getElementById('mobileHengTabs');
+  const summary = document.querySelector('.mobile-summary');
+  const hengPanel = document.getElementById('mobileHengPanel');
+  const basePanels = [els.mobileEntryPanel, els.mobileRemainingPanel, els.mobileRecordsPanel, els.mobileFilesPanel];
+
+  [els.mobileWorkModule, els.mobileAttendanceModule, els.mobileStaffInfoModule, els.mobilePayrollModule].forEach((module) => { if (module) module.hidden = true; });
+  if (selected === 'heng') {
+    if (summary) summary.hidden = true;
+    if (normalTabs) normalTabs.hidden = true;
+    if (hengTabs) hengTabs.hidden = false;
+    if (hengPanel) hengPanel.hidden = false;
+    basePanels.forEach((panel) => { if (panel) panel.hidden = true; });
+    if (els.mobileCartBar) els.mobileCartBar.hidden = true;
+    initHengDelivery();
+    setMobileHengTab(hengUiState.mobileHengTab || 'loading');
+  } else {
+    if (hengTabs) hengTabs.hidden = true;
+    if (hengPanel) hengPanel.hidden = true;
+    if (normalTabs) normalTabs.hidden = false;
+    switchMobileTab('entry');
+  }
+  if (typeof closeMobileModuleSheet === 'function') closeMobileModuleSheet();
+  if (typeof syncMobileStickyOffsets === 'function') syncMobileStickyOffsets();
+}
+
+function renderHengMobile() {
+  const root = document.getElementById('mobileHengContent');
+  if (!root) return;
+  if (hengUiState.mobileHengTab === 'pending') {
+    root.innerHTML = renderHengMobilePendingHtml();
+    return;
+  }
+  if (hengUiState.mobileHengTab === 'ledger') {
+    root.innerHTML = renderHengMobileLedgerHtml();
+    return;
+  }
+  if (hengUiState.loading && !hengUiState.materials.length) return renderHengLoading(root);
+  if (hengUiState.error) {
+    root.innerHTML = `<div class="heng-module-head"><div><p class="eyebrow">恒怡独立发货</p><h1>恒怡发货</h1></div><span class="heng-isolated-badge">与艾沃意特分开</span></div>${hengEmptyHtml('', '恒怡数据库还未就绪', hengUiState.error)}`;
+    return;
+  }
+  const customer = hengCustomer();
+  const isBogo = hengUiState.customer === 'bogo';
+  rebuildHengDraft();
+  const pickerHtml = isBogo ? renderHengBogoWorkspace() : `
+    <div class="heng-search-wrap">
+      <label class="heng-search"><span aria-hidden="true">⌕</span><input id="hengMaterialSearch" type="search" value="${escapeHtml(hengUiState.materialQuery)}" placeholder="搜索物料编号 / 名称 / 图号" autocomplete="off"></label>
+    </div>
+    <div id="hengMaterialResults" class="heng-material-results"></div>
+    <div class="heng-subsection-title"><strong>本次装车明细</strong><button id="hengClearDraft" type="button">清空</button></div>
+    <div id="hengSelectedItems" class="heng-selected-items"></div>`;
+  root.innerHTML = `
+    <div class="heng-module-head">
+      <div><p class="eyebrow">恒怡独立发货</p><h1>恒怡发货</h1></div>
+      <span class="heng-isolated-badge">与艾沃意特分开</span>
+    </div>
+    ${renderHengCustomerTabs()}
+    <div class="heng-mobile-subhead"><strong>${escapeHtml(customer.name)}</strong><span>每页最多 ${customer.capacity} 行</span></div>
+    ${pickerHtml}
+    <div class="heng-subsection-title"><strong>自动拆单预览</strong><span class="heng-draft-summary">${hengUiState.notes.length} 页</span></div>
+    <div id="hengDraftPreview" class="heng-draft-preview">${hengDraftHtml()}</div>
+
+    <div class="heng-mobile-actions">
+      <button id="hengConfirmLoading" class="button heng-action-primary" type="button" disabled>确认完成装车</button>
+      <span>手机只确认装车，送货单在电脑端生成。</span>
+    </div>`;
+  if (!isBogo) {
+    renderHengMaterialResults();
+    renderHengSelectedItems();
+  }
+  updateHengConfirmButton();
+}
+
+function renderHengPendingRuns() {
+  const target = document.getElementById('hengPendingList');
+  if (!target) return;
+  if (hengUiState.pendingLoading) return renderHengLoading(target, '正在读取待开单记录...');
+  const runs = hengSelectedPendingRuns();
+  if (!runs.length) {
+    target.innerHTML = hengEmptyHtml('', '暂无待开单记录', '手机确认完成装车后，记录会出现在这里。');
+    return;
+  }
+  target.innerHTML = runs.map((run) => {
+    const notes = run.notes || [];
+    const customers = [...new Set(notes.map((note) => hengCustomer(note.customerCode).short))];
+    const allItems = notes.flatMap((note) => (note.items || []).map((item) => ({ ...item, note })));
+    const expanded = hengExpandedRuns.has(String(run.id));
+    const shownItems = expanded ? allItems : allItems.slice(0, 5);
+    const hiddenItems = allItems.length - shownItems.length;
+    const unitTotals = new Map();
+    for (const item of allItems) {
+      const unit = String(item.unit || '件');
+      unitTotals.set(unit, (unitTotals.get(unit) || 0) + Number(item.quantity || 0));
+    }
+    const quantityText = [...unitTotals.entries()].map(([unit, quantity]) => `${fmt(quantity)}${unit}`).join(' · ');
+    const stamp = run.createdAt
+      ? new Date(run.createdAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' })
+      : '';
+    return `<article class="history-card heng-record-card" data-heng-run="${escapeHtml(run.id)}">
+      <div class="history-head">
+        <div class="heng-record-title"><strong>${escapeHtml(run.deliveryDate)} 装车记录</strong><span>${escapeHtml(customers.join(' / '))} · ${notes.length} 页 · ${allItems.length} 项</span></div>
+        <span class="heng-step-badge">已装车待开单</span>
+      </div>
+      <div class="history-meta">装车时间：${escapeHtml(stamp || run.createdAt || '—')}</div>
+      <div class="heng-pending-lines heng-record-pages">
+        ${notes.map((note) => `<div><span>${escapeHtml(hengCustomer(note.customerCode).short)} · 第 ${note.pageNo} 页 · ${escapeHtml(note.orderNumbers || '')}</span><b>${escapeHtml(note.packagingText || '包装待核对')}</b></div>`).join('')}
+      </div>
+      <div class="history-lines heng-record-lines">
+        ${shownItems.map((item) => `<div class="history-line history-line-rich">
+          <div class="history-line-main"><span><b>${escapeHtml(item.materialCode || item.orderNo || '')}</b> ${escapeHtml(item.name || '')}${item.spec ? ' · ' + escapeHtml(item.spec) : ''}</span><strong>${fmt(item.quantity)} ${escapeHtml(item.unit || '')}</strong></div>
+          <div class="history-line-meta"><span>${escapeHtml(hengCustomer(item.note.customerCode).short)} · 第 ${item.note.pageNo} 页</span><span>订单号：${escapeHtml(item.orderNo || item.note.orderNumbers || 'P0RD00')}</span></div>
+        </div>`).join('')}
+      </div>
+      ${allItems.length > 5 ? `<button class="history-expand" type="button" data-heng-expand-run="${escapeHtml(run.id)}">${expanded ? '收起明细' : `展开全部 ${allItems.length} 项（还有 ${hiddenItems} 项）`}</button>` : ''}
+      <div class="history-foot">
+        <span class="history-total">数量：${escapeHtml(quantityText || '0')} · ${allItems.length} 项</span>
+        <button class="row-revoke" type="button" data-heng-void-run="${escapeHtml(run.id)}" title="撤回这笔装车记录">撤回</button>
+      </div>
+    </article>`;
+  }).join('');
+}
+
+function renderHengOpenBatches() {
+  const target = document.getElementById('hengOpenBatchList');
+  if (!target) return;
+  if (hengUiState.openBatchesLoading) return renderHengLoading(target, '正在读取处理中断的批次...');
+  if (hengUiState.openBatchesError) {
+    target.innerHTML = `<div class="heng-open-error"><strong>处理中断批次暂时读取失败</strong><span>${escapeHtml(hengUiState.openBatchesError)}</span><small>待开单仍然可以正常生成送货单。</small><button type="button" class="heng-row-action primary" data-heng-retry-open="1">重新读取</button></div>`;
+    return;
+  }
+  const batches = hengUiState.openBatches || [];
+  if (!batches.length) {
+    target.innerHTML = hengEmptyHtml('', '没有处理中断的批次', '打印、上传或标记开单失败时，会保留在这里继续处理。');
+    return;
+  }
+  target.innerHTML = batches.map((batch) => {
+    const plan = batch.plan || {};
+    const notes = plan.notes || [];
+    const state = batch.uploadedAt ? '已上传，待完成开单' : batch.printedAt ? '已打印，待上传' : '待打印';
+    return `<article class="heng-open-card" data-heng-open-batch="${escapeHtml(batch.id)}">
+      <div class="heng-pending-head"><div><strong>${escapeHtml(batch.deliveryDate)}</strong><span>${escapeHtml(state)}</span></div><span class="heng-step-badge warning">处理中</span></div>
+      <div class="heng-pending-meta"><span>${notes.length} 页</span><span>编号 ${escapeHtml(String(plan.ssjBhNumber || plan.bogoNumber || '—'))}</span></div>
+      ${batch.lastError ? `<div class="heng-bogo-error" role="alert">${escapeHtml(batch.lastError)}</div>` : ''}
+      <div class="heng-pending-actions">
+        <button type="button" class="heng-row-action primary" data-heng-resume-batch="${escapeHtml(batch.id)}">继续处理</button>
+        <button type="button" class="heng-row-action danger" data-heng-void-batch="${escapeHtml(batch.id)}">作废并释放</button>
+      </div>
+    </article>`;
+  }).join('');
+}
+
+function renderHengDesktop() {
+  const root = document.getElementById('hengDesktopContent');
+  if (!root) return;
+  if (hengUiState.loading && !hengUiState.materials.length) return renderHengLoading(root);
+  if (hengUiState.error) {
+    root.innerHTML = `<section class="panel">${hengEmptyHtml('', '恒怡数据库还未就绪', hengUiState.error)}</section>`;
+    return;
+  }
+  const pendingCount = hengUiState.pendingRuns.length;
+  const noteCount = hengUiState.pendingRuns.reduce((sum, run) => sum + hengRunNoteCount(run), 0);
+  const itemCount = hengUiState.pendingRuns.reduce((sum, run) => sum + hengRunItemCount(run), 0);
+  const dates = hengPendingDates();
+  hengSelectedPendingRuns();
+  const dateTabs = dates.length > 1 ? `<div class="heng-pending-dates" aria-label="送货日期">
+    ${dates.map((date) => `<button type="button" class="${hengUiState.pendingDate === date ? 'active' : ''}" data-heng-pending-date="${escapeHtml(date)}">${escapeHtml(date)}</button>`).join('')}
+  </div>` : '';
+  const tabs = `<div class="heng-desktop-tabs" role="tablist" aria-label="恒怡发货">
+    <button type="button" class="${hengUiState.desktopTab === 'pending' ? 'active' : ''}" data-heng-desktop-tab="pending">待开单</button>
+    <button type="button" class="${hengUiState.desktopTab === 'ledger' ? 'active' : ''}" data-heng-desktop-tab="ledger">发货清单</button>
+  </div>`;
+  const pendingHtml = `<section class="heng-desktop-summary">
+      <article><span>待开单装车记录</span><strong>${pendingCount} 批</strong></article>
+      <article><span>待生成送货单</span><strong>${noteCount} 页</strong></article>
+      <article><span>待开单物料</span><strong>${itemCount} 行</strong></article>
+      <article><span>下一编号</span><strong>${escapeHtml(String(hengUiState.nextNumbers.ssjBh || ''))} / ${escapeHtml(String(hengUiState.nextNumbers.bogo || ''))}</strong></article>
+    </section>
+    ${dateTabs}
+    <section class="panel heng-pending-panel">
+      <div class="section-head"><div><h2>已装车待开单</h2><p>按送货日期分别生成，避免跨日期混在一张单里。</p></div><span class="heng-isolated-badge">恒怡专用</span></div>
+      <div id="hengPendingList" class="heng-pending-list"></div>
+    </section>
+    <section class="panel heng-open-panel">
+      <div class="section-head"><div><h2>处理中断</h2><p>打印、上传或标记开单失败时，可以从这里继续，不会丢编号和装车记录。</p></div><span class="heng-isolated-badge warning">待恢复</span></div>
+      <div id="hengOpenBatchList" class="heng-pending-list"></div>
+    </section>`;
+  const ledgerHtml = typeof hengLedgerHtml === 'function' ? hengLedgerHtml() : '<section class="panel">发货清单模块未加载</section>';
+  root.innerHTML = tabs + (hengUiState.desktopTab === 'ledger' ? ledgerHtml : pendingHtml);
+  if (hengUiState.desktopTab !== 'ledger') {
+    renderHengPendingRuns();
+    renderHengOpenBatches();
+  }
+  syncHengGenerateButton();
+}
+
+function renderHengMaterialAdmin() {
+  const target = document.getElementById('hengMaterialAdminList');
+  if (!target) return;
+  const rows = hengUiState.materials.filter((row) => hengMaterialMatches(row, hengUiState.adminQuery));
+  if (!rows.length) {
+    target.innerHTML = hengEmptyHtml('', '没有物料', '先导入物料表，或换一个搜索词。');
+    return;
+  }
+  target.innerHTML = rows.map((row) => `<div class="heng-material-admin-row">
+    <div><strong>${escapeHtml(row.materialCode)} · ${escapeHtml(row.name)}</strong><span>${escapeHtml(row.spec || '无图号')} · ${escapeHtml(row.unit)}</span></div>
+    <div class="heng-customer-checks">
+      ${Object.values(HENG_CUSTOMERS).map((customer) => `<label><input type="checkbox" data-heng-material-tag="${escapeHtml(row.id)}" data-heng-tag-customer="${customer.code}" ${(row.customerTags || []).includes(customer.code) ? 'checked' : ''}><span>${escapeHtml(customer.short)}</span></label>`).join('')}
+    </div>
+  </div>`).join('');
+}
+
+async function loadHengBootstrap(force = false) {
+  if (hengUiState.loading) return;
+  if (hengUiState.materials.length && !force) return;
+  hengUiState.loading = true;
+  hengUiState.error = '';
+  renderHengMobile();
+  renderHengDesktop();
+  try {
+    const result = await callRpc('board_heng_bootstrap', { p_code: getAccessCode() });
+    if (!result.response.ok) throw new Error(result.data?.message || '恒怡基础数据加载失败');
+    hengUiState.materials = result.data?.materials || [];
+    hengUiState.bogoOrders = result.data?.bogoOrders || [];
+    hengUiState.nextNumbers = result.data?.nextNumbers || hengUiState.nextNumbers;
+  } catch (error) {
+    hengUiState.error = /find the function|schema cache|404/i.test(String(error.message || error))
+      ? '数据库迁移尚未执行：请先在 Supabase SQL Editor 运行 cloud/migrations/202610230002_heng_delivery.sql。'
+      : (error.message || '恒怡基础数据加载失败');
+  } finally {
+    hengUiState.loading = false;
+    renderHengMobile();
+    renderHengDesktop();
+  }
+}
+
+async function loadHengPendingRuns() {
+  hengUiState.pendingLoading = true;
+  renderHengPendingRuns();
+  try {
+    const result = await callRpc('board_heng_get_pending_runs', { p_code: getAccessCode(), p_filters: {} });
+    if (!result.response.ok) throw new Error(result.data?.message || '待开单记录加载失败');
+    hengUiState.pendingRuns = Array.isArray(result.data) ? result.data : [];
+    const dates = hengPendingDates();
+    if (!dates.includes(hengUiState.pendingDate)) hengUiState.pendingDate = dates[0] || '';
+  } catch (error) {
+    hengUiState.pendingRuns = [];
+    hengUiState.error = error.message || '待开单记录加载失败';
+  } finally {
+    hengUiState.pendingLoading = false;
+    renderHengDesktop();
+    renderHengMobile();
+  }
+}
+
+async function loadHengOpenBatches() {
+  hengUiState.openBatchesLoading = true;
+  hengUiState.openBatchesError = '';
+  renderHengOpenBatches();
+  try {
+    const result = await callRpc('board_heng_get_open_batches', { p_code: getAccessCode() });
+    if (!result.response.ok) throw new Error(result.data?.message || '处理中断批次加载失败');
+    hengUiState.openBatches = Array.isArray(result.data) ? result.data : [];
+  } catch (error) {
+    hengUiState.openBatchesError = error.message || '处理中断批次加载失败';
+  } finally {
+    hengUiState.openBatchesLoading = false;
+    renderHengOpenBatches();
+  }
+}
+
+async function saveHengMaterialCustomers(materialId, customers) {
+  const result = await callRpc('board_heng_set_material_customers', {
+    p_code: getAccessCode(),
+    p_material_id: materialId,
+    p_customers: customers,
+  });
+  if (!result.response.ok) throw new Error(result.data?.message || '物料客户归属保存失败');
+  const row = hengUiState.materials.find((item) => String(item.id) === String(materialId));
+  if (row) row.customerTags = [...customers];
+  renderHengMobile();
+  renderHengMaterialAdmin();
+}
+
+async function saveBogoOrder(orderNo, remaining01, remaining02, sortOrder) {
+  const result = await callRpc('board_heng_save_bogo_order', {
+    p_code: getAccessCode(),
+    p_payload: {
+      orderNo: String(orderNo || '').trim(),
+      remaining01: Number(remaining01 || 0),
+      remaining02: Number(remaining02 || 0),
+      sortOrder: Number(sortOrder || 0),
+    },
+  });
+  if (!result.response.ok) throw new Error(result.data?.message || '博戈订单保存失败');
+  await loadHengBootstrap(true);
+}
+
+function markHengPackagingPendingDom(index) {
+  const badge = document.querySelector(`[data-heng-pack-editor="${index}"] .heng-pack-head span`);
+  if (!badge) return;
+  badge.textContent = '待确认';
+  badge.classList.remove('confirmed');
+}
+
+async function reviewHengPackagingAfterChange(noteIndex) {
+  const answer = await openHengPackagingReviewModal();
+  if (answer === 'cancel') return false;
+  const note = hengUiState.notes[noteIndex];
+  if (note) {
+    const state = ensureHengPackaging(note);
+    state.confirmed = false;
+    note.packagingConfirmed = false;
+    markHengPackagingPendingDom(noteIndex);
+  }
+  if (answer === 'modify') {
+    setTimeout(() => document.querySelector(`[data-heng-pack-editor="${noteIndex}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+  } else {
+    showToast('原包装已保留，请重新确认后才能完成装车', 4000);
+  }
+  return true;
+}
+
+function addHengMaterial(materialId) {
+  const material = hengUiState.materials.find((row) => String(row.id) === String(materialId));
+  if (!material) return;
+  if (!(material.customerTags || []).includes(hengUiState.customer)) {
+    showToast('该物料不适用于当前客户', 4000);
+    return;
+  }
+  const existing = hengUiState.items.find((row) => String(row.materialId) === String(materialId) && row.customer === hengUiState.customer);
+  if (existing) {
+    existing.quantity = Number(existing.quantity || 0) + 1;
+    showToast('相同物料已存在，数量已合并', 2500);
+  } else {
+    hengUiState.items.push({
+      id: `heng-item-${++hengItemSeq}`,
+      materialId: material.id,
+      customer: hengUiState.customer,
+      materialCode: material.materialCode,
+      name: material.name,
+      spec: material.spec || '',
+      unit: material.unit || '件',
+      quantity: 1,
+    });
+  }
+  renderHengSelectedItems();
+  refreshHengDraftPreview();
+}
+
+function rememberHengQuantityEdit(index) {
+  const item = hengUiState.items[index];
+  if (!item || hengQuantityEdits.has(item.id)) return;
+  const noteIndex = hengUiState.notes.findIndex((note) => note.items.some((row) => row.id === item.id));
+  const state = noteIndex >= 0 ? ensureHengPackaging(hengUiState.notes[noteIndex]) : null;
+  hengQuantityEdits.set(item.id, {
+    originalQuantity: Number(item.quantity || 0),
+    packagingWasConfirmed: Boolean(state?.confirmed),
+  });
+}
+
+function updateHengDraftQuantityDom(item) {
+  if (!item) return;
+  const line = document.querySelector(`[data-draft-item-id="${CSS.escape(String(item.id))}"]`);
+  const quantity = line?.querySelector('[data-draft-qty]');
+  if (quantity) quantity.textContent = `${item.quantity} ${item.unit}`;
+}
+
+function previewHengQuantity(index, value) {
+  const item = hengUiState.items[index];
+  if (!item) return;
+  const raw = String(value ?? '').trim();
+  item.quantity = raw === '' ? 0 : Math.max(0, Math.floor(Number(raw) || 0));
+  updateHengDraftQuantityDom(item);
+}
+
+async function commitHengQuantity(index, value) {
+  const item = hengUiState.items[index];
+  if (!item) return;
+  const edit = hengQuantityEdits.get(item.id);
+  hengQuantityEdits.delete(item.id);
+  const noteIndex = hengUiState.notes.findIndex((note) => note.items.some((row) => row.id === item.id));
+  if (edit?.packagingWasConfirmed && noteIndex >= 0) {
+    const proceed = await reviewHengPackagingAfterChange(noteIndex);
+    if (!proceed) {
+      item.quantity = edit.originalQuantity;
+      refreshHengDraftPreview();
+      const restoredNote = hengUiState.notes[noteIndex];
+      if (restoredNote) {
+        const state = ensureHengPackaging(restoredNote);
+        state.confirmed = true;
+        restoredNote.packagingConfirmed = true;
+      }
+      renderHengMobile();
+      return;
+    }
+  }
+  const raw = String(value ?? '').trim();
+  const quantity = raw === '' ? 0 : Math.max(0, Math.floor(Number(raw) || 0));
+  if (quantity <= 0) {
+    const currentIndex = hengUiState.items.findIndex((row) => row.id === item.id);
+    if (currentIndex >= 0) hengUiState.items.splice(currentIndex, 1);
+    renderHengSelectedItems();
+  } else {
+    item.quantity = quantity;
+    rebuildHengDraft();
+    updateHengDraftQuantityDom(item);
+    updateHengConfirmButton();
+  }
+}
+
+function showHengDesktopView() {
+  const view = document.getElementById('desktopHengView');
+  if (!view) return;
+  document.body.dataset.businessLine = 'heng';
+  try { localStorage.setItem('shipmentBoardBusinessLine', 'heng'); } catch { }
+  document.querySelectorAll('.desktop-view').forEach((section) => { section.hidden = section !== view; });
+  document.querySelectorAll('.side-link').forEach((link) => link.classList.remove('active'));
+  document.getElementById('desktopHengLink')?.classList.add('active');
+  view.hidden = false;
+  loadHengBootstrap().then(() => Promise.all([loadHengPendingRuns(), loadHengOpenBatches()])).catch(() => {});
+  if (typeof refreshElasticTabs === 'function') refreshElasticTabs();
+  window.dispatchEvent(new CustomEvent('tk-desktop-view', { detail: { view: 'heng' } }));
+  window.scrollTo({ top: 0 });
+}
+
+function openHengMaterialAdmin() {
+  const modal = document.getElementById('hengMaterialAdminModal');
+  if (!modal) return;
+  hengUiState.adminQuery = '';
+  const search = document.getElementById('hengMaterialAdminSearch');
+  if (search) search.value = '';
+  renderHengMaterialAdmin();
+  modal.hidden = false;
+}
+
+function closeHengMaterialAdmin() {
+  const modal = document.getElementById('hengMaterialAdminModal');
+  if (modal) modal.hidden = true;
+}
+
+let hengLabelResolve = null;
+
+function hengLabelRowsFromPlan(plan) {
+  const date = plan.deliveryDate || todayShanghai();
+  return (plan.notes || []).flatMap((note) => (note.items || []).map((item) => ({
+    itemId: item.id,
+    noteNumber: note.noteNumber || '',
+    customerShort: hengCustomer(note.customerCode).short,
+    materialCode: item.materialCode || item.orderNo || '',
+    name: item.name || '',
+    spec: item.spec || '',
+    quantity: item.quantity,
+    unit: item.unit || '',
+    date,
+    inspectionStatus: item.inspectionStatus || '合格',
+    copies: Math.max(1, Number(item.labelCopies || 1)),
+    noteCustomer: note.customerCode,
+  })));
+}
+
+function chooseHengLabels(plan) {
+  const rows = hengLabelRowsFromPlan(plan);
+  if (!rows.length) return Promise.resolve([]);
+  const target = document.getElementById('hengLabelSelectionList');
+  if (!target) return Promise.resolve([]);
+  target.innerHTML = rows.map((row, index) => `<label class="heng-label-selection-row">
+    <input type="checkbox" data-heng-label-select="${index}" >
+    <span><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.materialCode)} · ${escapeHtml(row.spec || '无规格')} · ${escapeHtml(row.customerShort)} · ${escapeHtml(row.noteNumber)}</small></span>
+    <input type="number" min="1" step="1" inputmode="numeric" value="${row.copies}" data-heng-label-copies="${index}" aria-label="${escapeHtml(row.name)}标签份数">
+  </label>`).join('');
+  document.getElementById('hengLabelSelectModal').hidden = false;
+  return new Promise((resolve) => { hengLabelResolve = { rows, resolve }; });
+}
+
+function closeHengLabelSelection(selectedRows) {
+  const modal = document.getElementById('hengLabelSelectModal');
+  if (modal) modal.hidden = true;
+  const resolver = hengLabelResolve;
+  hengLabelResolve = null;
+  if (resolver) resolver.resolve(selectedRows);
+}
+
+function selectedHengLabelRows() {
+  const resolver = hengLabelResolve;
+  if (!resolver) return [];
+  return resolver.rows.filter((row, index) => document.querySelector(`[data-heng-label-select="${index}"]`)?.checked).map((row) => {
+    const sourceIndex = resolver.rows.indexOf(row);
+    return { ...row, copies: Math.max(1, Number(document.querySelector(`[data-heng-label-copies="${sourceIndex}"]`)?.value || 1)) };
+  });
+}
+
+function ensureHengPreviewModal() {
+  if (document.getElementById('hengDeliveryPreviewModal')) return;
+  document.body.insertAdjacentHTML('beforeend', `
+    <div id="hengDeliveryPreviewModal" class="modal-backdrop" hidden>
+      <section class="modal-card heng-delivery-preview-card" role="dialog" aria-modal="true" aria-labelledby="hengDeliveryPreviewTitle">
+        <div class="modal-head"><div><p class="eyebrow">恒怡送货单</p><h2 id="hengDeliveryPreviewTitle">送货单已生成，等待核对</h2></div></div>
+        <p class="heng-modal-note">先下载 Excel 文件，核对内容并打印。确认无误后，再点“确认上传到云端”。云端会同时保存 Excel 和 PDF。</p>
+        <div id="hengPreviewSummary" class="heng-preview-summary"></div>
+        <div id="hengPreviewDownloads" class="heng-preview-downloads"></div>
+        <label class="heng-preview-confirm"><input id="hengPreviewPrinted" type="checkbox"> 我已下载、核对并打印无误</label>
+        <p id="hengPreviewStatus" class="heng-preview-status" hidden></p>
+        <div class="modal-actions">
+          <button id="hengPreviewClose" class="button ghost" type="button">稍后处理</button>
+          <button id="hengPreviewUpload" class="button primary" type="button" disabled>确认已打印并上传</button>
+        </div>
+      </section>
+    </div>`);
+  const modal = document.getElementById('hengDeliveryPreviewModal');
+  const check = document.getElementById('hengPreviewPrinted');
+  const upload = document.getElementById('hengPreviewUpload');
+  const close = () => { modal.hidden = true; };
+  document.getElementById('hengPreviewClose')?.addEventListener('click', close);
+  modal.addEventListener('click', (event) => { if (event.target === modal) close(); });
+  check?.addEventListener('change', () => { upload.disabled = !check.checked || hengUiState.previewUploading; });
+  upload?.addEventListener('click', () => uploadHengPreview().catch(() => {}));
+}
+
+function hengLocalDownloadUrl(file) {
+  const name = String(file || '').split(/[\\/]/).pop();
+  return `${PRINT_HELPER_BASE}/heng/download?file=${encodeURIComponent(name)}`;
+}
+
+function openHengPreview(plan, files, batchId) {
+  ensureHengPreviewModal();
+  hengUiState.preview = { plan, files: [...(files || [])], batchId };
+  hengUiState.previewUploading = false;
+  const notes = plan.notes || [];
+  const itemCount = notes.reduce((sum, note) => sum + (note.items || []).length, 0);
+  const summary = document.getElementById('hengPreviewSummary');
+  if (summary) {
+    summary.innerHTML = `<div><span>送货日期</span><strong>${escapeHtml(plan.deliveryDate || '')}</strong></div>
+      <div><span>编号</span><strong>${escapeHtml([plan.ssjBhNumber ? String(plan.ssjBhNumber) : '', plan.bogoNumber ? `B${String(plan.bogoNumber).replace(/^B/i, '')}` : ''].filter(Boolean).join(' / ') || '—')}</strong></div>
+      <div><span>送货单</span><strong>${notes.length} 页 · ${itemCount} 项</strong></div>`;
+  }
+  const downloads = document.getElementById('hengPreviewDownloads');
+  if (downloads) {
+    downloads.innerHTML = files.length
+      ? `<span>下载 Excel：</span>${files.map((file) => `<a href="${escapeHtml(hengLocalDownloadUrl(file))}" download>${escapeHtml(String(file).split(/[\\/]/).pop())}</a>`).join('')}`
+      : '<span>没有生成可下载文件，请重新生成。</span>';
+  }
+  const check = document.getElementById('hengPreviewPrinted');
+  const upload = document.getElementById('hengPreviewUpload');
+  const status = document.getElementById('hengPreviewStatus');
+  if (check) check.checked = false;
+  if (upload) { upload.disabled = true; upload.textContent = '确认已打印并上传'; }
+  if (status) { status.hidden = true; status.textContent = ''; status.className = 'heng-preview-status'; }
+  const modal = document.getElementById('hengDeliveryPreviewModal');
+  if (modal) modal.hidden = false;
+}
+
+async function createHengDeliveryPreview(runIds) {
+  const ids = [...new Set((runIds || []).map((id) => String(id || '')).filter(Boolean))];
+  if (!ids.length) {
+    showToast('当前没有可生成的装车记录', 4000);
+    return;
+  }
+  hengUiState.generating = true;
+  syncHengGenerateButton();
+  let batchId = '';
+  try {
+    const issued = await callRpc('board_heng_issue_run', {
+      p_code: getAccessCode(),
+      p_payload: { runIds: ids },
+    });
+    if (!issued.response.ok) throw new Error(issued.data?.message || '生成编号失败');
+    batchId = issued.data.runId;
+    const plan = issued.data.plan || {};
+    const ssjNumber = plan.ssjBhNumber == null ? NaN : Number(plan.ssjBhNumber);
+    const bogoNumber = plan.bogoNumber == null ? NaN : Number(plan.bogoNumber);
+    if (Number.isFinite(ssjNumber)) hengUiState.nextNumbers.ssjBh = ssjNumber + 1;
+    if (Number.isFinite(bogoNumber)) hengUiState.nextNumbers.bogo = String(bogoNumber + 1).padStart(4, '0');
+    const prepared = await deliveryHelper('/heng/print', { ...plan, skipPrint: true }, { timeoutMs: 120000, taskLabel: '正在生成恒怡送货单...' });
+    const files = prepared.files || [];
+    if (!files.length) throw new Error('没有生成可下载的送货单文件');
+    openHengPreview(plan, files, batchId);
+    await loadHengPendingRuns();
+    await loadHengOpenBatches();
+    renderHengDesktop();
+  } catch (error) {
+    if (batchId) {
+      await callRpc('board_heng_record_issue_error', { p_code: getAccessCode(), p_run_id: batchId, p_error: error.message || '生成失败' }).catch(() => {});
+    }
+    await loadHengPendingRuns().catch(() => {});
+    await loadHengOpenBatches().catch(() => {});
+    showToast((error.message || '生成恒怡送货单失败') + (batchId ? '；已保留在“处理中断”，可继续处理' : ''), 9000);
+  } finally {
+    hengUiState.generating = false;
+    syncHengGenerateButton();
+    renderHengDesktop();
+  }
+}
+
+async function uploadHengPreview() {
+  const preview = hengUiState.preview;
+  if (!preview || hengUiState.previewUploading) return;
+  const check = document.getElementById('hengPreviewPrinted');
+  if (!check?.checked) { showToast('请先下载、核对并打印，再勾选确认', 5000); return; }
+  const button = document.getElementById('hengPreviewUpload');
+  const status = document.getElementById('hengPreviewStatus');
+  hengUiState.previewUploading = true;
+  if (button) { button.disabled = true; button.textContent = '正在上传...'; }
+  if (status) { status.hidden = false; status.className = 'heng-preview-status'; status.textContent = '正在生成 PDF 并上传 Excel + PDF...'; }
+  try {
+    const markedPrint = await callRpc('board_heng_mark_printed', { p_code: getAccessCode(), p_run_id: preview.batchId });
+    if (!markedPrint.response.ok) throw new Error(markedPrint.data?.message || '打印确认状态保存失败');
+    const upload = await deliveryHelper('/heng/upload-cloud', { runId: preview.batchId, plan: preview.plan, files: preview.files }, { timeoutMs: 180000, taskLabel: '正在上传恒怡送货单...' });
+    if (!upload.uploaded) throw new Error(upload.error || (upload.errors || []).join('；') || '送货单上传失败');
+    const markedUpload = await callRpc('board_heng_mark_uploaded', { p_code: getAccessCode(), p_run_id: preview.batchId });
+    if (!markedUpload.response.ok) throw new Error(markedUpload.data?.message || '上传完成状态保存失败');
+    const finalized = await callRpc('board_heng_mark_issued', { p_code: getAccessCode(), p_run_id: preview.batchId });
+    if (!finalized.response.ok) throw new Error(finalized.data?.message || '标记已开单失败');
+    hengUiState.ledgerLoaded = false;
+    hengUiState.deliveryFilesLoaded = false;
+    if (status) { status.className = 'heng-preview-status success'; status.textContent = '已上传 Excel 和 PDF 到云端，可以在发货清单中随时查看。'; }
+    await loadHengPendingRuns();
+    await loadHengOpenBatches();
+    await loadHengDeliveryFiles().catch(() => {});
+    document.getElementById('hengPreviewClose')?.click();
+    const labelRows = await chooseHengLabels(preview.plan);
+    let labelWarning = '';
+    if (labelRows.length) {
+      try {
+        await deliveryHelper('/heng/labels', { runId: preview.batchId, rows: labelRows }, { timeoutMs: 120000, taskLabel: '正在打印 A4 标签...' });
+        await callRpc('board_heng_mark_labels_printed', { p_code: getAccessCode(), p_run_id: preview.batchId, p_rows: labelRows.map((row) => ({ itemId: row.itemId, copies: row.copies })) });
+      } catch (labelError) { labelWarning = labelError.message || '请稍后重打'; }
+    }
+    if (labelWarning) showToast('送货单已上传，但标签打印失败：' + labelWarning, 9000);
+    else showToast('恒怡送货单已上传，Excel 和 PDF 可在发货清单中查看', 6000);
+  } catch (error) {
+    if (status) { status.className = 'heng-preview-status error'; status.textContent = error.message || '上传失败'; }
+    showToast(error.message || '恒怡送货单上传失败', 8000);
+  } finally {
+    hengUiState.previewUploading = false;
+    if (button) { button.disabled = !document.getElementById('hengPreviewPrinted')?.checked; button.textContent = '确认已打印并上传'; }
+  }
+}
+
+async function generateHengDelivery() {
+  const runs = hengSelectedPendingRuns();
+  if (!runs.length) {
+    showToast('当前送货日期没有待开单记录', 4000);
+    return;
+  }
+  await createHengDeliveryPreview(runs.map((run) => run.id));
+}
+
+async function resumeHengBatch(batchId) {
+  const batch = (hengUiState.openBatches || []).find((row) => String(row.id) === String(batchId));
+  const runIds = Array.isArray(batch?.plan?.runIds) ? batch.plan.runIds : [];
+  if (!runIds.length) {
+    showToast('找不到该批次对应的装车记录，请刷新后重试', 5000);
+    return;
+  }
+  await createHengDeliveryPreview(runIds);
+}
+
+async function voidHengRun(runId) {
+  if (!window.confirm('确定撤回这条装车记录吗？撤回后不能恢复；博戈剩余数量会自动退回。')) return;
+  try {
+    const result = await callRpc('board_heng_void_run', { p_code: getAccessCode(), p_run_id: runId, p_reason: '电脑端手工作废' });
+    if (!result.response.ok) throw new Error(result.data?.message || '装车记录作废失败');
+    await loadHengPendingRuns();
+    await loadHengOpenBatches();
+    await loadHengBootstrap(true).catch(() => {});
+    hengExpandedRuns.delete(String(runId));
+    showToast('装车记录已撤回，博戈剩余数量已退回', 5000);
+  } catch (error) {
+    showToast(error.message || '作废失败', 6000);
+  }
+}
+
+async function voidHengBatch(batchId) {
+  if (!window.confirm('确定作废这个处理中批次吗？编号不会退回，装车记录会释放，博戈剩余数量会自动退回。')) return;
+  try {
+    const result = await callRpc('board_heng_void_batch', { p_code: getAccessCode(), p_run_id: batchId, p_reason: '电脑端手工作废' });
+    if (!result.response.ok) throw new Error(result.data?.message || '批次作废失败');
+    await loadHengPendingRuns();
+    await loadHengOpenBatches();
+    await loadHengBootstrap(true).catch(() => {});
+    showToast('处理中批次已作废，博戈剩余数量已退回', 5000);
+  } catch (error) {
+    showToast(error.message || '作废失败', 6000);
+  }
+}
+
+window.tkOpenHengDesktop = (tab = 'pending') => {
+  hengUiState.desktopTab = tab === 'ledger' ? 'ledger' : 'pending';
+  showHengDesktopView();
+  if (tab === 'ledger' && typeof loadHengLedger === 'function') loadHengLedger().catch(() => {});
+};
+window.tkOpenHengMaterials = () => {
+  showHengDesktopView();
+  openHengMaterialAdmin();
+};
+window.tkSwitchMobileBusiness = switchMobileBusinessLine;
+
+function initHengDelivery() {
+  if (hengUiState.initialized) {
+    if (!hengUiState.materials.length && !hengUiState.loading) loadHengBootstrap().catch(() => {});
+    return;
+  }
+  hengUiState.initialized = true;
+  document.getElementById('desktopHengLink')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    showHengDesktopView();
+  });
+  document.querySelectorAll('[data-mobile-business]').forEach((button) => button.addEventListener('click', () => switchMobileBusinessLine(button.dataset.mobileBusiness)));
+  document.querySelectorAll('[data-heng-mobile-tab]').forEach((button) => button.addEventListener('click', () => setMobileHengTab(button.dataset.hengMobileTab)));
+  document.getElementById('hengGenerateDelivery')?.addEventListener('click', generateHengDelivery);
+  document.getElementById('hengSkipLabels')?.addEventListener('click', () => closeHengLabelSelection([]));
+  document.getElementById('hengPrintSelectedLabels')?.addEventListener('click', () => {
+    const rows = selectedHengLabelRows();
+    if (!rows.length) {
+      showToast('请至少选择一种标签，或点击跳过标签', 4000);
+      return;
+    }
+    closeHengLabelSelection(rows);
+  });
+  document.getElementById('hengRefreshPending')?.addEventListener('click', () => {
+    if (hengUiState.desktopTab === 'ledger' && typeof loadHengLedger === 'function') loadHengLedger(hengLedgerFilters()).catch(() => {});
+    else Promise.all([loadHengPendingRuns(), loadHengOpenBatches()]).catch(() => {});
+  });
+  document.getElementById('hengMaterialAdminOpen')?.addEventListener('click', openHengMaterialAdmin);
+  document.getElementById('hengMaterialAdminClose')?.addEventListener('click', closeHengMaterialAdmin);
+  document.getElementById('hengMaterialAdminDone')?.addEventListener('click', closeHengMaterialAdmin);
+  document.getElementById('hengMaterialAdminModal')?.addEventListener('click', (event) => {
+    if (event.target.id === 'hengMaterialAdminModal') closeHengMaterialAdmin();
+  });
+  document.getElementById('hengMaterialAdminSearch')?.addEventListener('input', (event) => {
+    hengUiState.adminQuery = event.target.value;
+    renderHengMaterialAdmin();
+  });
+  document.getElementById('hengMaterialAdminList')?.addEventListener('change', async (event) => {
+    const input = event.target.closest('[data-heng-material-tag]');
+    if (!input) return;
+    const materialId = input.dataset.hengMaterialTag;
+    const checks = [...document.querySelectorAll(`[data-heng-material-tag="${CSS.escape(materialId)}"]:checked`)];
+    try {
+      await saveHengMaterialCustomers(materialId, checks.map((row) => row.dataset.hengTagCustomer));
+    } catch (error) {
+      input.checked = !input.checked;
+      showToast(error.message || '保存失败', 5000);
+    }
+  });
+  document.querySelectorAll('[data-desktop-view]').forEach((link) => {
+    link.addEventListener('click', () => {
+      const view = document.getElementById('desktopHengView');
+      if (view) view.hidden = true;
+      document.body.dataset.businessLine = 'awoyite';
+      try { localStorage.setItem('shipmentBoardBusinessLine', 'awoyite'); } catch { }
+      document.getElementById('desktopHengLink')?.classList.remove('active');
+    });
+  });
+  window.addEventListener('tk-desktop-view', (event) => {
+    if (document.body.dataset.view === 'mobile') return;
+    if (event.detail?.view === 'heng') return;
+    const view = document.getElementById('desktopHengView');
+    if (view) view.hidden = true;
+    document.body.dataset.businessLine = 'awoyite';
+    try { localStorage.setItem('shipmentBoardBusinessLine', 'awoyite'); } catch { }
+    document.getElementById('desktopHengLink')?.classList.remove('active');
+  });
+  document.getElementById('hengDesktopContent')?.addEventListener('click', (event) => {
+    const tab = event.target.closest('[data-heng-desktop-tab]');
+    if (tab) {
+      hengUiState.desktopTab = tab.dataset.hengDesktopTab;
+      if (hengUiState.desktopTab === 'ledger' && typeof loadHengLedger === 'function' && !hengUiState.ledgerLoaded) {
+        loadHengLedger(hengLedgerFilters()).catch(() => {});
+      } else {
+        renderHengDesktop();
+      }
+      return;
+    }
+    if (event.target.closest('#hengLedgerRefresh') && typeof loadHengLedger === 'function') {
+      hengUiState.ledgerDateFrom = document.getElementById('hengLedgerDateFrom')?.value || '';
+      hengUiState.ledgerDateTo = document.getElementById('hengLedgerDateTo')?.value || '';
+      hengUiState.ledgerCustomer = document.getElementById('hengLedgerCustomer')?.value || '';
+      hengUiState.ledgerQuery = document.getElementById('hengLedgerSearch')?.value || '';
+      loadHengLedger(hengLedgerFilters()).catch(() => {});
+      return;
+    }
+    const pendingDate = event.target.closest('[data-heng-pending-date]');
+    if (pendingDate) {
+      hengUiState.pendingDate = pendingDate.dataset.hengPendingDate || '';
+      renderHengDesktop();
+      return;
+    }
+    if (event.target.closest('[data-heng-retry-open]')) {
+      loadHengOpenBatches().catch(() => {});
+      return;
+    }
+    const expandRun = event.target.closest('[data-heng-expand-run]');
+    if (expandRun) {
+      const runId = String(expandRun.dataset.hengExpandRun || '');
+      if (hengExpandedRuns.has(runId)) hengExpandedRuns.delete(runId);
+      else hengExpandedRuns.add(runId);
+      renderHengPendingRuns();
+      return;
+    }
+    const voidRun = event.target.closest('[data-heng-void-run]');
+    if (voidRun) {
+      voidHengRun(voidRun.dataset.hengVoidRun).catch(() => {});
+      return;
+    }
+    const resumeBatch = event.target.closest('[data-heng-resume-batch]');
+    if (resumeBatch) {
+      resumeHengBatch(resumeBatch.dataset.hengResumeBatch).catch(() => {});
+      return;
+    }
+    const voidBatch = event.target.closest('[data-heng-void-batch]');
+    if (voidBatch) {
+      voidHengBatch(voidBatch.dataset.hengVoidBatch).catch(() => {});
+      return;
+    }
+    if (event.target.closest('[data-heng-file-refresh]')) {
+      event.preventDefault();
+      hengUiState.deliveryFilesLoaded = false;
+      loadHengDeliveryFiles().catch(() => {});
+      return;
+    }
+    const fileButton = event.target.closest('[data-heng-file-id][data-heng-file-action]');
+    if (fileButton) {
+      const fileId = fileButton.dataset.hengFileId;
+      if (fileButton.dataset.hengFileAction === 'open') openHengDeliveryFile(fileId, fileButton).catch(() => {});
+      else downloadHengDeliveryFile(fileId, fileButton).catch(() => {});
+      return;
+    }
+    if (event.target.closest('#hengLedgerExport') && typeof exportHengLedger === 'function') {
+      exportHengLedger().catch((error) => showToast(error.message || '导出失败', 5000));
+    }
+  });
+  document.getElementById('mobileHengContent')?.addEventListener('click', (event) => {
+    const voidRun = event.target.closest('[data-heng-void-run]');
+    if (voidRun) {
+      voidHengRun(voidRun.dataset.hengVoidRun).catch(() => {});
+      return;
+    }
+    if (event.target.closest('[data-heng-retry-open]')) {
+      loadHengOpenBatches().catch(() => {});
+      return;
+    }
+    const expandRun = event.target.closest('[data-heng-expand-run]');
+    if (expandRun) {
+      const runId = String(expandRun.dataset.hengExpandRun || '');
+      if (hengExpandedRuns.has(runId)) hengExpandedRuns.delete(runId);
+      else hengExpandedRuns.add(runId);
+      renderHengMobile();
+      return;
+    }
+    const customer = event.target.closest('[data-heng-customer]');
+    if (customer) {
+      hengUiState.customer = customer.dataset.hengCustomer;
+      hengUiState.materialQuery = '';
+      renderHengMobile();
+      loadHengBootstrap().catch(() => {});
+      return;
+    }
+    const editBogo = event.target.closest('[data-heng-bogo-edit]');
+    if (editBogo) {
+      const orders = [...hengUiState.bogoOrders].sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+      const order = orders[Number(editBogo.dataset.hengBogoEdit)];
+      if (order) {
+        document.getElementById('hengBogoOrderNo').value = order.orderNo;
+        document.getElementById('hengBogoRemaining01').value = order.remaining01;
+        document.getElementById('hengBogoRemaining02').value = order.remaining02;
+      }
+      return;
+    }
+    if (event.target.closest('#hengSaveBogoOrder')) {
+      const orderNo = document.getElementById('hengBogoOrderNo')?.value;
+      const remaining01 = document.getElementById('hengBogoRemaining01')?.value;
+      const remaining02 = document.getElementById('hengBogoRemaining02')?.value;
+      const existingIndex = hengUiState.bogoOrders.findIndex((row) => String(row.orderNo) === String(orderNo || '').trim());
+      saveBogoOrder(orderNo, remaining01, remaining02, existingIndex >= 0 ? hengUiState.bogoOrders[existingIndex].sortOrder : hengUiState.bogoOrders.length)
+        .then(() => showToast('博戈订单已保存'))
+        .catch((error) => showToast(error.message || '博戈订单保存失败', 5000));
+      return;
+    }
+    if (event.target.closest('#hengBuildBogo')) {
+      refreshHengBogoAllocation();
+      return;
+    }
+    const confirmPack = event.target.closest('[data-heng-confirm-pack]');
+    if (confirmPack) {
+      confirmHengPackaging(Number(confirmPack.dataset.hengConfirmPack));
+      return;
+    }
+    if (event.target.closest('#hengConfirmLoading')) {
+      confirmHengLoading();
+      return;
+    }
+    const add = event.target.closest('[data-heng-add-material]');
+    if (add) {
+      addHengMaterial(add.dataset.hengAddMaterial);
+      return;
+    }
+    const remove = event.target.closest('[data-heng-remove]');
+    if (remove) {
+      hengUiState.items.splice(Number(remove.dataset.hengRemove), 1);
+      renderHengSelectedItems();
+      refreshHengDraftPreview();
+      return;
+    }
+    if (event.target.closest('#hengClearDraft')) {
+      hengUiState.items = [];
+      renderHengSelectedItems();
+      refreshHengDraftPreview();
+    }
+  });
+  document.getElementById('mobileHengContent')?.addEventListener('focusin', (event) => {
+    const qty = event.target.closest('[data-heng-qty]');
+    if (qty) rememberHengQuantityEdit(Number(qty.dataset.hengQty));
+  });
+  document.getElementById('mobileHengContent')?.addEventListener('input', (event) => {
+    if (event.target.id === 'hengBogoTotal01' || event.target.id === 'hengBogoTotal02') {
+      hengUiState.bogoTotals.quantity01 = Number(document.getElementById('hengBogoTotal01')?.value || 0);
+      hengUiState.bogoTotals.quantity02 = Number(document.getElementById('hengBogoTotal02')?.value || 0);
+      refreshHengBogoAllocation();
+      return;
+    }
+    const packIndex = event.target.dataset.hengPackQtyNote ?? event.target.dataset.hengPackOtherName ?? event.target.dataset.hengPackOtherQty;
+    if (packIndex != null) {
+      refreshHengPackagingUi(Number(packIndex));
+      return;
+    }
+    if (event.target.id === 'hengMaterialSearch') {
+      hengUiState.materialQuery = event.target.value;
+      renderHengMaterialResults();
+      return;
+    }
+    const qty = event.target.closest('[data-heng-qty]');
+    if (qty) previewHengQuantity(Number(qty.dataset.hengQty), qty.value);
+  });
+  document.getElementById('mobileHengContent')?.addEventListener('change', (event) => {
+    const packCheck = event.target.closest('[data-heng-pack-note], [data-heng-pack-none]');
+    if (packCheck) {
+      const index = Number(packCheck.dataset.hengPackNote ?? packCheck.dataset.hengPackNone);
+      refreshHengPackagingUi(index);
+      return;
+    }
+    const qty = event.target.closest('[data-heng-qty]');
+    if (qty) commitHengQuantity(Number(qty.dataset.hengQty), qty.value).catch(() => {});
+  });
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initHengDelivery, { once: true });
+else initHengDelivery();
+window.addEventListener('load', () => {
+  try {
+    if (location.search.includes('view=mobile') && localStorage.getItem('shipmentBoardMobileBusinessLine') === 'heng') {
+      switchMobileBusinessLine('heng');
+    }
+  } catch { }
+}, { once: true });
+
 // ===== 大块数据（金额 / 图纸清单）本地缓存：首屏不等它们，先出内容再后台刷新 =====
-const SLOW_AUX_CACHE_KEY = 'shipmentSlowAux';
+const SLOW_AUX_CACHE_KEY = 'shipmentSlowAuxV2';   // 图纸更新后换版本，让所有设备立即重新拉图纸清单
 const SLOW_AUX_MAX_AGE = 6 * 60 * 60 * 1000;   // 缓存最长用 6 小时，之后必须重拉
 
 function readSlowAuxCache() {
@@ -4074,7 +5673,7 @@ function applyRoleUI() {
   const el2 = document.getElementById('mobileBrandTitle');
   if (el2) el2.textContent = '帆顺科技' + suffix;
   const el3 = document.getElementById('mobileBrandModule');
-  if (el3) el3.textContent = mobileModule === 'workReview' ? (WORK_EDIT_TAB_LABEL[mobileWorkTab] || '报工情况') : '装车登记';
+  if (el3) el3.textContent = document.body.dataset.businessLine === 'heng' && mobileModule === 'entry' ? '恒怡发货' : mobileModule === 'workReview' ? (WORK_EDIT_TAB_LABEL[mobileWorkTab] || '报工情况') : '艾沃意特 · 装车登记';
   const stamp = document.getElementById('sourceStamp');
   if (stamp) stamp.dataset.role = boardRole;
   document.title = '帆顺科技' + suffix;
@@ -4308,10 +5907,13 @@ function drawingPreviewPageUrl(drawing, page) {
 
 async function loadDrawingPreviewManifest() {
   if (!drawingPreviewManifestPromise) {
-    const url = storageObjectUrl(SUPABASE_STORAGE_ORIGIN, '_previews.json') || storageObjectUrl(relayOrigin(), '_previews.json');
-    drawingPreviewManifestPromise = fetch(url, { cache: 'force-cache' })
-      .then((response) => response.ok ? response.json() : {})
-      .catch(() => ({}));
+    const baseUrl = storageObjectUrl(SUPABASE_STORAGE_ORIGIN, '_previews.json') || storageObjectUrl(relayOrigin(), '_previews.json');
+    const url = baseUrl ? `${baseUrl}?v=${Date.now()}` : '';
+    drawingPreviewManifestPromise = url
+      ? fetch(url, { cache: 'no-store' })
+        .then((response) => response.ok ? response.json() : {})
+        .catch(() => ({}))
+      : Promise.resolve({});
   }
   return drawingPreviewManifestPromise;
 }
@@ -4570,7 +6172,7 @@ async function loadOverOffsets() {
 
 async function loadDeliveryFiles() {
   const rows = await fetchDeliveryFileRows();
-  return rows.filter((row) => String(row.kind || '') !== PHOTO_FILE_KIND && String(row.kind || '') !== UNIT_FILE_KIND);
+  return rows.filter((row) => String(row.kind || '') !== PHOTO_FILE_KIND && String(row.kind || '') !== UNIT_FILE_KIND && String(row.kind || '') !== 'heng');
 }
 
 async function loadShipmentPhotos() {
@@ -4921,6 +6523,7 @@ document.getElementById('orderArchiveList')?.addEventListener('click', (event) =
   renderOrderArchiveBatches();
   loadOrderArchiveDetail(orderArchiveSelectedBatchId);
 });
+
 // ===== 单价查询（只电脑管理端）：搜编号/品名/图号 -> 产品基本信息 + 当前单价 + 单价变动 =====
 let priceQuery = '';
 
@@ -5074,6 +6677,7 @@ function renderDesktopDrawings() {
           </div>
           <div class="drawing-actions">
             <button type="button" class="button ghost drawing-preview-btn" data-preview-drawing-id="${escapeHtml(row.id)}">预览</button>
+            ${boardRole === 'admin' ? `<button type="button" class="button ghost drawing-replace" data-replace-drawing-id="${escapeHtml(row.id)}">替换</button>` : ''}
             <button type="button" class="file-download drawing-open" data-drawing-id="${escapeHtml(row.id)}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h8l4 4v16H6z"></path><path d="M14 2v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg>
               <span>打开PDF</span>
@@ -5083,6 +6687,75 @@ function renderDesktopDrawings() {
     }).join('')}
     ${rows.length > visibleRows.length ? `<div class="load-more-row"><span>已显示 ${visibleRows.length} / ${rows.length} 份</span><button class="button ghost" type="button" data-drawing-more>再显示 40 份</button></div>` : ''}
   ` : '<div class="empty-state"><strong>没有匹配的图纸</strong><span>试试输入料号、品名、图号或文件名。</span></div>';
+}
+
+
+function requestDrawingReplace(id) {
+  if (boardRole !== 'admin') { showToast('只有管理员模式可以替换图纸'); return; }
+  const drawing = (snapshot?.drawings || []).find((row) => String(row.id) === String(id));
+  if (!drawing) { showToast('找不到要替换的图纸'); return; }
+  const ok = window.confirm(
+    '要替换这份图纸吗？\n\n'
+    + drawing.material + ' · ' + (drawing.name || '') + (drawing.spec ? ' · ' + drawing.spec : '') + '\n'
+    + '旧 PDF、旧预览图和旧本机图纸会在新图校验成功后直接删除，不能恢复。'
+  );
+  if (!ok) return;
+  pendingDrawingReplaceId = String(id);
+  if (els.drawingReplaceFile) {
+    els.drawingReplaceFile.value = '';
+    els.drawingReplaceFile.click();
+  }
+}
+
+function drawingFileBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('新图纸读取失败'));
+    reader.onload = () => resolve(String(reader.result || '').split(',')[1] || '');
+    reader.readAsDataURL(file);
+  });
+}
+
+async function replaceDrawingWithFile(file) {
+  const id = String(pendingDrawingReplaceId || '').trim();
+  if (!id || !file) return;
+  if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') {
+    showToast('只能选择 PDF 图纸');
+    return;
+  }
+  if (file.size > 20 * 1024 * 1024) {
+    showToast('新图纸不能超过 20MB');
+    return;
+  }
+  const drawing = (snapshot?.drawings || []).find((row) => String(row.id) === id);
+  beginTask('正在替换图纸并删除旧版...');
+  try {
+    const contentBase64 = await drawingFileBase64(file);
+    if (!contentBase64) throw new Error('新图纸内容为空');
+    const result = await deliveryHelper('/drawings/replace', {
+      drawingId: id,
+      fileName: file.name,
+      contentBase64,
+    }, { timeoutMs: 600000, taskLabel: '正在替换图纸并生成预览...', keepTaskOpen: true });
+    if (!result?.ok) throw new Error(result?.error || '替换失败');
+    pendingDrawingReplaceId = '';
+    drawingPreviewManifestPromise = null;
+    await refreshAuxiliaryNow();
+    renderDesktopDrawings();
+    if (drawing) renderDrawingPreview(id);
+    finishTask('图纸已替换，旧版已删除', 'success', 4000);
+    showToast('图纸已替换：' + (drawing?.material || '') + ' ' + (drawing?.spec || '') + '（旧图和旧预览已删除）', 9000);
+    if (Array.isArray(result.warnings) && result.warnings.length) showToast(result.warnings.join('；'), 9000);
+  } catch (error) {
+    pendingDrawingReplaceId = '';
+    finishTask('图纸替换失败', 'error', 6000);
+    const detail = String(error.message || error || '替换失败');
+    showToast(/Failed to fetch/i.test(detail)
+      ? '打印助手没有启动：请先双击桌面“启动打印助手”，再重新替换'
+      : detail, 10000);
+  } finally {
+    if (els.drawingReplaceFile) els.drawingReplaceFile.value = '';
+  }
 }
 
 // 云端送货单：独立页面（电脑端一个页面、手机端一个标签），Excel 和 PDF 各一份
@@ -5162,7 +6835,12 @@ function renderDeliveryFiles(dateFilter, queryText) {
       ${rows.length ? rows.map((row) => `
         <div class="over-row file-row">
           <span>${escapeHtml(row.fileName)}${row.kind ? ` · ${escapeHtml(row.kind)}` : ''}${row.noteCount ? ` · ${fmt(row.noteCount)} 张` : ''}</span>
-          <button type="button" class="file-download" data-file-id="${escapeHtml(row.id)}">下载 ${String(row.fileName || '').toLowerCase().endsWith('.pdf') ? 'PDF' : 'Excel'}</button>
+          <div class="file-actions">
+            ${/\.pdf$/i.test(String(row.fileName || ''))
+              ? `<button type="button" class="file-download" data-file-id="${escapeHtml(row.id)}" data-file-action="open">打开 PDF</button>`
+              : ''}
+            <button type="button" class="file-download secondary" data-file-id="${escapeHtml(row.id)}" data-file-action="download">下载 ${/\.pdf$/i.test(String(row.fileName || '')) ? 'PDF' : 'Excel'}</button>
+          </div>
           ${/\.pdf$/i.test(String(row.fileName || ''))
             ? ''   // PDF 不提供单独撤回，删同批次的 Excel 时会一起删掉
             : (isLockedRecord(row.createdAt)
@@ -5201,37 +6879,100 @@ async function deleteDeliveryFile(id, button) {
   }
 }
 
-async function downloadDeliveryFile(id, button) {
+async function fetchDeliveryFileRecord(id) {
+  const body = { p_code: getAccessCode(), p_id: id };
+  let lastError = '';
+  // 大文件优先走国内中转；失败或超限时再直连 Supabase。
+  if (RPC_BASE) {
+    try {
+      const result = await callRpc('board_get_delivery_file', body, 25000, false, true);
+      if (result.response.ok) return result;
+      lastError = `云端中转返回 HTTP ${result.response.status}`;
+    } catch (error) {
+      lastError = String(error?.message || error || '云端中转失败');
+    }
+  }
+  if (DIRECT_RPC_BASE) {
+    try {
+      const result = await callRpc('board_get_delivery_file', body, 40000, true);
+      if (result.response.ok) return result;
+      lastError = `Supabase 返回 HTTP ${result.response.status}`;
+    } catch (error) {
+      lastError = String(error?.message || error || 'Supabase 连接失败');
+    }
+  }
+  throw new Error(lastError || '云端送货单读取失败');
+}
+
+function deliveryFilePayload(result, row) {
+  const data = result.data || {};
+  const binary = atob(String(data.contentBase64 || ''));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  const fileName = String(data.fileName || row?.fileName || '送货单');
+  const isPdf = fileName.toLowerCase().endsWith('.pdf');
+  return {
+    fileName,
+    isPdf,
+    blob: new Blob([bytes], { type: isPdf ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+  };
+}
+
+async function openDeliveryFile(id, button) {
   const row = deliveryFiles().find((item) => String(item.id) === String(id));
+  // 必须在点击当下先开窗口，等接口返回后再跳转，否则手机浏览器会拦截弹窗。
+  const popup = window.open('', '_blank');
   const original = button ? button.textContent : '';
-  if (button) { button.disabled = true; button.textContent = '下载中...'; }
+  if (button) { button.disabled = true; button.textContent = '打开中...'; button.setAttribute('aria-busy', 'true'); }
   try {
-    const result = await callRpc('board_get_delivery_file', { p_code: getAccessCode(), p_id: id });
-    if (!result.response.ok) throw new Error(result.data?.message || '下载失败');
-    const data = result.data || {};
-    const binary = atob(String(data.contentBase64 || ''));
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-    const isPdf = String(data.fileName || row?.fileName || '').toLowerCase().endsWith('.pdf');
-    const blob = new Blob([bytes], {
-      type: isPdf ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
+    const result = await fetchDeliveryFileRecord(id);
+    const { fileName, blob } = deliveryFilePayload(result, row);
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = data.fileName || row?.fileName || '送货单.xlsx';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    showToast(`已开始下载 ${link.download}`);
+    if (popup && !popup.closed) {
+      popup.location.href = url;
+      popup.focus?.();
+    } else {
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+    // 保留足够时间给手机 PDF 阅读器读取 Blob。
+    setTimeout(() => URL.revokeObjectURL(url), 10 * 60 * 1000);
+    showToast(`已打开 ${fileName}`);
   } catch (error) {
-    showToast(error.message || '下载失败');
+    try { popup?.close(); } catch { }
+    showToast(error.message || 'PDF 打开失败', 7000);
   } finally {
-    if (button) { button.disabled = false; button.textContent = original || '下载 Excel'; }
+    if (button) { button.disabled = false; button.textContent = original || '打开 PDF'; button.removeAttribute('aria-busy'); }
   }
 }
 
+async function downloadDeliveryFile(id, button) {
+  const row = deliveryFiles().find((item) => String(item.id) === String(id));
+  const original = button ? button.textContent : '';
+  if (button) { button.disabled = true; button.textContent = '下载中...'; button.setAttribute('aria-busy', 'true'); }
+  try {
+    const result = await fetchDeliveryFileRecord(id);
+    const { fileName, blob } = deliveryFilePayload(result, row);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    showToast(`已开始下载 ${fileName}`);
+  } catch (error) {
+    showToast(error.message || '下载失败', 7000);
+  } finally {
+    if (button) { button.disabled = false; button.textContent = original || '下载'; button.removeAttribute('aria-busy'); }
+  }
+}
 function overOffsets() {
   return (snapshot && Array.isArray(snapshot.overOffsets)) ? snapshot.overOffsets : [];
 }
@@ -7641,37 +9382,56 @@ function renderMobileModule() {
   const staffInfoMode = isAdmin && mobileModule === 'staffInfo';
   const payrollMode = isAdmin && mobileModule === 'payroll';
   const staffMode = staffInfoMode || payrollMode;
+  const hengMode = mobileModule === 'entry' && document.body.dataset.businessLine === 'heng';
   if (els.mobileModuleSwitch) {
-    els.mobileModuleSwitch.classList.toggle('disabled', !isAdmin);
-    els.mobileModuleSwitch.setAttribute('aria-disabled', String(!isAdmin));
+    els.mobileModuleSwitch.classList.remove('disabled');
+    els.mobileModuleSwitch.setAttribute('aria-disabled', 'false');
   }
   const title = document.getElementById('mobileBrandTitle');
   if (title) title.textContent = `帆顺科技${isAdmin ? '（管理员）' : ''}`;
   const moduleLabel = document.getElementById('mobileBrandModule');
   const entryModuleLabel = { entry: '装车登记', remaining: '未交清单', records: '发货记录', files: '云端送货单' }[mobileTab] || '装车登记';
-  if (moduleLabel) moduleLabel.textContent = attendanceMode ? '考勤管理' : staffInfoMode ? '员工信息' : payrollMode ? '工资' : (workMode ? (WORK_EDIT_TAB_LABEL[mobileWorkTab] || '报工情况') : entryModuleLabel);
+  const awoyiteEntryLabel = '艾沃意特 · ' + entryModuleLabel;
+  if (moduleLabel) moduleLabel.textContent = hengMode ? '恒怡发货' : attendanceMode ? '考勤管理' : staffInfoMode ? '员工信息' : payrollMode ? '工资' : (workMode ? (WORK_EDIT_TAB_LABEL[mobileWorkTab] || '报工情况') : awoyiteEntryLabel);
   const summary = document.querySelector('.mobile-summary');
-  const tabs = document.querySelector('.mobile-tabs');
-  if (summary) summary.hidden = workMode || attendanceMode || staffMode;
-  if (tabs) tabs.hidden = workMode || attendanceMode || staffMode;
+  const tabs = document.getElementById('mobileMainTabs');
+  const hengTabs = document.getElementById('mobileHengTabs');
+  const hengPanel = document.getElementById('mobileHengPanel');
+  const adminModuleSection = document.getElementById('mobileAdminModuleSection');
+  if (adminModuleSection) adminModuleSection.hidden = !isAdmin;
+  if (summary) summary.hidden = workMode || attendanceMode || staffMode || hengMode;
+  if (tabs) tabs.hidden = workMode || attendanceMode || staffMode || hengMode;
+  if (hengTabs) hengTabs.hidden = !hengMode;
+  if (hengPanel) hengPanel.hidden = !hengMode;
   if (els.mobileWorkModule) els.mobileWorkModule.hidden = !workMode;
   if (els.mobileAttendanceModule) els.mobileAttendanceModule.hidden = !attendanceMode;
   if (els.mobileStaffInfoModule) els.mobileStaffInfoModule.hidden = !staffInfoMode;
   if (els.mobilePayrollModule) els.mobilePayrollModule.hidden = !payrollMode;
-  if (els.mobileCartBar) els.mobileCartBar.hidden = workMode || attendanceMode || staffMode || ![...selected.values()].some((value) => Number(value) > 0);
+  if (els.mobileCartBar) els.mobileCartBar.hidden = workMode || attendanceMode || staffMode || hengMode || ![...selected.values()].some((value) => Number(value) > 0);
   if (staffMode) {
     [els.mobileEntryPanel, els.mobileRemainingPanel, els.mobileRecordsPanel, els.mobileFilesPanel].forEach((panel) => { if (panel) panel.hidden = true; });
     if (els.mobileWorkModule) els.mobileWorkModule.hidden = true;
+    if (els.mobileWorkReportPanel) els.mobileWorkReportPanel.hidden = true;
+    if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = true;
+    if (els.mobileWorkEditPanel) els.mobileWorkEditPanel.hidden = true;
     if (els.mobileAttendanceModule) els.mobileAttendanceModule.hidden = true;
     if (staffInfoMode && els.mobileStaffInfoFrame && !els.mobileStaffInfoFrame.getAttribute('src')) els.mobileStaffInfoFrame.src = 'staff.html?embed=staffInfo';
     if (payrollMode && els.mobilePayrollFrame && !els.mobilePayrollFrame.getAttribute('src')) els.mobilePayrollFrame.src = 'staff.html?embed=payroll';
   } else if (attendanceMode) {
     [els.mobileEntryPanel, els.mobileRemainingPanel, els.mobileRecordsPanel, els.mobileFilesPanel].forEach((panel) => { if (panel) panel.hidden = true; });
+    if (els.mobileWorkReportPanel) els.mobileWorkReportPanel.hidden = true;
+    if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = true;
+    if (els.mobileWorkEditPanel) els.mobileWorkEditPanel.hidden = true;
     switchMobileAttendanceTab(mobileAttendanceTab);
     loadAttendance().catch(() => {});
   } else if (workMode) {
     [els.mobileEntryPanel, els.mobileRemainingPanel, els.mobileRecordsPanel, els.mobileFilesPanel].forEach((panel) => { if (panel) panel.hidden = true; });
     switchMobileWorkTab(mobileWorkTab);
+  } else if (hengMode) {
+    [els.mobileEntryPanel, els.mobileRemainingPanel, els.mobileRecordsPanel, els.mobileFilesPanel].forEach((panel) => { if (panel) panel.hidden = true; });
+    if (els.mobileWorkReportPanel) els.mobileWorkReportPanel.hidden = true;
+    if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = true;
+    if (els.mobileWorkEditPanel) els.mobileWorkEditPanel.hidden = true;
   } else {
     if (els.mobileWorkReportPanel) els.mobileWorkReportPanel.hidden = true;
     if (els.mobileWorkReviewPanel) els.mobileWorkReviewPanel.hidden = true;
@@ -7697,7 +9457,7 @@ function switchMobileModule(module) {
 }
 // 电脑端两个页面：实时总览 / 发货记录
 function showDesktopView(name) {
-  if ((name === 'workReview' || name === 'workEdit' || name === 'attendance' || name === 'prices' || name === 'staffInfo' || name === 'payroll') && boardRole !== 'admin') {
+  if ((name === 'workReview' || name === 'workEdit' || name === 'attendance' || name === 'prices' || name === 'staffInfo' || name === 'payroll' || name === 'reconciliation') && boardRole !== 'admin') {
     if (!boardRoleReady) {
       showToast('正在验证管理员权限，请稍后再点一次');
       return;
@@ -7710,6 +9470,7 @@ function showDesktopView(name) {
     remaining: document.getElementById('desktopRemainingView'),
     shipments: document.getElementById('desktopShipmentsView'),
     files: document.getElementById('desktopFilesView'),
+    reconciliation: document.getElementById('desktopReconciliationView'),
     drawings: document.getElementById('desktopDrawingsView'),
     prices: document.getElementById('desktopPricesView'),
     loading: document.getElementById('desktopLoadingView'),
@@ -7733,6 +9494,7 @@ function showDesktopView(name) {
   if (target === 'remaining') renderDesktopRemaining();
   if (target === 'shipments') renderDesktopHistory();
   if (target === 'files') renderCloudFiles();
+  if (target === 'reconciliation') renderReconciliationView();
   if (target === 'drawings') renderDesktopDrawings();
     if (target === 'prices') renderDesktopPrices();
   if (target === 'loading') renderDesktopLoading();
@@ -7755,6 +9517,7 @@ function renderAll() {
   renderDesktopMetrics();
   renderDesktopTable();
   renderDesktopHistory();
+  renderReconciliationView();
   renderOffsetBox();
   renderMobileSummary();
   renderMobileList();
@@ -8573,7 +10336,7 @@ function applyQueryTab() {
 }
 
 document.querySelectorAll('[data-query-tab]').forEach((button) => {
-  button.addEventListener('click', () => { queryTab = button.dataset.queryTab; desktopHistoryVisibleLimit = 15; mobileRecordsVisibleLimit = 5; applyQueryTab(); if (button.closest('#mobileRecordsPanel')) renderMobileRecords(); });
+  button.addEventListener('click', () => { queryTab = button.dataset.queryTab; desktopHistoryVisibleLimit = 15; mobileRecordsVisibleLimit = 20; applyQueryTab(); if (button.closest('#mobileRecordsPanel')) renderMobileRecords({ resetScroll: true }); });
 });
 
 function syncQueryInputs() {
@@ -9749,7 +11512,7 @@ function snapshotLabelRow(row) {
     'sourceKey', 'printed', 'printedAt', 'printedDay', 'printedMode', 'printedCount',
     'removed', 'removedAt', 'mode', 'selected', 'material', 'name', 'spec',
     'quantity', 'remaining', 'remainingKey', 'perBox', 'date', 'overAccepted', 'boxMixed',
-    'copiedFrom', 'mergedFrom'
+    'copiedFrom', 'mergedFrom', 'noOrder'
   ].forEach((field) => {
     if (row[field] !== undefined) copy[field] = row[field];
   });
@@ -9912,6 +11675,39 @@ function labelModeText(mode = labelPrintMode) {
   return mode === 'small' ? '小标签' : '大标签';
 }
 
+function noOrderLabelSourceKey(material, spec, date) {
+  return ['NOORDER', String(material || '').trim(), String(spec || '').trim(), String(date || '').slice(0, 10)].join('|');
+}
+
+function noOrderLabelGroups() {
+  const map = new Map();
+  const add = (row, date, source) => {
+    const material = String(row?.material || '').trim();
+    const quantity = Number(row?.quantity || 0);
+    if (!material || !(quantity > 0)) return;
+    const spec = String(row?.spec || '').trim();
+    const day = String(date || '').slice(0, 10);
+    const key = noOrderLabelSourceKey(material, spec, day);
+    const current = map.get(key);
+    map.set(key, {
+      material,
+      name: String(row?.name || current?.name || ''),
+      specs: [spec],
+      dates: [day],
+      total: Number(current?.total || 0) + quantity,
+      source,
+      sourceKey: key,
+    });
+  };
+  for (const [material, item] of sessionOver.entries()) {
+    add({ ...item, material }, currentDeliveryDate(), 'pending');
+  }
+  for (const row of overDeliveries()) {
+    if (row.billedAt || isBilledExtra(row.id)) continue;
+    add(row, shipShanghaiDate(row.createdAt) || currentDeliveryDate(), 'saved');
+  }
+  return [...map.values()];
+}
 function labelPool(anyMode = false, includeAllStatus = false) {
   const onlyPrinted = Boolean(els.labelPrintShowPrinted && els.labelPrintShowPrinted.checked);
   const showRemoved = Boolean(els.labelPrintShowRemoved && els.labelPrintShowRemoved.checked);
@@ -9920,11 +11716,21 @@ function labelPool(anyMode = false, includeAllStatus = false) {
   // 只要在搜索，就把已打印的一起带出来，方便找出来补打
   const keepPrinted = Boolean(query) || Boolean(String(desktopRemainingSearch || '').trim());
   // 同一个料号（同图号）的多个交期合并成一个标签，数量相加
-  const items = mergeRemainingGroupsForPrint(remainingGroupsForDates([...labelDateFilter], desktopRemainingSearch))
+  const orderItems = mergeRemainingGroupsForPrint(remainingGroupsForDates([...labelDateFilter], desktopRemainingSearch))
     .map((group) => {
       const key = labelSourceKey(group);
-      return { group, key, record: labelPrintedRecords[key] || null, removed: labelRemovedRecords[key] || null };
-    })
+      return { group, key, record: labelPrintedRecords[key] || null, removed: labelRemovedRecords[key] || null, noOrder: false };
+    });
+  const noOrderItems = noOrderLabelGroups().map((group) => ({
+    group,
+    key: group.sourceKey,
+    record: labelPrintedRecords[group.sourceKey] || null,
+    removed: labelRemovedRecords[group.sourceKey] || null,
+    noOrder: true,
+    remainingOverride: group.total,
+    remainingKey: group.sourceKey,
+  }));
+  const items = [...noOrderItems, ...orderItems]
     // 打开弹窗时一次装入全部状态，后续搜索/筛选只改显示，避免把刚改的数量、复制和合并清掉。
     .filter((item) => anyMode || labelAssignOf(item.group.material) === mode || (mode === 'small' && labelSmallRecovery));
   if (includeAllStatus) {
@@ -10019,10 +11825,13 @@ function buildLabelRows(allModes = false, includeAllStatus = false) {
       quantity: rule
         ? labelBoxQuantityText(item.group.total, rule.perBox)
         : Number(item.group.total) || 0,
-      remaining: remainingAll.has(labelRemainingTotalKey(item.group))
-        ? Number(remainingAll.get(labelRemainingTotalKey(item.group)))
-        : Number(item.group.total) || 0,
-      remainingKey: labelRemainingTotalKey(item.group),
+      remaining: item.remainingOverride != null
+        ? Number(item.remainingOverride) || 0
+        : (remainingAll.has(labelRemainingTotalKey(item.group))
+          ? Number(remainingAll.get(labelRemainingTotalKey(item.group)))
+          : Number(item.group.total) || 0),
+      remainingKey: item.remainingKey || labelRemainingTotalKey(item.group),
+      noOrder: Boolean(item.noOrder),
       perBox: rule ? rule.perBox : 0,
       habit,
       bigCount: labelMaterialCount(material, 'big'),
@@ -10067,6 +11876,7 @@ function labelRowHtml(row, index) {
   const printedTag = row.printed
     ? '<span class="label-printed-tag" title="本机打印记录">' + escapeHtml(row.printedAt ? row.printedAt.slice(5) : '已打印') + '</span>'
     : '';
+  const noOrderTag = row.noOrder ? '<span class="label-no-order-tag" title="这笔货暂未对应采购订单">无订单发货</span>' : '';
   const moveTarget = labelPrintMode === 'big' ? 'small' : 'big';
   const moveText = moveTarget === 'small' ? '转小标签' : '转大标签';
   return `<div class="label-print-row${row.printed ? ' printed' : ''}" data-label-row="${index}">
@@ -10082,6 +11892,7 @@ function labelRowHtml(row, index) {
     <div class="label-print-row-actions">
       ${row.removed ? '<span class="label-printed-tag">已删除</span>' : ''}
       ${printedTag}
+      ${noOrderTag}
       ${row.mergedFrom
 
         ? `<button type="button" class="label-row-btn" data-label-unmerge="${index}">取消合并</button>`
@@ -10232,6 +12043,514 @@ function labelQuantityNumber(value) {
   const number = Number(matched[0]);
   return Number.isFinite(number) ? number : 0;
 }
+
+// 恒怡独立发货清单。只读取 board_heng_get_ledger，不读取艾沃意特 shipments。
+async function loadHengLedger(filters = {}) {
+  hengUiState.ledgerLoading = true;
+  hengUiState.ledgerError = '';
+  renderHengDesktop();
+  try {
+    const result = await callRpc('board_heng_get_ledger', { p_code: getAccessCode(), p_filters: filters });
+    if (!result.response.ok) throw new Error(result.data?.message || '恒怡发货清单加载失败');
+    hengUiState.ledgerRows = Array.isArray(result.data) ? result.data : [];
+    hengUiState.ledgerLoaded = true;
+  } catch (error) {
+    hengUiState.ledgerRows = [];
+    hengUiState.ledgerError = error.message || '恒怡发货清单加载失败';
+  } finally {
+    hengUiState.ledgerLoading = false;
+    renderHengDesktop();
+    renderHengMobile();
+  }
+}
+
+async function loadHengDeliveryFiles() {
+  if (hengUiState.deliveryFilesLoading) return;
+  hengUiState.deliveryFilesLoading = true;
+  hengUiState.deliveryFilesError = '';
+  renderHengDesktop();
+  try {
+    const result = await callRpc('board_heng_get_delivery_files', { p_code: getAccessCode(), p_limit: 300 });
+    if (!result.response.ok) throw new Error(result.data?.message || '恒怡送货单文件加载失败');
+    hengUiState.deliveryFiles = Array.isArray(result.data)
+      ? result.data
+      : (Array.isArray(result.data?.files) ? result.data.files : []);
+    hengUiState.deliveryFilesLoaded = true;
+  } catch (error) {
+    hengUiState.deliveryFiles = [];
+    hengUiState.deliveryFilesError = error.message || '恒怡送货单文件加载失败';
+  } finally {
+    hengUiState.deliveryFilesLoading = false;
+    renderHengDesktop();
+  }
+}
+
+function hengDeliveryFileBatch(row) {
+  const name = String(row?.fileName || '').replace(/\.(xlsx|pdf)$/i, '');
+  const bogo = name.match(/-B(\d{4})$/i);
+  if (bogo) return `B${bogo[1]}`;
+  const batch = name.match(/-(\d+)$/);
+  return batch ? batch[1] : String(row?.batch || '');
+}
+
+function hengDeliveryFileCustomerName(row) {
+  return String(row?.kind || '') === 'bogo' ? '博戈橡胶' : '圣世杰 / 宝海';
+}
+
+function hengDeliveryFileGroups() {
+  const groups = new Map();
+  for (const row of hengUiState.deliveryFiles || []) {
+    const batch = hengDeliveryFileBatch(row);
+    const key = [row.batchId || '', batch || row.fileName || ''].join('|');
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        batchId: String(row.batchId || ''),
+        batch,
+        deliveryDate: String(row.deliveryDate || ''),
+        kind: String(row.kind || ''),
+        customerName: hengDeliveryFileCustomerName(row),
+        noteCount: Number(row.noteCount || 0),
+        createdAt: String(row.createdAt || ''),
+        excel: null,
+        pdf: null,
+      });
+    }
+    const group = groups.get(key);
+    if (/\.pdf$/i.test(String(row.fileName || ''))) group.pdf = row;
+    else group.excel = row;
+  }
+  return [...groups.values()].filter((group) => group.excel || group.pdf).sort((a, b) => {
+    const byDate = b.deliveryDate.localeCompare(a.deliveryDate);
+    return byDate || b.createdAt.localeCompare(a.createdAt);
+  });
+}
+
+function hengDeliveryFileGroupsForView() {
+  const query = String(hengUiState.ledgerQuery || '').trim().toLowerCase();
+  return hengDeliveryFileGroups().filter((group) => {
+    if (hengUiState.ledgerDateFrom && group.deliveryDate < hengUiState.ledgerDateFrom) return false;
+    if (hengUiState.ledgerDateTo && group.deliveryDate > hengUiState.ledgerDateTo) return false;
+    if (hengUiState.ledgerCustomer === 'bogo' && group.kind !== 'bogo') return false;
+    if (hengUiState.ledgerCustomer && hengUiState.ledgerCustomer !== 'bogo' && group.kind !== 'ssj_bh') return false;
+    if (!query) return true;
+    return [group.deliveryDate, group.customerName, group.batch, group.excel?.fileName, group.pdf?.fileName]
+      .join(' ').toLowerCase().includes(query);
+  });
+}
+
+function hengDeliveryFilesHtml() {
+  if (!hengUiState.deliveryFilesLoaded && !hengUiState.deliveryFilesLoading) {
+    setTimeout(() => loadHengDeliveryFiles().catch(() => {}), 0);
+  }
+  const groups = hengDeliveryFileGroupsForView();
+  return `<section class="heng-file-archive">
+    <div class="heng-file-archive-head">
+      <div><strong>云端送货单</strong><span>Excel 用于重新打印，PDF 用于随时查看归档</span></div>
+      <a href="#" class="heng-file-refresh" data-heng-file-refresh>刷新文件</a>
+    </div>
+    ${hengUiState.deliveryFilesError ? `<p class="heng-file-error">${escapeHtml(hengUiState.deliveryFilesError)}</p>` : ''}
+    <div class="heng-file-list">
+      ${groups.length ? groups.map((group) => `<article class="heng-file-card" data-heng-file-group="${escapeHtml(group.key)}">
+        <div class="heng-file-card-main">
+          <div><span>${escapeHtml(group.deliveryDate || '—')}</span><b>${escapeHtml(group.batch || '—')}</b></div>
+          <strong>${escapeHtml(group.customerName)}</strong>
+          <small>${group.noteCount ? `${fmt(group.noteCount)} 张送货单 · ` : ''}${group.excel && group.pdf ? 'Excel + PDF 已归档' : (group.excel ? '仅 Excel' : '仅 PDF')}</small>
+        </div>
+        <div class="heng-file-actions">
+          ${group.excel ? `<button type="button" class="button ghost" data-heng-file-id="${escapeHtml(group.excel.id)}" data-heng-file-action="download">下载 Excel</button>` : ''}
+          ${group.pdf ? `<button type="button" class="button primary" data-heng-file-id="${escapeHtml(group.pdf.id)}" data-heng-file-action="open">打开 PDF</button>` : ''}
+        </div>
+      </article>`).join('') : `<div class="heng-file-empty">${hengUiState.deliveryFilesLoading ? '正在读取云端文件...' : '还没有已上传的恒怡送货单'}</div>`}
+    </div>
+  </section>`;
+}
+
+async function fetchHengDeliveryFileRecord(id) {
+  const result = await callRpc('board_heng_get_delivery_file', { p_code: getAccessCode(), p_id: id }, 40000, true);
+  if (!result.response.ok) throw new Error(result.data?.message || '云端送货单读取失败');
+  return result.data || {};
+}
+
+function hengDeliveryFileBlob(row, data) {
+  const binary = atob(String(data.contentBase64 || ''));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  const fileName = String(data.fileName || row?.fileName || '恒怡送货单');
+  const isPdf = /\.pdf$/i.test(fileName);
+  return {
+    fileName,
+    blob: new Blob([bytes], { type: isPdf ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+  };
+}
+
+async function downloadHengDeliveryFile(id, button) {
+  const row = (hengUiState.deliveryFiles || []).find((item) => String(item.id) === String(id));
+  const original = button?.textContent || '';
+  if (button) { button.disabled = true; button.textContent = '下载中...'; }
+  try {
+    const data = await fetchHengDeliveryFileRecord(id);
+    const { fileName, blob } = hengDeliveryFileBlob(row, data);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    showToast(`已开始下载 ${fileName}`);
+  } catch (error) {
+    showToast(error.message || '下载失败', 7000);
+  } finally {
+    if (button) { button.disabled = false; button.textContent = original || '下载 Excel'; }
+  }
+}
+
+async function openHengDeliveryFile(id, button) {
+  const row = (hengUiState.deliveryFiles || []).find((item) => String(item.id) === String(id));
+  const popup = window.open('', '_blank');
+  const original = button?.textContent || '';
+  if (button) { button.disabled = true; button.textContent = '打开中...'; }
+  try {
+    const data = await fetchHengDeliveryFileRecord(id);
+    const { fileName, blob } = hengDeliveryFileBlob(row, data);
+    const url = URL.createObjectURL(blob);
+    if (popup && !popup.closed) {
+      popup.location.href = url;
+      popup.focus?.();
+    } else {
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 10 * 60 * 1000);
+    showToast(`已打开 ${fileName}`);
+  } catch (error) {
+    try { popup?.close(); } catch { }
+    showToast(error.message || 'PDF 打开失败', 7000);
+  } finally {
+    if (button) { button.disabled = false; button.textContent = original || '打开 PDF'; }
+  }
+}
+
+function hengLedgerFilters() {
+  return {
+    dateFrom: document.getElementById('hengLedgerDateFrom')?.value || '',
+    dateTo: document.getElementById('hengLedgerDateTo')?.value || '',
+    customerCode: document.getElementById('hengLedgerCustomer')?.value || '',
+    query: document.getElementById('hengLedgerSearch')?.value || '',
+  };
+}
+
+function hengLedgerHtml() {
+  if (!hengUiState.ledgerLoaded && !hengUiState.ledgerLoading) {
+    setTimeout(() => loadHengLedger(hengLedgerFilters()).catch(() => {}), 0);
+  }
+  const rows = hengUiState.ledgerRows || [];
+  return `<section class="panel heng-ledger-panel">
+    <div class="section-head"><div><h2>恒怡发货清单</h2><p>只显示恒怡已开单数据，不进入艾沃意特发货记录。</p></div><button id="hengLedgerExport" class="button primary" type="button">导出 Excel</button></div>
+    <div class="heng-ledger-filters">
+      <label><span>开始日期</span><input id="hengLedgerDateFrom" type="date" value="${escapeHtml(hengUiState.ledgerDateFrom || '')}"></label>
+      <label><span>结束日期</span><input id="hengLedgerDateTo" type="date" value="${escapeHtml(hengUiState.ledgerDateTo || '')}"></label>
+      <label><span>客户</span><select id="hengLedgerCustomer"><option value="">全部客户</option><option value="ssj" ${hengUiState.ledgerCustomer === 'ssj' ? 'selected' : ''}>圣世杰</option><option value="bh" ${hengUiState.ledgerCustomer === 'bh' ? 'selected' : ''}>宝海</option><option value="bogo" ${hengUiState.ledgerCustomer === 'bogo' ? 'selected' : ''}>博戈橡胶</option></select></label>
+      <label class="heng-ledger-search"><span>搜索</span><input id="hengLedgerSearch" type="search" value="${escapeHtml(hengUiState.ledgerQuery || '')}" placeholder="送货单号 / 订单号 / 物料编号 / 名称"></label>
+      <button id="hengLedgerRefresh" class="button ghost" type="button">查询</button>
+    </div>
+    ${hengUiState.ledgerError ? `<div class="heng-bogo-error" role="alert">${escapeHtml(hengUiState.ledgerError)}</div>` : ''}
+    ${hengDeliveryFilesHtml()}
+    <div class="table-wrap heng-ledger-table-wrap">
+      <table class="heng-ledger-table">
+        <thead><tr><th>日期</th><th>客户</th><th>送货单号</th><th>页码</th><th>订单号</th><th>物料编号</th><th>物料名称</th><th>规格型号</th><th>单位</th><th class="number">数量</th><th>包装总数</th></tr></thead>
+        <tbody id="hengLedgerRows">${rows.length ? rows.map((row) => `<tr>
+          <td>${escapeHtml(row.deliveryDate)}</td><td>${escapeHtml(row.customerName)}</td>
+          <td><b>${escapeHtml(row.noteNumber)}</b></td><td>${escapeHtml(row.pageNo)}</td>
+          <td>${escapeHtml(row.orderNo)}</td><td>${escapeHtml(row.materialCode)}</td>
+          <td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.spec || '—')}</td>
+          <td>${escapeHtml(row.unit)}</td><td class="number">${fmt(row.quantity)}</td>
+          <td>${escapeHtml(row.packagingText || '—')}</td>
+        </tr>`).join('') : `<tr><td colspan="11" class="heng-ledger-empty">${hengUiState.ledgerLoading ? '正在查询...' : '没有符合条件的记录'}</td></tr>`}</tbody>
+      </table>
+    </div>
+  </section>`;
+}
+
+async function exportHengLedger() {
+  await loadXlsx();
+  if (!window.XLSX) throw new Error('Excel 导出组件未加载');
+  const data = [
+    ['发货日期', '客户', '送货单号', '页码', '订单号', '物料编号', '物料名称', '规格型号', '单位', '数量', '包装总数'],
+    ...(hengUiState.ledgerRows || []).map((row) => [row.deliveryDate, row.customerName, row.noteNumber, row.pageNo, row.orderNo, row.materialCode, row.name, row.spec, row.unit, row.quantity, row.packagingText]),
+  ];
+  const sheet = window.XLSX.utils.aoa_to_sheet(data);
+  const workbook = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(workbook, sheet, '恒怡发货清单');
+  window.XLSX.writeFile(workbook, `恒怡发货清单_${todayShanghai()}.xlsx`, { compression: true });
+}
+// ===== 月度对账：4074 历史完结；4137 待对账 / 已对账（默认开票） =====
+let reconciliationMonth = '';
+let reconciliationCompany = '4137';
+let reconciliationStatus = 'all';
+let reconciliationCutoff = '';
+let reconciliationLastRows = [];
+const RECONCILIATION_CUTOFF_KEY = 'fanshipReconciliationCutoffDates';
+const DEFAULT_RECONCILIATION_CUTOFF = { '4074': '2026-10-15', '4137': '2026-10-17' };
+
+function readReconciliationCutoff(company) {
+  const fallback = DEFAULT_RECONCILIATION_CUTOFF[company] || reconciliationMonthNow() + '-01';
+  try {
+    const saved = JSON.parse(localStorage.getItem(RECONCILIATION_CUTOFF_KEY) || '{}');
+    return String(saved[company] || fallback).slice(0, 10);
+  } catch { return fallback; }
+}
+
+function saveReconciliationCutoff(company, value) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(RECONCILIATION_CUTOFF_KEY) || '{}');
+    saved[company] = String(value || '').slice(0, 10);
+    localStorage.setItem(RECONCILIATION_CUTOFF_KEY, JSON.stringify(saved));
+  } catch { }
+}
+
+function reconciliationMonthNow() {
+  return String(TODAY || new Date().toISOString()).slice(0, 7);
+}
+
+function reconciliationOrderCompany(order, orderId = '') {
+  const id = String(order?.id || orderId || '');
+  if (id.startsWith('4074:')) return '4074';
+  if (id.startsWith('4137:')) return '4137';
+  const customer = String(order?.customer || '').trim();
+  if (customer === '4137') return '4137';
+  if (customer === '4074' || customer === '艾沃意特') return '4074';
+  return customer;
+}
+
+function reconciliationShipmentMonth(shipment) {
+  return String(shipShanghaiDate(shipment?.createdAt) || '').slice(0, 7);
+}
+
+function reconciliationStatusOf(shipment, company, shipDate = '') {
+  if (company === '4074') return true;
+  if (reconciliationCutoff && shipDate && shipDate > reconciliationCutoff) return false;
+  return isBilledShipment(shipment?.id);
+}
+
+function reconciliationMoney(value) {
+  const number = Number(value || 0);
+  return '¥' + number.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function reconciliationQty(value) {
+  return Number(value || 0).toLocaleString('zh-CN', { maximumFractionDigits: 2 }) + ' 件';
+}
+
+function reconciliationCollectedRows(month = reconciliationMonth, company = reconciliationCompany) {
+  const orderMap = orderLookupMap();
+  const grouped = new Map();
+  const allPending = { qty: 0, amount: 0, months: new Set(), items: 0, missingPrice: 0 };
+  for (const shipment of snapshot?.shipments || []) {
+    const shipMonth = reconciliationShipmentMonth(shipment);
+    for (const item of shipment.items || []) {
+      const order = orderMap.get(String(item.orderId || '')) || null;
+      const itemCompany = reconciliationOrderCompany(order, item.orderId);
+      if (!itemCompany) continue;
+      const date = String(shipShanghaiDate(shipment.createdAt) || '');
+      const done = reconciliationStatusOf(shipment, itemCompany, date);
+      const amountRow = amountFor(item.orderId);
+      const price = amountRow && amountRow.unitPrice != null && Number(amountRow.unitPrice) > 0 ? Number(amountRow.unitPrice) : null;
+      const qty = Number(item.quantity || 0);
+      const amount = price == null ? 0 : price * qty;
+      if (itemCompany === company && !done) {
+        allPending.qty += qty;
+        allPending.amount += amount;
+        allPending.items += 1;
+        allPending.months.add(shipMonth);
+        if (price == null) allPending.missingPrice += 1;
+      }
+      if (itemCompany !== company || shipMonth !== month) continue;
+      const material = String(item.material || order?.material || '').trim();
+      const name = String(item.name || order?.name || '').trim();
+      const key = material + '\u0000' + name;
+      if (!grouped.has(key)) grouped.set(key, {
+        company: itemCompany, material, name,
+        specs: new Set(), prices: new Set(), dates: new Set(), batches: new Set(),
+        qty: 0, doneQty: 0, pendingQty: 0, amount: 0, doneAmount: 0, pendingAmount: 0,
+        missingPrice: 0, itemCount: 0,
+      });
+      const row = grouped.get(key);
+      if (item.spec) row.specs.add(String(item.spec).trim());
+      if (price != null) row.prices.add(price); else row.missingPrice += 1;
+      if (date) row.dates.add(date);
+      const batch = shipmentDisplayBatch(shipment);
+      if (batch) row.batches.add(batch);
+      row.qty += qty;
+      row.amount += amount;
+      row.itemCount += 1;
+      if (done) { row.doneQty += qty; row.doneAmount += amount; }
+      else { row.pendingQty += qty; row.pendingAmount += amount; }
+    }
+  }
+  const rows = [...grouped.values()].map((row) => ({
+    ...row,
+    specs: [...row.specs].filter(Boolean),
+    prices: [...row.prices].sort((a, b) => a - b),
+    dates: [...row.dates].sort(),
+    batches: [...row.batches].filter(Boolean),
+    status: row.pendingQty <= 0 ? 'done' : row.doneQty <= 0 ? 'pending' : 'partial',
+  })).sort((a, b) => {
+    const pendingA = a.pendingAmount + a.pendingQty;
+    const pendingB = b.pendingAmount + b.pendingQty;
+    if ((pendingA > 0) !== (pendingB > 0)) return pendingA > 0 ? -1 : 1;
+    return a.material.localeCompare(b.material, 'zh-CN') || a.name.localeCompare(b.name, 'zh-CN');
+  });
+  return { rows, allPending };
+}
+
+function reconciliationStatusBadge(status) {
+  if (status === 'done') return '<span class="reconciliation-status done">已对账</span>';
+  if (status === 'partial') return '<span class="reconciliation-status partial">部分待对账</span>';
+  return '<span class="reconciliation-status pending">待对账</span>';
+}
+
+function reconciliationPriceText(prices, missingPrice) {
+  if (missingPrice) return '<span class="money-pending">待补单价</span>';
+  if (!prices.length) return '—';
+  if (prices.length === 1) return reconciliationMoney(prices[0]);
+  return '价格不一';
+}
+
+function reconciliationDateText(dates) {
+  if (!dates.length) return '—';
+  if (dates.length === 1) return dates[0];
+  return dates[0] + ' 至 ' + dates[dates.length - 1];
+}
+
+function renderReconciliationView() {
+  if (boardRole !== 'admin' || !snapshot) return;
+  const monthEl = document.getElementById('reconciliationMonth');
+  const companyEl = document.getElementById('reconciliationCompany');
+  const statusEl = document.getElementById('reconciliationStatusFilter');
+  const cutoffEl = document.getElementById('reconciliationCutoff');
+  const tbody = document.getElementById('reconciliationTableBody');
+  if (!monthEl || !companyEl || !statusEl || !tbody) return;
+  if (!reconciliationMonth) reconciliationMonth = reconciliationMonthNow();
+  if (!reconciliationCutoff) reconciliationCutoff = readReconciliationCutoff(reconciliationCompany);
+  monthEl.value = reconciliationMonth;
+  cutoffEl.value = reconciliationCutoff;
+  companyEl.value = reconciliationCompany;
+  statusEl.value = reconciliationStatus;
+
+  const { rows, allPending } = reconciliationCollectedRows(reconciliationMonth, reconciliationCompany);
+  reconciliationLastRows = rows;
+  const visibleRows = rows.filter((row) => reconciliationStatus === 'all'
+    || (reconciliationStatus === 'pending' ? row.status !== 'done' : row.status === 'done'));
+  const monthQty = rows.reduce((sum, row) => sum + row.qty, 0);
+  const monthAmount = rows.reduce((sum, row) => sum + row.amount, 0);
+  const doneQty = rows.reduce((sum, row) => sum + row.doneQty, 0);
+  const doneAmount = rows.reduce((sum, row) => sum + row.doneAmount, 0);
+  const pendingQty = rows.reduce((sum, row) => sum + row.pendingQty, 0);
+  const pendingAmount = rows.reduce((sum, row) => sum + row.pendingAmount, 0);
+  const selectedMissing = rows.reduce((sum, row) => sum + row.missingPrice, 0);
+  const totalPendingQty = reconciliationCompany === '4074' ? 0 : allPending.qty;
+  const totalPendingAmount = reconciliationCompany === '4074' ? 0 : allPending.amount;
+
+  document.getElementById('reconciliationMonthAmount').textContent = reconciliationMoney(monthAmount);
+  document.getElementById('reconciliationMonthMeta').textContent = `${rows.length} 个物料 · ${reconciliationQty(monthQty)}`;
+  document.getElementById('reconciliationDoneAmount').textContent = reconciliationMoney(doneAmount);
+  document.getElementById('reconciliationDoneMeta').textContent = `已对账 ${reconciliationQty(doneQty)}`;
+  document.getElementById('reconciliationPendingAmount').textContent = reconciliationMoney(pendingAmount);
+  document.getElementById('reconciliationPendingMeta').textContent = `待对账 ${reconciliationQty(pendingQty)}`;
+  document.getElementById('reconciliationUnbilledAmount').textContent = reconciliationMoney(totalPendingAmount);
+  document.getElementById('reconciliationUnbilledMeta').textContent = reconciliationCompany === '4074'
+    ? '4074 已全部完结'
+    : `全部月份待对账 ${reconciliationQty(totalPendingQty)}${allPending.months.size ? ` · ${allPending.months.size} 个月` : ''}`;
+  const warning = document.getElementById('reconciliationPriceWarning');
+  if (warning) {
+    const missing = reconciliationCompany === '4074' ? selectedMissing : Math.max(selectedMissing, allPending.missingPrice);
+    warning.hidden = missing <= 0;
+    warning.textContent = missing > 0 ? `有 ${missing} 行发货尚未维护单价，相关金额暂按 0 计，补齐单价后金额会自动更新。` : '';
+  }
+  document.getElementById('reconciliationSummaryText').textContent = `对账发货截止 ${reconciliationCutoff || '未设置'} · 当前显示 ${visibleRows.length} 个物料 · 合计 ${reconciliationQty(visibleRows.reduce((sum, row) => sum + row.qty, 0))}`;
+  const closedNote = document.getElementById('reconciliationClosedNote');
+  if (closedNote) closedNote.hidden = reconciliationCompany !== '4074';
+
+  tbody.innerHTML = visibleRows.map((row) => {
+    const specs = row.specs.join('、') || '—';
+    const batches = row.batches.join('、') || '—';
+    return `<tr>
+      <td>${reconciliationStatusBadge(row.status)}</td>
+      <td><span class="reconciliation-material-code">${escapeHtml(row.material)}</span><span class="reconciliation-company-tag">${escapeHtml(row.company)}</span></td>
+      <td>${escapeHtml(row.name || '—')}</td>
+      <td>${escapeHtml(specs)}</td>
+      <td class="number">${reconciliationQty(row.qty)}</td>
+      <td class="number">${reconciliationQty(row.doneQty)}</td>
+      <td class="number">${row.pendingQty ? reconciliationQty(row.pendingQty) : '—'}</td>
+      <td class="number">${reconciliationPriceText(row.prices, row.missingPrice)}</td>
+      <td class="number">${reconciliationMoney(row.amount)}</td>
+      <td class="number ${row.pendingAmount ? 'money-pending' : ''}">${row.pendingAmount ? reconciliationMoney(row.pendingAmount) : '—'}</td>
+      <td>${escapeHtml(reconciliationDateText(row.dates))}</td>
+      <td>${escapeHtml(batches)}</td>
+    </tr>`;
+  }).join('');
+  const empty = document.getElementById('reconciliationEmpty');
+  if (empty) empty.hidden = visibleRows.length > 0;
+}
+
+function exportReconciliationCsv() {
+  const rows = reconciliationLastRows;
+  if (!rows.length) { showToast('当前没有可导出的月度对账数据'); return; }
+  const header = ['状态','料号','品名','规格','本月发货数量','已对账数量','待对账数量','含税单价','本月含税金额','待对账金额','发货日期','送货单号'];
+  const statusText = { done: '已对账', pending: '待对账', partial: '部分待对账' };
+  const escape = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+  const body = rows.map((row) => [
+    statusText[row.status] || row.status,
+    row.material,
+    row.name,
+    row.specs.join('、'),
+    row.qty,
+    row.doneQty,
+    row.pendingQty,
+    row.prices.length === 1 ? row.prices[0] : (row.prices.length ? '价格不一' : ''),
+    row.amount.toFixed(2),
+    row.pendingAmount.toFixed(2),
+    reconciliationDateText(row.dates),
+    row.batches.join('、'),
+  ]);
+  const csv = '\ufeff' + [header, ...body].map((line) => line.map(escape).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `帆顺${reconciliationCompany}_月度对账_${reconciliationMonth}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+document.getElementById('reconciliationMonth')?.addEventListener('change', (event) => {
+  reconciliationMonth = String(event.target.value || reconciliationMonthNow());
+  renderReconciliationView();
+});
+document.getElementById('reconciliationCompany')?.addEventListener('change', (event) => {
+  reconciliationCompany = String(event.target.value || '4137') === '4074' ? '4074' : '4137';
+  reconciliationCutoff = readReconciliationCutoff(reconciliationCompany);
+  renderReconciliationView();
+});
+document.getElementById('reconciliationCutoff')?.addEventListener('change', (event) => {
+  reconciliationCutoff = String(event.target.value || '').slice(0, 10);
+  saveReconciliationCutoff(reconciliationCompany, reconciliationCutoff);
+  renderReconciliationView();
+});
+document.getElementById('reconciliationStatusFilter')?.addEventListener('change', (event) => {
+  reconciliationStatus = ['all','pending','reconciled'].includes(event.target.value) ? event.target.value : 'all';
+  renderReconciliationView();
+});
+document.getElementById('reconciliationExport')?.addEventListener('click', exportReconciliationCsv);
 
 // ===== 合并两张标签（内外梁、导向板 A/B 这类成对的）=====
 
@@ -10895,8 +13214,15 @@ function refreshRemainingViews() {
   renderDesktopRemaining();
 }
 
-function renderMobileRecords() {
+let mobileRecordsMoreObserver = null;
+
+function renderMobileRecords(options = {}) {
   if (!els.recordsList || !snapshot) return;
+  const resetScroll = Boolean(options.resetScroll);
+  const panelWasVisible = document.body.dataset.view === 'mobile' && mobileTab === 'records' && !els.mobileRecordsPanel.hidden;
+  const previousScrollY = window.scrollY;
+  const tabsOffset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mobile-tabs-bottom')) || 0;
+  const panelTop = Math.max(0, window.scrollY + els.mobileRecordsPanel.getBoundingClientRect().top - tabsOffset - 8);
   renderMobileRecordFilters();
   const query = String(recordsSearch || '').trim();
   const lookup = orderLookupMap();
@@ -10912,10 +13238,27 @@ function renderMobileRecords() {
   });
   const totalRows = rows.length;
   const visibleRows = rows.slice(0, mobileRecordsVisibleLimit);
+  if (mobileRecordsMoreObserver) {
+    mobileRecordsMoreObserver.disconnect();
+    mobileRecordsMoreObserver = null;
+  }
   renderQueryPanes(els.recordsList, els.recordsOffsetList, els.recordsOverList, renderShipmentSection(visibleRows, recordsSearch, recordsDate), els.recordsReplacementList);
   if (totalRows > visibleRows.length) {
-    els.recordsList.insertAdjacentHTML('beforeend', `<div class="load-more-row"><span>已显示 ${visibleRows.length} / ${totalRows} 笔</span><button class="button ghost" type="button" data-mobile-records-more>再显示 5 笔</button></div>`);
-    els.recordsList.querySelector('[data-mobile-records-more]')?.addEventListener('click', () => { mobileRecordsVisibleLimit += 5; renderMobileRecords(); });
+    els.recordsList.insertAdjacentHTML('beforeend', `<div class="load-more-row mobile-records-auto-more"><span>继续向下滑动，自动显示更多（已显示 ${visibleRows.length} / ${totalRows} 笔）</span></div>`);
+    const sentinel = els.recordsList.querySelector('.mobile-records-auto-more');
+    if (sentinel && 'IntersectionObserver' in window) {
+      requestAnimationFrame(() => {
+        if (!sentinel.isConnected) return;
+        mobileRecordsMoreObserver = new IntersectionObserver((entries) => {
+          if (!entries.some((entry) => entry.isIntersecting)) return;
+          mobileRecordsMoreObserver?.disconnect();
+          mobileRecordsMoreObserver = null;
+          mobileRecordsVisibleLimit += 20;
+          renderMobileRecords();
+        }, { root: null, rootMargin: '0px 0px 180px 0px', threshold: 0.01 });
+        mobileRecordsMoreObserver.observe(sentinel);
+      });
+    }
   }
   void renderCloudFiles();
   requestAnimationFrame(() => { applyDeliveryColumnWidths('grouped'); applyDeliveryColumnWidths('merged'); });
@@ -10926,8 +13269,11 @@ function renderMobileRecords() {
     renderMobileRecords();
     renderDesktopHistory();
   }));
+  if (panelWasVisible) {
+    const targetScrollY = resetScroll ? panelTop : previousScrollY;
+    requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: targetScrollY, behavior: 'auto' })));
+  }
 }
-
 async function revokeOffset(offsetId) {
   const offsetRow = overOffsets().find((row) => String(row.id) === String(offsetId));
   if (offsetRow && isBilledExtra(offsetId)) { showToast('这笔冲抵已经开送货单并上传云端，不能撤回'); return; }
@@ -11278,8 +13624,9 @@ function showSubmitError(message) {
 
 function openSubmitModal() {
   const entries = [...selected.entries()].filter(([, quantity]) => Number(quantity) > 0);
-  if (!entries.length && !sessionReplacements.length) {
-    showToast('请先录入至少一项装车数量或补发');
+  const overRows = [...sessionOver.values()].filter((item) => item.pending && Number(item.quantity) > 0);
+  if (!entries.length && !sessionReplacements.length && !overRows.length) {
+    showToast('请先录入至少一项装车数量、补发或无订单发货');
     return;
   }
   showSubmitError('');
@@ -11287,16 +13634,16 @@ function openSubmitModal() {
   // 打开确认框时顺手同步一次最新未交，减少"别的设备刚发过货"造成的误差
   loadState({ quiet: true }).then(() => renderAll()).catch(() => {});
   const orderTotal = entries.reduce((sum, [, quantity]) => sum + Number(quantity), 0);
-  const overRows = [...sessionOver.values()].filter((item) => item.pending && Number(item.quantity) > 0);
   const overTotal = overRows.reduce((sum, item) => sum + Number(item.quantity), 0);
   const replacementQty = replacementTotalQty();
   const total = orderTotal + overTotal + replacementQty;
+  const onlyNoOrder = !entries.length && !sessionReplacements.length && overRows.length > 0;
   els.submitSummary.innerHTML = `
     <div class="submit-summary-row"><span>本次物料</span><strong>${entries.length + overRows.length + sessionReplacements.length} 项</strong></div>
     <div class="submit-summary-row"><span>本次总数量</span><strong>${fmt(total)} 件</strong></div>
     ${replacementQty ? `<div class="submit-summary-row"><span>其中补发</span><strong>${fmt(replacementQty)} 件（${sessionReplacements.length} 项，进送货单）</strong></div>` : ''}
     ${overTotal ? `<div class="submit-summary-row"><span>其中无订单发货</span><strong>${fmt(overTotal)} 件（提交时自动登记）</strong></div>` : ''}
-    <div class="submit-summary-row"><span>提交后</span><strong>电脑端自动扣减未交</strong></div>`;
+    <div class="submit-summary-row"><span>提交后</span><strong>${onlyNoOrder ? '登记为无订单发货，不扣减未交' : '电脑端自动扣减未交'}</strong></div>`;
   els.submitModal.hidden = false;
 }
 
@@ -11332,7 +13679,8 @@ async function deliveryHelper(path, payload, helperOptions = {}) {
   try {
     const response = await fetch(`${PRINT_HELPER_BASE}${path}`, options);
     const data = await response.json().catch(() => ({}));
-    if (!response.ok || data.ok === false) throw new Error(data.error || `打印助手请求失败（HTTP ${response.status}）`);
+    const helperErrors = Array.isArray(data.errors) ? data.errors.filter(Boolean).join('；') : '';
+    if (!response.ok || data.ok === false) throw new Error(data.error || helperErrors || `打印助手请求失败（HTTP ${response.status}）`);
     if (taskLabel && !keepTaskOpen) finishTask('操作已完成', 'success', 2200);
     return data;
   } catch (error) {
@@ -11515,8 +13863,14 @@ async function submitShipment() {
     const items = [...selected.entries()]
       .filter(([, quantity]) => Number(quantity) > 0)
       .map(([orderId, quantity]) => ({ orderId, quantity }));
+    const pendingOvers = [...sessionOver.entries()].filter(([, item]) => item.pending && Number(item.quantity) > 0);
+    const pendingOverPhotoTargets = pendingOvers.map(([material, item]) => ({
+      material: String(material || '').trim(),
+      spec: String(item.spec || '').trim(),
+    }));
     const onlyReplacement = !items.length && sessionReplacements.length > 0;
-    if (!items.length && !onlyReplacement) throw new Error('本次可发的数量已经变化，请重新确认装车数量');
+    const onlyExtra = !items.length && (sessionReplacements.length > 0 || pendingOvers.length > 0);
+    if (!items.length && !onlyExtra) throw new Error('本次可发的数量已经变化，请重新确认装车数量');
     const form = new FormData(els.shipmentForm);
     const payload = {
       customer: snapshot.customer,
@@ -11528,7 +13882,8 @@ async function submitShipment() {
     button.textContent = '正在同步...';
     setTaskStatus('正在同步装车数据...', 'info');
     let shipmentId = '';
-    if (!onlyReplacement) {
+    let submitLabel = '本次无订单发货';
+    if (items.length) {
       const response = await requestWithAccessCode(apiUrl('/api/shipments'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -11537,11 +13892,12 @@ async function submitShipment() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || '提交失败');
       shipmentId = result.shipmentId || result.shipment?.id || '本次发货';
-    } else {
+      submitLabel = shipmentId;
+    } else if (onlyReplacement) {
       shipmentId = '本次补发';
+      submitLabel = shipmentId;
     }
-    // 超出所有未交订单的部分：提交时自动登记成“无订单发货”，不用再手动点一次
-    const pendingOvers = [...sessionOver.entries()].filter(([, item]) => item.pending && Number(item.quantity) > 0);
+    // 超出未交订单的部分和完全无订单的提前发货，统一登记到“无订单发货”
     const overSaved = [];
     const overFailed = [];
     for (const [material, item] of pendingOvers) {
@@ -11551,7 +13907,11 @@ async function submitShipment() {
         spec: item.spec,
         customer: item.customer,
         quantity: Number(item.quantity),
-        note: '装车时超出所有未交采购单的部分',
+        note: [
+          item.note || (items.length ? '装车时超出所有未交采购单的部分' : '无订单提前发货'),
+          payload.operator !== '未填写' ? `操作人：${payload.operator}` : '',
+          payload.vehicle !== '未填写' ? `车牌/批次：${payload.vehicle}` : '',
+        ].filter(Boolean).join('；'),
       });
       if (created && created.ok !== false) {
         sessionOver.delete(material);
@@ -11603,11 +13963,14 @@ async function submitShipment() {
     for (const item of sessionReplacements) {
       photoTargets.push({ material: String(item.material || '').trim(), spec: String(item.spec || '').trim(), planId: String(item.planId || '').trim(), orderId: String(item.orderId || '').trim() });
     }
+    for (const item of pendingOverPhotoTargets) {
+      if (item.material) photoTargets.push(item);
+    }
     for (const [material, item] of sessionOver.entries()) {
       if (Number(item.quantity) > 0) photoTargets.push({ material: String(material || '').trim(), spec: String(item.spec || '').trim() });
     }
     const sessionPhotoFileNames = new Set(sessionPhotos.map((photo) => String(photo.fileName || '')));
-    await markLoadedUnitsShipped(shipmentId, shipmentMemberKeys);
+    if (shipmentId) await markLoadedUnitsShipped(shipmentId, shipmentMemberKeys);
     // 本次发货后重新允许清理，保证已发货的单元立刻从装车清单消失
     invalidUnitsCleanupDone = false;
     orphanLoadedUnitCleanupDone = false;
@@ -11616,7 +13979,7 @@ async function submitShipment() {
     closeSubmitModal();
     formBaseRevision = null;
     showSubmitError('');
-    showToast(`${shipmentId} 已保存${reallocated ? '（已按最新未交重新分配）' : ''}${overSaved.length ? `，含无订单发货 ${overSaved.join('、')}` : ''}`);
+    showToast(`${submitLabel} 已保存${reallocated ? '（已按最新未交重新分配）' : ''}${overSaved.length ? `，含无订单发货 ${overSaved.join('、')}` : ''}`);
     finishTask('装车已提交，正在刷新最新未交', 'success', 3500);
     const isIOSDevice = /iPad|iPhone|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 if (isIOSDevice) setTimeout(() => { loadPdfJs().catch(() => {}); }, 2000);
@@ -11626,9 +13989,11 @@ applyRoleUI();
 await loadState();
 applyRoleUI();
     // 照片挂到哪张发货单，以发货单里真实装进去的物料为准，避免拍到一半的货张冠李戴
-    const savedPhotoTargets = shipmentPhotoTargetsFromState(shipmentId);
+    const savedPhotoTargets = shipmentId ? shipmentPhotoTargetsFromState(shipmentId) : [];
     const photoTargetsForShipment = savedPhotoTargets.length ? savedPhotoTargets : photoTargets;
-    const linkedPhotoCount = await linkShipmentPhotos(shipmentId, photoTargetsForShipment, sessionPhotoFileNames);
+    const linkedPhotoCount = shipmentId
+      ? await linkShipmentPhotos(shipmentId, photoTargetsForShipment, sessionPhotoFileNames)
+      : 0;
     const photoUploadFailed = await uploadSessionPhotos(shipmentId, photoTargetsForShipment);
     renderPhotoArchive();
     if (linkedPhotoCount) showToast(`已把 ${linkedPhotoCount} 张留档照片挂到本次发货`);
@@ -11933,19 +14298,20 @@ async function confirmImportOrders() {
 }
 
 function switchMobileTab(tab) {
+  if (document.body.dataset.businessLine === 'heng' && typeof switchMobileBusinessLine === 'function') { switchMobileBusinessLine('heng'); return; }
   const previousTab = mobileTab;
   mobileTab = tab;
   mobileModule = 'entry';
   mobileOrderVisibleLimit = 20;
   const tabLabels = { entry: '装车登记', remaining: '未交清单', records: '发货记录', files: '云端送货单' };
   const mobileBrandModule = document.getElementById('mobileBrandModule');
-  if (mobileBrandModule) mobileBrandModule.textContent = tabLabels[tab] || '装车登记';
+  if (mobileBrandModule) mobileBrandModule.textContent = '艾沃意特 · ' + (tabLabels[tab] || '装车登记');
   const summary = document.querySelector('.mobile-summary');
-  const tabs = document.querySelector('.mobile-tabs');
+  const tabs = document.getElementById('mobileMainTabs');
   if (summary) summary.hidden = false;
   if (tabs) tabs.hidden = false;
   if (els.mobileWorkModule) els.mobileWorkModule.hidden = true;
-  for (const button of document.querySelectorAll('.mobile-tab')) button.classList.toggle('active', button.dataset.tab === tab);
+  for (const button of document.querySelectorAll('.mobile-main-tabs .mobile-tab')) button.classList.toggle('active', button.dataset.tab === tab);
   els.mobileEntryPanel.hidden = tab !== 'entry';
   els.mobileRemainingPanel.hidden = tab !== 'remaining';
   els.mobileRecordsPanel.hidden = tab !== 'records';
@@ -11955,7 +14321,7 @@ function switchMobileTab(tab) {
   renderCart();
   renderMobileModule();
   const finalLabel = document.getElementById('mobileBrandModule');
-  if (finalLabel) finalLabel.textContent = tabLabels[tab] || '装车登记';
+  if (finalLabel) finalLabel.textContent = '艾沃意特 · ' + (tabLabels[tab] || '装车登记');
   if (previousTab !== tab) requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
 }
 
@@ -12409,14 +14775,16 @@ if (els.mobileWorkReviewRefresh) els.mobileWorkReviewRefresh.addEventListener('c
 });
 function openMobileModuleSheet() {
   if (!els.mobileModuleSwitch) return;
-  els.mobileModuleSwitch.classList.add('expanded');
+  els.mobileModuleSwitch.classList.add('is-open');
   els.mobileModuleSwitch.setAttribute('aria-expanded', 'true');
+  if (els.mobileModuleMenu) els.mobileModuleMenu.setAttribute('aria-hidden', 'false');
   document.body.classList.add('module-sheet-open');
 }
 function closeMobileModuleSheet() {
   if (!els.mobileModuleSwitch) return;
-  els.mobileModuleSwitch.classList.remove('expanded');
+  els.mobileModuleSwitch.classList.remove('is-open');
   els.mobileModuleSwitch.setAttribute('aria-expanded', 'false');
+  if (els.mobileModuleMenu) els.mobileModuleMenu.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('module-sheet-open');
 }
 if (els.mobileModuleSwitch) {
@@ -12425,8 +14793,7 @@ if (els.mobileModuleSwitch) {
     if (event.target.closest && event.target.closest('#mobileModuleMenu')) return;
     event.preventDefault();
     event.stopPropagation();
-    if (boardRole !== 'admin') { showToast('管理员模式才能切换报工审核'); return; }
-    if (els.mobileModuleSwitch.classList.contains('expanded')) closeMobileModuleSheet();
+    if (els.mobileModuleSwitch.classList.contains('is-open')) closeMobileModuleSheet();
     else openMobileModuleSheet();
   };
   // 月度面板原本嵌在"报工情况"面板里，切到月度时父面板被隐藏会导致整块空白 —— 提到同级
@@ -12461,9 +14828,10 @@ if (els.mobileModuleMenu) {
     switchMobileModule(button.dataset.mobileModule);
   });
 }
+document.getElementById('mobileModuleClose')?.addEventListener('click', closeMobileModuleSheet);
 document.addEventListener('click', (event) => {
-  if (!els.mobileModuleSwitch || !els.mobileModuleSwitch.classList.contains('expanded')) return;
-  if (els.mobileModuleSwitch.contains(event.target)) return;
+  if (!els.mobileModuleSwitch || !els.mobileModuleSwitch.classList.contains('is-open')) return;
+  if (els.mobileModuleSwitch.contains(event.target) || els.mobileModuleMenu?.contains(event.target)) return;
   closeMobileModuleSheet();
 });
 if (els.workReviewClose) els.workReviewClose.addEventListener('click', closeWorkReviewEditor);
@@ -12547,7 +14915,11 @@ if (els.mobileRecordsPanel) els.mobileRecordsPanel.addEventListener('click', (ev
   const unitPhoto = event.target.closest('[data-unit-view-photo]');
   if (unitPhoto) { viewUnitPhoto(unitPhoto.dataset.unitViewPhoto); return; }
   const fileButton = event.target.closest('[data-file-id]');
-  if (fileButton) { downloadDeliveryFile(fileButton.dataset.fileId, fileButton); return; }
+  if (fileButton) {
+    if (fileButton.dataset.fileAction === 'open') openDeliveryFile(fileButton.dataset.fileId, fileButton);
+    else downloadDeliveryFile(fileButton.dataset.fileId, fileButton);
+    return;
+  }
   const overButton = event.target.closest('[data-revoke-over]');
   if (overButton) { revokeOverDelivery(overButton.dataset.revokeOver); return; }
   const button = event.target.closest('[data-revoke-offset]');
@@ -12644,6 +15016,36 @@ if (els.replacementSuggest) els.replacementSuggest.addEventListener('click', (ev
   els.replacementQty?.focus();
 });
 if (els.replacementAdd) els.replacementAdd.addEventListener('click', addReplacement);
+if (els.desktopNoOrderOpen) els.desktopNoOrderOpen.addEventListener('click', openNoOrderModal);
+if (els.mobileNoOrderOpen) els.mobileNoOrderOpen.addEventListener('click', openNoOrderModal);
+if (els.noOrderClose) els.noOrderClose.addEventListener('click', closeNoOrderModal);
+if (els.noOrderCancel) els.noOrderCancel.addEventListener('click', closeNoOrderModal);
+if (els.noOrderSearch) els.noOrderSearch.addEventListener('input', renderNoOrderSuggest);
+if (els.noOrderSearch) els.noOrderSearch.addEventListener('focus', renderNoOrderSuggest);
+if (els.noOrderSuggest) els.noOrderSuggest.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-no-order-pick]');
+  if (!button) return;
+  const index = Number(button.dataset.noOrderPick);
+  noOrderPick = Number.isInteger(index) && index >= 0 ? noOrderCandidates[index] : null;
+  if (!noOrderPick) return;
+  if (els.noOrderSearch) els.noOrderSearch.value = noOrderPick.material;
+  if (els.noOrderSuggest) els.noOrderSuggest.hidden = true;
+  setNoOrderManualMode(true);
+  renderNoOrderPicked();
+  syncNoOrderAddState();
+  els.noOrderQty?.focus();
+});
+if (els.noOrderManualOpen) els.noOrderManualOpen.addEventListener('click', () => {
+  setNoOrderManualMode(true, true);
+  syncNoOrderAddState();
+});
+[els.noOrderMaterial, els.noOrderName, els.noOrderSpec, els.noOrderQty].forEach((input) => {
+  if (input) input.addEventListener('input', syncNoOrderAddState);
+});
+if (els.noOrderAdd) els.noOrderAdd.addEventListener('click', addNoOrderToCart);
+if (els.noOrderModal) els.noOrderModal.addEventListener('click', (event) => {
+  if (event.target === els.noOrderModal) closeNoOrderModal();
+});
 
 if (els.photoArchiveOpen) els.photoArchiveOpen.addEventListener('click', openPhotoArchive);
 if (els.photoArchiveClose) els.photoArchiveClose.addEventListener('click', closePhotoArchive);
@@ -12896,21 +15298,21 @@ if (els.mobileRecordsPanel) {
   els.mobileRecordsPanel.addEventListener('input', (event) => {
     if (event.target.id !== 'recordsSearch') return;
     recordsSearch = event.target.value;
-    mobileRecordsVisibleLimit = 5;
-    renderMobileRecords();
+    mobileRecordsVisibleLimit = 20;
+    renderMobileRecords({ resetScroll: true });
   });
   els.mobileRecordsPanel.addEventListener('change', (event) => {
     if (event.target.id !== 'recordsDate') return;
     recordsDate = event.target.value;
-    mobileRecordsVisibleLimit = 5;
-    renderMobileRecords();
+    mobileRecordsVisibleLimit = 20;
+    renderMobileRecords({ resetScroll: true });
   });
   els.mobileRecordsPanel.addEventListener('click', (event) => {
     if (event.target.id !== 'recordsClear') return;
     recordsDate = '';
     if (els.recordsDate) els.recordsDate.value = '';
-    mobileRecordsVisibleLimit = 5;
-    renderMobileRecords();
+    mobileRecordsVisibleLimit = 20;
+    renderMobileRecords({ resetScroll: true });
   });
 }
 
@@ -13028,7 +15430,11 @@ function handleHistoryClick(event) {
   const unitPhoto = event.target.closest('[data-unit-view-photo]');
   if (unitPhoto) { viewUnitPhoto(unitPhoto.dataset.unitViewPhoto); return; }
   const fileButton = event.target.closest('[data-file-id]');
-  if (fileButton) { downloadDeliveryFile(fileButton.dataset.fileId, fileButton); return; }
+  if (fileButton) {
+    if (fileButton.dataset.fileAction === 'open') openDeliveryFile(fileButton.dataset.fileId, fileButton);
+    else downloadDeliveryFile(fileButton.dataset.fileId, fileButton);
+    return;
+  }
   const overButton = event.target.closest('[data-revoke-over]');
   if (overButton) { revokeOverDelivery(overButton.dataset.revokeOver); return; }
   const expand = event.target.closest('[data-expand]');
@@ -13073,7 +15479,11 @@ function handleCloudFileClick(event) {
     return;
   }
   const fileButton = event.target.closest('[data-file-id]');
-  if (fileButton) { downloadDeliveryFile(fileButton.dataset.fileId, fileButton); return; }
+  if (fileButton) {
+    if (fileButton.dataset.fileAction === 'open') openDeliveryFile(fileButton.dataset.fileId, fileButton);
+    else downloadDeliveryFile(fileButton.dataset.fileId, fileButton);
+    return;
+  }
   const delButton = event.target.closest('[data-file-delete]');
   if (delButton) deleteDeliveryFile(delButton.dataset.fileDelete, delButton);
 }
@@ -13110,10 +15520,13 @@ function renderDrawingPreview(id) {
   }
 }
 document.getElementById('drawingPreviewOpen')?.addEventListener('click', () => { if (previewDrawingId) openDrawing(previewDrawingId); });
+if (els.drawingReplaceFile) els.drawingReplaceFile.addEventListener('change', (event) => { const file = event.target.files?.[0]; if (file) void replaceDrawingWithFile(file); });
 document.addEventListener('click', (event) => {
   if (event.target.closest('[data-drawing-more]')) { drawingVisibleLimit += 40; renderDesktopDrawings(); return; }
   const previewButton = event.target.closest('[data-preview-drawing-id]');
   if (previewButton) { event.preventDefault(); renderDrawingPreview(previewButton.dataset.previewDrawingId); return; }
+  const replaceDrawingButton = event.target.closest('[data-replace-drawing-id]');
+  if (replaceDrawingButton) { event.preventDefault(); event.stopPropagation(); requestDrawingReplace(replaceDrawingButton.dataset.replaceDrawingId); return; }
   const drawingButton = event.target.closest('[data-drawing-id]');
   if (drawingButton) {
     event.preventDefault();
@@ -13435,6 +15848,7 @@ function attachElasticTabs(container, itemSelector) {
   let raf = 0;
   let pending = 0;
   let lastTargetKey = '';
+  let motionReady = false;
 
   const applyBox = (left, width, top, height) => {
     indicator.style.left = left + 'px';
@@ -13521,12 +15935,24 @@ function attachElasticTabs(container, itemSelector) {
   };
   const schedule = () => {
     cancelAnimationFrame(pending);
-    pending = requestAnimationFrame(() => { pending = 0; run(); });
+    pending = requestAnimationFrame(() => {
+      pending = 0;
+      if (!motionReady) snap();
+      else run();
+    });
   };
 
   snap();
   const observer = new MutationObserver(schedule);
   observer.observe(container, { attributes: true, attributeFilter: ['class'], subtree: true });
+  if ('ResizeObserver' in window) {
+    const resizeObserver = new ResizeObserver(() => snap());
+    resizeObserver.observe(container);
+    items.forEach((item) => resizeObserver.observe(item));
+  }
+  const settleInitialTabs = () => { snap(); motionReady = true; };
+  if (document.fonts?.ready) document.fonts.ready.then(settleInitialTabs).catch(settleInitialTabs);
+  setTimeout(settleInitialTabs, 900);
   // 只在“位置还没建立/容器刚显示”时直接落位，正常切换交给动画
   const reflow = () => {
     const target = measure();
@@ -13673,30 +16099,4 @@ setInterval(() => { if (document.visibilityState === 'visible') void checkPrintH
 }
 syncMobileStickyOffsets();
 window.addEventListener('resize', syncMobileStickyOffsets);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

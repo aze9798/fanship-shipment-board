@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d7371">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="帆顺科技">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>帆顺科技 · 工作台</title>
+  <link rel="stylesheet" href="portal.css?v=12db4db3bce2">
+  <link rel="stylesheet" href="portal-keypad.css?v=12db4db3bce2">
+  <script>
+    window.PORTAL_RPC_BASE = "https://fanshun-work-d1gkeq1fjef6147a1-1504638929.ap-shanghai.app.tcloudbase.com/rest/v1/rpc";
+    window.PORTAL_DIRECT_RPC_BASE = "https://dkbeigqtiilgxthwkixg.supabase.co/rest/v1/rpc";
+    window.PORTAL_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
+  </script>
+</head>
+<body>
+  <header class="portal-top">
+    <a class="brand" href="./">
+      <span class="brand-mark">FS</span>
+      <span><strong>帆顺科技</strong><small>统一入口</small></span>
+    </a>
+  </header>
+  <main class="portal-main">
+    <section id="loginView" class="login-card">
+      <p class="eyebrow">帆顺科技</p>
+      <h1>工作台登录</h1>
+      <p class="lead">每位员工使用自己的访问码，系统按岗位自动开放对应功能。</p>
+
+      <form id="loginForm" autocomplete="on">
+        <div class="field access-field">
+          <span id="accessCodeLabel">访问码</span>
+          <div class="access-input-row">
+            <input id="accessCode" class="access-code-input" type="text" inputmode="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go" data-lpignore="true" data-1p-ignore="true" aria-labelledby="accessCodeLabel" placeholder="请输入员工或管理员访问码" required>
+            <button id="accessKeypadToggle" class="access-keypad-toggle" type="button">键盘打不开？</button>
+          </div>
+        </div>
+        <section id="accessKeypad" class="access-keypad" aria-label="屏幕键盘" hidden>
+          <div class="access-keypad-head"><strong>屏幕键盘</strong><span id="accessKeypadModeLabel">大写</span><button id="accessKeypadClose" type="button">收起</button></div>
+          <div class="access-keypad-tools"><button type="button" data-keypad-mode="digits">123</button><button type="button" data-keypad-mode="upper">ABC</button><button type="button" data-keypad-mode="lower">abc</button></div>
+          <div id="accessKeypadKeys" class="access-keypad-keys"></div>
+          <div class="access-keypad-actions"><button id="accessKeypadBackspace" type="button">退格</button><button id="accessKeypadClear" type="button">清空</button></div>
+        </section>
+        <button id="loginButton" class="primary" type="submit">登录</button>
+      </form>
+      <p id="loginError" class="error" hidden></p>
+      <p class="hint">第一次使用输入个人访问码；登录成功后会记住这台设备，下次直接进入。</p>
+    </section>
+    <section id="redirectView" class="redirect-card" hidden>
+      <div class="spinner"></div>
+      <h1>正在进入</h1>
+      <p id="redirectHint">正在打开你的工作页面…</p>
+    </section>
+  </main>
+  <footer class="portal-foot">帆顺科技 · 统一入口</footer>
+  <script src="portal.js?v=12db4db3bce2"></script>
+</body>
+</html>

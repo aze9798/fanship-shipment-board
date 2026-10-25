@@ -20,6 +20,7 @@
     { view: 'remaining', label: '未交清单' },
     { view: 'loading',   label: '装车登记' },
     { view: 'shipments', label: '发货记录' },
+    { view: 'reconciliation', label: '月度对账', admin: true },
     { view: 'drawings',  label: '图纸库' },
     { view: 'files',     label: '云端送货单' }
   ];
@@ -51,9 +52,11 @@
     desktopRemainingView: 'remaining',
     desktopLoadingView: 'loading',
     desktopShipmentsView: 'shipments',
+    desktopReconciliationView: 'reconciliation',
     desktopDrawingsView: 'drawings',
     desktopPricesView: 'prices',
     desktopFilesView: 'files',
+    desktopHengView: 'heng',
     desktopWorkReportView: 'workReport',
     desktopWorkReviewView: 'workReview',
     desktopWorkEditView: 'workEdit',
@@ -70,6 +73,8 @@
   const isAdmin = () => document.body.dataset.boardRole === 'admin';
   let mergeView = 'material';    // orders 按采购单 | material 按料号（未交清单默认按料号，日期筛打印就在这里）
   let lastActive = '';
+  let applyBusinessLine = () => {};
+  let mountBusinessDock = () => {};
 
   /* ---------------- ① 搬打印按钮 + ② 建未交明细 ---------------- */
   function mergeEverything() {
@@ -231,17 +236,76 @@
       : '<a href="#" data-tk-view="' + it.view + '"' + (it.admin ? ' data-admin="1"' : '') + '>' +
         '<span class="dot"></span>' + it.label + '</a>';
     el.innerHTML =
-      NAV_MAIN.map(itemHtml).join('') +
-      '<div class="sep"></div>' +
-      '<button type="button" class="tk-more-btn" id="tkMoreBtn" aria-expanded="false">' +
-        '<span class="dot"></span>全部功能<span class="caret">▾</span></button>' +
-      '<div class="tk-more-group" id="tkMoreGroup" hidden>' +
-        NAV_MORE_GROUPS.map((group) =>
-          '<div class="tk-more-label">' + group.label + '</div>' + group.items.map(itemHtml).join('')
-        ).join('') +
+      '<div id="tkAwoyiteNav">' +
+        NAV_MAIN.map(itemHtml).join('') +
+        '<div class="sep"></div>' +
+        '<button type="button" class="tk-more-btn" id="tkMoreBtn" aria-expanded="false">' +
+          '<span class="dot"></span>全部功能<span class="caret">▾</span></button>' +
+        '<div class="tk-more-group" id="tkMoreGroup" hidden>' +
+          NAV_MORE_GROUPS.map((group) =>
+            '<div class="tk-more-label">' + group.label + '</div>' + group.items.map(itemHtml).join('')
+          ).join('') +
+        '</div>' +
+      '</div>' +
+      '<div id="tkHengNav" class="tk-heng-nav" hidden>' +
+        '<a href="#" data-tk-heng-view="pending"><span class="dot"></span>待开单</a>' +
+        '<a href="#" data-tk-heng-view="ledger"><span class="dot"></span>发货清单</a>' +
+        '<a href="#" data-tk-heng-materials="1"><span class="dot"></span>物料归属</a>' +
       '</div>';
 
     nav.insertAdjacentElement('afterend', el);
+
+    const businessDock = document.createElement('div');
+    businessDock.id = 'tkBusinessDock';
+    businessDock.className = 'tk-business-dock';
+    businessDock.hidden = true;
+    businessDock.setAttribute('aria-label', '切换发货端');
+    businessDock.innerHTML =
+      '<span class="business-line-label">发货端</span>' +
+      '<div class="business-line-segment">' +
+        '<button type="button" data-tk-business="awoyite" class="active">艾沃意特</button>' +
+        '<button type="button" data-tk-business="heng">恒怡</button>' +
+      '</div>';
+    el.parentElement?.insertBefore(businessDock, el);
+
+    const awoyiteNav = el.querySelector('#tkAwoyiteNav');
+    const hengNav = el.querySelector('#tkHengNav');
+    applyBusinessLine = (line, navigate = true) => {
+      const selected = line === 'heng' ? 'heng' : 'awoyite';
+      try { localStorage.setItem('shipmentBoardBusinessLine', selected); } catch { }
+      document.body.dataset.businessLine = selected;
+      document.querySelectorAll('[data-tk-business]').forEach((button) => {
+        button.classList.toggle('active', button.dataset.tkBusiness === selected);
+        button.setAttribute('aria-pressed', String(button.dataset.tkBusiness === selected));
+      });
+      if (awoyiteNav) awoyiteNav.hidden = selected !== 'awoyite';
+      if (hengNav) hengNav.hidden = selected !== 'heng';
+      if (!navigate) return;
+      if (selected === 'heng') {
+        if (typeof window.tkOpenHengDesktop === 'function') window.tkOpenHengDesktop('pending');
+        else document.getElementById('desktopHengLink')?.click();
+      } else {
+        goView('overview');
+      }
+    };
+
+    businessDock.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-tk-business]');
+      if (!button) return;
+      event.preventDefault();
+      applyBusinessLine(button.dataset.tkBusiness, true);
+    });
+    const shipmentLineViews = new Set(['overview', 'remaining', 'loading', 'shipments', 'files', 'reconciliation', 'heng']);
+    mountBusinessDock = (view) => {
+      const viewEl = document.querySelector('.desktop-view:not([hidden])');
+      const titleBlock = viewEl?.querySelector(':scope > .topbar > div');
+      if (!titleBlock || !shipmentLineViews.has(view)) {
+        businessDock.hidden = true;
+        return;
+      }
+      businessDock.hidden = false;
+      if (businessDock.parentElement !== titleBlock) titleBlock.insertBefore(businessDock, titleBlock.firstChild);
+    };
 
     const btn = el.querySelector('#tkMoreBtn');
     const group = el.querySelector('#tkMoreGroup');
@@ -256,11 +320,36 @@
     });
 
     el.addEventListener('click', (e) => {
+      const business = e.target.closest('[data-tk-business]');
+      if (business) {
+        e.preventDefault();
+        applyBusinessLine(business.dataset.tkBusiness, true);
+        return;
+      }
+      const hengView = e.target.closest('[data-tk-heng-view]');
+      if (hengView) {
+        e.preventDefault();
+        if (typeof window.tkOpenHengDesktop === 'function') window.tkOpenHengDesktop(hengView.dataset.tkHengView);
+        else document.getElementById('desktopHengLink')?.click();
+        return;
+      }
+      if (e.target.closest('[data-tk-heng-materials]')) {
+        e.preventDefault();
+        if (typeof window.tkOpenHengMaterials === 'function') window.tkOpenHengMaterials();
+        return;
+      }
       const a = e.target.closest('[data-tk-view]');
       if (!a) return;
       e.preventDefault();
       goView(a.dataset.tkView);
     });
+    try {
+      if (localStorage.getItem('shipmentBoardBusinessLine') === 'heng') {
+        setTimeout(() => applyBusinessLine('heng', true), 0);
+      } else {
+        applyBusinessLine('awoyite', false);
+      }
+    } catch { applyBusinessLine('awoyite', false); }
 
     applyRoleVisibility();
     // 角色是异步识别的，识别出来后再刷一次
@@ -431,6 +520,7 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   function goView(view) {
+    applyBusinessLine('awoyite', false);
     if (view === 'remaining') { openRemainingPage(); return; }
     if (view === 'work') {
       const l = document.querySelector('.side-link[data-desktop-view="workReport"]');
@@ -454,6 +544,8 @@
   function paintActiveView() {
     const shown = [...document.querySelectorAll('.desktop-view')].find((s) => !s.hidden);
     const view = shown ? (SECTION_TO_VIEW[shown.id] || '') : '';
+    mountBusinessDock(view);
+    if (view) applyBusinessLine(view === 'heng' ? 'heng' : 'awoyite', false);
     if (view === lastActive) return;
     lastActive = view;
     paintWorkTabs(view);

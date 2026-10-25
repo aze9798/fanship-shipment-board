@@ -14,7 +14,7 @@
     window.SHIPMENT_DIRECT_RPC_BASE = "https://dkbeigqtiilgxthwkixg.supabase.co/rest/v1/rpc";
     window.SHIPMENT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrYmVpZ3F0aWlsZ3h0aHdraXhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNjE1MDEsImV4cCI6MjEwNTYzNzUwMX0.RMMX6twkBi6PuudvCBWdrUjZXhmhu3ZAtvXfIe6-03s";
   </script>
-  <link rel="stylesheet" href="./app.css?v=5a016a985cd1">
+  <link rel="stylesheet" href="./app.css?v=12db4db3bce2">
   <link rel="manifest" href="manifest.webmanifest">
 <!-- 新增：设计 token 层 + 界面细节增强 + Ui 主题（不满意就删掉这几行 <link> 和页面底部的 ui-polish.js） -->
 <!-- 外协/库存/采购/质量的样式与脚本不在这里加载：打开对应页面时才按需加载（首屏少 8 个请求） -->
@@ -198,6 +198,10 @@
           <span class="nav-dot"></span>
           发货记录
         </a>
+        <a id="desktopReconciliationLink" class="side-link" href="#reconciliation" data-desktop-view="reconciliation" data-module="shipment">
+          <span class="nav-dot"></span>
+          月度对账
+        </a>
         <a class="side-link" href="#drawings" data-desktop-view="drawings" data-module="shipment">
           <span class="nav-dot"></span>
           图纸库
@@ -209,6 +213,10 @@
         <a class="side-link" href="#delivery-files" data-desktop-view="files" data-module="shipment">
           <span class="nav-dot"></span>
           云端送货单
+        </a>
+        <a id="desktopHengLink" class="side-link heng-side-link" href="#heng">
+          <span class="nav-dot"></span>
+          恒怡发货
         </a>
         <a id="desktopWorkReportLink" class="side-link" href="#work-report" data-desktop-view="workReport" data-module="work" hidden>
           <span class="nav-dot"></span>
@@ -456,6 +464,93 @@
         </section>
       </section>
 
+      <section id="desktopReconciliationView" class="desktop-view desktop-only" hidden>
+        <header class="topbar reconciliation-topbar">
+          <div>
+            <p class="eyebrow">月度对账 · 对账后默认开票</p>
+            <h1>月度对账开票</h1>
+          </div>
+          <div class="topbar-actions reconciliation-tools">
+            <label class="reconciliation-field"><span>月份</span><input id="reconciliationMonth" type="month" lang="zh-CN"></label>
+            <label class="reconciliation-field"><span>对账发货截止日</span><input id="reconciliationCutoff" type="date" lang="zh-CN"></label>
+            <label class="reconciliation-field"><span>公司</span>
+              <select id="reconciliationCompany">
+                <option value="4137" selected>帆顺金属科技 4137</option>
+                <option value="4074">帆顺金属 4074（历史完结）</option>
+              </select>
+            </label>
+            <label class="reconciliation-field"><span>状态</span>
+              <select id="reconciliationStatusFilter">
+                <option value="all">全部</option>
+                <option value="pending">待对账</option>
+                <option value="reconciled">已对账</option>
+              </select>
+            </label>
+            <button id="reconciliationExport" class="button ghost" type="button">导出本月</button>
+          </div>
+        </header>
+        <section class="panel reconciliation-panel">
+          <div id="reconciliationClosedNote" class="reconciliation-closed-note" hidden>
+            <strong>4074 老公司已全部完结</strong>
+            <span>最后一笔发货为 2026-10-15，全部已对账；后续不再进入月度对账。</span>
+          </div>
+          <div class="reconciliation-summary-grid">
+            <article><span>本月发货金额</span><strong id="reconciliationMonthAmount">--</strong><small id="reconciliationMonthMeta">--</small></article>
+            <article class="is-done"><span>本月已对账金额</span><strong id="reconciliationDoneAmount">--</strong><small id="reconciliationDoneMeta">--</small></article>
+            <article class="is-pending"><span>本月待对账金额</span><strong id="reconciliationPendingAmount">--</strong><small id="reconciliationPendingMeta">--</small></article>
+            <article class="is-total"><span>合计未开票金额</span><strong id="reconciliationUnbilledAmount">--</strong><small id="reconciliationUnbilledMeta">--</small></article>
+          </div>
+          <div id="reconciliationPriceWarning" class="reconciliation-price-warning" hidden></div>
+          <div class="reconciliation-table-head">
+            <div>
+              <h2>物料对账汇总</h2>
+              <p>按料号＋品名合并；已对账默认视为已开票。</p>
+            </div>
+            <div id="reconciliationSummaryText" class="reconciliation-summary-text"></div>
+          </div>
+          <div class="table-wrap reconciliation-table-wrap">
+            <table class="reconciliation-table">
+              <thead>
+                <tr>
+                  <th>状态</th>
+                  <th>料号</th>
+                  <th>品名</th>
+                  <th>规格</th>
+                  <th class="number">本月发货</th>
+                  <th class="number">已对账</th>
+                  <th class="number">待对账</th>
+                  <th class="number">含税单价</th>
+                  <th class="number">本月金额</th>
+                  <th class="number">待对账金额</th>
+                  <th>发货日期</th>
+                  <th>送货单号</th>
+                </tr>
+              </thead>
+              <tbody id="reconciliationTableBody"></tbody>
+            </table>
+            <div id="reconciliationEmpty" class="empty-state" hidden>
+              <strong>这个月没有符合条件的物料</strong>
+              <span>切换月份、公司或状态后再看。</span>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section id="desktopHengView" class="desktop-view desktop-only" hidden>
+        <header class="topbar heng-topbar">
+          <div>
+            <p class="eyebrow">独立客户发货 · 手机确认装车</p>
+            <h1>恒怡发货</h1>
+          </div>
+          <div class="topbar-actions">
+            <button id="hengMaterialAdminOpen" class="button ghost" type="button">物料归属</button>
+            <button id="hengRefreshPending" class="button ghost" type="button">刷新待开单</button>
+            <button id="hengGenerateDelivery" class="button heng-entry-button" type="button">生成送货单</button>
+          </div>
+        </header>
+        <div id="hengDesktopContent"></div>
+      </section>
+
       <section id="desktopDrawingsView" class="desktop-view desktop-only" hidden>
         <header class="topbar drawings-topbar">
           <div>
@@ -550,6 +645,7 @@
             <h1>装车登记</h1>
           </div>
           <div class="topbar-actions">
+            <button id="desktopNoOrderOpen" class="button ghost" type="button">无订单发货</button>
             <button id="desktopLoadingRefresh" class="button ghost" type="button">刷新未交</button>
           </div>
         </header>
@@ -855,17 +951,9 @@
       <section id="mobileView" class="mobile-view mobile-only">
         <header class="mobile-head">
           <div class="mobile-fab-slot">
-          <div id="mobileModuleSwitch" class="mobile-fab" role="button" tabindex="0" aria-expanded="false" title="切换装车登记 / 报工审核">
-            <span class="mobile-fab-mark">帆顺</span>
-            <div id="mobileModuleMenu" class="mobile-fab-sheet">
-              <p class="mobile-fab-title">切换模块</p>
-              <button type="button" data-mobile-module="entry" style="--i:1"><b>发货管理</b><small>搜索物料、登记装车</small></button>
-              <button type="button" data-mobile-module="workReview" style="--i:2"><b>计时计件报工</b><small>报工明细 · 审核 · 月度</small></button>
-              <button type="button" data-mobile-module="attendance" style="--i:3"><b>考勤管理</b><small>考勤汇总 · 补卡审核</small></button>
-              <button type="button" data-mobile-module="staffInfo" style="--i:4"><b>员工信息</b><small>员工档案 · 工资标准</small></button>
-              <button type="button" data-mobile-module="payroll" style="--i:5"><b>工资</b><small>月度工资 · 历史导入</small></button>
-            </div>
-          </div>
+            <button id="mobileModuleSwitch" class="mobile-line-trigger" type="button" aria-expanded="false" aria-label="切换发货端" title="切换发货端">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7h10m0 0-3-3m3 3-3 3M17 17H7m0 0 3 3m-3-3 3-3"/></svg>
+            </button>
           </div>
           <div class="mobile-brand-text">
             <strong id="mobileBrandTitle">帆顺科技</strong>
@@ -873,13 +961,51 @@
             <span id="mobileLiveLabel">正在连接</span>
           </div>
           <div class="mobile-head-actions">
-            <button id="mobileRefresh" class="icon-button" type="button" aria-label="刷新数据">↻</button>
-            <button id="mobileSwitchCode" class="icon-button" type="button" aria-label="切换访问码" title="切换访问码">🔑</button>
+            <button id="mobileRefresh" class="icon-button" type="button" aria-label="刷新数据">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 6.1M20 4v7h-7"/></svg>
+            </button>
+            <button id="mobileSwitchCode" class="icon-button" type="button" aria-label="切换访问码" title="切换访问码">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="8" cy="15" r="3"/><path d="m10.2 12.8 7.3-7.3M15 8l2 2M17 6l2 2"/></svg>
+            </button>
           </div>
         </header>
 
+        <div id="mobileModuleBackdrop" class="mobile-module-backdrop" aria-hidden="true"></div>
+        <section id="mobileModuleMenu" class="mobile-module-sheet" role="dialog" aria-modal="true" aria-label="切换发货端" aria-hidden="true">
+          <span class="mobile-sheet-grip" aria-hidden="true"></span>
+          <div class="mobile-module-sheet-head">
+            <div><small>发货端</small><h2>切换发货端</h2></div>
+            <button id="mobileModuleClose" type="button">关闭</button>
+          </div>
+          <div class="mobile-line-options">
+            <button type="button" data-mobile-business="awoyite" class="active" aria-pressed="true">
+              <span class="mobile-line-mark"></span>
+              <span class="mobile-line-copy"><b>艾沃意特</b><small>现有发货端</small></span>
+              <span class="mobile-line-check" aria-hidden="true">✓</span>
+            </button>
+            <button type="button" data-mobile-business="heng" aria-pressed="false">
+              <span class="mobile-line-mark"></span>
+              <span class="mobile-line-copy"><b>恒怡</b><small>独立客户发货</small></span>
+              <span class="mobile-line-check" aria-hidden="true">✓</span>
+            </button>
+          </div>
+          <div id="mobileAdminModuleSection" class="mobile-admin-module-section">
+            <p class="mobile-module-section-title">管理功能</p>
+            <div class="mobile-admin-module-grid">
+              <button type="button" data-mobile-module="workReview" data-mobile-admin="1"><b>报工</b><small>审核 · 月度</small></button>
+              <button type="button" data-mobile-module="attendance" data-mobile-admin="1"><b>考勤</b><small>汇总 · 补卡</small></button>
+              <button type="button" data-mobile-module="staffInfo" data-mobile-admin="1"><b>员工</b><small>档案 · 标准</small></button>
+              <button type="button" data-mobile-module="payroll" data-mobile-admin="1"><b>工资</b><small>计算 · 汇总</small></button>
+            </div>
+          </div>
+        </section>
 
-        <nav class="mobile-tabs" aria-label="手机功能">
+        <nav id="mobileHengTabs" class="mobile-tabs mobile-heng-tabs" aria-label="恒怡功能" hidden>
+          <button class="mobile-tab active" data-heng-mobile-tab="loading" type="button">装车确认</button>
+          <button class="mobile-tab" data-heng-mobile-tab="pending" type="button">待开单</button>
+          <button class="mobile-tab" data-heng-mobile-tab="ledger" type="button">发货清单</button>
+        </nav>
+        <nav id="mobileMainTabs" class="mobile-tabs mobile-main-tabs" aria-label="手机功能">
           <button class="mobile-tab active" data-tab="entry" type="button">装车登记</button>
           <button class="mobile-tab" data-tab="remaining" type="button">未交清单</button>
           <button class="mobile-tab" data-tab="records" type="button">发货记录</button>
@@ -894,6 +1020,7 @@
             </label>
             <div id="mobileSuggest" class="suggest-list" hidden></div>
             <button id="replacementOpen" class="button ghost replacement-open" type="button">补发</button>
+            <button id="mobileNoOrderOpen" class="button ghost no-order-open" type="button">无订单发货</button>
             <div id="replacementBox" class="replacement-box" hidden>
               <div class="replacement-head">
                 <strong>补发登记</strong>
@@ -992,6 +1119,9 @@
             </div>
           </div>
           <div id="mobileCloudFileList"></div>
+        </section>
+        <section id="mobileHengPanel" class="mobile-panel" hidden>
+          <div id="mobileHengContent"></div>
         </section>
 
         <section id="cartDetail" class="cart-detail" hidden></section>
@@ -1135,7 +1265,36 @@
     </main>
   </div>
 
-  <div id="submitModal" class="modal-backdrop" hidden>
+  <div id="noOrderModal" class="modal-backdrop" hidden>
+    <section class="modal-card no-order-card" role="dialog" aria-modal="true" aria-labelledby="noOrderTitle">
+      <div class="modal-head">
+        <div><p class="eyebrow">提前送货 · 暂无未交订单</p><h2 id="noOrderTitle">录入无订单发货</h2></div>
+        <button id="noOrderClose" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <p class="import-warning">用于货已经先送、但当前没有未交订单的情况。录入后进入“无订单发货记录”，以后出现同料号订单再冲抵，不会直接扣减现有订单。</p>
+      <label class="no-order-search">
+        <span>搜索历史产品</span>
+        <input id="noOrderSearch" type="search" placeholder="输入料号、品名或规格，例如 4012 / 三节臂" autocomplete="off">
+      </label>
+      <div id="noOrderSuggest" class="suggest-list no-order-suggest" hidden></div>
+      <div id="noOrderPicked" class="no-order-picked" hidden></div>
+      <div id="noOrderManual" class="no-order-manual" hidden>
+        <label><span>料件编号 *</span><input id="noOrderMaterial" type="text" autocomplete="off"></label>
+        <label><span>品名</span><input id="noOrderName" type="text" autocomplete="off"></label>
+        <label><span>规格 / 图号</span><input id="noOrderSpec" type="text" autocomplete="off"></label>
+      </div>
+      <div class="no-order-form">
+        <label><span>本次送货数量 *</span><input id="noOrderQty" type="number" min="1" step="1" inputmode="decimal" placeholder="例如 327"></label>
+        <label><span>备注</span><input id="noOrderRemark" type="text" placeholder="例如：提前送喷涂厂"></label>
+      </div>
+      <div id="noOrderHint" class="no-order-hint">先搜索并选择产品；找不到的历史产品可以手工填写。</div>
+      <div class="modal-actions">
+        <button id="noOrderManualOpen" class="button ghost" type="button">手工填写</button>
+        <button id="noOrderCancel" class="button ghost" type="button">取消</button>
+        <button id="noOrderAdd" class="button primary" type="button" disabled>加入本次装车</button>
+      </div>
+    </section>
+  </div>  <div id="submitModal" class="modal-backdrop" hidden>
     <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="submitTitle">
       <div class="modal-head">
         <div>
@@ -1262,6 +1421,7 @@
     </section>
   </div>
   <input id="pdfFileInput" type="file" accept="application/pdf,.pdf,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden>
+  <input id="drawingReplaceFile" type="file" accept="application/pdf,.pdf" hidden>
   <div id="pdfModal" class="modal-backdrop" hidden>
     <section class="modal-card" role="dialog" aria-modal="true">
       <div class="modal-head">
@@ -1522,15 +1682,47 @@
       <div class="modal-actions"><button id="photoViewerDelete" class="button ghost danger-text" type="button">删除</button><button id="photoViewerRetake" class="button primary" type="button">再拍一张</button></div>
     </section>
   </div>
+  <div id="hengLabelSelectModal" class="modal-backdrop" hidden>
+    <section class="modal-card heng-label-select-card" role="dialog" aria-modal="true" aria-labelledby="hengLabelSelectTitle">
+      <div class="modal-head"><div><p class="eyebrow">电脑端标签打印</p><h2 id="hengLabelSelectTitle">选择需要打印标签的物料</h2></div></div>
+      <p class="heng-modal-note">默认每项 1 份，可修改份数。超过 8 份自动按 A4 分页。</p>
+      <div id="hengLabelSelectionList" class="heng-label-selection-list"></div>
+      <div class="modal-actions"><button id="hengSkipLabels" class="button ghost" type="button">跳过标签</button><button id="hengPrintSelectedLabels" class="button primary" type="button">打印所选标签</button></div>
+    </section>
+  </div>
+  <div id="hengPackagingReviewModal" class="modal-backdrop" hidden>
+    <section class="modal-card heng-packaging-review-card" role="dialog" aria-modal="true" aria-labelledby="hengPackagingReviewTitle">
+      <div class="modal-head"><div><p class="eyebrow">包装确认</p><h2 id="hengPackagingReviewTitle">送货数量已修改</h2></div></div>
+      <p class="heng-modal-note">包装总数是否同步修改？原包装会保留，但必须重新确认后才能完成装车。</p>
+      <div class="modal-actions">
+        <button id="hengCancelPackaging" class="button ghost" type="button">取消修改</button>
+        <button id="hengKeepPackaging" class="button ghost" type="button">保持原包装并重新确认</button>
+        <button id="hengModifyPackaging" class="button primary" type="button">修改包装</button>
+      </div>
+    </section>
+  </div>
+  <div id="hengMaterialAdminModal" class="modal-backdrop" hidden>
+    <section class="modal-card heng-material-admin-card" role="dialog" aria-modal="true" aria-labelledby="hengMaterialAdminTitle">
+      <div class="modal-head">
+        <div><p class="eyebrow">恒怡物料</p><h2 id="hengMaterialAdminTitle">设置适用客户</h2></div>
+        <button id="hengMaterialAdminClose" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <p class="heng-modal-note">一个物料可以同时供圣世杰、宝海或博戈使用。未设置客户归属的物料不会出现在手机发货列表。</p>
+      <input id="hengMaterialAdminSearch" class="heng-modal-search" type="search" placeholder="搜索物料编号 / 名称 / 图号" autocomplete="off">
+      <div id="hengMaterialAdminList" class="heng-material-admin-list"></div>
+      <div class="modal-actions"><button id="hengMaterialAdminDone" class="button primary" type="button">完成</button></div>
+    </section>
+  </div>
   <div id="taskStatusBar" class="task-status-bar" hidden>
     <span id="taskStatusText"></span>
     <button id="taskStatusAction" type="button" hidden></button>
     <button id="taskStatusClose" class="task-status-close" type="button" aria-label="关闭">×</button>
   </div>
   <div id="toast" class="toast" hidden></div>
+  <script src="heng-core.js?v=12db4db3bce2"></script>
     <script>
     (() => {
-      const fallbackVersion = "5a016a985cd1";
+      const fallbackVersion = "12db4db3bce2";
       const stylesheet = document.querySelector('link[href*="app.css"]');
       const start = (version) => {
         const safeVersion = encodeURIComponent(version || fallbackVersion);
@@ -1563,33 +1755,20 @@
         .catch(() => start(fallbackVersion));
     })();
   </script>
-  <script src="ui-polish.js?v=5a016a985cd1" defer></script>
-  <script src="dashboard-home.js?v=5a016a985cd1" defer></script>
+  <script src="ui-polish.js?v=12db4db3bce2" defer></script>
+  <script src="dashboard-home.js?v=12db4db3bce2" defer></script>
 
-  <script src="home-merge.js?v=5a016a985cd1" defer></script>
-  <script src="global-search.js?v=5a016a985cd1" defer></script>
-  <script src="work-rates.js?v=5a016a985cd1" defer></script>
-  <script src="drawing-rotate.js?v=5a016a985cd1" defer></script>
-  <script src="drawing-open.js?v=5a016a985cd1" defer></script>
-  <script src="partners.js?v=5a016a985cd1" defer></script>
-  <script src="staff-v2.js?v=5a016a985cd1" defer></script>
-  <script src="po-print.js?v=5a016a985cd1" defer></script>
-  <script src="col-resize-fix.js?v=5a016a985cd1" defer></script>
-  <script src="work-split.js?v=5a016a985cd1" defer></script>
-  <script src="hint-clean.js?v=5a016a985cd1" defer></script>
-  <script src="sidebar-tidy.js?v=5a016a985cd1" defer></script>
+  <script src="home-merge.js?v=12db4db3bce2" defer></script>
+  <script src="global-search.js?v=12db4db3bce2" defer></script>
+  <script src="work-rates.js?v=12db4db3bce2" defer></script>
+  <script src="drawing-rotate.js?v=12db4db3bce2" defer></script>
+  <script src="drawing-open.js?v=12db4db3bce2" defer></script>
+  <script src="partners.js?v=12db4db3bce2" defer></script>
+  <script src="staff-v2.js?v=12db4db3bce2" defer></script>
+  <script src="po-print.js?v=12db4db3bce2" defer></script>
+  <script src="col-resize-fix.js?v=12db4db3bce2" defer></script>
+  <script src="work-split.js?v=12db4db3bce2" defer></script>
+  <script src="hint-clean.js?v=12db4db3bce2" defer></script>
+  <script src="sidebar-tidy.js?v=12db4db3bce2" defer></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -1,0 +1,13 @@
+.access-input-row { display:grid; gap:8px; }
+.access-code-input { -webkit-text-security:disc; text-security:disc; letter-spacing:.08em; }
+.access-keypad-toggle { min-height:44px; padding:0 14px; border:1px solid #b9ccca; border-radius:11px; background:#f5f9f8; color:#0d7371; font-size:13px; font-weight:800; }
+.access-keypad { padding:12px; border:1px solid #cfdedb; border-radius:14px; background:#f7fbfa; }
+.access-keypad-head,.access-keypad-tools,.access-keypad-actions { display:flex; align-items:center; gap:8px; }
+.access-keypad-head { justify-content:space-between; color:var(--ink); font-size:13px; }
+.access-keypad-head span { color:var(--muted); font-size:11px; margin-left:auto; }
+.access-keypad-head button,.access-keypad-tools button,.access-keypad-actions button { min-height:40px; padding:0 12px; border:1px solid #cfdedb; border-radius:9px; background:#fff; color:var(--ink); font-size:12px; font-weight:800; }
+.access-keypad-tools { margin-top:10px; }
+.access-keypad-keys { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:6px; margin-top:10px; }
+.access-keypad-keys button { min-height:44px; border:1px solid #c6d8d4; border-radius:9px; background:#fff; color:var(--ink); font-size:16px; font-weight:800; touch-action:manipulation; }
+.access-keypad-keys button:active,.access-keypad-toggle:active { background:#e3f2ef; }
+.access-keypad-actions { justify-content:flex-end; margin-top:10px; }
